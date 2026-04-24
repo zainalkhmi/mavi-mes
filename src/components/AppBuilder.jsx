@@ -1036,89 +1036,80 @@ const COMPONENT_TYPES = {
 
 
 const CATEGORIZED_COMPONENTS = {
-    USER_INTERFACE: {
-        label: 'User Interface',
+    // 1. All visible UI widgets - inputs, displays, pickers
+    INTERFACE: {
+        label: 'Interface',
         icon: MousePointer2,
         color: '#3b82f6',
-        types: ['BUTTON', 'CHECKBOX', 'DATE_PICKER', 'IMAGE', 'TEXT', 'LIST_PICKER', 'LIST_VIEW', 'NOTIFIER', 'PASSWORD_TEXT', 'SLIDER', 'DROPDOWN', 'BOOLEAN_TOGGLE', 'TEXT_INPUT', 'DATETIME_PICKER', 'EMBED_WEB', 'FILE_PICKER', 'IMAGE_PICKER', 'SIGNATURE_PAD', 'SIGNATURE', 'MULTI_SELECT', 'CUSTOM_WIDGET']
+        types: [
+            'BUTTON', 'TEXT', 'TEXT_INPUT', 'PASSWORD_TEXT', 'BOOLEAN_TOGGLE', 'CHECKBOX',
+            'SLIDER', 'DROPDOWN', 'MULTI_SELECT', 'LIST_PICKER', 'LIST_VIEW',
+            'DATE_PICKER', 'DATETIME_PICKER', 'IMAGE', 'EMBED_WEB', 'VIDEO_PLAYER',
+            'FILE_PICKER', 'IMAGE_PICKER', 'SIGNATURE_PAD', 'SIGNATURE',
+            'NOTIFIER', 'CUSTOM_WIDGET'
+        ]
     },
-    TABLES: {
-        label: 'Tables & Records',
-        icon: Table,
+    // 2. Tables, records, storage
+    DATA: {
+        label: 'Data',
+        icon: Database,
         color: '#10b981',
-        types: ['INTERACTIVE_TABLE', 'TABLE_AGGREGATION', 'RECORD_DISPLAY']
+        types: [
+            'INTERACTIVE_TABLE', 'TABLE_AGGREGATION', 'RECORD_DISPLAY',
+            'CLOUD_DB', 'TINY_DB', 'TINY_WEB_DB', 'DATA_FILE', 'FILE', 'SPREADSHEET'
+        ]
     },
-
+    // 3. Charts and Maps together
+    CHARTS_MAPS: {
+        label: 'Charts & Maps',
+        icon: BarChart2,
+        color: '#8b5cf6',
+        types: [
+            'CHART', 'CHART_DATA_2D', 'TRENDLINE', 'ANOMALY_DETECTION', 'REGRESSION',
+            'MAP', 'MARKER', 'CIRCLE', 'POLYGON', 'RECTANGLE', 'LINE_STRING', 'FEATURE_COLLECTION', 'NAVIGATION'
+        ]
+    },
+    // 4. Shapes via ShapePicker + Drawing
+    SHAPES: {
+        label: 'Shapes',
+        icon: Shapes,
+        color: '#f59e0b',
+        types: ['CANVAS', 'BALL', 'IMAGE_SPRITE']
+    },
+    // 5. Camera, audio, media
     MEDIA: {
         label: 'Media',
         icon: Music,
         color: '#ec4899',
         types: ['CAMERA', 'CAMCORDER', 'PLAYER', 'SOUND', 'SOUND_RECORDER', 'SPEECH_RECOGNIZER', 'TEXT_TO_SPEECH', 'VIDEO_PLAYER']
     },
-    SHAPES: {
-        label: 'Shapes',
-        icon: Shapes,
-        color: '#f59e0b',
-        types: []
-    },
+    // 6. Device sensors
     SENSORS: {
         label: 'Sensors',
         icon: Activity,
         color: '#ef4444',
         types: ['ACCELEROMETER', 'BARCODE_SCANNER', 'BAROMETER', 'CLOCK', 'GYROSCOPE_SENSOR', 'HYGROMETER', 'LIGHT_SENSOR', 'LOCATION_SENSOR', 'MAGNETIC_FIELD_SENSOR', 'NEAR_FIELD', 'ORIENTATION_SENSOR', 'PEDOMETER', 'PROXIMITY_SENSOR', 'THERMOMETER']
     },
-    STORAGE: {
-        label: 'Storage',
-        icon: Database,
-        color: '#10b981',
-        types: ['CLOUD_DB', 'DATA_FILE', 'FILE', 'SPREADSHEET', 'TINY_DB', 'TINY_WEB_DB']
-    },
-
-    MAPS: {
-        label: 'Maps',
-        icon: MapIcon,
-        color: '#f59e0b',
-        types: ['MAP', 'MARKER', 'CIRCLE', 'POLYGON', 'RECTANGLE', 'LINE_STRING', 'FEATURE_COLLECTION', 'NAVIGATION']
-    },
-    DATA_SCIENCE: {
-        label: 'Data Science',
-        icon: Sparkles,
-        color: '#8b5cf6',
-        types: ['ANOMALY_DETECTION', 'REGRESSION']
-    },
-    SOCIAL: {
-        label: 'Social',
-        icon: Share2,
-        color: '#f43f5e',
-        types: ['CONTACT_PICKER', 'EMAIL_PICKER', 'PHONE_CALL', 'PHONE_NUMBER_PICKER', 'SHARING', 'TEXTING']
-    },
+    // 7. Network, social, Bluetooth
     CONNECTIVITY: {
         label: 'Connectivity',
         icon: Wifi,
-        color: '#008784',
-        types: ['ACTIVITY_STARTER', 'BLUETOOTH_CLIENT', 'BLUETOOTH_SERVER', 'SERIAL', 'WEB']
-    },
-    CHARTS: {
-        label: 'Charts',
-        icon: BarChart2,
-        color: '#8b5cf6',
-        types: ['CHART', 'CHART_DATA_2D', 'TRENDLINE']
-    },
-    EMBEDDED_WIDGETS: {
-        label: 'Embedded Widgets',
-        icon: LayoutDashboard,
         color: '#0ea5e9',
         types: [
-            'ANALYTIC', 'IMAGE', 'VIDEO', 'DOCUMENT', 'AI_CHAT', 'CAD_VIEWER', 'WEBPAGE',
-            'GAUGE', 'GRID', 'MACHINE_ATTRIBUTE', 'MACHINE_STATUS', 'MACHINE_TIMELINE',
-            'INTERACTIVE_TABLE', 'BARCODE', 'STEP_TIME'
+            'ACTIVITY_STARTER', 'BLUETOOTH_CLIENT', 'BLUETOOTH_SERVER', 'SERIAL', 'WEB',
+            'CONTACT_PICKER', 'EMAIL_PICKER', 'PHONE_CALL', 'PHONE_NUMBER_PICKER', 'SHARING', 'TEXTING'
         ]
     },
-    DRAWING_ANIMATION: {
-        label: 'Drawing and Animation',
-        icon: PenTool,
-        color: '#f43f5e',
-        types: ['CANVAS', 'BALL', 'IMAGE_SPRITE']
+    // 8. Embedded Widgets
+    EMBEDDED_WIDGETS: {
+        label: 'Embedded',
+        icon: LayoutDashboard,
+        color: '#6366f1',
+        types: [
+            'ANALYTIC', 'VIDEO', 'DOCUMENT', 'AI_CHAT', 'CAD_VIEWER', 'WEBPAGE',
+            'GAUGE', 'GRID', 'MACHINE_ATTRIBUTE', 'MACHINE_STATUS', 'MACHINE_TIMELINE',
+            'BARCODE', 'STEP_TIME'
+        ]
     }
 };
 
@@ -5308,15 +5299,22 @@ const AppBuilder = () => {
         const baseName = typeDef?.label || resolvedTypeId;
         const uniqueName = getUniqueWidgetName(baseName);
 
+        const canvasPreset = DEVICE_PRESETS[previewDevice] || DEVICE_PRESETS.RESPONSIVE;
+        const canvasWidth = canvasPreset.width || 360; 
+        const canvasHeight = canvasPreset.height || 640;
+
+        const widgetW = typeDef?.defaultSize?.w || 160;
+        const widgetH = typeDef?.defaultSize?.h || 48;
+
         const newComp = {
             id: `comp_${Date.now()}`,
             name: uniqueName,
             displayName: baseName,
             type: resolvedTypeId,
-            x: 50,
-            y: 50,
-            w: typeDef?.defaultSize?.w || 160,
-            h: typeDef?.defaultSize?.h || 48,
+            x: Math.round((canvasWidth / 2) - (widgetW / 2)),
+            y: 20, // Positioned at the top center
+            w: widgetW,
+            h: widgetH,
             props: { ...typeDef?.defaultProps, ...restOverrideProps },
             logic: { xml: null, code: '' }
         };
@@ -5327,9 +5325,11 @@ const AppBuilder = () => {
             const existingCanvas = currentComps.find(c => c.type === 'CANVAS');
             if (existingCanvas) {
                 newComp.parentId = existingCanvas.id;
-                // If parented, its X/Y should be local to canvas (default center)
-                newComp.x = 20;
-                newComp.y = 20;
+                // Center within parent CANVAS (assuming it uses its default or current 320x320 size)
+                const canvasCompDef = COMPONENT_TYPES['CANVAS'];
+                const cW = existingCanvas.w || canvasCompDef?.defaultSize?.w || 320;
+                newComp.x = Math.round((cW / 2) - (widgetW / 2));
+                newComp.y = 20; // Top center within the canvas
             }
         }
 
@@ -9273,17 +9273,15 @@ const AppBuilder = () => {
                     <div
                         data-widget-palette-root
                         style={{
-                            flex: 1,
-                            minWidth: 0,
-                            overflowX: 'visible',
+                            position: 'absolute',
+                            left: '50%',
+                            top: '50%',
+                            transform: 'translate(-50%, -50%)',
                             display: 'flex',
                             gap: '4px',
-                            justifyContent: 'flex-start',
+                            justifyContent: 'center',
                             alignItems: 'center',
-                            paddingRight: '210px',
-                            position: 'relative',
                             zIndex: 100,
-                            WebkitOverflowScrolling: 'touch'
                         }}>
                         {Object.entries(CATEGORIZED_COMPONENTS).map(([catKey, category]) => (
                             <div
