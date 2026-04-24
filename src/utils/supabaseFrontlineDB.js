@@ -1,16 +1,21 @@
 import { getSupabaseClient } from './supabaseManualDB.js';
 
 export async function getTables() {
-    const supabase = getSupabaseClient();
-    const { data, error } = await supabase
-        .from('app_tables')
-        .select('*')
-        .order('name');
-    if (error) {
-        if (error.code === '42P01') return [];
-        throw error;
+    try {
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase
+            .from('app_tables')
+            .select('*')
+            .order('name');
+        if (error) {
+            if (error.code === '42P01') return [];
+            throw error;
+        }
+        return data || [];
+    } catch (err) {
+        console.warn('[Offline Mode] getTables fallback to empty');
+        return [];
     }
-    return data || [];
 }
 
 /**
@@ -45,25 +50,25 @@ export async function getAllFrontlineApps() {
             return app;
         });
 
-        // Save successfully fetched apps to offline cache
-        if (typeof window !== 'undefined') {
+        // Save successfully fetched apps to offline cache ONLY if we actually got data
+        if (typeof window !== 'undefined' && normalizedData && normalizedData.length > 0) {
             localStorage.setItem('offline_apps_cache', JSON.stringify(normalizedData));
         }
 
         return normalizedData;
     } catch (err) {
+        console.warn('[Offline Mode] getAllFrontlineApps failed, providing vault cache');
         if (typeof window !== 'undefined') {
             try {
-                const cachedApps = localStorage.getItem('offline_apps_cache');
+                const cachedApps = localStorage.getItem('mavi_offline_vault');
                 if (cachedApps) {
-                    console.log('[Offline Mode] Successfully returned apps from local storage cache.');
                     return JSON.parse(cachedApps);
                 }
             } catch (e) {
-                console.error('[Offline Mode] Failed to parse local storage cache', e);
+                console.error('[Offline Mode] Failed to parse vault', e);
             }
         }
-        return []; // Return empty array if completely offline and no configuration present
+        return [];
     }
 }
 
@@ -132,12 +137,15 @@ export async function saveFrontlineApp(app) {
         }
         return result.data;
     } catch (err) {
-        console.warn('[Offline Mode] Intercepting save, applying to localStorage cache', err);
-        const cached = JSON.parse(localStorage.getItem('offline_apps_cache') || '[]');
+        console.warn('[Offline Mode] Intercepting save, applying to vault', err);
+        const raw = localStorage.getItem('mavi_offline_vault');
+        let cached = [];
+        try { cached = raw ? JSON.parse(raw) : []; } catch(e) { cached = []; }
+
         let outputApp = { ...app, ...payload };
         
         if (app.id) {
-            const index = cached.findIndex(a => a.id === app.id);
+            const index = cached.findIndex(a => String(a.id) === String(app.id));
             if (index > -1) cached[index] = outputApp;
             else cached.push(outputApp);
         } else {
@@ -145,7 +153,7 @@ export async function saveFrontlineApp(app) {
             outputApp.id = newId;
             cached.push(outputApp);
         }
-        localStorage.setItem('offline_apps_cache', JSON.stringify(cached));
+        localStorage.setItem('mavi_offline_vault', JSON.stringify(cached));
         return outputApp;
     }
 }
@@ -155,67 +163,130 @@ export async function saveFrontlineApp(app) {
  * Copies working 'config' to 'published_config'.
  */
 export async function publishApp(appId) {
-    const supabase = getSupabaseClient();
-    
-    // 1. Get current draft
-    const { data: app, error: fetchError } = await supabase
-        .from('frontline_apps')
-        .select('*')
-        .eq('id', appId)
-        .single();
-    
-    if (fetchError) throw fetchError;
+    try {
+        const supabase = getSupabaseClient();
+        
+        // 1. Get current draft
+        const { data: app, error: fetchError } = await supabase
+            .from('frontline_apps')
+            .select('*')
+            .eq('id', appId)
+            .single();
+        
+        if (fetchError) throw fetchError;
 
-    // 2. Increment version and copy config
-    const { data, error } = await supabase
-        .from('frontline_apps')
-        .update({
-            published_config: app.config,
-            is_published: true,
-            approval_status: 'PUBLISHED', // Auto-approve if publishing directly for now
-            version: (app.version || 0) + 1,
-            updated_at: new Date().toISOString()
-        })
-        .eq('id', appId)
-        .select()
-        .single();
+        // 2. Increment version and copy config
+        const { data, error } = await supabase
+            .from('frontline_apps')
+            .update({
+                published_config: app.config,
+                is_published: true,
+                approval_status: 'PUBLISHED', // Auto-approve if publishing directly for now
+                version: (app.version || 0) + 1,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', appId)
+            .select()
+            .single();
 
-    if (error) throw error;
-    return data;
+        if (error) throw error;
+        return data;
+    } catch (err) {
+        console.warn('[Offline Mode] Intercepting publish, applying to vault', err);
+        const raw = localStorage.getItem('mavi_offline_vault');
+        let cached = [];
+        try { cached = raw ? JSON.parse(raw) : []; } catch(e) { cached = []; }
+
+        const index = cached.findIndex(a => String(a.id) === String(appId));
+        
+        if (index > -1) {
+            const appData = cached[index];
+            const updatedApp = {
+                ...appData,
+                published_config: appData.config,
+                is_published: true,
+                approval_status: 'PUBLISHED',
+                version: (parseInt(appData.version) || 0) + 1,
+                updated_at: new Date().toISOString()
+            };
+            cached[index] = updatedApp;
+            localStorage.setItem('mavi_offline_vault', JSON.stringify(cached));
+            return updatedApp;
+        }
+        throw err;
+    }
 }
 
 export async function requestApproval(appId) {
-    const supabase = getSupabaseClient();
-    const { data, error } = await supabase
-        .from('frontline_apps')
-        .update({
-            approval_status: 'PENDING',
-            updated_at: new Date().toISOString()
-        })
-        .eq('id', appId)
-        .select()
-        .single();
+    try {
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase
+            .from('frontline_apps')
+            .update({
+                approval_status: 'PENDING',
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', appId)
+            .select()
+            .single();
 
-    if (error) throw error;
-    return data;
+        if (error) throw error;
+        return data;
+    } catch (err) {
+        console.warn('[Offline Mode] Intercepting request approval, applying to localStorage cache', err);
+        const cached = JSON.parse(localStorage.getItem('offline_apps_cache') || '[]');
+        const index = cached.findIndex(a => String(a.id) === String(appId));
+        
+        if (index > -1) {
+            const updatedApp = {
+                ...cached[index],
+                approval_status: 'PENDING',
+                updated_at: new Date().toISOString()
+            };
+            cached[index] = updatedApp;
+            localStorage.setItem('offline_apps_cache', JSON.stringify(cached));
+            return updatedApp;
+        }
+        throw err;
+    }
 }
 
 export async function approveApp(appId, operatorId) {
-    const supabase = getSupabaseClient();
-    const { data, error } = await supabase
-        .from('frontline_apps')
-        .update({
-            approval_status: 'APPROVED',
-            approved_by: operatorId,
-            approved_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-        })
-        .eq('id', appId)
-        .select()
-        .single();
+    try {
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase
+            .from('frontline_apps')
+            .update({
+                approval_status: 'APPROVED',
+                approved_by: operatorId,
+                approved_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', appId)
+            .select()
+            .single();
 
-    if (error) throw error;
-    return data;
+        if (error) throw error;
+        return data;
+    } catch (err) {
+        console.warn('[Offline Mode] Intercepting approve, applying to localStorage cache', err);
+        const cached = JSON.parse(localStorage.getItem('offline_apps_cache') || '[]');
+        const index = cached.findIndex(a => String(a.id) === String(appId));
+        
+        if (index > -1) {
+            const updatedApp = {
+                ...cached[index],
+                approval_status: 'APPROVED',
+                approved_by: operatorId,
+                approved_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+            cached[index] = updatedApp;
+            localStorage.setItem('offline_apps_cache', JSON.stringify(cached));
+            return updatedApp;
+        }
+        throw err;
+    }
 }
 
 export async function deleteFrontlineApp(id) {
@@ -259,15 +330,20 @@ export async function deleteFrontlineApp(id) {
 }
 
 export async function getProductionQueue() {
-    const supabase = getSupabaseClient();
-    const { data, error } = await supabase
-        .from('production_queue')
-        .select('*')
-        .eq('status', 'PENDING')
-        .order('priority', { ascending: true })
-        .order('created_at', { ascending: true });
-    if (error) throw error;
-    return data || [];
+    try {
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase
+            .from('production_queue')
+            .select('*')
+            .eq('status', 'PENDING')
+            .order('priority', { ascending: true })
+            .order('created_at', { ascending: true });
+        if (error) throw error;
+        return data || [];
+    } catch (err) {
+        console.warn('[Offline Mode] getProductionQueue fallback to empty');
+        return [];
+    }
 }
 
 export async function createProductionJob(job) {
@@ -303,13 +379,18 @@ export async function updateJobStatus(id, status) {
 // ─── App Variables ────────────────────────────────────────────────────────────
 
 export async function getAllVariables() {
-    const supabase = getSupabaseClient();
-    const { data, error } = await supabase
-        .from('app_variables')
-        .select('*')
-        .order('created_at', { ascending: true });
-    if (error) throw error;
-    return data || [];
+    try {
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase
+            .from('app_variables')
+            .select('*')
+            .order('created_at', { ascending: true });
+        if (error) throw error;
+        return data || [];
+    } catch (err) {
+        console.warn('[Offline Mode] getAllVariables fallback to empty');
+        return [];
+    }
 }
 
 export async function saveVariable(variable) {

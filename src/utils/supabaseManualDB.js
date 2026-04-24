@@ -254,18 +254,14 @@ export async function listManualSummaries() {
         }
         return normalized;
     } catch (err) {
+        console.warn('[Offline Mode] Manual Summaries fetch failed, returning cache or empty array');
         if (typeof window !== 'undefined') {
             try {
                 const cached = localStorage.getItem('offline_manual_summaries_cache');
-                if (cached) {
-                    console.log('[Offline Mode] Successfully returned Manual Summaries from local storage cache.');
-                    return JSON.parse(cached);
-                }
-            } catch (e) {
-                console.error('[Offline Mode] Failed to parse local storage cache for manual summaries', e);
-            }
+                if (cached) return JSON.parse(cached);
+            } catch (e) {}
         }
-        throw err;
+        return [];
     }
 }
 

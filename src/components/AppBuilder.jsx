@@ -3018,11 +3018,13 @@ const AppBuilder = () => {
         const el = canvasWrapperRef.current;
         if (!el) return;
         const handleWheel = (e) => {
-            if (e.ctrlKey) {
-                e.preventDefault();
-                const zoomSpeed = 0.05;
-                setZoomScale(prev => Math.max(0.1, Math.min(prev + (e.deltaY < 0 ? zoomSpeed : -zoomSpeed), 3)));
-            }
+            // Native mouse wheel zoom without requiring Ctrl
+            e.preventDefault();
+            const zoomSpeed = 0.08;
+            setZoomScale(prev => {
+                const delta = e.deltaY < 0 ? zoomSpeed : -zoomSpeed;
+                return Math.max(0.1, Math.min(prev + delta, 3));
+            });
         };
         el.addEventListener('wheel', handleWheel, { passive: false });
         return () => el.removeEventListener('wheel', handleWheel);
@@ -6132,6 +6134,21 @@ const AppBuilder = () => {
             if (!e.shiftKey) setSelectedCompIds([]);
         }
     };
+
+    useEffect(() => {
+        const workspace = canvasWrapperRef.current;
+        if (!workspace) return;
+
+        const handleNativeWheel = (e) => {
+            // Zoom logic: Scroll directly zooms on the workspace
+            e.preventDefault();
+            const zoomAmount = e.deltaY > 0 ? -0.1 : 0.1;
+            setZoomScale(prev => Math.min(3, Math.max(0.1, prev + zoomAmount)));
+        };
+
+        workspace.addEventListener('wheel', handleNativeWheel, { passive: false });
+        return () => workspace.removeEventListener('wheel', handleNativeWheel);
+    }, [canvasWrapperRef]);
 
     const handleCanvasMouseMove = (e) => {
         if (isPanning) {

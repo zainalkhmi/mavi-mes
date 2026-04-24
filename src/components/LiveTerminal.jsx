@@ -774,19 +774,47 @@ const LiveTerminal = () => {
           getAllFrontlineApps(),
           getProductionQueue()
         ]);
+        
         setManuals(manualData || []);
-        const apps = appData || [];
-        // Strictly filter to published apps for the general Terminal view
-        // However, if an appId is provided in the URL, we allow it (for draft testing)
-        const visibleApps = appId ? apps : apps.filter(a => a.is_published);
-        setFrontlineApps(visibleApps);
-        setProductionQueue(queueData || []);
+        
+        // --- UNIVERSAL DEEP SEARCH LOGIC ---
+        let combinedApps = appData || [];
+        try {
+          // Check all known keys
+          const keys = ['mavi_offline_vault', 'offline_apps_cache', 'draft_frontline_apps'];
+          keys.forEach(key => {
+            const raw = localStorage.getItem(key);
+            if (raw) {
+              const local = JSON.parse(raw);
+              if (Array.isArray(local)) {
+                local.forEach(la => {
+                  if (!combinedApps.find(a => String(a.id) === String(la.id))) {
+                    combinedApps.push(la);
+                  }
+                });
+              }
+            }
+          });
+        } catch (e) { console.error("Universal search failed", e); }
 
-        // Auto-load app if appId is in URL
-        if (appId && apps.length > 0) {
-          const match = apps.find(a => a.id === appId);
+        // Filter for published apps, but fallback to all discovered apps
+        let visibleApps = combinedApps.filter(a => a.is_published);
+        if (visibleApps.length === 0 && combinedApps.length > 0) {
+          visibleApps = combinedApps;
+        }
+
+        setFrontlineApps(appId ? combinedApps : visibleApps);
+
+        // Auto-load match with Smart Matching
+        if (appId && combinedApps.length > 0) {
+          let match = combinedApps.find(a => String(a.id) === String(appId));
+          if (!match) {
+            // Try Name fallback if ID didn't work
+            const searchName = String(appId).toLowerCase();
+            match = combinedApps.find(a => String(a.name || '').toLowerCase() === searchName);
+          }
+
           if (match) {
-            // Need to wait for states to settle or just call it directly if logic allows
             await handleStartApp(match);
           }
         }
@@ -1979,10 +2007,62 @@ const LiveTerminal = () => {
     }
   };
 
-  if (loading && !selectedManual && !selectedApp) {
+  // --- INITIALIZATION / LOADING VIEW ---
+  if (loading) {
     return (
-      <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#030305' }}>
-        <Loader2 className="animate-spin" size={48} color="#3b82f6" />
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' }}>
+        <div style={{ padding: '40px', textAlign: 'center' }}>
+          <div style={{ 
+            width: '40px', height: '40px', border: '3px solid #e2e8f0', borderTop: '3px solid #3b82f6', 
+            borderRadius: '50%', animation: 'mavi-spin 1s linear infinite', margin: '0 auto 20px' 
+          }}></div>
+          <style>{`@keyframes mavi-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+          <p style={{ color: '#64748b', fontSize: '0.9rem', fontWeight: 600 }}>Launching App...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // --- APP NOT FOUND ERROR ---
+  if (appId && !selectedApp) {
+    return (
+      <div style={{ height: '100%', display: 'grid', placeItems: 'center', backgroundColor: '#f8fafc', padding: '40px' }}>
+        <div style={{ textAlign: 'center', maxWidth: '600px', width: '100%' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '20px' }}>ℹ️</div>
+          <h2 style={{ color: '#001e3c', margin: '0 0 10px 0' }}>Select Your App</h2>
+          <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '30px' }}>
+            We found {frontlineApps.length} app(s) in your local memory. Please select the one you want to run:
+          </p>
+          
+          <div style={{ display: 'grid', gap: '12px', marginBottom: '30px' }}>
+            {frontlineApps.map(a => (
+              <button 
+                key={a.id}
+                onClick={() => handleStartApp(a)}
+                style={{ 
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 25px', 
+                  backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', cursor: 'pointer',
+                  textAlign: 'left', transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
+                onMouseOut={(e) => e.currentTarget.style.borderColor = '#e2e8f0'}
+              >
+                <div>
+                  <div style={{ fontWeight: 700, color: '#001e3c' }}>{a.name}</div>
+                  <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>ID: {a.id}</div>
+                </div>
+                <div style={{ color: '#3b82f6', fontWeight: 700 }}>Launch →</div>
+              </button>
+            ))}
+          </div>
+
+          <button 
+            onClick={() => window.location.href = '/terminal'}
+            style={{ padding: '10px 20px', backgroundColor: 'transparent', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
+          >
+            Back to Selection
+          </button>
+        </div>
       </div>
     );
   }
