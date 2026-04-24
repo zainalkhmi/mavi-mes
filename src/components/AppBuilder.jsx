@@ -200,6 +200,7 @@ import { logEvent, AUDIT_EVENTS } from '../utils/auditLog';
 import ColorPicker from './ColorPicker';
 import ShapePicker from './ShapePicker';
 import { createShopfloorTemplate } from '../utils/shopfloorTemplate';
+import automationEngine from '../utils/automationEngine';
 
 
 const COMPONENT_TYPES = {
@@ -1274,8 +1275,10 @@ const AppBuilder = () => {
         { id: 'screen_1', title: 'Screen 1', stepType: 'Screen', cycleTimeSeconds: 60, components: [], triggers: [], logic: { xml: null, code: '' } }
     ]);
     const [globalLogic, setGlobalLogic] = useState({ xml: null, code: '' });
+    const [blocklyRuntimeError, setBlocklyRuntimeError] = useState(null);
     const [baseComponents, setBaseComponents] = useState([]);
     const [currentStepId, setCurrentStepId] = useState('screen_1');
+    const [activeLogicScopeId, setActiveLogicScopeId] = useState('STEP'); // 'STEP', 'GLOBAL', or widgetId
     const [selectedCompIds, setSelectedCompIds] = useState([]);
     const selectedCompId = selectedCompIds.length === 1 ? selectedCompIds[0] : null;
     const [currentAppId, setCurrentAppId] = useState(null);
@@ -3009,6 +3012,15 @@ const AppBuilder = () => {
     const widgetImageInputRef = useRef(null);
     const widgetPdfInputRef = useRef(null);
     const canvasWrapperRef = useRef(null);
+    // Focus management for widgets
+    const [focusedWidgetId, setFocusedWidgetId] = useState(null);
+
+    // Clear runtime blockly error when changing view modes
+    useEffect(() => {
+        if (viewMode !== 'PREVIEW') {
+            setBlocklyRuntimeError(null);
+        }
+    }, [viewMode]);
 
     useEffect(() => {
         const el = canvasWrapperRef.current;
@@ -4061,6 +4073,69 @@ const AppBuilder = () => {
                 const v = appVariables.find(v => v.id === id || v.name === id);
                 return v ? v.value : null;
             },
+            getEventParameter: (name) => {
+                if (!name || name === 'parameter' || name === 'output') {
+                    if (payload.record) return payload.record;
+                    if (payload.data) return payload.data;
+                    return payload.value || payload.result || payload;
+                }
+                return payload[name];
+            },
+            createRecord: async (tableId, data) => {
+                const { addTableRecord } = await import('../utils/database');
+                return await addTableRecord(tableId, data);
+            },
+            updateRecord: async (tableId, id, data) => {
+                const { updateTableRecord } = await import('../utils/database');
+                return await updateTableRecord(tableId, id, data);
+            },
+            deleteRecord: async (tableId, id) => {
+                const { deleteTableRecord } = await import('../utils/database');
+                return await deleteTableRecord(id);
+            },
+            loadRecord: async (placeholderId, recordId) => {
+                const { getTableRecords } = await import('../utils/database');
+                const rp = recordPlaceholders.find(p => p.id === placeholderId || p.name === placeholderId);
+                if (!rp) return null;
+                const records = await getTableRecords(rp.tableId);
+                const record = records.find(r => r.recordId === recordId || r.id === recordId);
+                if (record) {
+                    setRecordPlaceholderData(prev => ({ ...prev, [rp.id]: record }));
+                    executeBlocklyLogic(`PLACEHOLDER_LOADED:${rp.id}`, { record });
+                }
+                return record;
+            },
+            clearPlaceholder: (placeholderId) => {
+                const rp = recordPlaceholders.find(p => p.id === placeholderId || p.name === placeholderId);
+                if (rp) setRecordPlaceholderData(prev => ({ ...prev, [rp.id]: null }));
+            },
+            getPlaceholderField: (placeholderId, fieldName) => {
+                const rp = recordPlaceholders.find(p => p.id === placeholderId || p.name === placeholderId);
+                if (!rp) return null;
+                const record = recordPlaceholderData[rp.id];
+                return record ? record[fieldName] : null;
+            },
+            runQuery: async (tableId, queryName) => {
+                const { queryTableRecords, getTableRecords } = await import('../utils/database');
+                const table = tables.find(t => t.id === tableId || t.name === tableId);
+                if (!table) return [];
+                const query = (table.queries || []).find(q => q.name === queryName || q.id === queryName);
+                if (!query) {
+                    return await getTableRecords(tableId);
+                }
+                return await queryTableRecords(tableId, query.options || query);
+            },
+            loadLinkedRecord: async (sourcePlaceholderId, fieldName, targetPlaceholderId) => {
+                const sourceRp = recordPlaceholders.find(rp => rp.id === sourcePlaceholderId || rp.name === sourcePlaceholderId);
+                const record = sourceRp ? recordPlaceholderData[sourceRp.id] : null;
+                if (!record || !record[fieldName]) return null;
+                
+                const linkedRecordId = record[fieldName];
+                const targetRp = recordPlaceholders.find(rp => rp.id === targetPlaceholderId || rp.name === targetPlaceholderId);
+                if (!targetRp) return null;
+                
+                return await runtimeContext.loadRecord(targetRp.id, linkedRecordId);
+            },
             setWidgetProperty: (compId, prop, val) => {
                 setSteps(prev => prev.map(s => {
                     if (s.id !== currentStepId) return s;
@@ -4667,7 +4742,7 @@ const AppBuilder = () => {
             }
         };
 
-        const runMatchingBlocks = (codeStr) => {
+        const runMatchingBlocks = (codeStr, sourceId = 'Global/Screen') => {
             if (!codeStr) return;
             const lines = codeStr.split('\n');
             let capturing = false;
@@ -4687,19 +4762,66 @@ const AppBuilder = () => {
             }
 
             if (capturedCode) {
-                console.log(`[Blockly Runtime] Executing captured code for ${triggerKey}:`, capturedCode);
+                console.log(`[Blockly Runtime] Executing captured code for ${triggerKey} (from ${sourceId}):`, capturedCode);
                 try {
-                    // Execute in a function context
-                    const run = new Function('context', capturedCode);
-                    run(runtimeContext);
+                    // Reset tracer before run
+                    runtimeContext._currentBlockId = null;
+                    // Use AsyncFunction so Blockly generated `await` statements do not throw syntax errors
+                    const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+                    const run = new AsyncFunction('context', capturedCode);
+                    run(runtimeContext).catch(e => {
+                        console.error(`[Blockly Runtime] Async Execution Error (${sourceId}):`, e);
+                        if (runtimeContext._currentBlockId) {
+                            setBlocklyRuntimeError({ 
+                                blockId: runtimeContext._currentBlockId, 
+                                message: e.message || "Runtime Exception" 
+                            });
+                        }
+                    });
                 } catch (e) {
-                    console.error("[Blockly Runtime] Execution Error:", e);
+                    console.error(`[Blockly Runtime] Setup/Parse Error (${sourceId}):`, e);
+                    if (runtimeContext._currentBlockId) {
+                        setBlocklyRuntimeError({
+                            blockId: runtimeContext._currentBlockId,
+                            message: e.message || "Parser Error"
+                        });
+                    }
                 }
             }
         };
 
-        runMatchingBlocks(stepLogic);
-        runMatchingBlocks(globalLogicCode);
+        // 1. Run Global Logic
+        runMatchingBlocks(globalLogicCode, 'Global');
+
+        // 2. Run Screen Logic
+        runMatchingBlocks(stepLogic, 'Screen');
+
+        // 3. Run Scoped Widget Logic for all components on screen
+        if (currentStep?.components) {
+            currentStep.components.forEach(comp => {
+                if (comp.logic?.code) {
+                    runMatchingBlocks(comp.logic.code, `Widget:${comp.name || comp.id}`);
+                }
+            });
+        }
+        
+        // 4. Run Scoped Widget Logic for base components
+        if (baseComponents) {
+            baseComponents.forEach(comp => {
+                if (comp.logic?.code) {
+                    runMatchingBlocks(comp.logic.code, `BaseWidget:${comp.name || comp.id}`);
+                }
+            });
+        }
+    };
+
+    const handleUpdateWidgetLogic = (compId, xml, code) => {
+        if (!compId) return;
+        setSteps(prev => prev.map(s => ({
+            ...s,
+            components: s.components.map(c => c.id === compId ? { ...c, logic: { xml, code } } : c)
+        })));
+        setBaseComponents(prev => prev.map(c => c.id === compId ? { ...c, logic: { xml, code } } : c));
     };
 
     const onWidgetInteraction = (comp, eventId, payload = {}) => {
@@ -4746,6 +4868,11 @@ const AppBuilder = () => {
 
         // Step-level machine/device trigger
         if (DEVICE_TRIGGER_COMPONENT_TYPES.includes(comp.type) && ['ON_CHANGE', 'ON_CLICK'].includes(eventId)) {
+            // 1. Blockly Logic (Station-level Device Trigger)
+            executeBlocklyLogic(`DEVICE_OUTPUT:${comp.type}:CURRENT`, payload);
+            executeBlocklyLogic(`DEVICE_OUTPUT:${comp.type}:ALL`, payload);
+
+            // 2. Original Trigger Engine
             const activeStep = steps.find(s => s.id === currentStepId);
             if (activeStep?.triggers) {
                 const deviceTriggers = activeStep.triggers
@@ -4815,6 +4942,20 @@ const AppBuilder = () => {
 
         lastStepIdRef.current = currentStepId;
     }, [currentStepId, viewMode]);
+    
+    useEffect(() => {
+        if (viewMode !== 'PREVIEW') return;
+
+        const unsubscribe = automationEngine.addListener((eventType, eventData) => {
+            if (eventType === 'TABLE_ROW_ADDED') {
+                executeBlocklyLogic(`TABLE_EVENT:${eventData.tableId}:CREATED`, { record: eventData.record });
+            } else if (eventType === 'TABLE_ROW_UPDATED') {
+                executeBlocklyLogic(`TABLE_EVENT:${eventData.tableId}:UPDATED`, { record: eventData.updatedData });
+            }
+        });
+
+        return unsubscribe;
+    }, [viewMode]);
 
     useEffect(() => {
         if (viewMode === 'PREVIEW') {
@@ -5171,7 +5312,8 @@ const AppBuilder = () => {
             y: 50,
             w: typeDef?.defaultSize?.w || 160,
             h: typeDef?.defaultSize?.h || 48,
-            props: { ...typeDef?.defaultProps, ...restOverrideProps }
+            props: { ...typeDef?.defaultProps, ...restOverrideProps },
+            logic: { xml: null, code: '' }
         };
 
         // Automatic parenting for Sprites (Ball, ImageSprite)
@@ -8776,7 +8918,7 @@ const AppBuilder = () => {
                             }}
                         ><Code size={14} /> Dev Mode</button>
                         <button
-                            onClick={() => setViewMode('DIAGRAM')}
+                            onClick={() => { setActiveLogicScopeId('STEP'); setViewMode('DIAGRAM'); }}
                             style={{
                                 padding: '8px 16px',
                                 borderRadius: '6px',
@@ -9337,13 +9479,19 @@ const AppBuilder = () => {
                     <div style={{ flex: 1, position: 'relative', padding: '20px', backgroundColor: '#f1f5f9' }}>
                         <BlocklyEditor
                             steps={steps}
+                            tables={tables}
+                            recordPlaceholders={recordPlaceholders}
                             baseComponents={baseComponents}
                             currentStepId={currentStepId}
                             appVariables={appVariables}
+                            runtimeError={blocklyRuntimeError}
+                            activeLogicScopeId={activeLogicScopeId}
+                            globalLogic={globalLogic}
                             onUpdateGlobalLogic={(xml, code) => setGlobalLogic({ xml, code })}
                             onUpdateStepLogic={(stepId, xml, code) => {
                                 setSteps(prev => prev.map(s => s.id === stepId ? { ...s, logic: { xml, code } } : s));
                             }}
+                            onUpdateWidgetLogic={handleUpdateWidgetLogic}
                             onCreateWidgetFromAi={async (widgetSpec = {}) => {
                                 const rawType = String(widgetSpec.type || 'BUTTON').toUpperCase();
                                 const safeType = COMPONENT_TYPES[rawType] ? rawType : 'BUTTON';
@@ -10735,17 +10883,47 @@ const AppBuilder = () => {
                                                 </div>
 
                                                 {/* Sidebar Search Filter */}
-                                                <div style={{ position: 'relative', marginBottom: '10px' }}>
-                                                    <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Search properties..."
-                                                        value={sidebarSearch}
-                                                        onChange={(e) => setSidebarSearch(e.target.value)}
-                                                        style={{ width: '100%', padding: '8px 8px 8px 30px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem', outline: 'none', transition: 'border-color 0.2s' }}
-                                                        onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
-                                                        onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
-                                                    />
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '15px' }}>
+                                                    <button 
+                                                        onClick={() => {
+                                                            setActiveLogicScopeId(selectedComp.id);
+                                                            setViewMode('DIAGRAM'); // Logic Editor
+                                                            setActiveTab('WIDGET');
+                                                        }}
+                                                        style={{
+                                                            width: '100%',
+                                                            padding: '12px',
+                                                            backgroundColor: 'var(--odoo-teal)',
+                                                            color: 'white',
+                                                            border: 'none',
+                                                            borderRadius: '8px',
+                                                            fontSize: '0.8rem',
+                                                            fontWeight: 700,
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            gap: '10px',
+                                                            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+                                                            transition: 'transform 0.2s'
+                                                        }}
+                                                        onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+                                                        onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                                                    >
+                                                        <Zap size={16} fill="white" /> EDIT WIDGET LOGIC
+                                                    </button>
+                                                    <div style={{ position: 'relative' }}>
+                                                        <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Search properties..."
+                                                            value={sidebarSearch}
+                                                            onChange={(e) => setSidebarSearch(e.target.value)}
+                                                            style={{ width: '100%', padding: '8px 8px 8px 30px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem', outline: 'none', transition: 'border-color 0.2s' }}
+                                                            onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                                                            onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+                                                        />
+                                                    </div>
                                                 </div>
 
 
@@ -11086,7 +11264,7 @@ const AppBuilder = () => {
                                                     </div>
 
                                                     <button
-                                                        onClick={() => setViewMode('DIAGRAM')}
+                                                        onClick={() => { setActiveLogicScopeId(selectedComp.id); setViewMode('DIAGRAM'); }}
                                                         style={{
                                                             marginTop: '20px',
                                                             width: '100%',

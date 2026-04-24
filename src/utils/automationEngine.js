@@ -13,7 +13,17 @@ class AutomationEngine {
     this.EXECUTION_TIMEOUT_MS = 60000; // 1 minute
     this.MAX_LOOP_ITERATIONS = 500;
     this.MAX_RECURSION_DEPTH = 25;
+    this.listeners = [];
     this.startTimer();
+  }
+
+  addListener(callback) {
+    if (typeof callback === 'function') {
+      this.listeners.push(callback);
+    }
+    return () => {
+      this.listeners = this.listeners.filter(l => l !== callback);
+    };
   }
 
   startTimer() {
@@ -92,6 +102,14 @@ class AutomationEngine {
   trigger(eventType, eventData) {
     console.log(`[AutomationEngine] Triggering event: ${eventType}`, eventData);
     
+    // Notify external listeners (e.g. AppBuilder Blockly runtime)
+    this.listeners.forEach(listener => {
+      try {
+        listener(eventType, eventData);
+      } catch (err) {
+        console.error('[AutomationEngine] Listener error:', err);
+      }
+    });
     const relevantAutomations = this.automations.filter(auto => {
       if (!auto.active) return false;
       if (auto.trigger.type !== eventType) return false;

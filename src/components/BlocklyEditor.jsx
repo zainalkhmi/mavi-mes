@@ -3,7 +3,7 @@ import * as Blockly from 'blockly';
 import 'blockly/blocks';
 import { registerFieldColour } from '@blockly/field-colour';
 import { javascriptGenerator } from 'blockly/javascript';
-import { Code, X, Sparkles } from 'lucide-react';
+import { Code, X, Sparkles, Zap } from 'lucide-react';
 import AiLogicAdvisor from './AiLogicAdvisor';
 
 const BLOCK_COLORS = {
@@ -30,20 +30,25 @@ const BACKPACK_STORAGE_KEY = 'mavi_blockly_backpack_v1';
 
 const BlocklyEditor = ({
     steps,
+    tables = [],
+    recordPlaceholders = [],
     baseComponents: initialBaseComponents = [],
     currentStepId,
     appVariables,
     globalLogic,
     onUpdateGlobalLogic,
     onUpdateStepLogic,
+    onUpdateWidgetLogic,
+    activeLogicScopeId = 'STEP',
     onCreateWidgetFromAi,
-    onClose
+    onClose,
+    runtimeError = null
 }) => {
     const baseComponents = initialBaseComponents;
 
     const blocklyDiv = useRef(null);
     const workspace = useRef(null);
-    const [activeScope, setActiveScope] = useState('STEP'); // 'STEP' or 'GLOBAL'
+    const [activeScope, setActiveScope] = useState(activeLogicScopeId); // 'STEP' or 'GLOBAL' or compId
     const [isCodeViewOpen, setIsCodeViewOpen] = useState(false);
     const [generatedCode, setGeneratedCode] = useState('');
     const [isAiAdvisorOpen, setIsAiAdvisorOpen] = useState(false);
@@ -57,8 +62,16 @@ const BlocklyEditor = ({
 
     const saveProgressTimerRef = useRef(null);
     const saveResetTimerRef = useRef(null);
+
+    useEffect(() => {
+        if (activeLogicScopeId) {
+            setActiveScope(activeLogicScopeId);
+        }
+    }, [activeLogicScopeId]);
     const latestBaseComponentsRef = useRef([]);
     const latestStepComponentsRef = useRef([]);
+    const latestTablesRef = useRef([]);
+    const latestRecordPlaceholdersRef = useRef([]);
     const warningBlockIdsRef = useRef([]);
     const errorBlockIdsRef = useRef([]);
     const warningCursorRef = useRef(-1);
@@ -70,7 +83,9 @@ const BlocklyEditor = ({
     useEffect(() => {
         latestBaseComponentsRef.current = baseComponents || [];
         latestStepComponentsRef.current = currentStep?.components || [];
-    }, [baseComponents, currentStep]);
+        latestTablesRef.current = tables || [];
+        latestRecordPlaceholdersRef.current = recordPlaceholders || [];
+    }, [baseComponents, currentStep, tables, recordPlaceholders]);
 
     const getAllWidgetOptions = () => {
         const allComps = [
@@ -389,7 +404,16 @@ const BlocklyEditor = ({
             const toolboxConfig = getToolbox(steps, appVariables, currentStep, activeScope, baseComponents);
             workspace.current.updateToolbox(toolboxConfig);
 
-            const logicToLoad = activeScope === 'GLOBAL' ? globalLogic : (currentStep?.logic || null);
+            let logicToLoad = null;
+            if (activeScope === 'GLOBAL') {
+                logicToLoad = globalLogic;
+            } else if (activeScope === 'STEP') {
+                logicToLoad = currentStep?.logic;
+            } else {
+                // Must be a widget scope
+                const widget = [...(baseComponents || []), ...(currentStep?.components || [])].find(c => c.id === activeScope);
+                logicToLoad = widget?.logic;
+            }
 
             Blockly.Events.disable();
             workspace.current.clear();
@@ -405,7 +429,7 @@ const BlocklyEditor = ({
             Blockly.Events.enable();
             updateWorkspaceDiagnostics();
         }
-    }, [currentStepId, activeScope, steps, appVariables, baseComponents]);
+    }, [currentStepId, activeScope, steps, appVariables, baseComponents, globalLogic]);
 
     useEffect(() => {
         try {
@@ -428,6 +452,31 @@ const BlocklyEditor = ({
         };
     }, [currentStepId, activeScope, steps, baseComponents, appVariables]);
 
+    // Handle incoming runtime errors for visual highlighting
+    useEffect(() => {
+        if (!workspace.current || !runtimeError || !runtimeError.blockId) return;
+        try {
+            const block = workspace.current.getBlockById(runtimeError.blockId);
+            if (block) {
+                // Flash the block red or highlight it
+                // workspace.current.highlightBlock is for execution tracing, select is more visible
+                block.select();
+                if (typeof workspace.current.centerOnBlock === 'function') {
+                    workspace.current.centerOnBlock(runtimeError.blockId);
+                }
+                // Set warning text to display the specific error
+                block.setWarningText(`Runtime Error: ${runtimeError.message}`, 'runtime_error');
+                
+                // Clear the warning after a few seconds or next interaction
+                setTimeout(() => {
+                    try { if (block.workspace) block.setWarningText(null, 'runtime_error'); } catch (_) {}
+                }, 5000);
+            }
+        } catch (e) {
+            console.error("Failed to highlight error block: ", e);
+        }
+    }, [runtimeError]);
+
     useEffect(() => {
         return () => {
             if (saveProgressTimerRef.current) clearInterval(saveProgressTimerRef.current);
@@ -441,6 +490,9 @@ const BlocklyEditor = ({
         try {
             registerFieldColour();
         } catch (e) { }
+
+        // Inject statement prefix for Visual Error Tracing
+        javascriptGenerator.STATEMENT_PREFIX = 'context._currentBlockId = %1;\n';
 
         // Go To Screen Block
         if (!Blockly.Blocks['go_to_step']) {
@@ -1359,15 +1411,47 @@ const BlocklyEditor = ({
         if (!Blockly.Blocks['trigger_when_device']) {
             Blockly.Blocks['trigger_when_device'] = {
                 init: function () {
+                    const deviceOptions = [
+                        ['Barcode Scanner', 'BARCODE'],
+                        ['Camera Scanner', 'CAMERA_SCANNER'],
+                        ['Vision Detector', 'VISION_DETECTOR'],
+                        ['IoT Device', 'IOT_DEVICE'],
+                        ['Machine Status', 'MACHINE_STATUS'],
+                        ['Location Sensor', 'LOCATION_SENSOR'],
+                        ['Accelerometer', 'ACCELEROMETER'],
+                        ['Clock', 'CLOCK']
+                    ];
                     this.appendDummyInput()
                         .appendField("When device")
-                        .appendField(new Blockly.FieldTextInput("Barcode Scanner"), "DEVICE")
+                        .appendField(new Blockly.FieldDropdown(deviceOptions), "DEVICE")
                         .appendField("outputs at")
                         .appendField(new Blockly.FieldDropdown([["this station", "CURRENT"], ["all stations", "ALL"]]), "STATION");
                     this.appendStatementInput("STACK")
-                        .appendField("then");
+                        .setCheck(null)
+                        .appendField("do");
                     this.setColour(BLOCK_COLORS.MAVI_TRIGGER);
-                    this.setTooltip("Trigger logic when a device outputs data at a station.");
+                    this.setTooltip("Trigger logic when a hardware device sends data");
+                    if (this.setHat) this.setHat(true);
+                }
+            };
+        }
+
+        if (!Blockly.Blocks['trigger_when_machine']) {
+            Blockly.Blocks['trigger_when_machine'] = {
+                init: function () {
+                    this.appendDummyInput()
+                        .appendField("When machine")
+                        .appendField(new Blockly.FieldTextInput("Machine-01"), "MACHINE_ID")
+                        .appendField("is")
+                        .appendField(new Blockly.FieldDropdown([
+                            ["Status Changed", "STATUS_CHANGED"],
+                            ["Attribute Changed", "ATTRIBUTE_CHANGED"]
+                        ]), "EVENT");
+                    this.appendStatementInput("STACK")
+                        .setCheck(null)
+                        .appendField("do");
+                    this.setColour(BLOCK_COLORS.MAVI_TRIGGER);
+                    this.setTooltip("Trigger logic based on IoT/Machine MQTT events");
                     if (this.setHat) this.setHat(true);
                 }
             };
@@ -1411,6 +1495,227 @@ const BlocklyEditor = ({
                     this.setNextStatement(true, null);
                     this.setColour(BLOCK_COLORS.COMPONENTS);
                     this.setTooltip("Call an external API or Database and store the result.");
+                }
+            };
+        }
+
+        // --- Data Table blocks ---
+
+        // 1. Table Trigger
+        if (!Blockly.Blocks['trigger_when_table_record_event']) {
+            Blockly.Blocks['trigger_when_table_record_event'] = {
+                init: function () {
+                    this.appendDummyInput()
+                        .appendField("When table")
+                        .appendField(new Blockly.FieldDropdown(() => {
+                            const tableList = latestTablesRef.current || [];
+                            return tableList.length > 0 ? tableList.map(t => [t.name || t.id, t.id]) : [["No tables", "none"]];
+                        }), "TABLE")
+                        .appendField("record is")
+                        .appendField(new Blockly.FieldDropdown([
+                            ["Created", "CREATED"],
+                            ["Updated", "UPDATED"],
+                            ["Deleted", "DELETED"]
+                        ]), "EVENT");
+                    this.appendStatementInput("STACK").setCheck(null).appendField("do");
+                    this.setColour('#0ea5e9'); // Data Primary
+                    this.setTooltip("Trigger logic when a record in a data table is modified.");
+                    if (this.setHat) this.setHat(true);
+                }
+            };
+        }
+
+        // 2. Data Actions
+        if (!Blockly.Blocks['action_create_table_record']) {
+            Blockly.Blocks['action_create_table_record'] = {
+                init: function () {
+                    this.appendDummyInput()
+                        .appendField("Create record in")
+                        .appendField(new Blockly.FieldDropdown(() => {
+                            const tableList = latestTablesRef.current || [];
+                            return tableList.length > 0 ? tableList.map(t => [t.name || t.id, t.id]) : [["No tables", "none"]];
+                        }), "TABLE");
+                    this.appendValueInput("DATA")
+                        .setCheck("Dictionary")
+                        .appendField("with data");
+                    this.setPreviousStatement(true, null);
+                    this.setNextStatement(true, null);
+                    this.setColour('#38bdf8');
+                    this.setTooltip("Insert a new record into the selected table.");
+                }
+            };
+        }
+
+        if (!Blockly.Blocks['action_update_table_record']) {
+            Blockly.Blocks['action_update_table_record'] = {
+                init: function () {
+                    this.appendDummyInput()
+                        .appendField("Update record in")
+                        .appendField(new Blockly.FieldDropdown(() => {
+                            const tableList = latestTablesRef.current || [];
+                            return tableList.length > 0 ? tableList.map(t => [t.name || t.id, t.id]) : [["No tables", "none"]];
+                        }), "TABLE");
+                    this.appendValueInput("ID")
+                        .setCheck("String")
+                        .appendField("with ID");
+                    this.appendValueInput("DATA")
+                        .setCheck("Dictionary")
+                        .appendField("new data");
+                    this.setPreviousStatement(true, null);
+                    this.setNextStatement(true, null);
+                    this.setColour('#38bdf8');
+                    this.setTooltip("Update an existing record in the selected table.");
+                }
+            };
+        }
+
+        if (!Blockly.Blocks['action_delete_table_record']) {
+            Blockly.Blocks['action_delete_table_record'] = {
+                init: function () {
+                    this.appendDummyInput()
+                        .appendField("Delete record from")
+                        .appendField(new Blockly.FieldDropdown(() => {
+                            const tableList = latestTablesRef.current || [];
+                            return tableList.length > 0 ? tableList.map(t => [t.name || t.id, t.id]) : [["No tables", "none"]];
+                        }), "TABLE");
+                    this.appendValueInput("ID")
+                        .setCheck("String")
+                        .appendField("with ID");
+                    this.setPreviousStatement(true, null);
+                    this.setNextStatement(true, null);
+                    this.setColour('#38bdf8');
+                    this.setTooltip("Remove a record from the selected table.");
+                }
+            };
+        }
+
+        // --- Table Record (Placeholder) blocks ---
+
+        // 1. Load Record
+        if (!Blockly.Blocks['action_load_record_placeholder']) {
+            Blockly.Blocks['action_load_record_placeholder'] = {
+                init: function () {
+                    this.appendDummyInput()
+                        .appendField("Load record into")
+                        .appendField(new Blockly.FieldDropdown(() => {
+                            const placeholders = latestRecordPlaceholdersRef.current || [];
+                            return placeholders.length > 0 ? placeholders.map(p => [p.name, p.id]) : [["No placeholders", "none"]];
+                        }), "PLACEHOLDER");
+                    this.appendValueInput("ID")
+                        .setCheck("String")
+                        .appendField("with ID");
+                    this.setPreviousStatement(true, null);
+                    this.setNextStatement(true, null);
+                    this.setColour('#fbbf24');
+                    this.setTooltip("Fetch a record from the database and load it into a placeholder.");
+                }
+            };
+        }
+
+        // 2. Clear Record
+        if (!Blockly.Blocks['action_clear_record_placeholder']) {
+            Blockly.Blocks['action_clear_record_placeholder'] = {
+                init: function () {
+                    this.appendDummyInput()
+                        .appendField("Clear record")
+                        .appendField(new Blockly.FieldDropdown(() => {
+                            const placeholders = latestRecordPlaceholdersRef.current || [];
+                            return placeholders.length > 0 ? placeholders.map(p => [p.name, p.id]) : [["No placeholders", "none"]];
+                        }), "PLACEHOLDER");
+                    this.setPreviousStatement(true, null);
+                    this.setNextStatement(true, null);
+                    this.setColour('#fbbf24');
+                    this.setTooltip("Unload any record from the selected placeholder.");
+                }
+            };
+        }
+
+        // 3. Access Field
+        if (!Blockly.Blocks['get_record_placeholder_field']) {
+            Blockly.Blocks['get_record_placeholder_field'] = {
+                init: function () {
+                    this.appendDummyInput()
+                        .appendField("Field")
+                        .appendField(new Blockly.FieldTextInput("field_name"), "FIELD")
+                        .appendField("of placeholder")
+                        .appendField(new Blockly.FieldDropdown(() => {
+                            const placeholders = latestRecordPlaceholdersRef.current || [];
+                            return placeholders.length > 0 ? placeholders.map(p => [p.name, p.id]) : [["No placeholders", "none"]];
+                        }), "PLACEHOLDER");
+                    this.setOutput(true, null);
+                    this.setColour('#fbbf24');
+                    this.setTooltip("Get the value of a specific field from a record placeholder.");
+                }
+            };
+        }
+
+        // 4. Trigger: Loaded
+        if (!Blockly.Blocks['trigger_when_placeholder_loaded']) {
+            Blockly.Blocks['trigger_when_placeholder_loaded'] = {
+                init: function () {
+                    this.appendDummyInput()
+                        .appendField("When")
+                        .appendField(new Blockly.FieldDropdown(() => {
+                            const placeholders = latestRecordPlaceholdersRef.current || [];
+                            return placeholders.length > 0 ? placeholders.map(p => [p.name, p.id]) : [["No placeholders", "none"]];
+                        }), "PLACEHOLDER")
+                        .appendField("is loaded");
+                    this.appendStatementInput("STACK").setCheck(null).appendField("do");
+                    this.setColour('#f59e0b');
+                    if (this.setHat) this.setHat(true);
+                }
+            };
+        }
+
+        // --- Table Query & Linked Record blocks ---
+
+        // 1. Run Query
+        if (!Blockly.Blocks['action_run_table_query']) {
+            Blockly.Blocks['action_run_table_query'] = {
+                init: function () {
+                    this.appendDummyInput()
+                        .appendField("Run Query")
+                        .appendField(new Blockly.FieldTextInput("Query Name"), "QUERY")
+                        .appendField("on Table")
+                        .appendField(new Blockly.FieldDropdown(() => {
+                            const tableList = latestTablesRef.current || [];
+                            return tableList.length > 0 ? tableList.map(t => [t.name || t.id, t.id]) : [["No tables", "none"]];
+                        }), "TABLE");
+                    this.appendDummyInput()
+                        .appendField("and save result in Variable")
+                        .appendField(new Blockly.FieldDropdown(() => {
+                            return appVariables.length > 0 ? appVariables.map(v => [v.name, v.id]) : [["none", "none"]];
+                        }), "VAR");
+                    this.setPreviousStatement(true, null);
+                    this.setNextStatement(true, null);
+                    this.setColour('#34d399'); // Emerald/Green for Queries
+                    this.setTooltip("Run a pre-defined filter/query on a table and store the list of records in a variable.");
+                }
+            };
+        }
+
+        // 2. Load Linked Record
+        if (!Blockly.Blocks['action_load_linked_record']) {
+            Blockly.Blocks['action_load_linked_record'] = {
+                init: function () {
+                    this.appendDummyInput()
+                        .appendField("Load Linked Record in field")
+                        .appendField(new Blockly.FieldTextInput("field_name"), "FIELD")
+                        .appendField("of placeholder")
+                        .appendField(new Blockly.FieldDropdown(() => {
+                            const placeholders = latestRecordPlaceholdersRef.current || [];
+                            return placeholders.length > 0 ? placeholders.map(p => [p.name, p.id]) : [["No placeholders", "none"]];
+                        }), "SOURCE");
+                    this.appendDummyInput()
+                        .appendField("into placeholder")
+                        .appendField(new Blockly.FieldDropdown(() => {
+                            const placeholders = latestRecordPlaceholdersRef.current || [];
+                            return placeholders.length > 0 ? placeholders.map(p => [p.name, p.id]) : [["No placeholders", "none"]];
+                        }), "TARGET");
+                    this.setPreviousStatement(true, null);
+                    this.setNextStatement(true, null);
+                    this.setColour('#fbbf24');
+                    this.setTooltip("Traverse a linked record relationship and load the target record into a placeholder.");
                 }
             };
         }
@@ -1658,6 +1963,13 @@ const BlocklyEditor = ({
             return `// TRIGGER: DEVICE_OUTPUT:${device}:${station}\n${branch}`;
         };
 
+        javascriptGenerator.forBlock['trigger_when_machine'] = function (block) {
+            const machineId = block.getFieldValue('MACHINE_ID');
+            const event = block.getFieldValue('EVENT');
+            const branch = javascriptGenerator.statementToCode(block, 'STACK');
+            return `// TRIGGER: MACHINE_EVENT:${machineId}:${event}\n${branch}`;
+        };
+
         javascriptGenerator.forBlock['trigger_when_timer'] = function (block) {
             const seconds = block.getFieldValue('SECONDS');
             const branch = javascriptGenerator.statementToCode(block, 'STACK');
@@ -1725,6 +2037,69 @@ const BlocklyEditor = ({
         javascriptGenerator.forBlock['step_back_pressed'] = function (block) {
             const branch = javascriptGenerator.statementToCode(block, 'STACK');
             return `// TRIGGER: ON_BACK_PRESSED\n${branch}`;
+        };
+
+        javascriptGenerator.forBlock['trigger_when_table_record_event'] = function (block) {
+            const tableId = block.getFieldValue('TABLE');
+            const event = block.getFieldValue('EVENT');
+            const branch = javascriptGenerator.statementToCode(block, 'STACK');
+            return `// TRIGGER: TABLE_EVENT:${tableId}:${event}\n${branch}`;
+        };
+
+        javascriptGenerator.forBlock['action_create_table_record'] = function (block) {
+            const tableId = block.getFieldValue('TABLE');
+            const data = javascriptGenerator.valueToCode(block, 'DATA', javascriptGenerator.ORDER_ATOMIC) || '{}';
+            return `await context.createRecord("${tableId}", ${data});\n`;
+        };
+
+        javascriptGenerator.forBlock['action_update_table_record'] = function (block) {
+            const tableId = block.getFieldValue('TABLE');
+            const id = javascriptGenerator.valueToCode(block, 'ID', javascriptGenerator.ORDER_ATOMIC) || '""';
+            const data = javascriptGenerator.valueToCode(block, 'DATA', javascriptGenerator.ORDER_ATOMIC) || '{}';
+            return `await context.updateRecord("${tableId}", ${id}, ${data});\n`;
+        };
+
+        javascriptGenerator.forBlock['action_delete_table_record'] = function (block) {
+            const tableId = block.getFieldValue('TABLE');
+            const id = javascriptGenerator.valueToCode(block, 'ID', javascriptGenerator.ORDER_ATOMIC) || '""';
+            return `await context.deleteRecord("${tableId}", ${id});\n`;
+        };
+
+        javascriptGenerator.forBlock['action_load_record_placeholder'] = function (block) {
+            const placeholderId = block.getFieldValue('PLACEHOLDER');
+            const id = javascriptGenerator.valueToCode(block, 'ID', javascriptGenerator.ORDER_ATOMIC) || '""';
+            return `await context.loadRecord("${placeholderId}", ${id});\n`;
+        };
+
+        javascriptGenerator.forBlock['action_clear_record_placeholder'] = function (block) {
+            const placeholderId = block.getFieldValue('PLACEHOLDER');
+            return `context.clearPlaceholder("${placeholderId}");\n`;
+        };
+
+        javascriptGenerator.forBlock['get_record_placeholder_field'] = function (block) {
+            const placeholderId = block.getFieldValue('PLACEHOLDER');
+            const field = block.getFieldValue('FIELD');
+            return [`context.getPlaceholderField("${placeholderId}", "${field}")`, javascriptGenerator.ORDER_ATOMIC];
+        };
+
+        javascriptGenerator.forBlock['trigger_when_placeholder_loaded'] = function (block) {
+            const placeholderId = block.getFieldValue('PLACEHOLDER');
+            const branch = javascriptGenerator.statementToCode(block, 'STACK');
+            return `// TRIGGER: PLACEHOLDER_LOADED:${placeholderId}\n${branch}`;
+        };
+
+        javascriptGenerator.forBlock['action_run_table_query'] = function (block) {
+            const queryName = block.getFieldValue('QUERY');
+            const tableId = block.getFieldValue('TABLE');
+            const varId = block.getFieldValue('VAR');
+            return `const queryResults = await context.runQuery("${tableId}", "${queryName}");\ncontext.setVariable("${varId}", queryResults);\n`;
+        };
+
+        javascriptGenerator.forBlock['action_load_linked_record'] = function (block) {
+            const field = block.getFieldValue('FIELD');
+            const sourceId = block.getFieldValue('SOURCE');
+            const targetId = block.getFieldValue('TARGET');
+            return `await context.loadLinkedRecord("${sourceId}", "${field}", "${targetId}");\n`;
         };
 
         javascriptGenerator.forBlock['step_error_occurred'] = function (block) {
@@ -3591,12 +3966,50 @@ const BlocklyEditor = ({
                 colour: BLOCK_COLORS.MAVI_TRIGGER,
                 contents: [
                     { kind: 'block', type: 'trigger_when_device' },
+                    { kind: 'block', type: 'trigger_when_machine' },
                     { kind: 'block', type: 'trigger_when_timer' },
                     { kind: 'sep' },
                     { kind: 'block', type: 'get_event_parameter' },
                     { kind: 'sep' },
                     { kind: 'block', type: 'action_run_connector' },
                     { kind: 'block', type: 'action_show_error' }
+                ]
+            },
+            {
+                kind: 'category',
+                name: 'Data Logic',
+                colour: '#0ea5e9',
+                contents: [
+                    { kind: 'block', type: 'trigger_when_table_record_event' },
+                    { kind: 'sep' },
+                    { kind: 'block', type: 'action_create_table_record' },
+                    { kind: 'block', type: 'action_update_table_record' },
+                    { kind: 'block', type: 'action_delete_table_record' },
+                    { kind: 'sep' },
+                    { kind: 'block', type: 'get_event_parameter' }
+                ]
+            },
+            {
+                kind: 'category',
+                name: 'Table Records',
+                colour: '#fbbf24',
+                contents: [
+                    { kind: 'block', type: 'trigger_when_placeholder_loaded' },
+                    { kind: 'sep' },
+                    { kind: 'block', type: 'action_load_record_placeholder' },
+                    { kind: 'block', type: 'action_clear_record_placeholder' },
+                    { kind: 'sep' },
+                    { kind: 'block', type: 'action_load_linked_record' },
+                    { kind: 'sep' },
+                    { kind: 'block', type: 'get_record_placeholder_field' }
+                ]
+            },
+            {
+                kind: 'category',
+                name: 'Table Queries',
+                colour: '#34d399',
+                contents: [
+                    { kind: 'block', type: 'action_run_table_query' }
                 ]
             },
             {
@@ -3869,8 +4282,11 @@ const BlocklyEditor = ({
         try {
             if (activeScope === 'GLOBAL') {
                 await Promise.resolve(onUpdateGlobalLogic(xmlText, code));
-            } else {
+            } else if (activeScope === 'STEP') {
                 await Promise.resolve(onUpdateStepLogic(currentStepId, xmlText, code));
+            } else {
+                // Scoped widget update
+                await Promise.resolve(onUpdateWidgetLogic(activeScope, xmlText, code));
             }
 
             if (saveProgressTimerRef.current) clearInterval(saveProgressTimerRef.current);
@@ -4389,7 +4805,14 @@ const BlocklyEditor = ({
                             <Code size={20} />
                         </div>
                         <div>
-                            <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1e293b' }}>{activeScope === 'GLOBAL' ? 'GLOBAL LOGIC' : `LOGIC: ${currentStep?.title || 'Unknown Screen'}`}</div>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1e293b' }}>
+                                {activeScope === 'GLOBAL' 
+                                    ? 'GLOBAL LOGIC' 
+                                    : activeScope === 'STEP' 
+                                        ? `LOGIC: ${currentStep?.title || 'Unknown Screen'}`
+                                        : `WIDGET LOGIC: ${[...(baseComponents || []), ...(currentStep?.components || [])].find(c => c.id === activeScope)?.name || activeScope}`
+                                }
+                            </div>
                             <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Construct logic for this specific scope</div>
                         </div>
                     </div>
@@ -4424,6 +4847,27 @@ const BlocklyEditor = ({
                                 cursor: 'pointer'
                             }}
                         >Global Logic</button>
+                        {activeScope !== 'STEP' && activeScope !== 'GLOBAL' && (
+                            <button
+                                style={{
+                                    padding: '6px 12px',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    backgroundColor: 'white',
+                                    color: '#3b82f6',
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                    cursor: 'default',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                }}
+                            >
+                                <Zap size={10} fill="#3b82f6" />
+                                Widget: {[...(baseComponents || []), ...(currentStep?.components || [])].find(c => c.id === activeScope)?.name || 'Editor'}
+                            </button>
+                        )}
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
@@ -4554,7 +4998,7 @@ const BlocklyEditor = ({
                                     ? 'Saved'
                                     : saveStatus === 'error'
                                         ? 'Save Failed'
-                                        : `Save ${activeScope === 'GLOBAL' ? 'Global' : 'Screen'} Logic`}
+                                        : `Save ${activeScope === 'GLOBAL' ? 'Global' : activeScope === 'STEP' ? 'Screen' : 'Widget'} Logic`}
                         </span>
                         {saveStatus === 'saving' && (
                             <div
