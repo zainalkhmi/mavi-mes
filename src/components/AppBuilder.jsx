@@ -675,6 +675,7 @@ const COMPONENT_TYPES = {
     SHAPE_TRIANGLE: { id: 'SHAPE_TRIANGLE', label: 'Triangle', icon: Triangle, defaultSize: { w: 100, h: 100 }, defaultProps: { backgroundColor: '#3b82f6', borderColor: '#1e293b', borderWidth: 0, visible: true, rotation: 0, width: 100, height: 100, triggers: [], visibilityCondition: null } },
     SHAPE_LINE: { id: 'SHAPE_LINE', label: 'Line', icon: Minus, defaultSize: { w: 160, h: 20 }, defaultProps: { backgroundColor: '#1e293b', strokeWidth: 2, visible: true, rotation: 0, width: 160, height: 2, triggers: [], visibilityCondition: null } },
     SHAPE_ARROW: { id: 'SHAPE_ARROW', label: 'Arrow', icon: ArrowRight, defaultSize: { w: 160, h: 60 }, defaultProps: { backgroundColor: '#1e293b', strokeWidth: 2, visible: true, rotation: 0, width: 160, height: 20, triggers: [], visibilityCondition: null } },
+    SHAPE_DOUBLE_ARROW: { id: 'SHAPE_DOUBLE_ARROW', label: 'Double Arrow', icon: MoveHorizontal, defaultSize: { w: 200, h: 60 }, defaultProps: { backgroundColor: '#1e293b', borderWidth: 0, visible: true, rotation: 0, triggers: [], visibilityCondition: null } },
 
     // 5. Legacy Drawing and Animation
     BALL: { id: 'BALL', label: 'Ball', icon: Circle, defaultSize: { w: 40, h: 40 }, defaultProps: { x: 50, y: 50, radius: 5, paintColor: '#ef4444', speed: 0, heading: 0, interval: 100, enabled: true, visible: true, originAtCenter: true, z: 1, triggers: [], visibilityCondition: null, rotation: 0 } },
@@ -1058,7 +1059,7 @@ const CATEGORIZED_COMPONENTS = {
         label: 'Shapes',
         icon: Shapes,
         color: '#f59e0b',
-        types: ['SHAPE_CIRCLE', 'SHAPE_RECTANGLE', 'SHAPE_SQUARE', 'SHAPE_TRIANGLE', 'SHAPE_LINE', 'SHAPE_ARROW']
+        types: []
     },
     SENSORS: {
         label: 'Sensors',
@@ -5274,11 +5275,15 @@ const AppBuilder = () => {
             case 'line':
                 return 'SHAPE_LINE';
             case 'arrow_right':
-            case 'arrow_left':
-            case 'arrow_up':
-            case 'arrow_down':
-            case 'double_arrow_line':
                 return 'SHAPE_ARROW';
+            case 'arrow_left':
+                return 'SHAPE_ARROW';
+            case 'arrow_up':
+                return 'SHAPE_ARROW';
+            case 'arrow_down':
+                return 'SHAPE_ARROW';
+            case 'double_arrow_line':
+                return 'SHAPE_DOUBLE_ARROW';
             case 'ellipse':
                 return 'SHAPE_CIRCLE';
             case 'triangle':
@@ -8297,13 +8302,36 @@ const AppBuilder = () => {
             case 'SHAPE_SQUARE': {
                 const isVisible = comp.props.visible !== false;
                 if (!isVisible && viewMode === 'PREVIEW') return null;
+                const sv = comp.props.shapeVariant || 'rectangle';
+                // Render SVG polygon for non-rect variants, plain div for rect/square/rounded
+                const svgPolygons = {
+                    parallelogram: '7,5 21,5 17,19 3,19',
+                    trapezium: '5,5 19,5 23,19 1,19',
+                    diamond: '12,2 22,12 12,22 2,12',
+                    pentagon: '12,2 22,9 18,21 6,21 2,9',
+                    hexagon: '12,2 22,7 22,17 12,22 2,17 2,7',
+                };
+                const fill = comp.props.backgroundColor || '#3b82f6';
+                const stroke = comp.props.borderColor || '#1e293b';
+                const sw = comp.props.borderWidth || 0;
+                const rot = `rotate(${comp.props.rotation || 0}deg)`;
+                if (svgPolygons[sv]) {
+                    return (
+                        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', transform: rot, transition: 'transform 0.1s linear' }}>
+                            <svg width="100%" height="100%" viewBox="0 0 24 24" preserveAspectRatio="none">
+                                <polygon points={svgPolygons[sv]} fill={fill} stroke={stroke} strokeWidth={sw} strokeLinejoin="round" />
+                            </svg>
+                        </div>
+                    );
+                }
+                // Default: plain filled div (rectangle / square / rounded_rectangle)
                 return (
                     <div style={{
                         width: '100%', height: '100%',
-                        backgroundColor: comp.props.backgroundColor || '#3b82f6',
-                        border: `${comp.props.borderWidth || 2}px solid ${comp.props.borderColor || '#1e293b'}`,
-                        borderRadius: `${comp.props.borderRadius || 0}px`,
-                        transform: `rotate(${comp.props.rotation || 0}deg)`,
+                        backgroundColor: fill,
+                        border: `${sw}px solid ${stroke}`,
+                        borderRadius: sv === 'rounded_rectangle' ? '12px' : `${comp.props.borderRadius || 0}px`,
+                        transform: rot,
                         transition: 'transform 0.1s linear',
                         boxSizing: 'border-box'
                     }} />
@@ -8355,6 +8383,37 @@ const AppBuilder = () => {
             case 'SHAPE_ARROW': {
                 const isVisible = comp.props.visible !== false;
                 if (!isVisible && viewMode === 'PREVIEW') return null;
+                const variant = comp.props.shapeVariant || 'arrow_right';
+                // Map variant to rotation angle so we can reuse one right-pointing polygon
+                const arrowRotation = {
+                    arrow_right: 0,
+                    arrow_left: 180,
+                    arrow_up: -90,
+                    arrow_down: 90
+                }[variant] ?? 0;
+                return (
+                    <div style={{
+                        width: '100%', height: '100%',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transform: `rotate(${(comp.props.rotation || 0) + arrowRotation}deg)`,
+                        transition: 'transform 0.1s linear'
+                    }}>
+                        <svg width="100%" height="100%" viewBox="0 0 24 24" preserveAspectRatio="none">
+                            <polygon
+                                points="3,9 15,9 15,5 23,12 15,19 15,15 3,15"
+                                fill={comp.props.backgroundColor || '#1e293b'}
+                                stroke={comp.props.borderColor || 'none'}
+                                strokeWidth={comp.props.borderWidth || 0}
+                                strokeLinejoin="round"
+                            />
+                        </svg>
+                    </div>
+                );
+            }
+
+            case 'SHAPE_DOUBLE_ARROW': {
+                const isVisible = comp.props.visible !== false;
+                if (!isVisible && viewMode === 'PREVIEW') return null;
                 return (
                     <div style={{
                         width: '100%', height: '100%',
@@ -8362,9 +8421,9 @@ const AppBuilder = () => {
                         transform: `rotate(${comp.props.rotation || 0}deg)`,
                         transition: 'transform 0.1s linear'
                     }}>
-                        <svg width="100%" height="100%" viewBox="0 0 24 24" preserveAspectRatio="none">
+                        <svg width="100%" height="100%" viewBox="0 0 48 24" preserveAspectRatio="none">
                             <polygon
-                                points="3,9 15,9 15,5 23,12 15,19 15,15 3,15"
+                                points="0,12 8,4 8,9 40,9 40,4 48,12 40,20 40,15 8,15 8,20"
                                 fill={comp.props.backgroundColor || '#1e293b'}
                                 stroke={comp.props.borderColor || 'none'}
                                 strokeWidth={comp.props.borderWidth || 0}
@@ -9313,7 +9372,7 @@ const AppBuilder = () => {
                                                 <div style={{ padding: '4px' }}>
                                                     <ShapePicker
                                                         onSelect={(shapeType) => {
-                                                            addComponent('SHAPE', { type: shapeType });
+                                                            addComponent('SHAPE', { type: shapeType, shapeVariant: shapeType });
                                                             setOpenWidgetPaletteKey(null);
                                                         }}
                                                         onClose={() => setOpenWidgetPaletteKey(null)}
@@ -12237,7 +12296,7 @@ const AppBuilder = () => {
                                                     </div>
                                                 )}
 
-                                                {['SHAPE_CIRCLE', 'SHAPE_RECTANGLE', 'SHAPE_SQUARE', 'SHAPE_TRIANGLE', 'SHAPE_LINE', 'SHAPE_ARROW'].includes(selectedComp.type) && (
+                                                {['SHAPE_CIRCLE', 'SHAPE_RECTANGLE', 'SHAPE_SQUARE', 'SHAPE_TRIANGLE', 'SHAPE_LINE', 'SHAPE_ARROW', 'SHAPE_DOUBLE_ARROW'].includes(selectedComp.type) && (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                                         {/* Section: Appearance */}
                                                         {(sidebarSearch === '' || 'appearance color border rotation radius width'.includes(sidebarSearch.toLowerCase())) && (
@@ -12251,7 +12310,7 @@ const AppBuilder = () => {
                                                                     </div>
                                                                 </div>
 
-                                                                {['SHAPE_CIRCLE', 'SHAPE_RECTANGLE', 'SHAPE_SQUARE', 'SHAPE_TRIANGLE', 'SHAPE_ARROW'].includes(selectedComp.type) && (
+                                                                {['SHAPE_CIRCLE', 'SHAPE_RECTANGLE', 'SHAPE_SQUARE', 'SHAPE_TRIANGLE', 'SHAPE_ARROW', 'SHAPE_DOUBLE_ARROW'].includes(selectedComp.type) && (
                                                                     <>
                                                                         <div className="prop-group" style={{ marginBottom: '12px' }}>
                                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: '#475569', marginBottom: '4px' }}>Border Color</label>

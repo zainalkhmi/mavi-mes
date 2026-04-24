@@ -6,7 +6,6 @@ const SHAPE_CATEGORIES = [
         name: 'Lines',
         shapes: [
             { type: 'line', label: 'Line' },
-            { type: 'arrow_right', label: 'Arrow' },
             { type: 'double_arrow_line', label: 'Double Arrow' }
         ]
     },
