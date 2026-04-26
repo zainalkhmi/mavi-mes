@@ -24,6 +24,9 @@ export async function getTables() {
  */
 
 export async function getAllFrontlineApps() {
+    let cloudApps = [];
+    let cloudError = null;
+
     try {
         const supabase = getSupabaseClient();
         const { data, error } = await supabase
@@ -32,44 +35,66 @@ export async function getAllFrontlineApps() {
             .order('name');
         
         if (error) {
-            console.warn('[Offline Mode] Supabase query failed, attempting to load from cache...', error);
-            throw error;
-        }
+            cloudError = error;
+            console.warn('[Supabase] Fetch failed, falling back to cache.', error);
+        } else {
+            cloudApps = (data || []).map(app => {
+                if (app.config && app.config.iotConfig && app.config.iotConfig.brokerUrl) {
+                    let url = app.config.iotConfig.brokerUrl;
+                    if (url === 'ws://broker.emqx.io:8083/mqtt') url = 'wss://broker.emqx.io:8084/mqtt';
+                    else if (url.startsWith('ws://') && typeof window !== 'undefined' && window.location.protocol === 'https:') {
+                        url = url.replace('ws://', 'wss://');
+                    }
+                    if (url !== app.config.iotConfig.brokerUrl) {
+                        return { ...app, config: { ...app.config, iotConfig: { ...app.config.iotConfig, brokerUrl: url } } };
+                    }
+                }
+                return app;
+            });
 
-        const normalizedData = (data || []).map(app => {
-            if (app.config && app.config.iotConfig && app.config.iotConfig.brokerUrl) {
-                let url = app.config.iotConfig.brokerUrl;
-                if (url === 'ws://broker.emqx.io:8083/mqtt') url = 'wss://broker.emqx.io:8084/mqtt';
-                else if (url.startsWith('ws://') && typeof window !== 'undefined' && window.location.protocol === 'https:') {
-                    url = url.replace('ws://', 'wss://');
-                }
-                if (url !== app.config.iotConfig.brokerUrl) {
-                    return { ...app, config: { ...app.config, iotConfig: { ...app.config.iotConfig, brokerUrl: url } } };
-                }
+            // Save successfully fetched apps to offline cache
+            if (typeof window !== 'undefined' && cloudApps.length > 0) {
+                localStorage.setItem('offline_apps_cache', JSON.stringify(cloudApps));
             }
-            return app;
-        });
-
-        // Save successfully fetched apps to offline cache ONLY if we actually got data
-        if (typeof window !== 'undefined' && normalizedData && normalizedData.length > 0) {
-            localStorage.setItem('offline_apps_cache', JSON.stringify(normalizedData));
         }
-
-        return normalizedData;
     } catch (err) {
-        console.warn('[Offline Mode] getAllFrontlineApps failed, providing vault cache');
-        if (typeof window !== 'undefined') {
+        cloudError = err;
+        console.warn('[Offline Mode] Supabase connection failed.');
+    }
+
+    // --- UNIVERSAL MERGE LOGIC ---
+    let combined = [...cloudApps];
+
+    if (typeof window !== 'undefined') {
+        const keys = ['mavi_offline_vault', 'offline_apps_cache', 'draft_frontline_apps'];
+        keys.forEach(key => {
             try {
-                const cachedApps = localStorage.getItem('mavi_offline_vault');
-                if (cachedApps) {
-                    return JSON.parse(cachedApps);
+                const raw = localStorage.getItem(key);
+                if (raw) {
+                    const local = JSON.parse(raw);
+                    if (Array.isArray(local)) {
+                        local.forEach(la => {
+                            const exists = combined.find(a => String(a.id) === String(la.id));
+                            if (!exists) {
+                                combined.push(la);
+                            } else {
+                                // If local version is newer, prefer it (optional, but let's stick to cloud for now unless it's a draft)
+                                if (new Date(la.updated_at) > new Date(exists.updated_at)) {
+                                    const idx = combined.indexOf(exists);
+                                    combined[idx] = la;
+                                }
+                            }
+                        });
+                    }
                 }
             } catch (e) {
-                console.error('[Offline Mode] Failed to parse vault', e);
+                console.error(`[Cache] Failed to parse ${key}`, e);
             }
-        }
-        return [];
+        });
     }
+
+    // Final Sort
+    return combined.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
 }
 
 export async function saveFrontlineApp(app) {
@@ -135,12 +160,32 @@ export async function saveFrontlineApp(app) {
             console.error('[Supabase] Save failed permanently:', result.error);
             throw result.error;
         }
+
+        // On success, sync to local cache immediately
+        if (typeof window !== 'undefined') {
+            try {
+                const raw = localStorage.getItem('offline_apps_cache');
+                let cached = [];
+                try { cached = raw ? JSON.parse(raw) : []; } catch(e) { cached = []; }
+                if (!Array.isArray(cached)) cached = [];
+                
+                const index = cached.findIndex(a => String(a.id) === String(result.data.id));
+                if (index > -1) cached[index] = result.data;
+                else cached.push(result.data);
+                
+                localStorage.setItem('offline_apps_cache', JSON.stringify(cached));
+            } catch (e) {
+                console.warn('[Cache] Failed to sync save result', e);
+            }
+        }
+
         return result.data;
     } catch (err) {
         console.warn('[Offline Mode] Intercepting save, applying to vault', err);
         const raw = localStorage.getItem('mavi_offline_vault');
         let cached = [];
         try { cached = raw ? JSON.parse(raw) : []; } catch(e) { cached = []; }
+        if (!Array.isArray(cached)) cached = [];
 
         let outputApp = { ...app, ...payload };
         

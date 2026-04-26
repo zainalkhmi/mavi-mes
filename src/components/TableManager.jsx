@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Table, Plus, Search, Database, ArrowUpDown, Trash2, Archive, Rows3, Columns3, Info, RefreshCw, Upload, X, Lock, Type, ChevronDown, Settings, Edit3 } from 'lucide-react'; import {
+import { Table, Plus, Search, Database, ArrowUpDown, Trash2, Archive, Rows3, Columns3, Info, RefreshCw, Upload, X, Lock, Type, ChevronDown, Settings, Edit3, Edit2 } from 'lucide-react'; import {
     getTables,
     createTable,
     updateTable,

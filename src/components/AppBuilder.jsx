@@ -3048,6 +3048,52 @@ const AppBuilder = () => {
         setPanOffset({ x: 0, y: 0 });
     };
 
+    // --- Responsive Device Switching: proportionally scale all widgets ---
+    const getCanvasSizeForDevice = (deviceKey, orientation) => {
+        const preset = DEVICE_PRESETS[deviceKey] || DEVICE_PRESETS.RESPONSIVE;
+        if (!preset.width) return { width: 1000, height: 625 }; // RESPONSIVE fallback
+        return orientation === 'PORTRAIT'
+            ? { width: preset.width, height: preset.height }
+            : { width: preset.height, height: preset.width }; // LANDSCAPE flips
+    };
+
+    const scaleAllComponents = (oldW, oldH, newW, newH) => {
+        if (!oldW || !oldH || !newW || !newH) return;
+        const ratioX = newW / oldW;
+        const ratioY = newH / oldH;
+        const MIN_W = 20;
+        const MIN_H = 16;
+
+        const scaleComp = (comp) => ({
+            ...comp,
+            x: Math.round(comp.x * ratioX),
+            y: Math.round(comp.y * ratioY),
+            w: Math.max(MIN_W, Math.round(comp.w * ratioX)),
+            h: Math.max(MIN_H, Math.round(comp.h * ratioY))
+        });
+
+        setBaseComponents(prev => prev.map(scaleComp));
+        setSteps(prev => prev.map(s => ({
+            ...s,
+            components: (s.components || []).map(scaleComp)
+        })));
+    };
+
+    const handleDeviceChange = (newDeviceKey) => {
+        const oldSize = getCanvasSizeForDevice(previewDevice, previewOrientation);
+        const newSize = getCanvasSizeForDevice(newDeviceKey, previewOrientation);
+        scaleAllComponents(oldSize.width, oldSize.height, newSize.width, newSize.height);
+        setPreviewDevice(newDeviceKey);
+    };
+
+    const handleOrientationToggle = () => {
+        const newOrientation = previewOrientation === 'PORTRAIT' ? 'LANDSCAPE' : 'PORTRAIT';
+        const oldSize = getCanvasSizeForDevice(previewDevice, previewOrientation);
+        const newSize = getCanvasSizeForDevice(previewDevice, newOrientation);
+        scaleAllComponents(oldSize.width, oldSize.height, newSize.width, newSize.height);
+        setPreviewOrientation(newOrientation);
+    };
+
     const toggleFullscreen = () => {
         if (!canvasWrapperRef.current) return;
         if (!document.fullscreenElement) {
@@ -4123,11 +4169,11 @@ const AppBuilder = () => {
                 const sourceRp = recordPlaceholders.find(rp => rp.id === sourcePlaceholderId || rp.name === sourcePlaceholderId);
                 const record = sourceRp ? recordPlaceholderData[sourceRp.id] : null;
                 if (!record || !record[fieldName]) return null;
-                
+
                 const linkedRecordId = record[fieldName];
                 const targetRp = recordPlaceholders.find(rp => rp.id === targetPlaceholderId || rp.name === targetPlaceholderId);
                 if (!targetRp) return null;
-                
+
                 return await runtimeContext.loadRecord(targetRp.id, linkedRecordId);
             },
             setWidgetProperty: (compId, prop, val) => {
@@ -4761,14 +4807,14 @@ const AppBuilder = () => {
                     // Reset tracer before run
                     runtimeContext._currentBlockId = null;
                     // Use AsyncFunction so Blockly generated `await` statements do not throw syntax errors
-                    const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+                    const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
                     const run = new AsyncFunction('context', capturedCode);
                     run(runtimeContext).catch(e => {
                         console.error(`[Blockly Runtime] Async Execution Error (${sourceId}):`, e);
                         if (runtimeContext._currentBlockId) {
-                            setBlocklyRuntimeError({ 
-                                blockId: runtimeContext._currentBlockId, 
-                                message: e.message || "Runtime Exception" 
+                            setBlocklyRuntimeError({
+                                blockId: runtimeContext._currentBlockId,
+                                message: e.message || "Runtime Exception"
                             });
                         }
                     });
@@ -4798,7 +4844,7 @@ const AppBuilder = () => {
                 }
             });
         }
-        
+
         // 4. Run Scoped Widget Logic for base components
         if (baseComponents) {
             baseComponents.forEach(comp => {
@@ -4936,7 +4982,7 @@ const AppBuilder = () => {
 
         lastStepIdRef.current = currentStepId;
     }, [currentStepId, viewMode]);
-    
+
     useEffect(() => {
         if (viewMode !== 'PREVIEW') return;
 
@@ -5302,7 +5348,7 @@ const AppBuilder = () => {
         const uniqueName = getUniqueWidgetName(baseName);
 
         const canvasPreset = DEVICE_PRESETS[previewDevice] || DEVICE_PRESETS.RESPONSIVE;
-        const canvasWidth = canvasPreset.width || 360; 
+        const canvasWidth = canvasPreset.width || 360;
         const canvasHeight = canvasPreset.height || 640;
 
         const widgetW = typeDef?.defaultSize?.w || 160;
@@ -8924,7 +8970,7 @@ const AppBuilder = () => {
                             <LayoutGrid size={14} color="rgba(255,255,255,0.7)" />
                             <select
                                 value={previewDevice}
-                                onChange={e => setPreviewDevice(e.target.value)}
+                                onChange={e => handleDeviceChange(e.target.value)}
                                 style={{ border: 'none', background: 'transparent', fontSize: '0.75rem', fontWeight: 600, color: '#fff', outline: 'none', cursor: 'pointer' }}
                             >
                                 {Object.entries(DEVICE_PRESETS).map(([key, preset]) => (
@@ -8934,6 +8980,72 @@ const AppBuilder = () => {
                                 ))}
                             </select>
                         </div>
+
+                        {/* Portrait / Landscape Toggle — shown when a fixed device is selected */}
+                        {previewDevice !== 'RESPONSIVE' && (
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                backgroundColor: 'rgba(0,0,0,0.18)',
+                                borderRadius: '6px',
+                                padding: '2px',
+                                gap: '2px'
+                            }}>
+                                {/* Portrait */}
+                                <button
+                                    onClick={() => previewOrientation !== 'PORTRAIT' && handleOrientationToggle()}
+                                    title="Portrait"
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        padding: '4px 8px',
+                                        borderRadius: '5px',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        fontSize: '0.68rem',
+                                        fontWeight: 700,
+                                        transition: 'all 0.15s',
+                                        backgroundColor: previewOrientation === 'PORTRAIT' ? 'rgba(255,255,255,0.20)' : 'transparent',
+                                        color: previewOrientation === 'PORTRAIT' ? '#fff' : 'rgba(255,255,255,0.5)',
+                                        boxShadow: previewOrientation === 'PORTRAIT' ? '0 1px 4px rgba(0,0,0,0.25)' : 'none'
+                                    }}
+                                >
+                                    {/* Tall rectangle = portrait icon */}
+                                    <svg width="10" height="14" viewBox="0 0 10 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <rect x="0.5" y="0.5" width="9" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill={previewOrientation === 'PORTRAIT' ? 'currentColor' : 'none'} fillOpacity="0.2"/>
+                                    </svg>
+                                    Portrait
+                                </button>
+
+                                {/* Landscape */}
+                                <button
+                                    onClick={() => previewOrientation !== 'LANDSCAPE' && handleOrientationToggle()}
+                                    title="Landscape"
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        padding: '4px 8px',
+                                        borderRadius: '5px',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        fontSize: '0.68rem',
+                                        fontWeight: 700,
+                                        transition: 'all 0.15s',
+                                        backgroundColor: previewOrientation === 'LANDSCAPE' ? 'rgba(255,255,255,0.20)' : 'transparent',
+                                        color: previewOrientation === 'LANDSCAPE' ? '#fff' : 'rgba(255,255,255,0.5)',
+                                        boxShadow: previewOrientation === 'LANDSCAPE' ? '0 1px 4px rgba(0,0,0,0.25)' : 'none'
+                                    }}
+                                >
+                                    {/* Wide rectangle = landscape icon */}
+                                    <svg width="14" height="10" viewBox="0 0 14 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <rect x="0.5" y="0.5" width="13" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill={previewOrientation === 'LANDSCAPE' ? 'currentColor' : 'none'} fillOpacity="0.2"/>
+                                    </svg>
+                                    Landscape
+                                </button>
+                            </div>
+                        )}
 
                         {viewMode === 'DESIGN' && (
                             <button
@@ -9317,33 +9429,74 @@ const AppBuilder = () => {
                                         flexDirection: 'column',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        minWidth: '70px',
-                                        padding: '8px 12px',
-                                        height: '56px',
-                                        backgroundColor: openWidgetPaletteKey === catKey ? '#f8fafc' : 'transparent',
-                                        border: 'none',
-                                        borderRadius: '6px',
+                                        minWidth: '85px',
+                                        padding: '12px 14px',
+                                        height: '76px',
+                                        backgroundColor: openWidgetPaletteKey === catKey ? '#ffffff' : '#f8fafc',
+                                        border: openWidgetPaletteKey === catKey ? `2px solid ${category.color}` : '1px solid #e2e8f0',
+                                        borderRadius: '16px',
                                         cursor: 'pointer',
-                                        transition: 'all 0.2s',
-                                        gap: '6px'
+                                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                        gap: '8px',
+                                        boxShadow: openWidgetPaletteKey === catKey ? '0 10px 20px -5px rgba(0, 0, 0, 0.1)' : 'none',
+                                        position: 'relative',
+                                        overflow: 'hidden'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        if (openWidgetPaletteKey !== catKey) {
+                                            e.currentTarget.style.transform = 'translateY(-2px)';
+                                            e.currentTarget.style.backgroundColor = '#ffffff';
+                                            e.currentTarget.style.borderColor = category.color;
+                                            e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.05)';
+                                        }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        if (openWidgetPaletteKey !== catKey) {
+                                            e.currentTarget.style.transform = 'translateY(0)';
+                                            e.currentTarget.style.backgroundColor = '#f8fafc';
+                                            e.currentTarget.style.borderColor = '#e2e8f0';
+                                            e.currentTarget.style.boxShadow = 'none';
+                                        }
                                     }}
                                 >
                                     <div style={{
-                                        backgroundColor: `${category.color}15`,
-                                        padding: '6px',
-                                        borderRadius: '6px',
-                                        color: category.color,
+                                        background: openWidgetPaletteKey === catKey 
+                                            ? `linear-gradient(135deg, ${category.color} 0%, ${category.color}dd 100%)` 
+                                            : `${category.color}15`,
+                                        padding: '8px',
+                                        borderRadius: '12px',
+                                        color: openWidgetPaletteKey === catKey ? '#ffffff' : category.color,
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        width: '32px',
-                                        height: '32px'
+                                        width: '36px',
+                                        height: '36px',
+                                        boxShadow: openWidgetPaletteKey === catKey ? `0 4px 12px ${category.color}44` : 'none',
+                                        transition: 'all 0.3s ease'
                                     }}>
-                                        <category.icon size={18} strokeWidth={2.5} />
+                                        <category.icon size={20} strokeWidth={2.5} />
                                     </div>
-                                    <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#475569', textAlign: 'center', width: '100%' }}>
+                                    <span style={{ 
+                                        fontSize: '0.72rem', 
+                                        fontWeight: 700, 
+                                        color: openWidgetPaletteKey === catKey ? '#1e293b' : '#64748b', 
+                                        textAlign: 'center', 
+                                        width: '100%',
+                                        letterSpacing: '0.01em'
+                                    }}>
                                         {category.label}
                                     </span>
+                                    {openWidgetPaletteKey === catKey && (
+                                        <div style={{
+                                            position: 'absolute',
+                                            bottom: 0,
+                                            left: '30%',
+                                            right: '30%',
+                                            height: '3px',
+                                            backgroundColor: category.color,
+                                            borderRadius: '3px 3px 0 0'
+                                        }} />
+                                    )}
                                 </button>
 
                                 {/* Invisible bridge so pointer stays inside category cell while moving from button to menu (avoids onMouseLeave closing dropdown) */}
@@ -9735,7 +9888,7 @@ const AppBuilder = () => {
                                             <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>Model</label>
                                             <select
                                                 value={previewDevice}
-                                                onChange={e => setPreviewDevice(e.target.value)}
+                                                onChange={e => handleDeviceChange(e.target.value)}
                                                 style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.8rem', color: '#1e293b', backgroundColor: '#ffffff', outline: 'none', cursor: 'pointer' }}
                                             >
                                                 {Object.entries(DEVICE_PRESETS).map(([key, preset]) => (
@@ -9748,7 +9901,7 @@ const AppBuilder = () => {
                                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#eff6ff', padding: '6px 10px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
                                                 <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#1e40af' }}>{previewOrientation}</span>
                                                 <button
-                                                    onClick={() => setPreviewOrientation(prev => prev === 'PORTRAIT' ? 'LANDSCAPE' : 'PORTRAIT')}
+                                                    onClick={handleOrientationToggle}
                                                     style={{
                                                         background: '#3b82f6',
                                                         border: 'none',
@@ -10296,9 +10449,97 @@ const AppBuilder = () => {
 
                         {/* Center Pane: Canvas & Completions */}
                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, zIndex: 1 }}>
+                            {/* Pro Canvas micro-animation styles */}
+                            <style>{`
+                                @keyframes canvasFadeIn {
+                                    from { opacity: 0; transform: translateY(12px); }
+                                    to   { opacity: 1; transform: translateY(0); }
+                                }
+                                @keyframes iconPulse {
+                                    0%, 100% { transform: scale(1);   opacity: 0.9; }
+                                    50%       { transform: scale(1.07); opacity: 1; }
+                                }
+                                @keyframes crosshairFade {
+                                    0%, 100% { opacity: 0.18; }
+                                    50%       { opacity: 0.32; }
+                                }
+                                @keyframes snapDot {
+                                    0%, 100% { transform: scale(1); opacity: 0.5; }
+                                    50%       { transform: scale(1.4); opacity: 0.9; }
+                                }
+                                .pro-add-widget-btn {
+                                    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                                    color: white;
+                                    border: none;
+                                    padding: 10px 22px;
+                                    border-radius: 24px;
+                                    font-size: 0.875rem;
+                                    font-weight: 700;
+                                    cursor: pointer;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                    box-shadow: 0 4px 14px rgba(16,185,129,0.35);
+                                    transition: transform 0.18s ease, box-shadow 0.18s ease;
+                                    pointer-events: auto;
+                                }
+                                .pro-add-widget-btn:hover {
+                                    transform: translateY(-2px) scale(1.03);
+                                    box-shadow: 0 8px 20px rgba(16,185,129,0.45);
+                                }
+                                .pro-add-widget-btn:active {
+                                    transform: translateY(0) scale(0.98);
+                                }
+                                .pro-float-pill {
+                                    background: rgba(255,255,255,0.72);
+                                    backdrop-filter: blur(12px) saturate(180%);
+                                    -webkit-backdrop-filter: blur(12px) saturate(180%);
+                                    border: 1px solid rgba(226,232,240,0.8);
+                                    box-shadow: 0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06);
+                                    border-radius: 999px;
+                                    padding: 6px 10px;
+                                    display: flex;
+                                    gap: 4px;
+                                    align-items: center;
+                                }
+                                .pro-float-pill button {
+                                    border: none;
+                                    background: transparent;
+                                    cursor: pointer;
+                                    border-radius: 999px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    width: 28px;
+                                    height: 28px;
+                                    color: #64748b;
+                                    font-size: 15px;
+                                    font-weight: bold;
+                                    transition: background 0.15s, color 0.15s;
+                                }
+                                .pro-float-pill button:hover {
+                                    background: rgba(59,130,246,0.10);
+                                    color: #3b82f6;
+                                }
+                                .pro-drop-hint {
+                                    position: absolute;
+                                    bottom: 14px;
+                                    left: 50%;
+                                    transform: translateX(-50%);
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    color: #94a3b8;
+                                    font-size: 0.72rem;
+                                    font-weight: 500;
+                                    letter-spacing: 0.01em;
+                                    pointer-events: none;
+                                    opacity: 0.75;
+                                }
+                            `}</style>
                             <div
                                 ref={canvasWrapperRef}
-                                style={{ flex: 1, backgroundColor: 'var(--bg-primary)', padding: viewMode === 'PREVIEW' ? '12px' : '20px', overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}
+                                style={{ flex: 1, backgroundColor: viewMode === 'PREVIEW' ? 'var(--bg-primary)' : '#eef1f6', padding: viewMode === 'PREVIEW' ? '12px' : '20px', overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}
                                 onMouseMove={handleCanvasMouseMove}
                                 onMouseUp={handleCanvasMouseUp}
                                 onMouseLeave={handleCanvasMouseUp}
@@ -10307,17 +10548,24 @@ const AppBuilder = () => {
 
 
 
-                                {/* Floating Toolbar for Zoom/Pan */}
-                                <div data-app-floating-ui onMouseDown={(e) => e.stopPropagation()} style={{ position: 'absolute', bottom: '20px', right: '20px', display: 'flex', gap: '8px', background: 'white', padding: '8px', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', zIndex: 9000, alignItems: 'center', border: '1px solid #e2e8f0' }}>
-                                    <button onClick={() => setZoomScale(Math.max(0.1, zoomScale - 0.1))} style={{ padding: '4px', background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', fontWeight: 'bold', fontSize: '18px', color: '#64748b' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>-</button>
-                                    <span style={{ fontSize: '0.8rem', fontWeight: 600, minWidth: '40px', textAlign: 'center', color: '#475569' }}>{Math.round(zoomScale * 100)}%</span>
-                                    <button onClick={() => setZoomScale(Math.min(3, zoomScale + 0.1))} style={{ padding: '4px', background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', fontWeight: 'bold', fontSize: '18px', color: '#64748b' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>+</button>
-                                    <div style={{ width: '1px', height: '16px', backgroundColor: '#e2e8f0', margin: '0 4px' }}></div>
-                                    <button onClick={handleFitToScreen} title="Fit to Screen" style={{ padding: '4px', background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#eff6ff'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}><LayoutGrid size={16} /></button>
-                                    <button onClick={toggleFullscreen} title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"} style={{ padding: '4px', background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#eff6ff'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
-                                        {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+                                {/* Floating Toolbar for Zoom/Pan — Pro Pill Glass Style */}
+                                <div data-app-floating-ui onMouseDown={(e) => e.stopPropagation()} className="pro-float-pill" style={{ position: 'absolute', bottom: '18px', right: '18px', zIndex: 9000 }}>
+                                    <button onClick={() => setZoomScale(Math.max(0.1, zoomScale - 0.1))} title="Zoom Out">−</button>
+                                    <span style={{ fontSize: '0.78rem', fontWeight: 700, minWidth: '38px', textAlign: 'center', color: '#475569', letterSpacing: '-0.01em' }}>{Math.round(zoomScale * 100)}%</span>
+                                    <button onClick={() => setZoomScale(Math.min(3, zoomScale + 0.1))} title="Zoom In">+</button>
+                                    <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(148,163,184,0.4)', margin: '0 2px' }} />
+                                    <button onClick={handleFitToScreen} title="Fit to Screen" style={{ color: '#3b82f6' }}><LayoutGrid size={14} /></button>
+                                    <button onClick={toggleFullscreen} title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'} style={{ color: '#3b82f6' }}>
+                                        {isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
                                     </button>
                                 </div>
+                                {/* Drop Hint — visible when canvas empty */}
+                                {currentStep?.components.length === 0 && baseComponents.length === 0 && viewMode === 'DESIGN' && (
+                                    <div className="pro-drop-hint">
+                                        <Layers size={12} />
+                                        Drop widgets here
+                                    </div>
+                                )}
 
                                 <div
                                     className="canvas-drawing-area"
@@ -10342,12 +10590,13 @@ const AppBuilder = () => {
                                         backgroundImage: currentStep?.backgroundImage
                                             ? `url(${currentStep.backgroundImage})`
                                             : showGrid
-                                                ? `linear-gradient(${appThemeMode === 'DARK' ? '#1e293b' : '#f1f5f9'} 1px, transparent 1px), linear-gradient(90deg, ${appThemeMode === 'DARK' ? '#1e293b' : '#f1f5f9'} 1px, transparent 1px)`
+                                                ? `linear-gradient(rgba(${appThemeMode === 'DARK' ? '30,41,59' : '203,213,225'},0.45) 1px, transparent 1px), linear-gradient(90deg, rgba(${appThemeMode === 'DARK' ? '30,41,59' : '203,213,225'},0.45) 1px, transparent 1px)`
                                                 : 'none',
                                         backgroundSize: currentStep?.backgroundImage ? 'cover' : showGrid ? `${GRID_SIZE}px ${GRID_SIZE}px` : 'auto',
                                         backgroundPosition: 'center',
-                                        borderRadius: canvasFrameRadius,
-                                        boxShadow: canvasFrameShadow,
+                                        borderRadius: canvasFrameRadius || '12px',
+                                        boxShadow: canvasFrameShadow || '0 8px 40px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06)',
+
                                         position: 'relative',
                                         border: canvasFrameBorder,
                                         display: 'flex',
@@ -10384,23 +10633,118 @@ const AppBuilder = () => {
                                         <div key={`h-${i}`} style={{ position: 'absolute', top: y, left: 0, width: '100%', height: '1px', backgroundColor: 'rgba(249, 115, 22, 0.4)', zIndex: 999, pointerEvents: 'none', borderTop: '1px dashed #f97316' }} />
                                     ))}
 
-                                    {currentStep?.components.length === 0 && baseComponents.length === 0 && (
-                                        <div style={{
-                                            position: 'absolute',
-                                            inset: 0,
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            textAlign: 'center',
-                                            color: '#94a3b8',
-                                            pointerEvents: 'none',
-                                            zIndex: 1
-                                        }}>
-                                            <MousePointer2 size={48} style={{ marginBottom: '20px' }} />
-                                            <p style={{ fontSize: '1.1rem', fontWeight: 600 }}>Canvas is Empty</p>
-                                            <p style={{ fontSize: '0.85rem' }}>Add a widget from the toolbar above to start.</p>
-                                        </div>
+                                    {currentStep?.components.length === 0 && baseComponents.length === 0 && viewMode === 'DESIGN' && (
+                                        <>
+                                            {/* Center Crosshair Guide */}
+                                            <div style={{
+                                                position: 'absolute',
+                                                inset: 0,
+                                                pointerEvents: 'none',
+                                                zIndex: 0,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center'
+                                            }}>
+                                                {/* Horizontal line */}
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    top: '50%',
+                                                    left: '10%',
+                                                    right: '10%',
+                                                    height: '1px',
+                                                    background: 'linear-gradient(90deg, transparent 0%, rgba(99,179,237,0.25) 30%, rgba(99,179,237,0.25) 70%, transparent 100%)',
+                                                    animation: 'crosshairFade 3s ease-in-out infinite'
+                                                }} />
+                                                {/* Vertical line */}
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    left: '50%',
+                                                    top: '10%',
+                                                    bottom: '10%',
+                                                    width: '1px',
+                                                    background: 'linear-gradient(180deg, transparent 0%, rgba(99,179,237,0.25) 30%, rgba(99,179,237,0.25) 70%, transparent 100%)',
+                                                    animation: 'crosshairFade 3s ease-in-out infinite'
+                                                }} />
+                                                {/* Center dot */}
+                                                <div style={{
+                                                    width: '6px',
+                                                    height: '6px',
+                                                    borderRadius: '50%',
+                                                    backgroundColor: 'rgba(99,179,237,0.5)',
+                                                    animation: 'snapDot 2.5s ease-in-out infinite'
+                                                }} />
+                                            </div>
+
+                                            {/* Pro Empty State */}
+                                            <div style={{
+                                                position: 'absolute',
+                                                inset: 0,
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                textAlign: 'center',
+                                                pointerEvents: 'none',
+                                                zIndex: 1,
+                                                animation: 'canvasFadeIn 0.5s ease both'
+                                            }}>
+                                                {/* Gradient Icon Badge */}
+                                                <div style={{
+                                                    width: '72px',
+                                                    height: '72px',
+                                                    borderRadius: '24px',
+                                                    background: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 50%, #6ee7b7 100%)',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    marginBottom: '20px',
+                                                    boxShadow: '0 8px 24px rgba(16,185,129,0.20)',
+                                                    animation: 'iconPulse 3s ease-in-out infinite'
+                                                }}>
+                                                    <Layers size={32} color="#059669" strokeWidth={1.5} />
+                                                </div>
+
+                                                <p style={{
+                                                    fontSize: '1.25rem',
+                                                    fontWeight: 800,
+                                                    color: '#1e293b',
+                                                    margin: '0 0 8px',
+                                                    letterSpacing: '-0.02em'
+                                                }}>Start building your canvas</p>
+
+                                                <p style={{
+                                                    fontSize: '0.875rem',
+                                                    color: '#64748b',
+                                                    margin: '0 0 24px',
+                                                    maxWidth: '240px',
+                                                    lineHeight: 1.6
+                                                }}>Drag widgets from the toolbar or click below to get started.</p>
+
+                                                <button
+                                                    className="pro-add-widget-btn"
+                                                    style={{ pointerEvents: 'auto' }}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setOpenWidgetPaletteKey('USER_INTERFACE');
+                                                    }}
+                                                >
+                                                    <Plus size={16} />
+                                                    Add Widget
+                                                </button>
+
+                                                <p style={{
+                                                    marginTop: '18px',
+                                                    fontSize: '0.72rem',
+                                                    color: '#94a3b8',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '5px'
+                                                }}>
+                                                    <Info size={11} />
+                                                    Tip: You can also drag and drop widgets directly from the toolbar.
+                                                </p>
+                                            </div>
+                                        </>
                                     )}
 
                                     {/* Base Components Layer */}
@@ -10958,7 +11302,7 @@ const AppBuilder = () => {
 
                                                 {/* Sidebar Search Filter */}
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '15px' }}>
-                                                    <button 
+                                                    <button
                                                         onClick={() => {
                                                             setActiveLogicScopeId(selectedComp.id);
                                                             setViewMode('DIAGRAM'); // Logic Editor
@@ -14133,19 +14477,19 @@ const AppBuilder = () => {
                                                                 </select>
                                                             </div>
                                                         ) : (
-                                                        <div className="prop-group" style={{ marginBottom: '10px' }}>
-                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: '#64748b', marginBottom: '4px' }}>TABLE</label>
-                                                            <select
-                                                                value={selectedComp.props.tableId || ''}
-                                                                onChange={(e) => updateComponentProps(selectedComp.id, { tableId: e.target.value, columns: [], queryId: '', aggregationId: '' })}
-                                                                style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.75rem' }}
-                                                            >
-                                                                <option value="">Select Table...</option>
-                                                                {tables.filter(t => appTables.includes(t.id)).map(t => (
-                                                                    <option key={t.id} value={t.id}>{t.name}</option>
-                                                                ))}
-                                                            </select>
-                                                        </div>
+                                                            <div className="prop-group" style={{ marginBottom: '10px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#64748b', marginBottom: '4px' }}>TABLE</label>
+                                                                <select
+                                                                    value={selectedComp.props.tableId || ''}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { tableId: e.target.value, columns: [], queryId: '', aggregationId: '' })}
+                                                                    style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.75rem' }}
+                                                                >
+                                                                    <option value="">Select Table...</option>
+                                                                    {tables.filter(t => appTables.includes(t.id)).map(t => (
+                                                                        <option key={t.id} value={t.id}>{t.name}</option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
                                                         )}
 
                                                         <div className="prop-group" style={{ marginBottom: '10px' }}>
