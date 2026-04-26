@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Table, Plus, Search, Database, ArrowUpDown, Trash2, Archive, Rows3, Columns3, Info, RefreshCw, Upload, X, Lock, Type, ChevronDown, Settings, Edit3, Edit2 } from 'lucide-react'; import {
+import { 
+    Table, Plus, Search, Database, ArrowUpDown, Trash2, Archive, Rows3, Columns3, 
+    Info, RefreshCw, Upload, X, Lock, Type, ChevronDown, Settings, Edit3, Edit2,
+    Hash, Calendar, CheckSquare, User, Clock, Filter, Group, MoreHorizontal, 
+    ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, LayoutGrid, GripVertical,
+    Eye, MoreVertical, Layers, Key, Zap, AlertTriangle, Menu
+} from 'lucide-react'; 
+import {
     getTables,
     createTable,
     updateTable,
@@ -32,19 +39,26 @@ const FIELD_TYPE_LABELS = {
 };
 
 const TOKENS = {
-    primary: '#714B67', // Odoo Purple
-    secondary: '#017E84', // Odoo Teal
-    success: '#00A09D',
-    bg: '#F9FAFB',
+    primary: '#6366f1', // Indigo 500
+    primaryLight: '#f5f3ff',
+    secondary: '#8b5cf6', // Violet 500
+    success: '#10b981', // Emerald 500
+    warning: '#f59e0b', // Amber 500
+    danger: '#ef4444', // Red 500
+    sidebarBg: '#1e1b4b', // Indigo 950
+    sidebarText: '#e2e8f0',
+    sidebarTextMuted: '#94a3b8',
+    sidebarActive: '#312e81',
+    bg: '#f8fafc', // Slate 50
     surface: '#ffffff',
-    text: '#4C4C4C',
-    textMuted: '#8F8F8F',
-    border: '#D1D5DB',
-    borderLight: '#E5E7EB',
-    radius: '10px',
-    radiusSm: '6px',
-    shadow: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
-    shadowLg: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)'
+    text: '#1e293b', // Slate 800
+    textMuted: '#64748b', // Slate 500
+    border: '#e2e8f0', // Slate 200
+    borderLight: '#f1f5f9', // Slate 100
+    radius: '12px',
+    radiusSm: '8px',
+    shadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+    shadowLg: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)'
 };
 
 const LinkedRecordSelector = ({ field, value, onChange, tables }) => {
@@ -173,8 +187,11 @@ const TableManager = () => {
     const [isEditingRecord, setIsEditingRecord] = useState(false);
     const [newRecordId, setNewRecordId] = useState('');
     const [newRecordValues, setNewRecordValues] = useState({});
-    const [activePanel, setActivePanel] = useState('fields');
+    const [activePanel, setActivePanel] = useState('records');
     const [csvImporting, setCsvImporting] = useState(false);
+    const [isTableSidebarOpen, setIsTableSidebarOpen] = useState(true);
+    const [isFieldsSidebarOpen, setIsFieldsSidebarOpen] = useState(true);
+    const [hiddenFields, setHiddenFields] = useState([]);
     const [creatingTable, setCreatingTable] = useState(false);
     const [queries, setQueries] = useState([]);
     const [aggregations, setAggregations] = useState([]);
@@ -808,46 +825,38 @@ const TableManager = () => {
             height: '100vh',
             backgroundColor: TOKENS.bg,
             color: TOKENS.text,
-            fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+            fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
             overflow: 'hidden'
         }}>
             {/* Sidebar: Navigation & Table List */}
-            <div style={{
-                width: '300px',
-                backgroundColor: TOKENS.surface,
-                borderRight: `1px solid ${TOKENS.border}`,
-                display: 'flex',
-                flexDirection: 'column',
-                flexShrink: 0,
-                boxShadow: '4px 0 6px -1px rgba(0,0,0,0.05)'
-            }}>
-                {/* Sidebar Header - Odoo Purple Style */}
-                <div style={{ 
-                    padding: '20px 24px', 
-                    backgroundColor: TOKENS.primary, 
-                    color: 'white',
+            {isTableSidebarOpen && (
+                <div style={{
+                    width: '280px',
+                    backgroundColor: TOKENS.sidebarBg,
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '16px'
+                    flexShrink: 0,
+                    color: TOKENS.sidebarText,
+                    borderRight: `1px solid rgba(255,255,255,0.05)`
                 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{
-                            width: '36px',
-                            height: '36px',
-                            backgroundColor: 'rgba(255,255,255,0.15)',
-                            borderRadius: '8px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'white'
-                        }}>
-                            <Table size={20} />
-                        </div>
-                        <h2 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>Tables</h2>
+                {/* Logo */}
+                <div style={{ padding: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: TOKENS.primary, borderRadius: '8px' }}>
+                        <Layers size={20} color="white" />
                     </div>
+                    <span style={{ fontWeight: 800, fontSize: '1.2rem', letterSpacing: '1px' }}>MES CORE</span>
+                </div>
 
+                {/* Section Title */}
+                <div style={{ padding: '0 24px 12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <LayoutGrid size={16} color={TOKENS.sidebarTextMuted} />
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: TOKENS.sidebarTextMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tables</span>
+                </div>
+
+                {/* Search */}
+                <div style={{ padding: '0 16px 16px' }}>
                     <div style={{ position: 'relative' }}>
-                        <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.7 }} />
+                        <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: TOKENS.sidebarTextMuted }} />
                         <input
                             type="text"
                             placeholder="Find a table..."
@@ -855,19 +864,21 @@ const TableManager = () => {
                             onChange={(e) => setSearchTerm(e.target.value)}
                             style={{
                                 width: '100%',
-                                padding: '8px 12px 8px 36px',
-                                borderRadius: TOKENS.radiusSm,
-                                border: 'none',
-                                backgroundColor: 'rgba(255,255,255,0.1)',
+                                padding: '10px 12px 10px 36px',
+                                backgroundColor: 'rgba(255,255,255,0.05)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                borderRadius: '8px',
                                 color: 'white',
-                                outline: 'none',
-                                fontSize: '0.85rem'
+                                fontSize: '0.85rem',
+                                outline: 'none'
                             }}
                         />
+                        <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.7rem', color: TOKENS.sidebarTextMuted, border: '1px solid rgba(255,255,255,0.2)', padding: '2px 4px', borderRadius: '4px' }}>⌘ K</span>
                     </div>
                 </div>
 
-                <div style={{ padding: '16px 20px', borderBottom: `1px solid ${TOKENS.borderLight}` }}>
+                {/* New Table Button */}
+                <div style={{ padding: '0 16px 20px' }}>
                     <button
                         onClick={() => {
                             setNewTableName('');
@@ -876,130 +887,150 @@ const TableManager = () => {
                         }}
                         style={{
                             width: '100%',
-                            padding: '10px',
-                            backgroundColor: 'white',
-                            color: TOKENS.secondary,
-                            border: `1px solid ${TOKENS.secondary}`,
-                            borderRadius: TOKENS.radiusSm,
-                            fontWeight: 600,
+                            padding: '12px',
+                            backgroundColor: TOKENS.primary,
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontWeight: 700,
+                            fontSize: '0.85rem',
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             gap: '8px',
-                            fontSize: '0.85rem',
-                            transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => { 
-                            e.currentTarget.style.backgroundColor = TOKENS.secondary; 
-                            e.currentTarget.style.color = 'white';
-                        }}
-                        onMouseLeave={(e) => { 
-                            e.currentTarget.style.backgroundColor = 'white'; 
-                            e.currentTarget.style.color = TOKENS.secondary;
+                            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
                         }}
                     >
-                        <Plus size={16} /> New Table
+                        <Plus size={18} /> New Table
                     </button>
                 </div>
 
-                {/* Sidebar Table List */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
-                    {loading ? (
-                        <div style={{ padding: '20px', textAlign: 'center', color: TOKENS.textMuted, fontSize: '0.85rem' }}>
-                            <RefreshCw size={20} className="animate-spin" style={{ color: TOKENS.primary, marginBottom: '8px' }} />
-                            <div>Loading...</div>
-                        </div>
-                    ) : filteredTables.length === 0 ? (
-                        <div style={{ padding: '20px', textAlign: 'center', color: TOKENS.textMuted, fontSize: '0.85rem' }}>
-                            No tables found
-                        </div>
-                    ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            {filteredTables.map((table) => (
-                                <div
-                                    key={table.id}
-                                    onClick={() => setSelectedTableId(table.id)}
-                                    style={{
-                                        padding: '12px 16px',
-                                        borderRadius: '0',
-                                        backgroundColor: selectedTableId === table.id ? 'rgba(113, 75, 103, 0.08)' : 'transparent',
-                                        borderLeft: `4px solid ${selectedTableId === table.id ? TOKENS.primary : 'transparent'}`,
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        transition: 'all 0.2s',
-                                        color: selectedTableId === table.id ? TOKENS.primary : TOKENS.text,
-                                        fontWeight: selectedTableId === table.id ? 600 : 400
+                {/* Table List */}
+                <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px' }}>
+                    {filteredTables.map(table => (
+                        <div
+                            key={table.id}
+                            onClick={() => setSelectedTableId(table.id)}
+                            style={{
+                                padding: '10px 16px',
+                                borderRadius: '8px',
+                                backgroundColor: selectedTableId === table.id ? TOKENS.sidebarActive : 'transparent',
+                                color: selectedTableId === table.id ? 'white' : TOKENS.sidebarText,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px',
+                                marginBottom: '2px',
+                                transition: 'all 0.2s',
+                                fontWeight: selectedTableId === table.id ? 600 : 500,
+                                fontSize: '0.9rem'
+                            }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, overflow: 'hidden' }}>
+                                <Database size={16} color={selectedTableId === table.id ? 'white' : TOKENS.sidebarTextMuted} />
+                                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{table.name}</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                {selectedTableId === table.id && <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: TOKENS.primary }}></div>}
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteTable(table.id);
                                     }}
-                                    onMouseEnter={(e) => { if (selectedTableId !== table.id) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)'; }}
-                                    onMouseLeave={(e) => { if (selectedTableId !== table.id) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        color: TOKENS.sidebarTextMuted,
+                                        cursor: 'pointer',
+                                        padding: '4px',
+                                        borderRadius: '4px',
+                                        opacity: 0,
+                                        transition: 'opacity 0.2s'
+                                    }}
+                                    className="table-delete-action"
                                 >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-                                        <Database size={16} color={selectedTableId === table.id ? TOKENS.primary : TOKENS.textMuted} />
-                                        <span style={{
-                                            fontWeight: selectedTableId === table.id ? 700 : 500,
-                                            color: selectedTableId === table.id ? TOKENS.primary : TOKENS.text,
-                                            fontSize: '0.9rem',
-                                            whiteSpace: 'nowrap',
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis'
-                                        }}>
-                                            {table.name}
-                                        </span>
-                                    </div>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDeleteTable(table.id);
-                                        }}
-                                        className="delete-table-btn"
-                                        style={{
-                                            background: 'none',
-                                            border: 'none',
-                                            color: TOKENS.textMuted,
-                                            cursor: 'pointer',
-                                            padding: '4px',
-                                            borderRadius: '4px',
-                                            opacity: 0,
-                                            transition: 'opacity 0.2s'
-                                        }}
-                                    >
-                                        <Trash2 size={12} />
-                                    </button>
-                                    <style>{`
-                                        div:hover > .delete-table-btn { opacity: 1 !important; }
-                                    `}</style>
-                                </div>
-                            ))}
+                                    <Trash2 size={14} />
+                                </button>
+                            </div>
+                            <style>{`
+                                div:hover > div > .table-delete-action { opacity: 1 !important; }
+                            `}</style>
                         </div>
-                    )}
+                    ))}
                 </div>
 
-                {/* Sidebar Footer */}
-                <div style={{ padding: '16px', borderTop: `1px solid ${TOKENS.borderLight}`, fontSize: '0.75rem', color: TOKENS.textMuted, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981' }}></div>
-                    Connected to Supabase
+                {/* Database Info Card */}
+                <div style={{ padding: '20px' }}>
+                    <div style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '16px', padding: '20px' }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'white', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Database size={14} color={TOKENS.primary} /> Database Status
+                        </div>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                                <span style={{ color: TOKENS.sidebarTextMuted }}>Total Tables</span>
+                                <span style={{ fontWeight: 700, color: 'white' }}>{tables.length}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                                <span style={{ color: TOKENS.sidebarTextMuted }}>Total Records</span>
+                                <span style={{ fontWeight: 700, color: 'white' }}>{tables.reduce((acc, t) => acc + (t.recordCount || 0), 0).toLocaleString()}</span>
+                            </div>
+                        </div>
+
+                        <div style={{ marginTop: '20px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '8px' }}>
+                                <span style={{ color: TOKENS.sidebarTextMuted }}>Storage Usage</span>
+                                <span style={{ fontWeight: 700, color: 'white' }}>{Math.min(100, (tables.length / 50) * 100).toFixed(1)}%</span>
+                            </div>
+                            <div style={{ height: '6px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+                                <div style={{ width: `${Math.min(100, (tables.length / 50) * 100)}%`, height: '100%', background: `linear-gradient(90deg, ${TOKENS.primary}, ${TOKENS.secondary})` }}></div>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', marginTop: '6px', color: TOKENS.sidebarTextMuted }}>
+                                <span>{tables.length} of 50 tables used</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
+                </div>
+            )}
 
             {/* Main Content Area */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 {/* Main Header / Breadcrumbs */}
                 <div style={{
-                    padding: '16px 32px',
+                    padding: '0 32px',
                     backgroundColor: 'white',
-                    borderBottom: `1px solid ${TOKENS.borderLight}`,
+                    borderBottom: `1px solid ${TOKENS.border}`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    height: '72px'
+                    height: '72px',
+                    flexShrink: 0
                 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem' }}>
-                        <span style={{ color: TOKENS.textMuted }}>Tables</span>
-                        <span style={{ color: TOKENS.border }}>/</span>
-                        <span style={{ color: TOKENS.text, fontWeight: 700, fontSize: '1.1rem' }}>{selectedTable?.name || '...'}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                        <button 
+                            onClick={() => setIsTableSidebarOpen(!isTableSidebarOpen)}
+                            style={{ 
+                                padding: '8px', 
+                                borderRadius: '8px', 
+                                border: `1px solid ${TOKENS.border}`, 
+                                backgroundColor: 'white', 
+                                color: TOKENS.textMuted, 
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                        >
+                            <Menu size={20} />
+                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <span style={{ color: TOKENS.textMuted, fontSize: '0.9rem' }}>Tables</span>
+                            <ChevronRight size={14} color={TOKENS.border} />
+                            <span style={{ color: TOKENS.text, fontWeight: 700, fontSize: '1.1rem' }}>{selectedTable?.name || '...'}</span>
+                        </div>
+                    </div>
                         {selectedTable && (
                             <button
                                 onClick={() => {
@@ -1020,91 +1051,43 @@ const TableManager = () => {
                                 <Settings size={14} />
                             </button>
                         )}
-                    </div>
+                    
 
                     <div style={{
                         display: 'flex',
                         backgroundColor: TOKENS.bg,
                         padding: '4px',
                         borderRadius: TOKENS.radiusSm,
-                        border: `1px solid ${TOKENS.borderLight}`
+                        border: `1px solid ${TOKENS.border}`
                     }}>
-                        <button
-                            onClick={() => setActivePanel('records')}
-                            style={{
-                                padding: '6px 16px',
-                                borderRadius: '4px',
-                                border: 'none',
-                                backgroundColor: activePanel === 'records' ? 'white' : 'transparent',
-                                color: activePanel === 'records' ? TOKENS.primary : TOKENS.textMuted,
-                                fontWeight: 600,
-                                fontSize: '0.85rem',
-                                cursor: 'pointer',
-                                boxShadow: activePanel === 'records' ? TOKENS.shadow : 'none',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px'
-                            }}
-                        >
-                            <Rows3 size={14} /> Records
-                        </button>
-                        <button
-                            onClick={() => setActivePanel('fields')}
-                            style={{
-                                padding: '6px 16px',
-                                borderRadius: '4px',
-                                border: 'none',
-                                backgroundColor: activePanel === 'fields' ? 'white' : 'transparent',
-                                color: activePanel === 'fields' ? TOKENS.primary : TOKENS.textMuted,
-                                fontWeight: 600,
-                                fontSize: '0.85rem',
-                                cursor: 'pointer',
-                                boxShadow: activePanel === 'fields' ? TOKENS.shadow : 'none',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px'
-                            }}
-                        >
-                            <Columns3 size={14} /> Fields
-                        </button>
-                        <button
-                            onClick={() => setActivePanel('queries')}
-                            style={{
-                                padding: '6px 16px',
-                                borderRadius: '4px',
-                                border: 'none',
-                                backgroundColor: activePanel === 'queries' ? 'white' : 'transparent',
-                                color: activePanel === 'queries' ? TOKENS.primary : TOKENS.textMuted,
-                                fontWeight: 600,
-                                fontSize: '0.85rem',
-                                cursor: 'pointer',
-                                boxShadow: activePanel === 'queries' ? TOKENS.shadow : 'none',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px'
-                            }}
-                        >
-                            <Search size={14} /> Queries
-                        </button>
-                        <button
-                            onClick={() => setActivePanel('aggregations')}
-                            style={{
-                                padding: '6px 16px',
-                                borderRadius: '4px',
-                                border: 'none',
-                                backgroundColor: activePanel === 'aggregations' ? 'white' : 'transparent',
-                                color: activePanel === 'aggregations' ? TOKENS.primary : TOKENS.textMuted,
-                                fontWeight: 600,
-                                fontSize: '0.85rem',
-                                cursor: 'pointer',
-                                boxShadow: activePanel === 'aggregations' ? TOKENS.shadow : 'none',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px'
-                            }}
-                        >
-                            <ArrowUpDown size={14} /> Aggregations
-                        </button>
+                        {[
+                            { id: 'records', label: 'Records', icon: Rows3 },
+                            { id: 'fields', label: 'Fields', icon: Columns3 },
+                            { id: 'queries', label: 'Queries', icon: Search },
+                            { id: 'aggregations', label: 'Aggregations', icon: ArrowUpDown }
+                        ].map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActivePanel(tab.id)}
+                                style={{
+                                    padding: '8px 16px',
+                                    borderRadius: '8px',
+                                    border: 'none',
+                                    backgroundColor: activePanel === tab.id ? 'white' : 'transparent',
+                                    color: activePanel === tab.id ? TOKENS.primary : TOKENS.textMuted,
+                                    fontWeight: 700,
+                                    fontSize: '0.85rem',
+                                    cursor: 'pointer',
+                                    boxShadow: activePanel === tab.id ? TOKENS.shadow : 'none',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                <tab.icon size={16} /> {tab.label}
+                            </button>
+                        ))}
                     </div>
                 </div>
 
@@ -1133,86 +1116,92 @@ const TableManager = () => {
                     ) : (
                         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: '24px 32px' }}>
                             {activePanel === 'records' ? (
-                                <>
+                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '32px', overflow: 'hidden' }}>
                                     {/* Toolbar */}
-                                    <div style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        marginBottom: '24px',
-                                        gap: '16px'
-                                    }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <div style={{ position: 'relative' }}>
-                                                <select
-                                                    value={activeQueryId || ''}
-                                                    onChange={(e) => setActiveQueryId(e.target.value || null)}
-                                                    style={{
-                                                        padding: '8px 32px 8px 12px',
-                                                        borderRadius: TOKENS.radiusSm,
-                                                        border: `1px solid ${TOKENS.border}`,
-                                                        fontSize: '0.85rem',
-                                                        backgroundColor: 'white',
-                                                        appearance: 'none',
-                                                        cursor: 'pointer',
-                                                        minWidth: '160px'
-                                                    }}
-                                                >
-                                                    <option value="">No Query Applied</option>
-                                                    {(selectedTable?.queries || []).map(q => (
-                                                        <option key={q.id} value={q.id}>{q.name}</option>
-                                                    ))}
-                                                </select>
-                                                <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: TOKENS.textMuted }}>
-                                                    <ChevronDown size={14} />
-                                                </div>
-                                            </div>
-
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                             <button
-                                                onClick={handleImportButtonClick}
-                                                disabled={csvImporting}
+                                                onClick={() => setIsFieldsSidebarOpen(!isFieldsSidebarOpen)}
                                                 style={{
-                                                    padding: '8px 16px',
-                                                    backgroundColor: 'white',
-                                                    border: `1px solid ${TOKENS.border}`,
-                                                    borderRadius: TOKENS.radiusSm,
-                                                    fontSize: '0.85rem',
-                                                    fontWeight: 600,
-                                                    color: TOKENS.text,
-                                                    cursor: 'pointer',
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     gap: '8px',
+                                                    padding: '10px 16px',
+                                                    borderRadius: '10px',
+                                                    border: `1px solid ${isFieldsSidebarOpen ? TOKENS.primary : TOKENS.border}`,
+                                                    backgroundColor: isFieldsSidebarOpen ? TOKENS.primaryLight : 'white',
+                                                    fontWeight: 600,
+                                                    fontSize: '0.85rem',
+                                                    color: isFieldsSidebarOpen ? TOKENS.primary : TOKENS.text,
+                                                    cursor: 'pointer',
                                                     transition: 'all 0.2s'
                                                 }}
-                                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = TOKENS.bg}
-                                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
                                             >
-                                                <Upload size={14} /> Import
+                                                <Layers size={16} /> Fields
                                             </button>
-                                        </div>
-
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <div style={{ position: 'relative', width: '240px' }}>
+                                            <div style={{ position: 'relative' }}>
+                                                <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: TOKENS.textMuted }} />
                                                 <input
                                                     type="text"
                                                     value={recordSearchTerm}
                                                     onChange={(e) => setRecordSearchTerm(e.target.value)}
                                                     placeholder="Search records..."
                                                     style={{
-                                                        width: '100%',
-                                                        padding: '8px 12px 8px 36px',
-                                                        borderRadius: TOKENS.radiusSm,
+                                                        padding: '10px 16px 10px 40px',
+                                                        borderRadius: '10px',
                                                         border: `1px solid ${TOKENS.border}`,
-                                                        fontSize: '0.85rem',
-                                                        outline: 'none',
-                                                        transition: 'border-color 0.2s'
+                                                        backgroundColor: 'white',
+                                                        fontSize: '0.9rem',
+                                                        width: '300px',
+                                                        outline: 'none'
                                                     }}
-                                                    onFocus={(e) => e.target.style.borderColor = TOKENS.primary}
-                                                    onBlur={(e) => e.target.style.borderColor = TOKENS.border}
                                                 />
-                                                <Search size={16} color={TOKENS.textMuted} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
                                             </div>
+                                            <div style={{ position: 'relative' }}>
+                                                <select
+                                                    value={activeQueryId || ''}
+                                                    onChange={(e) => setActiveQueryId(e.target.value || null)}
+                                                    style={{
+                                                        padding: '10px 36px 10px 16px',
+                                                        borderRadius: '10px',
+                                                        border: `1px solid ${TOKENS.border}`,
+                                                        backgroundColor: 'white',
+                                                        fontSize: '0.9rem',
+                                                        appearance: 'none',
+                                                        cursor: 'pointer',
+                                                        fontWeight: 600,
+                                                        color: TOKENS.text
+                                                    }}
+                                                >
+                                                    <option value="">All Records</option>
+                                                    {(selectedTable?.queries || []).map(q => (
+                                                        <option key={q.id} value={q.id}>{q.name}</option>
+                                                    ))}
+                                                </select>
+                                                <ChevronDown size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: TOKENS.textMuted }} />
+                                            </div>
+                                        </div>
+
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                            <button
+                                                onClick={handleImportButtonClick}
+                                                disabled={csvImporting}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '8px',
+                                                    padding: '10px 16px',
+                                                    borderRadius: '10px',
+                                                    border: `1px solid ${TOKENS.border}`,
+                                                    backgroundColor: 'white',
+                                                    fontWeight: 600,
+                                                    fontSize: '0.85rem',
+                                                    color: TOKENS.text,
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                <Upload size={16} /> Import CSV
+                                            </button>
                                             <button
                                                 onClick={() => {
                                                     setNewRecordId('');
@@ -1221,64 +1210,113 @@ const TableManager = () => {
                                                     setIsRecordModalOpen(true);
                                                 }}
                                                 style={{
-                                                    padding: '8px 20px',
-                                                    backgroundColor: TOKENS.secondary,
-                                                    border: 'none',
-                                                    borderRadius: TOKENS.radiusSm,
-                                                    fontSize: '0.85rem',
-                                                    fontWeight: 800,
-                                                    color: 'white',
-                                                    cursor: 'pointer',
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     gap: '8px',
-                                                    boxShadow: TOKENS.shadow,
-                                                    transition: 'filter 0.2s'
+                                                    padding: '10px 20px',
+                                                    borderRadius: '10px',
+                                                    backgroundColor: TOKENS.primary,
+                                                    color: 'white',
+                                                    border: 'none',
+                                                    fontWeight: 700,
+                                                    fontSize: '0.85rem',
+                                                    cursor: 'pointer',
+                                                    boxShadow: '0 4px 6px -1px rgba(99, 102, 241, 0.4)'
                                                 }}
-                                                onMouseEnter={(e) => e.currentTarget.style.filter = 'brightness(1.1)'}
-                                                onMouseLeave={(e) => e.currentTarget.style.filter = 'none'}
                                             >
-                                                <Plus size={16} /> New Record
+                                                <Plus size={18} /> New Record
                                             </button>
                                         </div>
                                     </div>
 
-                                    {/* Table View */}
-                                    <div style={{ flex: 1, overflow: 'hidden', display: 'flex', gap: '1px', backgroundColor: TOKENS.borderLight, borderRadius: TOKENS.radius, border: `1px solid ${TOKENS.borderLight}`, boxShadow: TOKENS.shadow }}>
-                                        <div style={{ flex: 1, overflow: 'auto', backgroundColor: 'white' }}>
-                                            {filteredAndSortedRecords.length === 0 ? (
-                                                <div style={{ padding: '80px', textAlign: 'center', color: TOKENS.textMuted }}>
-                                                    <Database size={40} style={{ margin: '0 auto 16px', opacity: 0.3 }} />
-                                                    <div style={{ fontWeight: 600 }}>No records found</div>
-                                                    <p style={{ fontSize: '0.8rem', margin: '4px 0 0' }}>Try adjusting your filters or search.</p>
+                                    {/* Table View with Sidebar */}
+                                    <div style={{ flex: 1, display: 'flex', gap: '24px', overflow: 'hidden' }}>
+                                        {/* Left Fields Sidebar */}
+                                        {isFieldsSidebarOpen && (
+                                            <div style={{ 
+                                                width: '260px', 
+                                                backgroundColor: 'white', 
+                                                borderRadius: '16px', 
+                                                border: `1px solid ${TOKENS.border}`, 
+                                                display: 'flex', 
+                                                flexDirection: 'column', 
+                                                overflow: 'hidden', 
+                                                boxShadow: TOKENS.shadow 
+                                            }}>
+                                                <div style={{ padding: '20px', borderBottom: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ fontWeight: 800, fontSize: '0.9rem', color: TOKENS.text }}>All Fields</span>
+                                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                                        <button 
+                                                            onClick={() => setHiddenFields([])}
+                                                            style={{ fontSize: '0.7rem', fontWeight: 700, color: TOKENS.primary, background: 'none', border: 'none', cursor: 'pointer' }}
+                                                        >Show All</button>
+                                                        <button 
+                                                            onClick={() => setHiddenFields(activeFields.map(f => f.name))}
+                                                            style={{ fontSize: '0.7rem', fontWeight: 700, color: TOKENS.textMuted, background: 'none', border: 'none', cursor: 'pointer' }}
+                                                        >Hide All</button>
+                                                    </div>
                                                 </div>
-                                            ) : (
-                                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                                                    <thead style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: TOKENS.bg }}>
-                                                        <tr>
-                                                            <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 800, color: TOKENS.primary, borderBottom: `2px solid ${TOKENS.borderLight}`, width: '50px' }}>#</th>
-                                                            <th
-                                                                onClick={() => {
-                                                                    setRecordSortDirection(recordSortField === 'recordId' && recordSortDirection === 'asc' ? 'desc' : 'asc');
-                                                                    setRecordSortField('recordId');
-                                                                }}
-                                                                style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 800, color: TOKENS.primary, borderBottom: `2px solid ${TOKENS.borderLight}`, cursor: 'pointer' }}
-                                                            >
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                                    ID {recordSortField === 'recordId' && <ArrowUpDown size={14} />}
-                                                                </div>
-                                                            </th>
-                                                            {activeFields.map(field => (
-                                                                <th
+                                                <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                        {/* Primary Key ID is always visible */}
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', borderRadius: '8px', opacity: 0.6 }}>
+                                                            <CheckSquare size={16} color={TOKENS.primary} />
+                                                            <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>ID (Primary Key)</span>
+                                                        </div>
+                                                        {activeFields.map(field => {
+                                                            const isHidden = hiddenFields.includes(field.name);
+                                                            return (
+                                                                <div 
                                                                     key={field.name}
                                                                     onClick={() => {
-                                                                        setRecordSortDirection(recordSortField === field.name && recordSortDirection === 'asc' ? 'desc' : 'asc');
-                                                                        setRecordSortField(field.name);
+                                                                        if (isHidden) setHiddenFields(hiddenFields.filter(f => f !== field.name));
+                                                                        else setHiddenFields([...hiddenFields, field.name]);
                                                                     }}
-                                                                    style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 800, color: TOKENS.primary, borderBottom: `2px solid ${TOKENS.borderLight}`, cursor: 'pointer', minWidth: '150px' }}
+                                                                    style={{ 
+                                                                        display: 'flex', 
+                                                                        alignItems: 'center', 
+                                                                        gap: '10px', 
+                                                                        padding: '8px 12px', 
+                                                                        borderRadius: '8px', 
+                                                                        cursor: 'pointer',
+                                                                        backgroundColor: isHidden ? 'transparent' : TOKENS.bg,
+                                                                        transition: 'all 0.2s'
+                                                                    }}
+                                                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = isHidden ? TOKENS.bg : '#eef2ff'}
+                                                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = isHidden ? 'transparent' : TOKENS.bg}
                                                                 >
+                                                                    <div style={{ 
+                                                                        width: '18px', 
+                                                                        height: '18px', 
+                                                                        borderRadius: '4px', 
+                                                                        border: `2px solid ${isHidden ? TOKENS.border : TOKENS.primary}`,
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        justifyContent: 'center',
+                                                                        backgroundColor: isHidden ? 'white' : TOKENS.primary
+                                                                    }}>
+                                                                        {!isHidden && <X size={12} color="white" />}
+                                                                    </div>
+                                                                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: isHidden ? TOKENS.textMuted : TOKENS.text }}>{field.name}</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div style={{ flex: 1, backgroundColor: 'white', borderRadius: '16px', border: `1px solid ${TOKENS.border}`, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: TOKENS.shadow }}>
+                                            <div style={{ flex: 1, overflow: 'auto' }}>
+                                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                                    <thead style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: '#fafafa' }}>
+                                                        <tr style={{ borderBottom: `1px solid ${TOKENS.border}` }}>
+                                                            <th style={{ padding: '16px', width: '50px', textAlign: 'left', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase' }}>#</th>
+                                                            <th style={{ padding: '16px', textAlign: 'left', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase' }}>Record ID</th>
+                                                            {activeFields.filter(f => !hiddenFields.includes(f.name)).map(field => (
+                                                                <th key={field.name} style={{ padding: '16px', textAlign: 'left', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase' }}>
                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                                        {field.name} {recordSortField === field.name && <ArrowUpDown size={14} />}
+                                                                        {field.name} <ArrowUpDown size={12} />
                                                                     </div>
                                                                 </th>
                                                             ))}
@@ -1290,17 +1328,16 @@ const TableManager = () => {
                                                                 key={record.id}
                                                                 onClick={() => setSelectedRecordInternalId(record.id)}
                                                                 style={{
-                                                                    backgroundColor: selectedRecordInternalId === record.id ? 'rgba(113, 75, 103, 0.04)' : 'transparent',
+                                                                    borderBottom: `1px solid ${TOKENS.borderLight}`,
+                                                                    backgroundColor: selectedRecordInternalId === record.id ? '#f5f7ff' : 'transparent',
                                                                     cursor: 'pointer',
-                                                                    transition: 'background 0.15s'
+                                                                    transition: 'all 0.2s'
                                                                 }}
-                                                                onMouseEnter={(e) => { if (selectedRecordInternalId !== record.id) e.currentTarget.style.backgroundColor = '#fcfcfc'; }}
-                                                                onMouseLeave={(e) => { if (selectedRecordInternalId !== record.id) e.currentTarget.style.backgroundColor = 'transparent'; }}
                                                             >
-                                                                <td style={{ padding: '12px 16px', borderBottom: `1px solid ${TOKENS.borderLight}`, color: TOKENS.textMuted }}>{idx + 1}</td>
-                                                                <td style={{ padding: '12px 16px', borderBottom: `1px solid ${TOKENS.borderLight}`, fontWeight: 700, color: TOKENS.text }}>{record.recordId}</td>
-                                                                {activeFields.map(field => (
-                                                                    <td key={field.name} style={{ padding: '12px 16px', borderBottom: `1px solid ${TOKENS.borderLight}`, color: TOKENS.text }}>
+                                                                <td style={{ padding: '16px', color: TOKENS.textMuted, fontSize: '0.85rem' }}>{idx + 1}</td>
+                                                                <td style={{ padding: '16px', fontWeight: 700, color: TOKENS.text, fontSize: '0.9rem' }}>{record.recordId}</td>
+                                                                {activeFields.filter(f => !hiddenFields.includes(f.name)).map(field => (
+                                                                    <td key={field.name} style={{ padding: '16px', fontSize: '0.85rem', color: TOKENS.text }}>
                                                                         {field.type === 'linked_record' ? (
                                                                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                                                                                 {(() => {
@@ -1308,14 +1345,18 @@ const TableManager = () => {
                                                                                     const ids = Array.isArray(val) ? val : (val ? [val] : []);
                                                                                     if (ids.length === 0) return <span style={{ color: TOKENS.textMuted }}>-</span>;
                                                                                     return ids.map(id => (
-                                                                                        <div key={id} style={{ padding: '2px 8px', backgroundColor: '#f1f5f9', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, color: TOKENS.primary, border: '1px solid #e2e8f0' }}>
+                                                                                        <span key={id} style={{ padding: '2px 8px', backgroundColor: '#f1f5f9', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, color: TOKENS.primary, border: '1px solid #e2e8f0' }}>
                                                                                             {id}
-                                                                                        </div>
+                                                                                        </span>
                                                                                     ));
                                                                                 })()}
                                                                             </div>
                                                                         ) : field.type === 'image' ? (
-                                                                            record[field.name] ? <img src={record[field.name]} alt="" style={{ width: '32px', height: '32px', borderRadius: '4px', objectFit: 'cover' }} /> : '-'
+                                                                            record[field.name] ? <img src={record[field.name]} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} /> : '-'
+                                                                        ) : field.type === 'boolean' ? (
+                                                                            <span style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, backgroundColor: record[field.name] ? '#ecfdf5' : '#fff1f2', color: record[field.name] ? '#10b981' : '#f43f5e' }}>
+                                                                                {record[field.name] ? 'TRUE' : 'FALSE'}
+                                                                            </span>
                                                                         ) : String(record[field.name] ?? '-')}
                                                                     </td>
                                                                 ))}
@@ -1323,15 +1364,30 @@ const TableManager = () => {
                                                         ))}
                                                     </tbody>
                                                 </table>
-                                            )}
+                                            </div>
+                                            
+                                            {/* Pagination */}
+                                            <div style={{ padding: '16px 32px', borderTop: `1px solid ${TOKENS.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fafafa' }}>
+                                                <div style={{ fontSize: '0.85rem', color: TOKENS.textMuted }}>
+                                                    {filteredAndSortedRecords.length} records found
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <button style={{ padding: '6px', borderRadius: '6px', border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: TOKENS.textMuted }}><ChevronLeft size={16} /></button>
+                                                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: TOKENS.text }}>Page 1 of 1</span>
+                                                    <button style={{ padding: '6px', borderRadius: '6px', border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: TOKENS.textMuted }}><ChevronRight size={16} /></button>
+                                                </div>
+                                            </div>
                                         </div>
 
-                                        {/* Record Detail Side Panel */}
-                                        <div style={{ width: '350px', backgroundColor: TOKENS.bg, borderLeft: `1px solid ${TOKENS.borderLight}`, overflow: 'auto', padding: '24px' }}>
+                                        {/* Details Sidebar */}
+                                        <div style={{ width: '400px', backgroundColor: 'white', borderRadius: '16px', border: `1px solid ${TOKENS.border}`, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: TOKENS.shadow }}>
                                             {selectedRecord ? (
-                                                <div>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                                                        <div style={{ fontWeight: 800, fontSize: '0.9rem', color: TOKENS.primary, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Details</div>
+                                                <>
+                                                    <div style={{ padding: '24px', borderBottom: `1px solid ${TOKENS.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fafafa' }}>
+                                                        <div>
+                                                            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Record Detail</div>
+                                                            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: TOKENS.text }}>{selectedRecord.recordId}</div>
+                                                        </div>
                                                         <div style={{ display: 'flex', gap: '8px' }}>
                                                             <button
                                                                 onClick={() => {
@@ -1340,171 +1396,309 @@ const TableManager = () => {
                                                                     setIsEditingRecord(true);
                                                                     setIsRecordModalOpen(true);
                                                                 }}
-                                                                style={{ border: 'none', background: 'none', color: TOKENS.primary, cursor: 'pointer', padding: '4px' }}
+                                                                style={{ padding: '8px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: TOKENS.primary, cursor: 'pointer' }}
                                                             >
-                                                                <Edit3 size={16} />
+                                                                <Edit3 size={18} />
                                                             </button>
                                                             <button
                                                                 onClick={() => handleDeleteRecord(selectedRecord.id)}
-                                                                className="delete-rec-btn"
-                                                                style={{ border: 'none', background: 'none', color: '#dc2626', cursor: 'pointer', padding: '4px' }}
+                                                                style={{ padding: '8px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: '#f43f5e', cursor: 'pointer' }}
                                                             >
-                                                                <Trash2 size={16} />
+                                                                <Trash2 size={18} />
                                                             </button>
                                                         </div>
                                                     </div>
-
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                                                        <div style={{ padding: '16px', backgroundColor: 'white', borderRadius: '10px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', border: `1px solid ${TOKENS.borderLight}` }}>
-                                                            <label style={{ display: 'block', fontSize: '0.7rem', color: TOKENS.textMuted, fontWeight: 700, marginBottom: '6px', textTransform: 'uppercase' }}>Record ID</label>
-                                                            <div style={{ fontWeight: 800, color: TOKENS.text, fontSize: '1.2rem' }}>{selectedRecord.recordId}</div>
-                                                        </div>
-
-                                                        {activeFields.map(field => (
-                                                            <div key={field.name} style={{ padding: '16px', backgroundColor: 'white', borderRadius: '10px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', border: `1px solid ${TOKENS.borderLight}` }}>
-                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: TOKENS.textMuted, fontWeight: 700, marginBottom: '6px', textTransform: 'uppercase' }}>{field.name}</label>
-                                                                {field.type === 'linked_record' ? (
-                                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                                                                        {(() => {
-                                                                            const val = selectedRecord[field.name];
-                                                                            const ids = Array.isArray(val) ? val : (val ? [val] : []);
-                                                                            if (ids.length === 0) return <span style={{ color: TOKENS.textMuted }}>-</span>;
-                                                                            return ids.map(id => (
-                                                                                <div key={id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', backgroundColor: '#f1f5f9', borderRadius: '6px', color: TOKENS.primary, fontWeight: 600, border: '1px solid #e2e8f0', fontSize: '0.8rem' }}>
-                                                                                    <Database size={12} /> {id}
-                                                                                </div>
-                                                                            ));
-                                                                        })()}
+                                                    <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                                            {activeFields.map(field => (
+                                                                <div key={field.name}>
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase', marginBottom: '8px' }}>{field.name}</label>
+                                                                    <div style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px solid #f1f5f9' }}>
+                                                                        {field.type === 'linked_record' ? (
+                                                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                                                                {(() => {
+                                                                                    const val = selectedRecord[field.name];
+                                                                                    const ids = Array.isArray(val) ? val : (val ? [val] : []);
+                                                                                    if (ids.length === 0) return <span style={{ color: TOKENS.textMuted }}>-</span>;
+                                                                                    return ids.map(id => (
+                                                                                        <div key={id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', backgroundColor: 'white', borderRadius: '6px', color: TOKENS.primary, fontWeight: 700, border: '1px solid #e2e8f0', fontSize: '0.8rem' }}>
+                                                                                            <Database size={12} /> {id}
+                                                                                        </div>
+                                                                                    ));
+                                                                                })()}
+                                                                            </div>
+                                                                        ) : field.type === 'image' ? (
+                                                                            selectedRecord[field.name] ? <img src={selectedRecord[field.name]} alt="" style={{ width: '100%', borderRadius: '10px' }} /> : '-'
+                                                                        ) : (
+                                                                            <div style={{ fontSize: '0.95rem', color: TOKENS.text, fontWeight: 500 }}>{String(selectedRecord[field.name] ?? '-')}</div>
+                                                                        )}
                                                                     </div>
-                                                                ) : field.type === 'image' ? (
-                                                                    selectedRecord[field.name] ? <img src={selectedRecord[field.name]} alt="" style={{ width: '100%', borderRadius: '8px', marginTop: '4px' }} /> : '-'
-                                                                ) : (
-                                                                    <div style={{ color: TOKENS.text, lineHeight: '1.5' }}>{selectedRecord[field.name] || '-'}</div>
-                                                                )}
-                                                            </div>
-                                                        ))}
+                                                                </div>
+                                                            ))}
+                                                        </div>
                                                     </div>
-                                                </div>
+                                                </>
                                             ) : (
-                                                <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: TOKENS.textMuted, textAlign: 'center' }}>
-                                                    <Info size={32} style={{ opacity: 0.2, marginBottom: '12px' }} />
-                                                    <div style={{ fontSize: '0.85rem' }}>Select a record to view details</div>
+                                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: TOKENS.textMuted, padding: '40px', textAlign: 'center' }}>
+                                                    <Info size={48} style={{ opacity: 0.1, marginBottom: '20px' }} />
+                                                    <div style={{ fontWeight: 700, fontSize: '1rem', color: TOKENS.text, marginBottom: '8px' }}>No Record Selected</div>
+                                                    <p style={{ fontSize: '0.85rem' }}>Select a row from the table to view full details and manage this record.</p>
                                                 </div>
                                             )}
                                         </div>
                                     </div>
-                                </>
+                                </div>
                             ) : activePanel === 'fields' ? (
-                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '32px', overflowY: 'auto' }}>
+                                    {/* Content Header */}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
                                         <div>
-                                            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: TOKENS.text }}>Store Schema</h2>
-                                            <p style={{ fontSize: '0.85rem', color: TOKENS.textMuted, margin: '4px 0 0' }}>Configure columns and data types for this table.</p>
+                                            <h2 style={{ fontSize: '1.8rem', fontWeight: 800, margin: 0, color: TOKENS.text, letterSpacing: '-0.02em' }}>Store Schema</h2>
+                                            <p style={{ fontSize: '1rem', color: TOKENS.textMuted, margin: '8px 0 0' }}>Configure columns and data types for this table.</p>
                                         </div>
-                                        <button
-                                            onClick={() => setIsFieldModalOpen(true)}
-                                            style={{
-                                                padding: '10px 24px',
-                                                backgroundColor: TOKENS.secondary,
-                                                color: 'white',
-                                                border: 'none',
-                                                borderRadius: '8px',
-                                                fontWeight: 800,
-                                                fontSize: '0.85rem',
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '8px',
-                                                boxShadow: TOKENS.shadow
-                                            }}
-                                        >
-                                            <Plus size={18} /> Add Column
-                                        </button>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                            <button
+                                                onClick={() => setIsFieldsSidebarOpen(!isFieldsSidebarOpen)}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '8px',
+                                                    padding: '10px 16px',
+                                                    borderRadius: '10px',
+                                                    border: `1px solid ${isFieldsSidebarOpen ? TOKENS.primary : TOKENS.border}`,
+                                                    backgroundColor: isFieldsSidebarOpen ? TOKENS.primaryLight : 'white',
+                                                    fontWeight: 600,
+                                                    fontSize: '0.85rem',
+                                                    color: isFieldsSidebarOpen ? TOKENS.primary : TOKENS.text,
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s'
+                                                }}
+                                            >
+                                                <Layers size={16} /> Fields
+                                            </button>
+                                            <div style={{ position: 'relative' }}>
+                                                <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: TOKENS.textMuted }} />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Search fields..."
+                                                    style={{
+                                                        padding: '10px 16px 10px 40px',
+                                                        borderRadius: '10px',
+                                                        border: `1px solid ${TOKENS.border}`,
+                                                        backgroundColor: 'white',
+                                                        fontSize: '0.9rem',
+                                                        width: '240px',
+                                                        outline: 'none'
+                                                    }}
+                                                />
+                                            </div>
+                                            <button style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '10px', border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', fontWeight: 600, fontSize: '0.85rem', color: TOKENS.text }}>
+                                                <Filter size={16} /> Filter
+                                            </button>
+                                            <button style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '10px', border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', fontWeight: 600, fontSize: '0.85rem', color: TOKENS.text }}>
+                                                <Group size={16} /> Group
+                                            </button>
+                                            <button style={{ padding: '10px', borderRadius: '10px', border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: TOKENS.text }}>
+                                                <MoreHorizontal size={16} />
+                                            </button>
+                                            <button
+                                                onClick={() => setIsFieldModalOpen(true)}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '8px',
+                                                    padding: '10px 20px',
+                                                    borderRadius: '10px',
+                                                    backgroundColor: TOKENS.primary,
+                                                    color: 'white',
+                                                    border: 'none',
+                                                    fontWeight: 700,
+                                                    fontSize: '0.85rem',
+                                                    cursor: 'pointer',
+                                                    boxShadow: '0 4px 6px -1px rgba(99, 102, 241, 0.4)'
+                                                }}
+                                            >
+                                                <Plus size={18} /> Add Column
+                                            </button>
+                                        </div>
                                     </div>
 
-                                    <div style={{ backgroundColor: 'white', borderRadius: TOKENS.radius, border: `1px solid ${TOKENS.borderLight}`, boxShadow: TOKENS.shadow, overflow: 'hidden' }}>
-                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                    {/* Summary Cards */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '20px', marginBottom: '32px' }}>
+                                        {[
+                                            { label: 'Total Fields', value: activeFields.length + 1, icon: Layers, color: '#6366f1' },
+                                            { label: 'Visible Fields', value: activeFields.length + 1, icon: Eye, color: '#10b981' },
+                                            { label: 'Primary Key', value: 1, icon: Key, color: '#f59e0b' },
+                                            { label: 'Indexes', value: 3, icon: Database, color: '#8b5cf6' },
+                                            { label: 'Last Updated', value: '2m ago', icon: Clock, color: '#3b82f6' }
+                                        ].map((card, i) => (
+                                            <div key={i} style={{ backgroundColor: 'white', borderRadius: '16px', padding: '20px', border: `1px solid ${TOKENS.border}`, display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                                <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: `${card.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: card.color }}>
+                                                    <card.icon size={24} />
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: '0.8rem', fontWeight: 600, color: TOKENS.textMuted, marginBottom: '4px' }}>{card.label}</div>
+                                                    <div style={{ fontSize: '1.2rem', fontWeight: 800, color: TOKENS.text }}>{card.value}</div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Modern Table */}
+                                    <div style={{ backgroundColor: 'white', borderRadius: '16px', border: `1px solid ${TOKENS.border}`, overflow: 'hidden', boxShadow: TOKENS.shadow }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                             <thead>
-                                                <tr style={{ backgroundColor: TOKENS.bg }}>
-                                                    <th style={{ padding: '16px 20px', textAlign: 'left', fontWeight: 800, color: TOKENS.primary, borderBottom: `1px solid ${TOKENS.borderLight}` }}>Name</th>
-                                                    <th style={{ padding: '16px 20px', textAlign: 'left', fontWeight: 800, color: TOKENS.primary, borderBottom: `1px solid ${TOKENS.borderLight}` }}>Type</th>
-                                                    <th style={{ padding: '16px 20px', textAlign: 'left', fontWeight: 800, color: TOKENS.primary, borderBottom: `1px solid ${TOKENS.borderLight}` }}>Configuration</th>
-                                                    <th style={{ padding: '16px 20px', textAlign: 'right', fontWeight: 800, color: TOKENS.primary, borderBottom: `1px solid ${TOKENS.borderLight}` }}>Actions</th>
+                                                <tr style={{ borderBottom: `1px solid ${TOKENS.border}`, backgroundColor: '#fafafa' }}>
+                                                    <th style={{ padding: '16px', width: '40px' }}><input type="checkbox" style={{ cursor: 'pointer' }} /></th>
+                                                    <th style={{ padding: '16px', textAlign: 'left', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>Field Name <ArrowUpDown size={12} /></div>
+                                                    </th>
+                                                    <th style={{ padding: '16px', textAlign: 'left', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>Type <ArrowUpDown size={12} /></div>
+                                                    </th>
+                                                    <th style={{ padding: '16px', textAlign: 'left', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase' }}>Configuration</th>
+                                                    <th style={{ padding: '16px', textAlign: 'left', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase' }}>Constraints</th>
+                                                    <th style={{ padding: '16px', textAlign: 'left', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase' }}>Default</th>
+                                                    <th style={{ padding: '16px', textAlign: 'left', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase' }}>Status</th>
+                                                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase' }}>Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
+                                                {/* ID Row */}
                                                 <tr style={{ borderBottom: `1px solid ${TOKENS.borderLight}` }}>
-                                                    <td style={{ padding: '16px 20px' }}>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                            <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: TOKENS.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                                <Lock size={14} color={TOKENS.textMuted} />
+                                                    <td style={{ padding: '16px' }}><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><GripVertical size={14} color={TOKENS.border} /><input type="checkbox" /></div></td>
+                                                    <td style={{ padding: '16px' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: TOKENS.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                                <Key size={16} color={TOKENS.textMuted} />
                                                             </div>
-                                                            <span style={{ fontWeight: 700 }}>ID</span>
+                                                            <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>ID</span>
+                                                            <span style={{ padding: '2px 6px', backgroundColor: '#f3f4ff', color: '#6366f1', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 800 }}>PK</span>
                                                         </div>
                                                     </td>
-                                                    <td style={{ padding: '16px 20px' }}>
-                                                        <span style={{ padding: '4px 8px', backgroundColor: TOKENS.bg, borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, color: TOKENS.textMuted }}>System ID</span>
+                                                    <td style={{ padding: '16px' }}>
+                                                        <span style={{ padding: '4px 10px', backgroundColor: '#f1f5f9', color: '#334155', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>System ID</span>
                                                     </td>
-                                                    <td style={{ padding: '16px 20px', color: TOKENS.textMuted, fontSize: '0.8rem' }}>Default Primary Key</td>
-                                                    <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                                                        <button disabled style={{ background: 'none', border: 'none', opacity: 0.2 }}><Settings size={16} /></button>
-                                                    </td>
+                                                    <td style={{ padding: '16px', color: TOKENS.textMuted, fontSize: '0.85rem' }}>Auto increment</td>
+                                                    <td style={{ padding: '16px' }}><span style={{ padding: '4px 8px', backgroundColor: '#fdf2f8', color: '#db2777', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700 }}>Primary Key</span></td>
+                                                    <td style={{ padding: '16px', color: TOKENS.textMuted, fontSize: '0.85rem' }}>Auto</td>
+                                                    <td style={{ padding: '16px' }}><span style={{ padding: '4px 10px', backgroundColor: '#f0fdf4', color: '#15803d', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>Visible</span></td>
+                                                    <td style={{ padding: '16px', textAlign: 'right' }}><div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}><Settings size={16} style={{ color: TOKENS.textMuted }} /><MoreVertical size={16} style={{ color: TOKENS.border }} /></div></td>
                                                 </tr>
-                                                {activeFields.map(field => (
-                                                    <tr key={field.name} style={{ borderBottom: `1px solid ${TOKENS.borderLight}`, transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fcfcfc'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
-                                                        <td style={{ padding: '16px 20px' }}>
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                                <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: 'rgba(113, 75, 103, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                                    <Type size={14} color={TOKENS.primary} />
+
+                                                {/* Other Fields */}
+                                                {activeFields.map(field => {
+                                                    const isHidden = hiddenFields.includes(field.name);
+                                                    const TypeIcon = {
+                                                        text: Type,
+                                                        number: Hash,
+                                                        integer: Hash,
+                                                        boolean: CheckSquare,
+                                                        datetime: Calendar,
+                                                        image: Image,
+                                                        user: User,
+                                                        linked_record: Database
+                                                    }[field.type] || Type;
+
+                                                    const typeColors = {
+                                                        text: { bg: '#f1f5f9', text: '#334155' }, // Slate
+                                                        number: { bg: '#fff7ed', text: '#c2410c' }, // Orange
+                                                        integer: { bg: '#fff7ed', text: '#c2410c' },
+                                                        boolean: { bg: '#f0fdf4', text: '#15803d' }, // Green
+                                                        datetime: { bg: '#fff1f2', text: '#be123c' }, // Rose
+                                                        linked_record: { bg: '#f5f3ff', text: '#6d28d9' } // Violet
+                                                    }[field.type] || { bg: '#f1f5f9', text: '#64748b' };
+
+                                                    return (
+                                                        <tr key={field.name} style={{ borderBottom: `1px solid ${TOKENS.borderLight}` }}>
+                                                            <td style={{ padding: '16px' }}><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><GripVertical size={14} color={TOKENS.border} /><input type="checkbox" /></div></td>
+                                                            <td style={{ padding: '16px' }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: TOKENS.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                                        <TypeIcon size={16} color={TOKENS.textMuted} />
+                                                                    </div>
+                                                                    <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{field.name}</span>
                                                                 </div>
-                                                                <span style={{ fontWeight: 700 }}>{field.name}</span>
-                                                            </div>
-                                                        </td>
-                                                        <td style={{ padding: '16px 20px' }}>
-                                                            <span style={{ padding: '4px 8px', backgroundColor: TOKENS.bg, borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, color: TOKENS.primary }}>
-                                                                {FIELD_TYPE_LABELS[field.type] || field.type}
-                                                            </span>
-                                                        </td>
-                                                        <td style={{ padding: '16px 20px', color: TOKENS.textMuted, fontSize: '0.8rem' }}>
-                                                            {field.type === 'linked_record' ? `Linked to table ID: ${field.link_table_id}` : 'Standard field'}
-                                                        </td>
-                                                        <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    const rect = e.currentTarget.getBoundingClientRect();
-                                                                    setActiveMenuField({ name: field.name, x: rect.left, y: rect.top });
-                                                                }}
-                                                                style={{ padding: '6px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '6px', color: TOKENS.textMuted, transition: 'background 0.2s' }}
-                                                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = TOKENS.bg}
-                                                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                                            >
-                                                                <Settings size={18} />
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                                <tr>
-                                                    <td colSpan="4" style={{ padding: '16px 20px' }}>
-                                                        <button
-                                                            onClick={() => setIsFieldModalOpen(true)}
-                                                            style={{ width: '100%', padding: '12px', border: `1px dashed ${TOKENS.border}`, borderRadius: '8px', background: 'none', color: TOKENS.textMuted, fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}
-                                                            onMouseEnter={(e) => { e.currentTarget.style.borderColor = TOKENS.primary; e.currentTarget.style.backgroundColor = 'rgba(113, 75, 103, 0.02)'; }}
-                                                            onMouseLeave={(e) => { e.currentTarget.style.borderColor = TOKENS.border; e.currentTarget.style.backgroundColor = 'transparent'; }}
-                                                        >
-                                                            <Plus size={14} /> Add new column ({remainingFieldSlots} remaining)
-                                                        </button>
-                                                    </td>
-                                                </tr>
+                                                            </td>
+                                                            <td style={{ padding: '16px' }}>
+                                                                <span style={{ padding: '4px 10px', backgroundColor: typeColors.bg, color: typeColors.text, borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>
+                                                                    {FIELD_TYPE_LABELS[field.type] || field.type}
+                                                                </span>
+                                                            </td>
+                                                            <td style={{ padding: '16px', color: TOKENS.textMuted, fontSize: '0.85rem' }}>
+                                                                {field.type === 'linked_record' ? `Linked to ${tables.find(t => t.id === field.link_table_id)?.name || 'Table'}` : 'Standard field'}
+                                                            </td>
+                                                            <td style={{ padding: '16px' }}>
+                                                                <div style={{ display: 'flex', gap: '4px' }}>
+                                                                    {field.type === 'linked_record' && <span style={{ padding: '4px 8px', backgroundColor: '#eff6ff', color: '#2563eb', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700 }}>Indexed</span>}
+                                                                    <span style={{ padding: '4px 8px', backgroundColor: '#f8fafc', color: TOKENS.textMuted, borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700 }}>Not Null</span>
+                                                                </div>
+                                                            </td>
+                                                            <td style={{ padding: '16px', color: TOKENS.textMuted, fontSize: '0.85rem' }}>-</td>
+                                                            <td style={{ padding: '16px' }}>
+                                                                <span style={{ 
+                                                                    padding: '4px 10px', 
+                                                                    backgroundColor: isHidden ? '#fef2f2' : '#f0fdf4', 
+                                                                    color: isHidden ? '#be123c' : '#15803d', 
+                                                                    borderRadius: '6px', 
+                                                                    fontSize: '0.75rem', 
+                                                                    fontWeight: 700 
+                                                                }}>
+                                                                    {isHidden ? 'Hidden' : 'Visible'}
+                                                                </span>
+                                                            </td>
+                                                            <td style={{ padding: '16px', textAlign: 'right' }}>
+                                                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                                                                    <Settings 
+                                                                        size={16} 
+                                                                        style={{ color: TOKENS.textMuted, cursor: 'pointer' }} 
+                                                                        onClick={(e) => {
+                                                                            const rect = e.currentTarget.getBoundingClientRect();
+                                                                            setActiveMenuField({ name: field.name, x: rect.left, y: rect.top });
+                                                                        }}
+                                                                    />
+                                                                    <MoreVertical size={16} style={{ color: TOKENS.border }} />
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
                                             </tbody>
                                         </table>
+
+                                        {/* Pagination */}
+                                        <div style={{ padding: '16px 32px', borderTop: `1px solid ${TOKENS.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fafafa' }}>
+                                            <div style={{ fontSize: '0.85rem', color: TOKENS.textMuted }}>
+                                                1 - 10 of {activeFields.length + 1} fields
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <button style={{ padding: '6px', borderRadius: '6px', border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: TOKENS.textMuted }}><ChevronsLeft size={16} /></button>
+                                                <button style={{ padding: '6px', borderRadius: '6px', border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: TOKENS.textMuted }}><ChevronLeft size={16} /></button>
+                                                <div style={{ display: 'flex', gap: '4px' }}>
+                                                    <button style={{ width: '32px', height: '32px', borderRadius: '6px', border: 'none', backgroundColor: TOKENS.primary, color: 'white', fontWeight: 700, fontSize: '0.85rem' }}>1</button>
+                                                    <button style={{ width: '32px', height: '32px', borderRadius: '6px', border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: TOKENS.text, fontWeight: 600, fontSize: '0.85rem' }}>2</button>
+                                                    <button style={{ width: '32px', height: '32px', borderRadius: '6px', border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: TOKENS.text, fontWeight: 600, fontSize: '0.85rem' }}>3</button>
+                                                </div>
+                                                <button style={{ padding: '6px', borderRadius: '6px', border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: TOKENS.textMuted }}><ChevronRight size={16} /></button>
+                                                <button style={{ padding: '6px', borderRadius: '6px', border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: TOKENS.textMuted }}><ChevronsRight size={16} /></button>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.85rem', color: TOKENS.textMuted }}>
+                                                Rows per page
+                                                <select style={{ padding: '4px 8px', borderRadius: '6px', border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', outline: 'none' }}>
+                                                    <option>10</option>
+                                                    <option>20</option>
+                                                    <option>50</option>
+                                                </select>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             ) : activePanel === 'queries' ? (
-                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '32px', overflowY: 'auto' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
                                         <div>
-                                            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: TOKENS.text }}>Table Queries</h2>
-                                            <p style={{ fontSize: '0.85rem', color: TOKENS.textMuted, margin: '4px 0 0' }}>Save filters and sorts to use across apps.</p>
+                                            <h2 style={{ fontSize: '1.8rem', fontWeight: 800, margin: 0, color: TOKENS.text, letterSpacing: '-0.02em' }}>Table Queries</h2>
+                                            <p style={{ fontSize: '1rem', color: TOKENS.textMuted, margin: '8px 0 0' }}>Save filters and sorts to use across apps.</p>
                                         </div>
                                         <button
                                             onClick={() => {
@@ -1512,72 +1706,79 @@ const TableManager = () => {
                                                 setIsQueryEditorOpen(true);
                                             }}
                                             style={{
-                                                padding: '10px 24px',
-                                                backgroundColor: TOKENS.secondary,
-                                                color: 'white',
-                                                border: 'none',
-                                                borderRadius: '8px',
-                                                fontWeight: 800,
-                                                fontSize: '0.85rem',
-                                                cursor: 'pointer',
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 gap: '8px',
-                                                boxShadow: TOKENS.shadow
+                                                padding: '10px 24px',
+                                                borderRadius: '10px',
+                                                backgroundColor: TOKENS.primary,
+                                                color: 'white',
+                                                border: 'none',
+                                                fontWeight: 700,
+                                                fontSize: '0.85rem',
+                                                cursor: 'pointer',
+                                                boxShadow: '0 4px 6px -1px rgba(99, 102, 241, 0.4)'
                                             }}
                                         >
                                             <Plus size={18} /> Add Query
                                         </button>
                                     </div>
 
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
                                         {(selectedTable?.queries || []).length === 0 ? (
-                                            <div style={{ gridColumn: '1 / -1', padding: '60px', textAlign: 'center', backgroundColor: 'white', borderRadius: TOKENS.radius, border: `1px dashed ${TOKENS.border}` }}>
-                                                <Search size={40} style={{ margin: '0 auto 16px', opacity: 0.2 }} />
-                                                <div style={{ color: TOKENS.textMuted }}>No queries defined yet.</div>
+                                            <div style={{ gridColumn: '1 / -1', padding: '100px', textAlign: 'center', backgroundColor: 'white', borderRadius: '16px', border: `1px dashed ${TOKENS.border}`, color: TOKENS.textMuted }}>
+                                                <Search size={48} style={{ margin: '0 auto 20px', opacity: 0.1 }} />
+                                                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: TOKENS.text, marginBottom: '8px' }}>No Saved Queries</div>
+                                                <p style={{ fontSize: '0.9rem' }}>Define custom filters and sorting rules to easily access specific data subsets.</p>
                                             </div>
                                         ) : (
                                             (selectedTable?.queries || []).map(q => (
-                                                <div key={q.id} style={{ backgroundColor: 'white', padding: '20px', borderRadius: TOKENS.radius, border: `1px solid ${TOKENS.borderLight}`, boxShadow: TOKENS.shadow, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                                <div key={q.id} style={{ backgroundColor: 'white', padding: '24px', borderRadius: '16px', border: `1px solid ${TOKENS.border}`, boxShadow: TOKENS.shadow, display: 'flex', flexDirection: 'column', gap: '16px', transition: 'transform 0.2s' }}>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                        <div style={{ fontWeight: 700, fontSize: '1rem', color: TOKENS.text }}>{q.name}</div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                            <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: '#f5f3ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b5cf6' }}>
+                                                                <Search size={20} />
+                                                            </div>
+                                                            <div style={{ fontWeight: 800, fontSize: '1.1rem', color: TOKENS.text }}>{q.name}</div>
+                                                        </div>
                                                         <div style={{ display: 'flex', gap: '4px' }}>
                                                             <button
                                                                 onClick={() => {
                                                                     setEditingQuery(q);
                                                                     setIsQueryEditorOpen(true);
                                                                 }}
-                                                                style={{ padding: '6px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '6px', color: TOKENS.textMuted }}
-                                                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = TOKENS.bg}
-                                                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                                                style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '8px', color: TOKENS.textMuted }}
                                                             >
                                                                 <Edit2 size={16} />
                                                             </button>
                                                             <button
                                                                 onClick={async () => {
+                                                                    if (!confirm('Delete this query?')) return;
                                                                     const updatedQueries = selectedTable.queries.filter(existing => existing.id !== q.id);
                                                                     await updateTable(selectedTableId, { queries: updatedQueries });
                                                                     loadTables();
                                                                 }}
-                                                                style={{ padding: '6px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '6px', color: '#dc2626' }}
-                                                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fef2f2'}
-                                                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                                                style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '8px', color: '#f43f5e' }}
                                                             >
                                                                 <Trash2 size={16} />
                                                             </button>
                                                         </div>
                                                     </div>
-                                                    <div style={{ fontSize: '0.8rem', color: TOKENS.textMuted }}>
-                                                        {q.filters?.length || 0} filters • {q.sort?.length || 0} sorts • Limit {q.limit}
+                                                    
+                                                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                                        <span style={{ padding: '4px 10px', backgroundColor: '#f1f5f9', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.textMuted }}>{q.filters?.length || 0} Filters</span>
+                                                        <span style={{ padding: '4px 10px', backgroundColor: '#f1f5f9', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.textMuted }}>{q.sort?.length || 0} Sorts</span>
+                                                        <span style={{ padding: '4px 10px', backgroundColor: '#f1f5f9', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.textMuted }}>Limit {q.limit}</span>
                                                     </div>
+
                                                     <button
                                                         onClick={() => {
                                                             setActiveQueryId(q.id);
                                                             setActivePanel('records');
                                                         }}
-                                                        style={{ width: '100%', padding: '10px', backgroundColor: TOKENS.bg, border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.8rem', color: TOKENS.primary, cursor: 'pointer' }}
+                                                        style={{ width: '100%', padding: '12px', backgroundColor: TOKENS.bg, border: `1px solid ${TOKENS.border}`, borderRadius: '10px', fontWeight: 700, fontSize: '0.85rem', color: TOKENS.primary, cursor: 'pointer', marginTop: '8px' }}
                                                     >
-                                                        View Results
+                                                        View Data
                                                     </button>
                                                 </div>
                                             ))
@@ -1585,11 +1786,11 @@ const TableManager = () => {
                                     </div>
                                 </div>
                             ) : (
-                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '32px', overflowY: 'auto' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
                                         <div>
-                                            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: TOKENS.text }}>Table Aggregations</h2>
-                                            <p style={{ fontSize: '0.85rem', color: TOKENS.textMuted, margin: '4px 0 0' }}>Calculate statistics across your table data.</p>
+                                            <h2 style={{ fontSize: '1.8rem', fontWeight: 800, margin: 0, color: TOKENS.text, letterSpacing: '-0.02em' }}>Table Aggregations</h2>
+                                            <p style={{ fontSize: '1rem', color: TOKENS.textMuted, margin: '8px 0 0' }}>Calculate statistics across your table data.</p>
                                         </div>
                                         <button
                                             onClick={() => {
@@ -1597,39 +1798,41 @@ const TableManager = () => {
                                                 setIsAggregationEditorOpen(true);
                                             }}
                                             style={{
-                                                padding: '10px 24px',
-                                                backgroundColor: TOKENS.secondary,
-                                                color: 'white',
-                                                border: 'none',
-                                                borderRadius: '8px',
-                                                fontWeight: 800,
-                                                fontSize: '0.85rem',
-                                                cursor: 'pointer',
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 gap: '8px',
-                                                boxShadow: TOKENS.shadow
+                                                padding: '10px 24px',
+                                                borderRadius: '10px',
+                                                backgroundColor: TOKENS.primary,
+                                                color: 'white',
+                                                border: 'none',
+                                                fontWeight: 700,
+                                                fontSize: '0.85rem',
+                                                cursor: 'pointer',
+                                                boxShadow: '0 4px 6px -1px rgba(99, 102, 241, 0.4)'
                                             }}
                                         >
                                             <Plus size={18} /> Add Aggregation
                                         </button>
                                     </div>
 
-                                    <div style={{ backgroundColor: 'white', borderRadius: TOKENS.radius, border: `1px solid ${TOKENS.borderLight}`, boxShadow: TOKENS.shadow, overflow: 'hidden' }}>
-                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                    <div style={{ backgroundColor: 'white', borderRadius: '16px', border: `1px solid ${TOKENS.border}`, overflow: 'hidden', boxShadow: TOKENS.shadow }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                             <thead>
-                                                <tr style={{ backgroundColor: TOKENS.bg }}>
-                                                    <th style={{ padding: '16px 20px', textAlign: 'left', fontWeight: 800, color: TOKENS.primary, borderBottom: `1px solid ${TOKENS.borderLight}` }}>Name</th>
-                                                    <th style={{ padding: '16px 20px', textAlign: 'left', fontWeight: 800, color: TOKENS.primary, borderBottom: `1px solid ${TOKENS.borderLight}` }}>Calculation</th>
-                                                    <th style={{ padding: '16px 20px', textAlign: 'left', fontWeight: 800, color: TOKENS.primary, borderBottom: `1px solid ${TOKENS.borderLight}` }}>Field</th>
-                                                    <th style={{ padding: '16px 20px', textAlign: 'left', fontWeight: 800, color: TOKENS.primary, borderBottom: `1px solid ${TOKENS.borderLight}` }}>Current Result</th>
-                                                    <th style={{ padding: '16px 20px', textAlign: 'right', fontWeight: 800, color: TOKENS.primary, borderBottom: `1px solid ${TOKENS.borderLight}` }}>Actions</th>
+                                                <tr style={{ borderBottom: `1px solid ${TOKENS.border}`, backgroundColor: '#fafafa' }}>
+                                                    <th style={{ padding: '20px', textAlign: 'left', fontSize: '0.8rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase' }}>Name</th>
+                                                    <th style={{ padding: '20px', textAlign: 'left', fontSize: '0.8rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase' }}>Calculation</th>
+                                                    <th style={{ padding: '20px', textAlign: 'left', fontSize: '0.8rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase' }}>Field</th>
+                                                    <th style={{ padding: '20px', textAlign: 'left', fontSize: '0.8rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase' }}>Current Result</th>
+                                                    <th style={{ padding: '20px', textAlign: 'right', fontSize: '0.8rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase' }}>Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {(selectedTable?.aggregations || []).length === 0 ? (
                                                     <tr>
-                                                        <td colSpan="5" style={{ padding: '40px', textAlign: 'center', color: TOKENS.textMuted }}>No aggregations defined.</td>
+                                                        <td colSpan="5" style={{ padding: '80px', textAlign: 'center', color: TOKENS.textMuted }}>
+                                                            <div style={{ fontSize: '1rem', fontWeight: 600 }}>No aggregations defined.</div>
+                                                        </td>
                                                     </tr>
                                                 ) : (
                                                     (selectedTable?.aggregations || []).map(agg => {
@@ -1648,28 +1851,33 @@ const TableManager = () => {
 
                                                         return (
                                                             <tr key={agg.id} style={{ borderBottom: `1px solid ${TOKENS.borderLight}` }}>
-                                                                <td style={{ padding: '16px 20px', fontWeight: 700 }}>{agg.name}</td>
-                                                                <td style={{ padding: '16px 20px', textTransform: 'capitalize' }}>{agg.calculation}</td>
-                                                                <td style={{ padding: '16px 20px' }}>{agg.field}</td>
-                                                                <td style={{ padding: '16px 20px', fontWeight: 800, color: TOKENS.secondary }}>{result}</td>
-                                                                <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                                                                    <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                                                                <td style={{ padding: '20px', fontWeight: 700, color: TOKENS.text }}>{agg.name}</td>
+                                                                <td style={{ padding: '20px' }}>
+                                                                    <span style={{ padding: '4px 10px', backgroundColor: '#eef2ff', color: '#6366f1', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase' }}>{agg.calculation}</span>
+                                                                </td>
+                                                                <td style={{ padding: '20px', color: TOKENS.textMuted, fontWeight: 500 }}>{agg.field}</td>
+                                                                <td style={{ padding: '20px' }}>
+                                                                    <div style={{ fontSize: '1.2rem', fontWeight: 800, color: TOKENS.primary }}>{result}</div>
+                                                                </td>
+                                                                <td style={{ padding: '20px', textAlign: 'right' }}>
+                                                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                                                                         <button
                                                                             onClick={() => {
                                                                                 setEditingAggregation(agg);
                                                                                 setIsAggregationEditorOpen(true);
                                                                             }}
-                                                                            style={{ padding: '6px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '6px', color: TOKENS.textMuted }}
+                                                                            style={{ padding: '8px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: TOKENS.textMuted, cursor: 'pointer' }}
                                                                         >
                                                                             <Edit2 size={16} />
                                                                         </button>
                                                                         <button
                                                                             onClick={async () => {
+                                                                                if (!confirm('Delete this aggregation?')) return;
                                                                                 const updatedAggs = selectedTable.aggregations.filter(existing => existing.id !== agg.id);
                                                                                 await updateTable(selectedTableId, { aggregations: updatedAggs });
                                                                                 loadTables();
                                                                             }}
-                                                                            style={{ padding: '6px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '6px', color: '#dc2626' }}
+                                                                            style={{ padding: '8px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: '#f43f5e', cursor: 'pointer' }}
                                                                         >
                                                                             <Trash2 size={16} />
                                                                         </button>
@@ -1681,51 +1889,52 @@ const TableManager = () => {
                                                 )}
                                             </tbody>
                                         </table>
-                                    </div>
                                 </div>
-                            )}
-                        </div>
-                    )}
-                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
 
             {isCreateModalOpen && (
-                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5000, backdropFilter: 'blur(4px)' }}>
-                    <div style={{ width: '400px', backgroundColor: TOKENS.surface, borderRadius: TOKENS.radius, boxShadow: TOKENS.shadowLg, border: `1px solid ${TOKENS.border}`, overflow: 'hidden' }}>
-                        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ fontWeight: 800, fontSize: '1.1rem', letterSpacing: '-0.01em' }}>Create New Table</div>
-                            <button onClick={() => setIsCreateModalOpen(false)} style={{ border: 'none', background: 'none', color: TOKENS.textMuted, cursor: 'pointer', padding: '4px' }}><X size={20} /></button>
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5000, backdropFilter: 'blur(12px)' }}>
+                    <div style={{ width: '450px', backgroundColor: 'white', borderRadius: '24px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', border: `1px solid ${TOKENS.border}`, overflow: 'hidden' }}>
+                        <div style={{ padding: '32px 32px 24px', borderBottom: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ fontWeight: 900, fontSize: '1.4rem', color: TOKENS.text, letterSpacing: '-0.02em' }}>Create New Table</div>
+                            <button onClick={() => setIsCreateModalOpen(false)} style={{ border: 'none', background: 'none', color: TOKENS.textMuted, cursor: 'pointer', padding: '8px', borderRadius: '12px' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}><X size={24} /></button>
                         </div>
-                        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        <div style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
                             <div>
-                                <label style={{ display: 'block', fontSize: '0.8rem', color: TOKENS.text, marginBottom: '8px', fontWeight: 700 }}>Table Name</label>
+                                <label style={{ display: 'block', fontSize: '0.85rem', color: TOKENS.text, marginBottom: '10px', fontWeight: 700 }}>Table Name</label>
                                 <input
                                     value={newTableName}
                                     onChange={(e) => setNewTableName(e.target.value)}
                                     placeholder="e.g. Work Orders"
-                                    style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem', outline: 'none' }}
-                                    onFocus={(e) => e.target.style.borderColor = TOKENS.primary}
-                                    onBlur={(e) => e.target.style.borderColor = TOKENS.border}
+                                    style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${TOKENS.border}`, fontSize: '1rem', outline: 'none', transition: 'all 0.2s' }}
+                                    onFocus={(e) => { e.target.style.borderColor = TOKENS.primary; e.target.style.boxShadow = `0 0 0 4px ${TOKENS.bg}`; }}
+                                    onBlur={(e) => { e.target.style.borderColor = TOKENS.border; e.target.style.boxShadow = 'none'; }}
                                 />
                             </div>
                             <div>
-                                <label style={{ display: 'block', fontSize: '0.8rem', color: TOKENS.text, marginBottom: '8px', fontWeight: 700 }}>Description</label>
+                                <label style={{ display: 'block', fontSize: '0.85rem', color: TOKENS.text, marginBottom: '10px', fontWeight: 700 }}>Description</label>
                                 <textarea
                                     value={newTableDescription}
                                     onChange={(e) => setNewTableDescription(e.target.value)}
                                     placeholder="What is this table for?"
                                     rows={3}
-                                    style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem', outline: 'none', resize: 'vertical' }}
-                                    onFocus={(e) => e.target.style.borderColor = TOKENS.primary}
-                                    onBlur={(e) => e.target.style.borderColor = TOKENS.border}
+                                    style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${TOKENS.border}`, fontSize: '1rem', outline: 'none', resize: 'vertical', transition: 'all 0.2s' }}
+                                    onFocus={(e) => { e.target.style.borderColor = TOKENS.primary; e.target.style.boxShadow = `0 0 0 4px ${TOKENS.bg}`; }}
+                                    onBlur={(e) => { e.target.style.borderColor = TOKENS.border; e.target.style.boxShadow = 'none'; }}
                                 />
                             </div>
                         </div>
-                        <div style={{ padding: '20px 24px', borderTop: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'flex-end', gap: '12px', backgroundColor: TOKENS.bg }}>
-                            <button onClick={() => setIsCreateModalOpen(false)} style={{ border: `1px solid ${TOKENS.border}`, backgroundColor: TOKENS.surface, color: TOKENS.text, padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem' }}>Cancel</button>
+                        <div style={{ padding: '24px 32px', borderTop: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'flex-end', gap: '16px', backgroundColor: '#fafafa' }}>
+                            <button onClick={() => setIsCreateModalOpen(false)} style={{ border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: TOKENS.text, padding: '12px 24px', borderRadius: '12px', cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem' }}>Cancel</button>
                             <button
                                 onClick={handleCreateTable}
                                 disabled={creatingTable}
-                                style={{ border: 'none', backgroundColor: TOKENS.primary, color: 'white', padding: '10px 22px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem' }}
+                                style={{ border: 'none', backgroundColor: TOKENS.primary, color: 'white', padding: '12px 28px', borderRadius: '12px', cursor: 'pointer', fontWeight: 800, fontSize: '0.9rem', boxShadow: '0 4px 6px -1px rgba(99, 102, 241, 0.4)' }}
                             >
                                 {creatingTable ? 'Creating...' : 'Create Table'}
                             </button>
@@ -1734,43 +1943,43 @@ const TableManager = () => {
                 </div>
             )}
             {isRecordModalOpen && (
-                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', zIndex: 6000, backdropFilter: 'blur(4px)' }}>
-                    <div style={{ width: '100%', maxWidth: '500px', backgroundColor: TOKENS.surface, borderRadius: TOKENS.radius, boxShadow: TOKENS.shadowLg, border: `1px solid ${TOKENS.border}`, overflow: 'hidden' }}>
-                        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ fontWeight: 800, fontSize: '1.2rem', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '12px', color: TOKENS.primary }}>
-                                <span>{isEditingRecord ? 'Update Record' : 'Add Record'}</span>
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', zIndex: 6000, backdropFilter: 'blur(12px)' }}>
+                    <div style={{ width: '100%', maxWidth: '550px', backgroundColor: 'white', borderRadius: '24px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', border: `1px solid ${TOKENS.border}`, overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+                        <div style={{ padding: '32px 32px 24px', borderBottom: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ fontWeight: 900, fontSize: '1.4rem', color: TOKENS.text, letterSpacing: '-0.02em' }}>
+                                {isEditingRecord ? 'Update Record' : 'Add New Record'}
                             </div>
-                            <button onClick={() => setIsRecordModalOpen(false)} style={{ border: 'none', background: 'none', color: TOKENS.textMuted, cursor: 'pointer', padding: '4px' }}><X size={20} /></button>
+                            <button onClick={() => setIsRecordModalOpen(false)} style={{ border: 'none', background: 'none', color: TOKENS.textMuted, cursor: 'pointer', padding: '8px', borderRadius: '12px' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}><X size={24} /></button>
                         </div>
 
-                        <div style={{ maxHeight: '70vh', overflowY: 'auto', padding: '24px' }}>
-                            <div style={{ marginBottom: '24px' }}>
-                                <label style={{ display: 'block', fontSize: '0.8rem', color: TOKENS.text, marginBottom: '8px', fontWeight: 700 }}>Record ID <span style={{ color: '#ef4444' }}>*</span></label>
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '32px' }}>
+                            <div style={{ marginBottom: '32px' }}>
+                                <label style={{ display: 'block', fontSize: '0.85rem', color: TOKENS.text, marginBottom: '10px', fontWeight: 700 }}>Record ID <span style={{ color: '#ef4444' }}>*</span></label>
                                 <input
                                     value={newRecordId}
                                     onChange={(e) => setNewRecordId(e.target.value)}
                                     placeholder="e.g. WO-123"
                                     disabled={isEditingRecord}
-                                    style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem', outline: 'none', backgroundColor: isEditingRecord ? TOKENS.bg : 'white' }}
-                                    onFocus={(e) => e.target.style.borderColor = TOKENS.primary}
-                                    onBlur={(e) => e.target.style.borderColor = TOKENS.border}
+                                    style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${TOKENS.border}`, fontSize: '1rem', outline: 'none', backgroundColor: isEditingRecord ? '#f8fafc' : 'white', transition: 'all 0.2s' }}
+                                    onFocus={(e) => { e.target.style.borderColor = TOKENS.primary; e.target.style.boxShadow = `0 0 0 4px ${TOKENS.bg}`; }}
+                                    onBlur={(e) => { e.target.style.borderColor = TOKENS.border; e.target.style.boxShadow = 'none'; }}
                                     autoFocus={!isEditingRecord}
                                 />
-                                <p style={{ margin: '8px 0 0', fontSize: '0.75rem', color: TOKENS.textMuted }}>Unique identifier for this record.</p>
+                                <p style={{ margin: '10px 0 0', fontSize: '0.8rem', color: TOKENS.textMuted }}>Unique identifier for this record.</p>
                             </div>
 
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                                <div style={{ fontSize: '0.75rem', fontWeight: 800, color: TOKENS.primary, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Field Data</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+                                <div style={{ fontSize: '0.75rem', fontWeight: 800, color: TOKENS.primary, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Data Fields</div>
                                 {activeFields.length === 0 ? (
-                                    <div style={{ padding: '20px', backgroundColor: TOKENS.bg, borderRadius: '8px', textAlign: 'center', color: TOKENS.textMuted, fontSize: '0.85rem' }}>
+                                    <div style={{ padding: '40px', backgroundColor: '#f8fafc', borderRadius: '16px', textAlign: 'center', color: TOKENS.textMuted, fontSize: '0.9rem', border: `1px dashed ${TOKENS.border}` }}>
                                         No custom fields defined for this table.
                                     </div>
                                 ) : (
                                     activeFields.map((field) => (
                                         <div key={field.name}>
-                                            <label style={{ display: 'block', fontSize: '0.8rem', color: TOKENS.text, marginBottom: '8px', fontWeight: 700 }}>
+                                            <label style={{ display: 'block', fontSize: '0.85rem', color: TOKENS.text, marginBottom: '10px', fontWeight: 700 }}>
                                                 {field.name}
-                                                <span style={{ marginLeft: '8px', fontWeight: 400, color: TOKENS.textMuted, fontSize: '0.75rem' }}>({FIELD_TYPE_LABELS[field.type] || field.type})</span>
+                                                <span style={{ marginLeft: '8px', fontWeight: 500, color: TOKENS.textMuted, fontSize: '0.75rem', textTransform: 'uppercase' }}>• {FIELD_TYPE_LABELS[field.type] || field.type}</span>
                                             </label>
                                             {field.type === 'linked_record' ? (
                                                 <LinkedRecordSelector
@@ -1780,22 +1989,20 @@ const TableManager = () => {
                                                     onChange={(val) => setNewRecordValues((prev) => ({ ...prev, [field.name]: val }))}
                                                 />
                                             ) : (field.type === 'image' || field.type === 'video') ? (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                                         <input
                                                             type="text"
                                                             value={newRecordValues[field.name] ?? ''}
                                                             onChange={(e) => setNewRecordValues((prev) => ({ ...prev, [field.name]: e.target.value }))}
                                                             placeholder={`Public URL or upload...`}
-                                                            style={{ flex: 1, padding: '12px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem', outline: 'none' }}
-                                                            onFocus={(e) => e.target.style.borderColor = TOKENS.primary}
-                                                            onBlur={(e) => e.target.style.borderColor = TOKENS.border}
+                                                            style={{ flex: 1, padding: '14px 16px', borderRadius: '12px', border: `1px solid ${TOKENS.border}`, fontSize: '1rem', outline: 'none' }}
                                                         />
                                                         <label style={{
-                                                            padding: '10px 16px',
+                                                            padding: '12px 16px',
                                                             backgroundColor: uploadingFields[field.name] ? '#e2e8f0' : TOKENS.bg,
                                                             color: TOKENS.primary,
-                                                            borderRadius: '8px',
+                                                            borderRadius: '12px',
                                                             border: `1px solid ${TOKENS.border}`,
                                                             cursor: uploadingFields[field.name] ? 'not-allowed' : 'pointer',
                                                             display: 'flex',
@@ -1817,7 +2024,7 @@ const TableManager = () => {
                                                         </label>
                                                     </div>
                                                     {newRecordValues[field.name] && field.type === 'image' && (
-                                                        <div style={{ width: '80px', height: '80px', borderRadius: '8px', overflow: 'hidden', border: `1px solid ${TOKENS.border}` }}>
+                                                        <div style={{ width: '100%', height: '200px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${TOKENS.border}`, marginTop: '8px' }}>
                                                             <img src={newRecordValues[field.name]} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                                         </div>
                                                     )}
@@ -1827,9 +2034,9 @@ const TableManager = () => {
                                                     value={newRecordValues[field.name] ?? ''}
                                                     onChange={(e) => setNewRecordValues((prev) => ({ ...prev, [field.name]: e.target.value }))}
                                                     placeholder={`Enter ${field.name}...`}
-                                                    style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem', outline: 'none' }}
-                                                    onFocus={(e) => e.target.style.borderColor = TOKENS.primary}
-                                                    onBlur={(e) => e.target.style.borderColor = TOKENS.border}
+                                                    style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${TOKENS.border}`, fontSize: '1rem', outline: 'none' }}
+                                                    onFocus={(e) => { e.target.style.borderColor = TOKENS.primary; e.target.style.boxShadow = `0 0 0 4px ${TOKENS.bg}`; }}
+                                                    onBlur={(e) => { e.target.style.borderColor = TOKENS.border; e.target.style.boxShadow = 'none'; }}
                                                 />
                                             )}
                                         </div>
@@ -1838,12 +2045,12 @@ const TableManager = () => {
                             </div>
                         </div>
 
-                        <div style={{ padding: '20px 24px', borderTop: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'flex-end', gap: '12px', backgroundColor: TOKENS.bg }}>
-                            <button onClick={() => setIsRecordModalOpen(false)} style={{ border: `1px solid ${TOKENS.border}`, backgroundColor: TOKENS.surface, color: TOKENS.text, padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem' }}>Cancel</button>
+                        <div style={{ padding: '24px 32px', borderTop: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'flex-end', gap: '16px', backgroundColor: '#fafafa' }}>
+                            <button onClick={() => setIsRecordModalOpen(false)} style={{ border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: TOKENS.text, padding: '12px 24px', borderRadius: '12px', cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem' }}>Cancel</button>
                             <button
                                 onClick={handleAddRecord}
                                 disabled={recordsLoading || (!isEditingRecord && activeFields.length === 0 && !newRecordId)}
-                                style={{ border: 'none', backgroundColor: '#10b981', color: 'white', padding: '10px 22px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}
+                                style={{ border: 'none', backgroundColor: TOKENS.primary, color: 'white', padding: '12px 28px', borderRadius: '12px', cursor: 'pointer', fontWeight: 800, fontSize: '0.9rem', boxShadow: '0 4px 6px -1px rgba(99, 102, 241, 0.4)', display: 'flex', alignItems: 'center', gap: '8px' }}
                             >
                                 {isEditingRecord ? <RefreshCw size={18} /> : <Plus size={18} />}
                                 {isEditingRecord ? 'Save Changes' : 'Add Entry'}
@@ -1853,33 +2060,31 @@ const TableManager = () => {
                 </div>
             )}
             {isFieldModalOpen && (
-                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 6000, backdropFilter: 'blur(4px)' }}>
-                    <div style={{ width: '400px', backgroundColor: TOKENS.surface, borderRadius: TOKENS.radius, boxShadow: TOKENS.shadowLg, border: `1px solid ${TOKENS.border}`, overflow: 'hidden' }}>
-                        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ fontWeight: 800, fontSize: '1.1rem', letterSpacing: '-0.01em' }}>Add New Column</div>
-                            <button onClick={() => setIsFieldModalOpen(false)} style={{ border: 'none', background: 'none', color: TOKENS.textMuted, cursor: 'pointer', padding: '4px' }}><X size={20} /></button>
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 6000, backdropFilter: 'blur(12px)' }}>
+                    <div style={{ width: '450px', backgroundColor: 'white', borderRadius: '24px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', border: `1px solid ${TOKENS.border}`, overflow: 'hidden' }}>
+                        <div style={{ padding: '32px 32px 24px', borderBottom: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ fontWeight: 900, fontSize: '1.4rem', color: TOKENS.text, letterSpacing: '-0.02em' }}>Add New Column</div>
+                            <button onClick={() => setIsFieldModalOpen(false)} style={{ border: 'none', background: 'none', color: TOKENS.textMuted, cursor: 'pointer', padding: '8px', borderRadius: '12px' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}><X size={24} /></button>
                         </div>
-                        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        <div style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
                             <div>
-                                <label style={{ display: 'block', fontSize: '0.8rem', color: TOKENS.text, marginBottom: '8px', fontWeight: 700 }}>Column Name</label>
+                                <label style={{ display: 'block', fontSize: '0.85rem', color: TOKENS.text, marginBottom: '10px', fontWeight: 700 }}>Column Name</label>
                                 <input
                                     value={newFieldName}
                                     onChange={(e) => setNewFieldName(e.target.value)}
                                     placeholder="e.g. Quantity"
-                                    style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem', outline: 'none' }}
-                                    onFocus={(e) => e.target.style.borderColor = TOKENS.primary}
-                                    onBlur={(e) => e.target.style.borderColor = TOKENS.border}
+                                    style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${TOKENS.border}`, fontSize: '1rem', outline: 'none', transition: 'all 0.2s' }}
+                                    onFocus={(e) => { e.target.style.borderColor = TOKENS.primary; e.target.style.boxShadow = `0 0 0 4px ${TOKENS.bg}`; }}
+                                    onBlur={(e) => { e.target.style.borderColor = TOKENS.border; e.target.style.boxShadow = 'none'; }}
                                     autoFocus
                                 />
                             </div>
                             <div>
-                                <label style={{ display: 'block', fontSize: '0.8rem', color: TOKENS.text, marginBottom: '8px', fontWeight: 700 }}>Data Type</label>
+                                <label style={{ display: 'block', fontSize: '0.85rem', color: TOKENS.text, marginBottom: '10px', fontWeight: 700 }}>Data Type</label>
                                 <select
                                     value={newFieldType}
                                     onChange={(e) => setNewFieldType(e.target.value)}
-                                    style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem', outline: 'none', backgroundColor: TOKENS.surface }}
-                                    onFocus={(e) => e.target.style.borderColor = TOKENS.primary}
-                                    onBlur={(e) => e.target.style.borderColor = TOKENS.border}
+                                    style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${TOKENS.border}`, fontSize: '1rem', outline: 'none', backgroundColor: 'white' }}
                                 >
                                     {TABLE_FIELD_TYPES.map((type) => (
                                         <option key={type} value={type}>{FIELD_TYPE_LABELS[type] || type}</option>
@@ -1887,13 +2092,13 @@ const TableManager = () => {
                                 </select>
                             </div>
                             {newFieldType === 'linked_record' && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '16px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '24px', backgroundColor: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
                                     <div>
                                         <label style={{ display: 'block', fontSize: '0.8rem', color: TOKENS.text, marginBottom: '8px', fontWeight: 700 }}>Link To Table</label>
                                         <select
                                             value={targetTableId}
                                             onChange={(e) => setTargetTableId(e.target.value)}
-                                            style={{ width: '100%', padding: '10px', borderRadius: '6px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem', outline: 'none', backgroundColor: 'white' }}
+                                            style={{ width: '100%', padding: '12px', borderRadius: '10px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem', outline: 'none', backgroundColor: 'white' }}
                                         >
                                             <option value="">Select a table...</option>
                                             {tables.filter(t => t.id !== selectedTableId).map((table) => (
@@ -1907,12 +2112,12 @@ const TableManager = () => {
                                             value={newFieldReverseName}
                                             onChange={(e) => setNewFieldReverseName(e.target.value)}
                                             placeholder="e.g. Related Records"
-                                            style={{ width: '100%', padding: '10px', borderRadius: '6px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem', outline: 'none' }}
+                                            style={{ width: '100%', padding: '12px', borderRadius: '10px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem', outline: 'none' }}
                                         />
                                     </div>
                                     <div>
                                         <label style={{ display: 'block', fontSize: '0.8rem', color: TOKENS.text, marginBottom: '8px', fontWeight: 700 }}>Link Type</label>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                                             {[
                                                 { id: 'one_to_one', label: 'One to One', icon: '○──○' },
                                                 { id: 'one_to_many', label: 'One to Many', icon: '○──∈' },
@@ -1923,8 +2128,8 @@ const TableManager = () => {
                                                     key={lt.id}
                                                     onClick={() => setNewFieldLinkType(lt.id)}
                                                     style={{
-                                                        padding: '10px 8px',
-                                                        borderRadius: '6px',
+                                                        padding: '12px 8px',
+                                                        borderRadius: '10px',
                                                         border: `2px solid ${newFieldLinkType === lt.id ? TOKENS.primary : '#e2e8f0'}`,
                                                         backgroundColor: newFieldLinkType === lt.id ? '#f5f3ff' : 'white',
                                                         color: newFieldLinkType === lt.id ? TOKENS.primary : TOKENS.text,
@@ -1934,11 +2139,11 @@ const TableManager = () => {
                                                         alignItems: 'center',
                                                         gap: '4px',
                                                         fontSize: '0.75rem',
-                                                        fontWeight: 600,
+                                                        fontWeight: 700,
                                                         transition: 'all 0.2s'
                                                     }}
                                                 >
-                                                    <span style={{ fontSize: '1rem' }}>{lt.icon}</span>
+                                                    <span style={{ fontSize: '1.1rem' }}>{lt.icon}</span>
                                                     {lt.label}
                                                 </button>
                                             ))}
@@ -1947,14 +2152,14 @@ const TableManager = () => {
                                 </div>
                             )}
                         </div>
-                        <div style={{ padding: '20px 24px', borderTop: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'flex-end', gap: '12px', backgroundColor: TOKENS.bg }}>
-                            <button onClick={() => setIsFieldModalOpen(false)} style={{ border: `1px solid ${TOKENS.border}`, backgroundColor: TOKENS.surface, color: TOKENS.text, padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem' }}>Cancel</button>
+                        <div style={{ padding: '24px 32px', borderTop: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'flex-end', gap: '16px', backgroundColor: '#fafafa' }}>
+                            <button onClick={() => setIsFieldModalOpen(false)} style={{ border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: TOKENS.text, padding: '12px 24px', borderRadius: '12px', cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem' }}>Cancel</button>
                             <button
                                 onClick={async () => {
                                     await handleAddField();
                                     setIsFieldModalOpen(false);
                                 }}
-                                style={{ border: 'none', backgroundColor: TOKENS.primary, color: 'white', padding: '10px 22px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem' }}
+                                style={{ border: 'none', backgroundColor: TOKENS.primary, color: 'white', padding: '12px 28px', borderRadius: '12px', cursor: 'pointer', fontWeight: 800, fontSize: '0.9rem', boxShadow: '0 4px 6px -1px rgba(99, 102, 241, 0.4)' }}
                             >
                                 Add Column
                             </button>
@@ -1963,43 +2168,43 @@ const TableManager = () => {
                 </div>
             )}
             {isEditTableModalOpen && (
-                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5000, backdropFilter: 'blur(4px)' }}>
-                    <div style={{ width: '450px', backgroundColor: TOKENS.surface, borderRadius: TOKENS.radius, boxShadow: TOKENS.shadowLg, border: `1px solid ${TOKENS.border}`, overflow: 'hidden' }}>
-                        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ fontWeight: 800, fontSize: '1.1rem', letterSpacing: '-0.01em' }}>Edit Table Settings</div>
-                            <button onClick={() => setIsEditTableModalOpen(false)} style={{ border: 'none', background: 'none', color: TOKENS.textMuted, cursor: 'pointer', padding: '4px' }}><X size={20} /></button>
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5000, backdropFilter: 'blur(12px)' }}>
+                    <div style={{ width: '450px', backgroundColor: 'white', borderRadius: '24px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', border: `1px solid ${TOKENS.border}`, overflow: 'hidden' }}>
+                        <div style={{ padding: '32px 32px 24px', borderBottom: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ fontWeight: 900, fontSize: '1.4rem', color: TOKENS.text, letterSpacing: '-0.02em' }}>Edit Table Settings</div>
+                            <button onClick={() => setIsEditTableModalOpen(false)} style={{ border: 'none', background: 'none', color: TOKENS.textMuted, cursor: 'pointer', padding: '8px', borderRadius: '12px' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}><X size={24} /></button>
                         </div>
-                        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        <div style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
                             <div>
-                                <label style={{ display: 'block', fontSize: '0.8rem', color: TOKENS.text, marginBottom: '8px', fontWeight: 700 }}>Table Name</label>
+                                <label style={{ display: 'block', fontSize: '0.85rem', color: TOKENS.text, marginBottom: '10px', fontWeight: 700 }}>Table Name</label>
                                 <input
                                     value={editTableName}
                                     onChange={(e) => setEditTableName(e.target.value)}
                                     placeholder="Enter table name"
-                                    style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem', outline: 'none' }}
-                                    onFocus={(e) => e.target.style.borderColor = TOKENS.primary}
-                                    onBlur={(e) => e.target.style.borderColor = TOKENS.border}
+                                    style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${TOKENS.border}`, fontSize: '1rem', outline: 'none', transition: 'all 0.2s' }}
+                                    onFocus={(e) => { e.target.style.borderColor = TOKENS.primary; e.target.style.boxShadow = `0 0 0 4px ${TOKENS.bg}`; }}
+                                    onBlur={(e) => { e.target.style.borderColor = TOKENS.border; e.target.style.boxShadow = 'none'; }}
                                 />
                             </div>
                             <div>
-                                <label style={{ display: 'block', fontSize: '0.8rem', color: TOKENS.text, marginBottom: '8px', fontWeight: 700 }}>Description</label>
+                                <label style={{ display: 'block', fontSize: '0.85rem', color: TOKENS.text, marginBottom: '10px', fontWeight: 700 }}>Description</label>
                                 <textarea
                                     value={editTableDescription}
                                     onChange={(e) => setEditTableDescription(e.target.value)}
                                     placeholder="Table description..."
                                     rows={3}
-                                    style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem', outline: 'none', resize: 'vertical' }}
-                                    onFocus={(e) => e.target.style.borderColor = TOKENS.primary}
-                                    onBlur={(e) => e.target.style.borderColor = TOKENS.border}
+                                    style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${TOKENS.border}`, fontSize: '1rem', outline: 'none', resize: 'vertical', transition: 'all 0.2s' }}
+                                    onFocus={(e) => { e.target.style.borderColor = TOKENS.primary; e.target.style.boxShadow = `0 0 0 4px ${TOKENS.bg}`; }}
+                                    onBlur={(e) => { e.target.style.borderColor = TOKENS.border; e.target.style.boxShadow = 'none'; }}
                                 />
                             </div>
                         </div>
-                        <div style={{ padding: '20px 24px', borderTop: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'flex-end', gap: '12px', backgroundColor: TOKENS.bg }}>
-                            <button onClick={() => setIsEditTableModalOpen(false)} style={{ border: `1px solid ${TOKENS.border}`, backgroundColor: TOKENS.surface, color: TOKENS.text, padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem' }}>Cancel</button>
+                        <div style={{ padding: '24px 32px', borderTop: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'flex-end', gap: '16px', backgroundColor: '#fafafa' }}>
+                            <button onClick={() => setIsEditTableModalOpen(false)} style={{ border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: TOKENS.text, padding: '12px 24px', borderRadius: '12px', cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem' }}>Cancel</button>
                             <button
                                 onClick={handleUpdateTableMetadata}
                                 disabled={creatingTable}
-                                style={{ border: 'none', backgroundColor: TOKENS.primary, color: 'white', padding: '10px 22px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem' }}
+                                style={{ border: 'none', backgroundColor: TOKENS.primary, color: 'white', padding: '12px 28px', borderRadius: '12px', cursor: 'pointer', fontWeight: 800, fontSize: '0.9rem', boxShadow: '0 4px 6px -1px rgba(99, 102, 241, 0.4)' }}
                             >
                                 {creatingTable ? 'Saving...' : 'Save Changes'}
                             </button>
@@ -2009,30 +2214,30 @@ const TableManager = () => {
             )}
 
             {isRenameFieldModalOpen && (
-                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 6000, backdropFilter: 'blur(4px)' }}>
-                    <div style={{ width: '400px', backgroundColor: TOKENS.surface, borderRadius: TOKENS.radius, boxShadow: TOKENS.shadowLg, border: `1px solid ${TOKENS.border}`, overflow: 'hidden' }}>
-                        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ fontWeight: 800, fontSize: '1.1rem', letterSpacing: '-0.01em' }}>Rename Column</div>
-                            <button onClick={() => setIsRenameFieldModalOpen(false)} style={{ border: 'none', background: 'none', color: TOKENS.textMuted, cursor: 'pointer', padding: '4px' }}><X size={20} /></button>
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 6000, backdropFilter: 'blur(12px)' }}>
+                    <div style={{ width: '450px', backgroundColor: 'white', borderRadius: '24px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', border: `1px solid ${TOKENS.border}`, overflow: 'hidden' }}>
+                        <div style={{ padding: '32px 32px 24px', borderBottom: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ fontWeight: 900, fontSize: '1.4rem', color: TOKENS.text, letterSpacing: '-0.02em' }}>Rename Column</div>
+                            <button onClick={() => setIsRenameFieldModalOpen(false)} style={{ border: 'none', background: 'none', color: TOKENS.textMuted, cursor: 'pointer', padding: '8px', borderRadius: '12px' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}><X size={24} /></button>
                         </div>
-                        <div style={{ padding: '24px' }}>
-                            <label style={{ display: 'block', fontSize: '0.8rem', color: TOKENS.text, marginBottom: '8px', fontWeight: 700 }}>New Name for "{editingField}"</label>
+                        <div style={{ padding: '32px' }}>
+                            <label style={{ display: 'block', fontSize: '0.85rem', color: TOKENS.text, marginBottom: '10px', fontWeight: 700 }}>New Name for "{editingField}"</label>
                             <input
                                 value={renameFieldNewName}
                                 onChange={(e) => setRenameFieldNewName(e.target.value)}
                                 placeholder="New column name"
-                                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem', outline: 'none' }}
-                                onFocus={(e) => e.target.style.borderColor = TOKENS.primary}
-                                onBlur={(e) => e.target.style.borderColor = TOKENS.border}
+                                style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${TOKENS.border}`, fontSize: '1rem', outline: 'none', transition: 'all 0.2s' }}
+                                onFocus={(e) => { e.target.style.borderColor = TOKENS.primary; e.target.style.boxShadow = `0 0 0 4px ${TOKENS.bg}`; }}
+                                onBlur={(e) => { e.target.style.borderColor = TOKENS.border; e.target.style.boxShadow = 'none'; }}
                                 autoFocus
                                 onKeyDown={(e) => e.key === 'Enter' && handleRenameField(editingField, renameFieldNewName)}
                             />
                         </div>
-                        <div style={{ padding: '20px 24px', borderTop: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'flex-end', gap: '12px', backgroundColor: TOKENS.bg }}>
-                            <button onClick={() => setIsRenameFieldModalOpen(false)} style={{ border: `1px solid ${TOKENS.border}`, backgroundColor: TOKENS.surface, color: TOKENS.text, padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem' }}>Cancel</button>
+                        <div style={{ padding: '24px 32px', borderTop: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'flex-end', gap: '16px', backgroundColor: '#fafafa' }}>
+                            <button onClick={() => setIsRenameFieldModalOpen(false)} style={{ border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: TOKENS.text, padding: '12px 24px', borderRadius: '12px', cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem' }}>Cancel</button>
                             <button
                                 onClick={() => handleRenameField(editingField, renameFieldNewName)}
-                                style={{ border: 'none', backgroundColor: TOKENS.primary, color: 'white', padding: '10px 22px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem' }}
+                                style={{ border: 'none', backgroundColor: TOKENS.primary, color: 'white', padding: '12px 28px', borderRadius: '12px', cursor: 'pointer', fontWeight: 800, fontSize: '0.9rem', boxShadow: '0 4px 6px -1px rgba(99, 102, 241, 0.4)' }}
                             >
                                 Rename
                             </button>
@@ -2041,32 +2246,33 @@ const TableManager = () => {
                 </div>
             )}
             {isTypeModalOpen && (
-                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 6000, backdropFilter: 'blur(4px)' }}>
-                    <div style={{ width: '400px', backgroundColor: TOKENS.surface, borderRadius: TOKENS.radius, boxShadow: TOKENS.shadowLg, border: `1px solid ${TOKENS.border}`, overflow: 'hidden' }}>
-                        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ fontWeight: 800, fontSize: '1.1rem', letterSpacing: '-0.01em' }}>Change Column Type</div>
-                            <button onClick={() => setIsTypeModalOpen(false)} style={{ border: 'none', background: 'none', color: TOKENS.textMuted, cursor: 'pointer', padding: '4px' }}><X size={20} /></button>
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 6000, backdropFilter: 'blur(12px)' }}>
+                    <div style={{ width: '450px', backgroundColor: 'white', borderRadius: '24px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', border: `1px solid ${TOKENS.border}`, overflow: 'hidden' }}>
+                        <div style={{ padding: '32px 32px 24px', borderBottom: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ fontWeight: 900, fontSize: '1.4rem', color: TOKENS.text, letterSpacing: '-0.02em' }}>Change Column Type</div>
+                            <button onClick={() => setIsTypeModalOpen(false)} style={{ border: 'none', background: 'none', color: TOKENS.textMuted, cursor: 'pointer', padding: '8px', borderRadius: '12px' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}><X size={24} /></button>
                         </div>
-                        <div style={{ padding: '24px' }}>
-                            <label style={{ display: 'block', fontSize: '0.8rem', color: TOKENS.text, marginBottom: '8px', fontWeight: 700 }}>Data Type for "{editingField}"</label>
+                        <div style={{ padding: '32px' }}>
+                            <label style={{ display: 'block', fontSize: '0.85rem', color: TOKENS.text, marginBottom: '10px', fontWeight: 700 }}>Data Type for "{editingField}"</label>
                             <select
                                 value={newType}
                                 onChange={(e) => setNewType(e.target.value)}
-                                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem', outline: 'none', backgroundColor: TOKENS.surface }}
-                                onFocus={(e) => e.target.style.borderColor = TOKENS.primary}
-                                onBlur={(e) => e.target.style.borderColor = TOKENS.border}
+                                style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${TOKENS.border}`, fontSize: '1rem', outline: 'none', backgroundColor: 'white' }}
                             >
                                 {TABLE_FIELD_TYPES.map(type => (
                                     <option key={type} value={type}>{FIELD_TYPE_LABELS[type] || type}</option>
                                 ))}
                             </select>
-                            <p style={{ marginTop: '12px', fontSize: '0.75rem', color: TOKENS.textMuted, lineHeight: '1.4' }}>Changing the type might affect how current data is validated and displayed.</p>
+                            <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#fef2f2', borderRadius: '12px', border: '1px solid #fee2e2', color: '#b91c1c', fontSize: '0.85rem', lineHeight: '1.5', display: 'flex', gap: '12px' }}>
+                                <AlertTriangle size={20} style={{ flexShrink: 0 }} />
+                                <span>Changing the data type may cause existing records to become invalid or be permanently altered.</span>
+                            </div>
                         </div>
-                        <div style={{ padding: '20px 24px', borderTop: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'flex-end', gap: '12px', backgroundColor: TOKENS.bg }}>
-                            <button onClick={() => setIsTypeModalOpen(false)} style={{ border: `1px solid ${TOKENS.border}`, backgroundColor: TOKENS.surface, color: TOKENS.text, padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem' }}>Cancel</button>
+                        <div style={{ padding: '24px 32px', borderTop: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'flex-end', gap: '16px', backgroundColor: '#fafafa' }}>
+                            <button onClick={() => setIsTypeModalOpen(false)} style={{ border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: TOKENS.text, padding: '12px 24px', borderRadius: '12px', cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem' }}>Cancel</button>
                             <button
                                 onClick={() => handleUpdateFieldType(editingField, newType)}
-                                style={{ border: 'none', backgroundColor: TOKENS.primary, color: 'white', padding: '10px 22px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem' }}
+                                style={{ border: 'none', backgroundColor: TOKENS.primary, color: 'white', padding: '12px 28px', borderRadius: '12px', cursor: 'pointer', fontWeight: 800, fontSize: '0.9rem', boxShadow: '0 4px 6px -1px rgba(99, 102, 241, 0.4)' }}
                             >
                                 Change Type
                             </button>
@@ -2076,59 +2282,57 @@ const TableManager = () => {
             )}
 
             {isQueryEditorOpen && (
-                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 7000, backdropFilter: 'blur(4px)' }}>
-                    <div style={{ width: '600px', backgroundColor: TOKENS.surface, borderRadius: TOKENS.radius, boxShadow: TOKENS.shadowLg, border: `1px solid ${TOKENS.border}`, overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
-                        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ fontWeight: 800, fontSize: '1.1rem', letterSpacing: '-0.01em' }}>{editingQuery?.id ? 'Edit Query' : 'Create Query'}</div>
-                            <button onClick={() => setIsQueryEditorOpen(false)} style={{ border: 'none', background: 'none', color: TOKENS.textMuted, cursor: 'pointer', padding: '4px' }}><X size={20} /></button>
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 7000, backdropFilter: 'blur(12px)' }}>
+                    <div style={{ width: '700px', backgroundColor: 'white', borderRadius: '24px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', border: `1px solid ${TOKENS.border}`, overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+                        <div style={{ padding: '32px 32px 24px', borderBottom: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ fontWeight: 900, fontSize: '1.4rem', color: TOKENS.text, letterSpacing: '-0.02em' }}>{editingQuery?.id ? 'Edit Query' : 'Create New Query'}</div>
+                            <button onClick={() => setIsQueryEditorOpen(false)} style={{ border: 'none', background: 'none', color: TOKENS.textMuted, cursor: 'pointer', padding: '8px', borderRadius: '12px' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}><X size={24} /></button>
                         </div>
-                        <div style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '0.8rem', color: TOKENS.text, marginBottom: '8px', fontWeight: 700 }}>Query Name</label>
-                                <input
-                                    value={editingQuery?.name || ''}
-                                    onChange={(e) => setEditingQuery(prev => ({ ...prev, name: e.target.value }))}
-                                    placeholder="e.g. Recently Completed"
-                                    style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem', outline: 'none' }}
-                                />
-                            </div>
-
-                            <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-                                <div style={{ flex: 1 }}>
-                                    <label style={{ display: 'block', fontSize: '0.8rem', color: TOKENS.text, marginBottom: '8px', fontWeight: 700 }}>Match records that fit...</label>
-                                    <select
-                                        value={editingQuery?.matchType || 'all'}
-                                        onChange={(e) => setEditingQuery(prev => ({ ...prev, matchType: e.target.value }))}
-                                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem', backgroundColor: 'white' }}
-                                    >
-                                        <option value="all">ALL filters (AND)</option>
-                                        <option value="any">ANY filters (OR)</option>
-                                    </select>
+                        <div style={{ padding: '32px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.85rem', color: TOKENS.text, marginBottom: '10px', fontWeight: 700 }}>Query Name</label>
+                                    <input
+                                        value={editingQuery?.name || ''}
+                                        onChange={(e) => setEditingQuery(prev => ({ ...prev, name: e.target.value }))}
+                                        placeholder="e.g. Recently Completed"
+                                        style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${TOKENS.border}`, fontSize: '1rem', outline: 'none' }}
+                                    />
                                 </div>
-                                <div style={{ width: '100px' }}>
-                                    <label style={{ display: 'block', fontSize: '0.8rem', color: TOKENS.text, marginBottom: '8px', fontWeight: 700 }}>Limit</label>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.85rem', color: TOKENS.text, marginBottom: '10px', fontWeight: 700 }}>Limit Results</label>
                                     <input
                                         type="number"
                                         value={editingQuery?.limit || 1000}
                                         onChange={(e) => setEditingQuery(prev => ({ ...prev, limit: parseInt(e.target.value) }))}
-                                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem' }}
+                                        style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${TOKENS.border}`, fontSize: '1rem', outline: 'none' }}
                                     />
                                 </div>
                             </div>
 
                             <div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                                    <label style={{ fontSize: '0.8rem', color: TOKENS.text, fontWeight: 700 }}>Filters</label>
-                                    <button
-                                        onClick={() => setEditingQuery(prev => ({ ...prev, filters: [...(prev.filters || []), { field: 'recordId', operator: 'equals', value: '' }] }))}
-                                        style={{ padding: '4px 12px', backgroundColor: TOKENS.bg, border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.primary, cursor: 'pointer' }}
-                                    >
-                                        + Add Filter
-                                    </button>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                    <label style={{ fontSize: '0.9rem', color: TOKENS.text, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Filters</label>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                        <select
+                                            value={editingQuery?.matchType || 'all'}
+                                            onChange={(e) => setEditingQuery(prev => ({ ...prev, matchType: e.target.value }))}
+                                            style={{ padding: '6px 12px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, fontSize: '0.8rem', fontWeight: 600, backgroundColor: '#f8fafc' }}
+                                        >
+                                            <option value="all">Match All (AND)</option>
+                                            <option value="any">Match Any (OR)</option>
+                                        </select>
+                                        <button
+                                            onClick={() => setEditingQuery(prev => ({ ...prev, filters: [...(prev.filters || []), { field: 'recordId', operator: 'equals', value: '' }] }))}
+                                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', backgroundColor: TOKENS.bg, border: 'none', borderRadius: '10px', fontSize: '0.85rem', fontWeight: 700, color: TOKENS.primary, cursor: 'pointer' }}
+                                        >
+                                            <Plus size={16} /> Add Filter
+                                        </button>
+                                    </div>
                                 </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                     {(editingQuery?.filters || []).map((filter, idx) => (
-                                        <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                        <div key={idx} style={{ display: 'flex', gap: '12px', alignItems: 'center', padding: '16px', backgroundColor: '#f8fafc', borderRadius: '16px', border: `1px solid ${TOKENS.border}` }}>
                                             <select
                                                 value={filter.field}
                                                 onChange={(e) => {
@@ -2136,7 +2340,7 @@ const TableManager = () => {
                                                     newFilters[idx].field = e.target.value;
                                                     setEditingQuery(prev => ({ ...prev, filters: newFilters }));
                                                 }}
-                                                style={{ flex: 1.5, padding: '8px', borderRadius: '6px', border: `1px solid ${TOKENS.border}`, fontSize: '0.8rem' }}
+                                                style={{ flex: 1.2, padding: '10px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem' }}
                                             >
                                                 <option value="recordId">ID</option>
                                                 {activeFields.map(f => <option key={f.name} value={f.name}>{f.name}</option>)}
@@ -2148,7 +2352,7 @@ const TableManager = () => {
                                                     newFilters[idx].operator = e.target.value;
                                                     setEditingQuery(prev => ({ ...prev, filters: newFilters }));
                                                 }}
-                                                style={{ flex: 1, padding: '8px', borderRadius: '6px', border: `1px solid ${TOKENS.border}`, fontSize: '0.8rem' }}
+                                                style={{ flex: 1, padding: '10px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem' }}
                                             >
                                                 <option value="equals">equals</option>
                                                 <option value="does_not_equal">not equal</option>
@@ -2158,7 +2362,7 @@ const TableManager = () => {
                                                 <option value="is_not_null">is not empty</option>
                                                 <option value="greater_than_or_equal">≥</option>
                                                 <option value="less_than_or_equal">≤</option>
-                                                <option value="is_in">is in (comma-separated)</option>
+                                                <option value="is_in">is in</option>
                                                 <option value="is_after">is after</option>
                                                 <option value="is_before">is before</option>
                                             </select>
@@ -2170,33 +2374,35 @@ const TableManager = () => {
                                                     setEditingQuery(prev => ({ ...prev, filters: newFilters }));
                                                 }}
                                                 placeholder="Value..."
-                                                style={{ flex: 2, padding: '8px', borderRadius: '6px', border: `1px solid ${TOKENS.border}`, fontSize: '0.8rem' }}
+                                                style={{ flex: 1.5, padding: '10px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem' }}
                                             />
                                             <button
                                                 onClick={() => {
                                                     const newFilters = editingQuery.filters.filter((_, i) => i !== idx);
                                                     setEditingQuery(prev => ({ ...prev, filters: newFilters }));
                                                 }}
-                                                style={{ padding: '6px', background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer' }}
-                                            ><Trash2 size={14} /></button>
+                                                style={{ padding: '8px', background: 'none', border: 'none', color: '#f43f5e', cursor: 'pointer', borderRadius: '8px' }}
+                                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#fff1f2'}
+                                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                            ><Trash2 size={18} /></button>
                                         </div>
                                     ))}
                                 </div>
                             </div>
 
                             <div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                                    <label style={{ fontSize: '0.8rem', color: TOKENS.text, fontWeight: 700 }}>Sorting</label>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                    <label style={{ fontSize: '0.9rem', color: TOKENS.text, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sorting</label>
                                     <button
                                         onClick={() => setEditingQuery(prev => ({ ...prev, sort: [...(prev.sort || []), { field: 'recordId', direction: 'asc' }] }))}
-                                        style={{ padding: '4px 12px', backgroundColor: TOKENS.bg, border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.primary, cursor: 'pointer' }}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', backgroundColor: TOKENS.bg, border: 'none', borderRadius: '10px', fontSize: '0.85rem', fontWeight: 700, color: TOKENS.primary, cursor: 'pointer' }}
                                     >
-                                        + Add Sort
+                                        <Plus size={16} /> Add Sort
                                     </button>
                                 </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                     {(editingQuery?.sort || []).map((s, idx) => (
-                                        <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                        <div key={idx} style={{ display: 'flex', gap: '12px', alignItems: 'center', padding: '16px', backgroundColor: '#f8fafc', borderRadius: '16px', border: `1px solid ${TOKENS.border}` }}>
                                             <select
                                                 value={s.field}
                                                 onChange={(e) => {
@@ -2204,7 +2410,7 @@ const TableManager = () => {
                                                     newSort[idx].field = e.target.value;
                                                     setEditingQuery(prev => ({ ...prev, sort: newSort }));
                                                 }}
-                                                style={{ flex: 1, padding: '8px', borderRadius: '6px', border: `1px solid ${TOKENS.border}`, fontSize: '0.8rem' }}
+                                                style={{ flex: 1.5, padding: '10px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem' }}
                                             >
                                                 <option value="recordId">ID</option>
                                                 {activeFields.map(f => <option key={f.name} value={f.name}>{f.name}</option>)}
@@ -2216,7 +2422,7 @@ const TableManager = () => {
                                                     newSort[idx].direction = e.target.value;
                                                     setEditingQuery(prev => ({ ...prev, sort: newSort }));
                                                 }}
-                                                style={{ width: '120px', padding: '8px', borderRadius: '6px', border: `1px solid ${TOKENS.border}`, fontSize: '0.8rem' }}
+                                                style={{ flex: 1, padding: '10px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem' }}
                                             >
                                                 <option value="asc">Ascending</option>
                                                 <option value="desc">Descending</option>
@@ -2226,15 +2432,17 @@ const TableManager = () => {
                                                     const newSort = editingQuery.sort.filter((_, i) => i !== idx);
                                                     setEditingQuery(prev => ({ ...prev, sort: newSort }));
                                                 }}
-                                                style={{ padding: '6px', background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer' }}
-                                            ><Trash2 size={14} /></button>
+                                                style={{ padding: '8px', background: 'none', border: 'none', color: '#f43f5e', cursor: 'pointer', borderRadius: '8px' }}
+                                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#fff1f2'}
+                                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                            ><Trash2 size={18} /></button>
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         </div>
-                        <div style={{ padding: '20px 24px', borderTop: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'flex-end', gap: '12px', backgroundColor: TOKENS.bg }}>
-                            <button onClick={() => setIsQueryEditorOpen(false)} style={{ border: `1px solid ${TOKENS.border}`, backgroundColor: TOKENS.surface, color: TOKENS.text, padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem' }}>Cancel</button>
+                        <div style={{ padding: '24px 32px', borderTop: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'flex-end', gap: '16px', backgroundColor: '#fafafa' }}>
+                            <button onClick={() => setIsQueryEditorOpen(false)} style={{ border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: TOKENS.text, padding: '12px 24px', borderRadius: '12px', cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem' }}>Cancel</button>
                             <button
                                 onClick={async () => {
                                     const updatedQueries = selectedTable.queries ? [...selectedTable.queries] : [];
@@ -2246,7 +2454,7 @@ const TableManager = () => {
                                     await loadTables();
                                     setIsQueryEditorOpen(false);
                                 }}
-                                style={{ border: 'none', backgroundColor: TOKENS.primary, color: 'white', padding: '10px 22px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem' }}
+                                style={{ border: 'none', backgroundColor: TOKENS.primary, color: 'white', padding: '12px 28px', borderRadius: '12px', cursor: 'pointer', fontWeight: 800, fontSize: '0.9rem', boxShadow: '0 4px 6px -1px rgba(99, 102, 241, 0.4)' }}
                             >
                                 Save Query
                             </button>
@@ -2256,51 +2464,53 @@ const TableManager = () => {
             )}
 
             {isAggregationEditorOpen && (
-                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 7000, backdropFilter: 'blur(4px)' }}>
-                    <div style={{ width: '450px', backgroundColor: TOKENS.surface, borderRadius: TOKENS.radius, boxShadow: TOKENS.shadowLg, border: `1px solid ${TOKENS.border}`, overflow: 'hidden' }}>
-                        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ fontWeight: 800, fontSize: '1.1rem', letterSpacing: '-0.01em' }}>{editingAggregation?.id ? 'Edit Aggregation' : 'Create Aggregation'}</div>
-                            <button onClick={() => setIsAggregationEditorOpen(false)} style={{ border: 'none', background: 'none', color: TOKENS.textMuted, cursor: 'pointer', padding: '4px' }}><X size={20} /></button>
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 7000, backdropFilter: 'blur(12px)' }}>
+                    <div style={{ width: '500px', backgroundColor: 'white', borderRadius: '24px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', border: `1px solid ${TOKENS.border}`, overflow: 'hidden' }}>
+                        <div style={{ padding: '32px 32px 24px', borderBottom: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ fontWeight: 900, fontSize: '1.4rem', color: TOKENS.text, letterSpacing: '-0.02em' }}>{editingAggregation?.id ? 'Edit Aggregation' : 'Create New Aggregation'}</div>
+                            <button onClick={() => setIsAggregationEditorOpen(false)} style={{ border: 'none', background: 'none', color: TOKENS.textMuted, cursor: 'pointer', padding: '8px', borderRadius: '12px' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}><X size={24} /></button>
                         </div>
-                        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        <div style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
                             <div>
-                                <label style={{ display: 'block', fontSize: '0.8rem', color: TOKENS.text, marginBottom: '8px', fontWeight: 700 }}>Aggregation Name</label>
+                                <label style={{ display: 'block', fontSize: '0.85rem', color: TOKENS.text, marginBottom: '10px', fontWeight: 700 }}>Aggregation Name</label>
                                 <input
                                     value={editingAggregation?.name || ''}
                                     onChange={(e) => setEditingAggregation(prev => ({ ...prev, name: e.target.value }))}
                                     placeholder="e.g. Total Revenue"
-                                    style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem', outline: 'none' }}
+                                    style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${TOKENS.border}`, fontSize: '1rem', outline: 'none' }}
                                 />
                             </div>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '0.8rem', color: TOKENS.text, marginBottom: '8px', fontWeight: 700 }}>Calculation</label>
-                                <select
-                                    value={editingAggregation?.calculation || 'sum'}
-                                    onChange={(e) => setEditingAggregation(prev => ({ ...prev, calculation: e.target.value }))}
-                                    style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem', backgroundColor: 'white' }}
-                                >
-                                    <option value="sum">Sum</option>
-                                    <option value="average">Average</option>
-                                    <option value="count">Count</option>
-                                    <option value="min">Min</option>
-                                    <option value="max">Max</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '0.8rem', color: TOKENS.text, marginBottom: '8px', fontWeight: 700 }}>Field</label>
-                                <select
-                                    value={editingAggregation?.field || ''}
-                                    onChange={(e) => setEditingAggregation(prev => ({ ...prev, field: e.target.value }))}
-                                    style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem', backgroundColor: 'white' }}
-                                >
-                                    <option value="">Select a field...</option>
-                                    <option value="recordId">ID</option>
-                                    {activeFields.map(f => <option key={f.name} value={f.name}>{f.name}</option>)}
-                                </select>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.85rem', color: TOKENS.text, marginBottom: '10px', fontWeight: 700 }}>Calculation</label>
+                                    <select
+                                        value={editingAggregation?.calculation || 'sum'}
+                                        onChange={(e) => setEditingAggregation(prev => ({ ...prev, calculation: e.target.value }))}
+                                        style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${TOKENS.border}`, fontSize: '1rem', backgroundColor: 'white' }}
+                                    >
+                                        <option value="sum">Sum</option>
+                                        <option value="average">Average</option>
+                                        <option value="count">Count</option>
+                                        <option value="min">Min</option>
+                                        <option value="max">Max</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.85rem', color: TOKENS.text, marginBottom: '10px', fontWeight: 700 }}>Target Field</label>
+                                    <select
+                                        value={editingAggregation?.field || ''}
+                                        onChange={(e) => setEditingAggregation(prev => ({ ...prev, field: e.target.value }))}
+                                        style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${TOKENS.border}`, fontSize: '1rem', backgroundColor: 'white' }}
+                                    >
+                                        <option value="">Select a field...</option>
+                                        <option value="recordId">ID</option>
+                                        {activeFields.map(f => <option key={f.name} value={f.name}>{f.name}</option>)}
+                                    </select>
+                                </div>
                             </div>
                         </div>
-                        <div style={{ padding: '20px 24px', borderTop: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'flex-end', gap: '12px', backgroundColor: TOKENS.bg }}>
-                            <button onClick={() => setIsAggregationEditorOpen(false)} style={{ border: `1px solid ${TOKENS.border}`, backgroundColor: TOKENS.surface, color: TOKENS.text, padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem' }}>Cancel</button>
+                        <div style={{ padding: '24px 32px', borderTop: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'flex-end', gap: '16px', backgroundColor: '#fafafa' }}>
+                            <button onClick={() => setIsAggregationEditorOpen(false)} style={{ border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: TOKENS.text, padding: '12px 24px', borderRadius: '12px', cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem' }}>Cancel</button>
                             <button
                                 onClick={async () => {
                                     const updatedAggs = selectedTable.aggregations ? [...selectedTable.aggregations] : [];
@@ -2312,7 +2522,7 @@ const TableManager = () => {
                                     await loadTables();
                                     setIsAggregationEditorOpen(false);
                                 }}
-                                style={{ border: 'none', backgroundColor: TOKENS.primary, color: 'white', padding: '10px 22px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem' }}
+                                style={{ border: 'none', backgroundColor: TOKENS.primary, color: 'white', padding: '12px 28px', borderRadius: '12px', cursor: 'pointer', fontWeight: 800, fontSize: '0.9rem', boxShadow: '0 4px 6px -1px rgba(99, 102, 241, 0.4)' }}
                             >
                                 Save Aggregation
                             </button>
@@ -2399,8 +2609,7 @@ const TableManager = () => {
                 accept=".csv"
             />
         </div>
-    </div>
-);
+    );
 };
 
 export default TableManager;

@@ -19,7 +19,46 @@
   
   --border-color: #cbd5e1;
   --header-height: 60px;
-  --panel-bg: #ffffff;
+  
+  /* AppBuilder Dynamic Theming (Light Default) */
+  --bg-workspace: #eef1f6;
+  --bg-panel: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-tertiary: #f1f5f9;
+  --bg-accent-light: #eff6ff;
+  
+  --text-primary: #1e293b;
+  --text-secondary: #334155;
+  --text-tertiary: #475569;
+  --text-quaternary: #64748b;
+  
+  --border-primary: #e2e8f0;
+  --border-secondary: #cbd5e1;
+  
+  --header-bg: var(--odoo-purple);
+  --header-text: #ffffff;
+}
+
+[data-theme="dark"] {
+  /* AppBuilder Dark Theme (Deep Blue/Purple aesthetics) */
+  --bg-workspace: #0f111a;
+  --bg-panel: #1e1e2d;
+  --bg-secondary: #2a2a3b;
+  --bg-tertiary: #36364a;
+  --bg-accent-light: rgba(59, 130, 246, 0.15);
+  
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-tertiary: #94a3b8;
+  --text-quaternary: #64748b;
+  
+  --border-primary: #2a2a3b;
+  --border-secondary: #36364a;
+  
+  --header-bg: #1e1e2d;
+  --header-text: #f8fafc;
+  
+  --odoo-purple: #3b82f6; /* Shift purple branding to blue in dark mode for better contrast */
 }
 
 body {
