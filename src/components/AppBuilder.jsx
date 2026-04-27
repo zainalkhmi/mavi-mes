@@ -155,7 +155,10 @@ import {
     Calculator,
     Sigma,
     TableProperties,
-    Moon
+    Moon,
+    Ruler,
+    Disc,
+    Wrench
 } from 'lucide-react';
 
 // --- Device Presets for Builder/Preview Canvas ---
@@ -202,6 +205,8 @@ import ColorPicker from './ColorPicker';
 import ShapePicker from './ShapePicker';
 import { createShopfloorTemplate } from '../utils/shopfloorTemplate';
 import automationEngine from '../utils/automationEngine';
+import hardwareService from '../utils/hardwareService';
+import { translations } from '../i18n/translations';
 
 
 const COMPONENT_TYPES = {
@@ -870,17 +875,38 @@ const COMPONENT_TYPES = {
             rotation: 0
         }
     },
+    DIAL_GAUGE: {
+        id: 'DIAL_GAUGE',
+        label: 'Dial Gauge',
+        icon: Disc,
+        defaultSize: { w: 180, h: 200 },
+        defaultProps: {
+            title: 'DIAL INDICATOR',
+            value: 0,
+            min: 0,
+            max: 100,
+            unit: 'mm',
+            color: '#2563eb',
+            showCaptureButton: true,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
     GAUGE_CIRCULAR: {
         id: 'GAUGE_CIRCULAR',
-        label: 'Gauge',
-        icon: Gauge,
+        label: 'Circular Gauge',
+        icon: Disc,
+        defaultSize: { w: 160, h: 120 },
         defaultProps: {
-            value: 0,
+            title: 'Circular Gauge',
+            value: 45,
             min: 0,
             max: 100,
             unit: '%',
             color: '#3b82f6',
-            title: 'Instrument',
+            showCaptureButton: true,
             visible: true,
             triggers: [],
             visibilityCondition: null,
@@ -933,6 +959,177 @@ const COMPONENT_TYPES = {
             lockStepOnSign: true,
             visible: true,
             enabled: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    MEASUREMENT_WIDGET: {
+        id: 'MEASUREMENT_WIDGET',
+        label: 'Measurement',
+        icon: Ruler,
+        defaultSize: { w: 240, h: 120 },
+        defaultProps: {
+            label: 'Caliper/Micrometer',
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            unit: 'mm',
+            precision: 2,
+            min: 0,
+            max: 100,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    OUTSIDE_MICROMETER: {
+        id: 'OUTSIDE_MICROMETER',
+        label: 'Outside Micrometer',
+        icon: Ruler,
+        defaultSize: { w: 260, h: 130 },
+        defaultProps: {
+            label: 'Outside Micrometer',
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            unit: 'mm',
+            precision: 2,
+            min: 0,
+            max: 25,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    INSIDE_MICROMETER: {
+        id: 'INSIDE_MICROMETER',
+        label: 'Inside Micrometer',
+        icon: Ruler,
+        defaultSize: { w: 260, h: 130 },
+        defaultProps: {
+            label: 'Inside Micrometer',
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            unit: 'mm',
+            precision: 2,
+            min: 5,
+            max: 30,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    DIAL_HEIGHT_GAUGE: {
+        id: 'DIAL_HEIGHT_GAUGE',
+        label: 'Dial Height Gauge',
+        icon: Ruler,
+        defaultSize: { w: 240, h: 150 },
+        defaultProps: {
+            label: 'Height Gauge',
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            unit: 'mm',
+            precision: 2,
+            min: 0,
+            max: 300,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    DEPTH_GAUGE: {
+        id: 'DEPTH_GAUGE',
+        label: 'Depth Gauge',
+        icon: Ruler,
+        defaultSize: { w: 240, h: 120 },
+        defaultProps: {
+            label: 'Depth Gauge',
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            unit: 'mm',
+            precision: 2,
+            min: 0,
+            max: 150,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ROUGHNESS_TESTER: {
+        id: 'ROUGHNESS_TESTER',
+        label: 'Roughness Tester',
+        icon: Activity,
+        defaultSize: { w: 260, h: 140 },
+        defaultProps: {
+            label: 'Roughness Tester',
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            unit: 'µm',
+            precision: 3,
+            min: 0,
+            max: 10,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    TORQUE_WRENCH: {
+        id: 'TORQUE_WRENCH',
+        label: 'Torque Wrench',
+        icon: Wrench || Ruler, // I'll use Ruler if Wrench is not available, but let's check imports
+        defaultSize: { w: 280, h: 120 },
+        defaultProps: {
+            label: 'Torque Wrench',
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            unit: 'Nm',
+            precision: 1,
+            min: 0,
+            max: 200,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    WEIGHING_SCALE: {
+        id: 'WEIGHING_SCALE',
+        label: 'Weighing Scale',
+        icon: Weight,
+        defaultSize: { w: 260, h: 140 },
+        defaultProps: {
+            label: 'Scale',
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            unit: 'kg',
+            precision: 2,
+            min: 0,
+            max: 500,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    INSIDE_MICROMETER: {
+        id: 'INSIDE_MICROMETER',
+        label: 'Inside Micrometer',
+        icon: Ruler,
+        defaultSize: { w: 260, h: 130 },
+        defaultProps: {
+            label: 'Inside Micrometer',
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            unit: 'mm',
+            precision: 2,
+            min: 5,
+            max: 30,
+            visible: true,
             triggers: [],
             visibilityCondition: null,
             rotation: 0
@@ -1033,7 +1230,7 @@ const COMPONENT_TYPES = {
 
 const CATEGORIZED_COMPONENTS = {
     // 1. All visible UI widgets - inputs, displays, pickers
-    INTERFACE: {
+    USER_INTERFACE: {
         label: 'Interface',
         icon: MousePointer2,
         color: '#3b82f6',
@@ -1042,7 +1239,7 @@ const CATEGORIZED_COMPONENTS = {
             'SLIDER', 'DROPDOWN', 'MULTI_SELECT', 'LIST_PICKER', 'LIST_VIEW',
             'DATE_PICKER', 'DATETIME_PICKER', 'IMAGE', 'EMBED_WEB', 'VIDEO_PLAYER',
             'FILE_PICKER', 'IMAGE_PICKER', 'SIGNATURE_PAD', 'SIGNATURE',
-            'NOTIFIER', 'CUSTOM_WIDGET'
+            'MEASUREMENT_WIDGET', 'DIAL_GAUGE', 'GAUGE_CIRCULAR', 'OUTSIDE_MICROMETER', 'INSIDE_MICROMETER', 'DIAL_HEIGHT_GAUGE', 'DEPTH_GAUGE', 'ROUGHNESS_TESTER', 'TORQUE_WRENCH', 'WEIGHING_SCALE', 'NOTIFIER', 'CUSTOM_WIDGET'
         ]
     },
     // 2. Tables, records, storage
@@ -1103,9 +1300,15 @@ const CATEGORIZED_COMPONENTS = {
         color: '#6366f1',
         types: [
             'ANALYTIC', 'VIDEO', 'DOCUMENT', 'AI_CHAT', 'CAD_VIEWER', 'WEBPAGE',
-            'GAUGE', 'GRID', 'MACHINE_ATTRIBUTE', 'MACHINE_STATUS', 'MACHINE_TIMELINE',
+            'GRID', 'MACHINE_ATTRIBUTE', 'MACHINE_STATUS', 'MACHINE_TIMELINE',
             'BARCODE', 'STEP_TIME'
         ]
+    },
+    MEASUREMENT: {
+        label: 'Measurement',
+        icon: Ruler,
+        color: '#f43f5e',
+        types: ['MEASUREMENT_WIDGET', 'GAUGE', 'DIAL_GAUGE', 'GAUGE_CIRCULAR', 'OUTSIDE_MICROMETER', 'INSIDE_MICROMETER', 'DIAL_HEIGHT_GAUGE', 'DEPTH_GAUGE', 'ROUGHNESS_TESTER', 'TORQUE_WRENCH', 'WEIGHING_SCALE']
     }
 };
 
@@ -1180,6 +1383,233 @@ const ICON_BUTTON_VARIANTS = {
     green: { bg: '#16a34a', hover: '#15803d', text: '#ffffff', border: '#16a34a' },
     gray: { bg: '#f1f5f9', hover: '#e2e8f0', text: '#374151', border: '#cbd5e1' },
     outline: { bg: 'transparent', hover: '#f1f5f9', text: '#374151', border: '#cbd5e1' },
+};
+
+const MeasurementWidget = ({ comp, viewMode, onWidgetInteraction, setPreviewFormValues, updateComponentProps, language = 'en' }) => {
+    const [liveValue, setLiveValue] = React.useState(0);
+    const [status, setStatus] = React.useState('disconnected');
+    const t = (key) => translations[language]?.measurementWidget?.[key] || key;
+
+    React.useEffect(() => {
+        if (viewMode !== 'PREVIEW') return;
+        
+        const unsubData = hardwareService.onData((val) => {
+            setLiveValue(val);
+            onWidgetInteraction(comp, 'ValueReceived', { value: val });
+        });
+
+        const unsubStatus = hardwareService.subscribeStatus((s) => {
+            setStatus(s);
+        });
+
+        return () => {
+            unsubData();
+            unsubStatus();
+        };
+    }, [viewMode, comp]);
+
+    const handleConnect = async () => {
+        if (comp.props.connectionType === 'SERIAL') {
+            await hardwareService.connectSerial(comp.props.baudRate);
+        } else {
+            await hardwareService.connectBluetooth();
+        }
+    };
+
+    const handleCapture = () => {
+        if (viewMode !== 'PREVIEW') return;
+        
+        onWidgetInteraction(comp, 'Capture', { value: liveValue });
+        setPreviewFormValues(prev => ({ ...prev, [comp.id]: liveValue }));
+    };
+
+    const renderToolIllustration = () => {
+        const color = 'var(--text-tertiary)';
+        if (comp.type === 'OUTSIDE_MICROMETER') {
+            return (
+                <svg viewBox="0 0 100 40" style={{ width: '80px', height: '32px', color }}>
+                    <path d="M 30 10 L 15 10 A 15 15 0 0 0 15 30 L 30 30" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                    <line x1="30" y1="20" x2="45" y2="20" stroke="currentColor" strokeWidth="3" />
+                    <rect x="45" y="14" width="35" height="12" rx="1" fill="none" stroke="currentColor" strokeWidth="2" />
+                    <rect x="80" y="12" width="15" height="16" rx="1" fill="currentColor" />
+                    <line x1="55" y1="14" x2="55" y2="26" stroke="currentColor" strokeWidth="1" />
+                    <line x1="65" y1="14" x2="65" y2="26" stroke="currentColor" strokeWidth="1" />
+                </svg>
+            );
+        }
+        if (comp.type === 'INSIDE_MICROMETER') {
+            return (
+                <svg viewBox="0 0 100 30" style={{ width: '80px', height: '24px', color }}>
+                    <rect x="15" y="12" width="55" height="6" rx="1" fill="none" stroke="currentColor" strokeWidth="2" />
+                    <line x1="15" y1="6" x2="15" y2="24" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+                    <line x1="70" y1="6" x2="70" y2="24" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+                    <rect x="70" y="10" width="20" height="10" rx="1" fill="none" stroke="currentColor" strokeWidth="2" />
+                    <rect x="90" y="9" width="8" height="12" rx="1" fill="currentColor" />
+                </svg>
+            );
+        }
+        if (comp.type === 'DIAL_HEIGHT_GAUGE') {
+            return (
+                <svg viewBox="0 0 60 100" style={{ width: '40px', height: '64px', color }}>
+                    <rect x="10" y="85" width="40" height="10" rx="2" fill="currentColor" />
+                    <rect x="25" y="10" width="10" height="75" fill="none" stroke="currentColor" strokeWidth="2" />
+                    <rect x="20" y="40" width="20" height="15" rx="1" fill="none" stroke="currentColor" strokeWidth="2" />
+                    <circle cx="30" cy="47.5" r="5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                    <line x1="30" y1="47.5" x2="33" y2="44.5" stroke="currentColor" strokeWidth="1" />
+                </svg>
+            );
+        }
+        if (comp.type === 'DEPTH_GAUGE') {
+            return (
+                <svg viewBox="0 0 100 60" style={{ width: '80px', height: '48px', color }}>
+                    <line x1="20" y1="15" x2="80" y2="15" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+                    <rect x="47" y="15" width="6" height="35" rx="1" fill="currentColor" />
+                    <line x1="30" y1="15" x2="30" y2="20" stroke="currentColor" strokeWidth="1" />
+                    <line x1="70" y1="15" x2="70" y2="20" stroke="currentColor" strokeWidth="1" />
+                </svg>
+            );
+        }
+        if (comp.type === 'ROUGHNESS_TESTER') {
+            return (
+                <svg viewBox="0 0 100 50" style={{ width: '80px', height: '40px', color }}>
+                    <rect x="20" y="10" width="60" height="30" rx="4" fill="none" stroke="currentColor" strokeWidth="2" />
+                    <rect x="25" y="15" width="30" height="20" rx="1" fill="currentColor" opacity="0.2" />
+                    <path d="M 80 25 L 95 25 L 95 35" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    <circle cx="95" cy="35" r="2" fill="currentColor" />
+                </svg>
+            );
+        }
+        if (comp.type === 'TORQUE_WRENCH') {
+            return (
+                <svg viewBox="0 0 120 40" style={{ width: '96px', height: '32px', color }}>
+                    <rect x="10" y="15" width="80" height="10" rx="2" fill="none" stroke="currentColor" strokeWidth="2" />
+                    <circle cx="15" cy="20" r="6" fill="currentColor" />
+                    <rect x="12" y="17" width="6" height="6" fill="white" />
+                    <rect x="90" y="12" width="25" height="16" rx="2" fill="currentColor" />
+                    <line x1="95" y1="12" x2="95" y2="28" stroke="white" strokeWidth="1" opacity="0.3" />
+                    <line x1="105" y1="12" x2="105" y2="28" stroke="white" strokeWidth="1" opacity="0.3" />
+                </svg>
+            );
+        }
+        if (comp.type === 'WEIGHING_SCALE') {
+            return (
+                <svg viewBox="0 0 100 60" style={{ width: '80px', height: '48px', color }}>
+                    <rect x="10" y="40" width="80" height="10" rx="2" fill="currentColor" />
+                    <rect x="20" y="15" width="60" height="25" rx="2" fill="none" stroke="currentColor" strokeWidth="2" />
+                    <rect x="30" y="20" width="40" height="10" rx="1" fill="currentColor" opacity="0.2" />
+                    <circle cx="25" cy="22.5" r="1.5" fill="currentColor" />
+                    <circle cx="75" cy="22.5" r="1.5" fill="currentColor" />
+                </svg>
+            );
+        }
+        return <Ruler size={32} style={{ color, opacity: 0.5 }} />;
+    };
+
+    return (
+        <div style={{ 
+            width: '100%', 
+            height: '100%', 
+            padding: '12px', 
+            backgroundColor: 'var(--bg-panel)', 
+            border: '1px solid var(--border-primary)', 
+            borderRadius: '12px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+            position: 'relative',
+            overflow: 'hidden'
+        }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 1 }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-quaternary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    {comp.props.label || comp.props.title || t('title')}
+                </span>
+                <div style={{ 
+                    width: '8px', 
+                    height: '8px', 
+                    borderRadius: '50%', 
+                    backgroundColor: status === 'connected' ? '#22c55e' : status === 'error' ? '#ef4444' : '#94a3b8',
+                    boxShadow: status === 'connected' ? '0 0 8px #22c55e' : 'none'
+                }} />
+            </div>
+
+            <div style={{ 
+                flex: 1, 
+                display: 'flex', 
+                flexDirection: 'column', 
+                justifyContent: 'center', 
+                alignItems: 'center',
+                position: 'relative'
+            }}>
+                <div style={{ position: 'absolute', opacity: 0.1, transform: 'scale(1.5)' }}>
+                    {renderToolIllustration()}
+                </div>
+                <div style={{ fontSize: '2.2rem', fontWeight: 900, color: 'var(--text-primary)', zIndex: 1, fontVariantNumeric: 'tabular-nums' }}>
+                    {liveValue.toFixed(comp.props.precision || 2)}
+                    <span style={{ fontSize: '0.9rem', marginLeft: '4px', fontWeight: 500, color: 'var(--text-tertiary)' }}>{comp.props.unit || 'mm'}</span>
+                </div>
+                <div style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase', marginTop: '4px' }}>
+                    {t(status)}
+                </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '6px' }}>
+                {status !== 'connected' ? (
+                    <button 
+                        onClick={handleConnect}
+                        style={{ 
+                            flex: 1, 
+                            padding: '6px', 
+                            fontSize: '0.75rem', 
+                            backgroundColor: '#2563eb', 
+                            color: 'white', 
+                            borderRadius: '6px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px'
+                        }}
+                    >
+                        <Bluetooth size={14} /> {t('connect')}
+                    </button>
+                ) : (
+                    <button 
+                        onClick={() => hardwareService.disconnect()}
+                        style={{ 
+                            flex: 1, 
+                            padding: '6px', 
+                            fontSize: '0.75rem', 
+                            backgroundColor: '#ef4444', 
+                            color: 'white', 
+                            borderRadius: '6px' 
+                        }}
+                    >
+                        {t('disconnect')}
+                    </button>
+                )}
+                
+                {comp.props.showCaptureButton !== false && (
+                    <button 
+                        onClick={handleCapture}
+                        style={{ 
+                            flex: 1, 
+                            padding: '6px', 
+                            fontSize: '0.75rem', 
+                            backgroundColor: '#16a34a', 
+                            color: 'white', 
+                            borderRadius: '6px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px'
+                        }}
+                    >
+                        <CheckCircle2 size={14} /> {t('capture')}
+                    </button>
+                )}
+            </div>
+        </div>
+    );
 };
 
 const ListPickerWidget = ({ comp, viewMode, onWidgetInteraction, setActiveListPicker, dpShapeStyles }) => {
@@ -8119,6 +8549,24 @@ const AppBuilder = () => {
                         </div>
                     </div>
                 );
+            case 'MEASUREMENT_WIDGET':
+            case 'OUTSIDE_MICROMETER':
+            case 'INSIDE_MICROMETER':
+            case 'DIAL_HEIGHT_GAUGE':
+            case 'DEPTH_GAUGE':
+            case 'ROUGHNESS_TESTER':
+            case 'TORQUE_WRENCH':
+            case 'WEIGHING_SCALE':
+                return (
+                    <MeasurementWidget
+                        comp={comp}
+                        viewMode={viewMode}
+                        onWidgetInteraction={onWidgetInteraction}
+                        setPreviewFormValues={setPreviewFormValues}
+                        updateComponentProps={updateComponentProps}
+                        language={typeof language !== 'undefined' ? language : 'en'}
+                    />
+                );
             case 'IOT_DEVICE':
                 return (
                     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '15px', backgroundColor: 'var(--bg-secondary)', border: '1px dashed #cbd5e1', borderRadius: '6px' }}>
@@ -8251,7 +8699,100 @@ const AppBuilder = () => {
                         `}</style>
                     </div>
                 );
-            case 'GAUGE_CIRCULAR':
+            case 'DIAL_GAUGE': {
+                const dgVal = Number(previewFormValues[comp.id]) || comp.props.value || 0;
+                const dgMin = comp.props.min || 0;
+                const dgMax = comp.props.max || 100;
+                const dgNorm = Math.min(100, Math.max(0, ((dgVal - dgMin) / (dgMax - dgMin)) * 100));
+                
+                // Rotation: 270 degrees total, centered at the top
+                // Start: -135 degrees, End: 135 degrees
+                const rotationDeg = (dgNorm * 2.7) - 135;
+
+                return (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-panel)', borderRadius: '12px', border: '1px solid var(--border-primary)', padding: '15px', position: 'relative' }}>
+                        <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-quaternary)', textTransform: 'uppercase', marginBottom: '10px' }}>{comp.props.title}</div>
+                        
+                        <div style={{ position: 'relative', width: '85%', aspectRatio: '1/1' }}>
+                            <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%', transform: 'rotate(0deg)' }}>
+                                {/* Background Track */}
+                                <path 
+                                    d="M 20 80 A 42 42 0 1 1 80 80" 
+                                    fill="none" 
+                                    stroke="#e2e8f0" 
+                                    strokeWidth="8" 
+                                    strokeLinecap="round"
+                                    style={{ transform: 'rotate(0deg)', transformOrigin: '50% 50%' }}
+                                />
+                                {/* Active Track */}
+                                <path 
+                                    d="M 20 80 A 42 42 0 1 1 80 80" 
+                                    fill="none" 
+                                    stroke={comp.props.color || '#2563eb'} 
+                                    strokeWidth="8" 
+                                    strokeLinecap="round"
+                                    strokeDasharray="198"
+                                    strokeDashoffset={198 - (dgNorm / 100) * 198}
+                                    style={{ transition: 'stroke-dashoffset 0.5s ease', transform: 'rotate(0deg)', transformOrigin: '50% 50%' }}
+                                />
+                                
+                                {/* Center Dot */}
+                                <circle cx="50" cy="50" r="4" fill="#1e293b" />
+                                
+                                {/* Needle */}
+                                <line 
+                                    x1="50" y1="50" x2="50" y2="15" 
+                                    stroke="#ef4444" 
+                                    strokeWidth="2.5" 
+                                    strokeLinecap="round"
+                                    style={{ 
+                                        transform: `rotate(${rotationDeg}deg)`, 
+                                        transformOrigin: '50% 50%',
+                                        transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+                                    }}
+                                />
+                            </svg>
+                        </div>
+
+                        <div style={{ marginTop: '5px', textAlign: 'center' }}>
+                            <div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--text-primary)' }}>
+                                {dgVal}
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-quaternary)', marginLeft: '4px' }}>{comp.props.unit}</span>
+                            </div>
+                        </div>
+
+                        {comp.props.showCaptureButton !== false && (
+                            <button
+                                onClick={() => {
+                                    if (viewMode !== 'PREVIEW') return;
+                                    onWidgetInteraction(comp, 'Capture', { value: dgVal });
+                                    setPreviewFormValues(prev => ({ ...prev, [comp.id]: dgVal }));
+                                }}
+                                style={{
+                                    marginTop: '10px',
+                                    padding: '6px 12px',
+                                    backgroundColor: '#16a34a',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    transition: 'all 0.2s',
+                                    width: '100%',
+                                    justifyContent: 'center'
+                                }}
+                            >
+                                <CheckCircle2 size={14} /> CAPTURE
+                            </button>
+                        )}
+                    </div>
+                );
+            }
+            case 'GAUGE_CIRCULAR': {
                 const gVal = Number(previewFormValues[comp.id]) || comp.props.value || 0;
                 const gMin = comp.props.min || 0;
                 const gMax = comp.props.max || 100;
@@ -8273,8 +8814,38 @@ const AppBuilder = () => {
                             <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#0f172a' }}>{gVal}<span style={{ fontSize: '0.8rem', color: 'var(--text-quaternary)', marginLeft: '2px' }}>{comp.props.unit}</span></div>
                             <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>{comp.props.title}</div>
                         </div>
+
+                        {comp.props.showCaptureButton !== false && (
+                            <button
+                                onClick={() => {
+                                    if (viewMode !== 'PREVIEW') return;
+                                    onWidgetInteraction(comp, 'Capture', { value: gVal });
+                                    setPreviewFormValues(prev => ({ ...prev, [comp.id]: gVal }));
+                                }}
+                                style={{
+                                    marginTop: '8px',
+                                    padding: '5px 10px',
+                                    backgroundColor: '#16a34a',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    fontSize: '0.7rem',
+                                    fontWeight: 700,
+                                    cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    transition: 'all 0.2s',
+                                    width: '100%',
+                                    justifyContent: 'center'
+                                }}
+                            >
+                                <CheckCircle2 size={14} /> CAPTURE
+                            </button>
+                        )}
                     </div>
                 );
+            }
             case 'VIDEO_PLAYER':
                 return (
                     <div style={{ width: '100%', height: '100%', backgroundColor: '#000000', borderRadius: '4px', overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
@@ -14143,7 +14714,7 @@ const AppBuilder = () => {
                                                     </div>
                                                 )}
 
-                                                {selectedComp.type === 'GAUGE' && (
+                                                {['GAUGE', 'DIAL_GAUGE', 'GAUGE_CIRCULAR'].includes(selectedComp.type) && (
                                                     <>
                                                         {renderDataSourceSection(selectedComp)}
                                                         <div className="prop-group">
@@ -14168,6 +14739,15 @@ const AppBuilder = () => {
                                                                 <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', marginBottom: '4px' }}>MAX</label>
                                                                 <input type="number" value={selectedComp.props.max} onChange={(e) => updateComponentProps(selectedComp.id, { max: parseFloat(e.target.value) || 100 })} style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
                                                             </div>
+                                                        </div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px' }}>
+                                                            <input 
+                                                                type="checkbox" 
+                                                                id={`show-cap-${selectedComp.id}`}
+                                                                checked={selectedComp.props.showCaptureButton !== false} 
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { showCaptureButton: e.target.checked })} 
+                                                            />
+                                                            <label htmlFor={`show-cap-${selectedComp.id}`} style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Show Capture Button</label>
                                                         </div>
                                                     </>
                                                 )}
@@ -14202,6 +14782,88 @@ const AppBuilder = () => {
                                                             <label htmlFor={`show-process-cycle-${selectedComp.id}`} style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
                                                                 Show process cycle status
                                                             </label>
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {['MEASUREMENT_WIDGET', 'OUTSIDE_MICROMETER', 'INSIDE_MICROMETER', 'DIAL_HEIGHT_GAUGE', 'DEPTH_GAUGE', 'ROUGHNESS_TESTER', 'TORQUE_WRENCH', 'WEIGHING_SCALE'].includes(selectedComp.type) && (
+                                                    <>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label>
+                                                            <input
+                                                                value={selectedComp.props.label || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            />
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CONNECTION TYPE</label>
+                                                            <select
+                                                                value={selectedComp.props.connectionType || 'SERIAL'}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { connectionType: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            >
+                                                                <option value="SERIAL">USB / Serial Port</option>
+                                                                <option value="BLUETOOTH">Bluetooth (BLE)</option>
+                                                            </select>
+                                                        </div>
+                                                        {selectedComp.props.connectionType === 'SERIAL' && (
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BAUD RATE</label>
+                                                                <select
+                                                                    value={selectedComp.props.baudRate || 9600}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { baudRate: parseInt(e.target.value) || 9600 })}
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                >
+                                                                    <option value="9600">9600</option>
+                                                                    <option value="19200">19200</option>
+                                                                    <option value="38400">38400</option>
+                                                                    <option value="57600">57600</option>
+                                                                    <option value="115200">115200</option>
+                                                                </select>
+                                                            </div>
+                                                        )}
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>UNIT</label>
+                                                                <input
+                                                                    value={selectedComp.props.unit || 'mm'}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { unit: e.target.value })}
+                                                                    placeholder="mm, inch, etc."
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                />
+                                                            </div>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PRECISION</label>
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max="4"
+                                                                    value={selectedComp.props.precision || 2}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { precision: parseInt(e.target.value) || 0 })}
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MIN VALUE</label>
+                                                                <input
+                                                                    type="number"
+                                                                    value={selectedComp.props.min || 0}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { min: parseFloat(e.target.value) || 0 })}
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                />
+                                                            </div>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MAX VALUE</label>
+                                                                <input
+                                                                    type="number"
+                                                                    value={selectedComp.props.max || 100}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { max: parseFloat(e.target.value) || 100 })}
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                />
+                                                            </div>
                                                         </div>
                                                     </>
                                                 )}
