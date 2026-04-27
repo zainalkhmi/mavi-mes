@@ -1761,24 +1761,6 @@ const AppBuilder = () => {
         localStorage.setItem('mavi-builder-theme', builderTheme);
     }, [builderTheme]);
 
-    useEffect(() => {
-        if (typeof document === 'undefined') return undefined;
-        const themeAttr = builderTheme.toLowerCase();
-        const previousDocTheme = document.documentElement.getAttribute('data-theme');
-        const previousBodyTheme = document.body.getAttribute('data-theme');
-
-        document.documentElement.setAttribute('data-theme', themeAttr);
-        document.body.setAttribute('data-theme', themeAttr);
-
-        return () => {
-            if (previousDocTheme) document.documentElement.setAttribute('data-theme', previousDocTheme);
-            else document.documentElement.removeAttribute('data-theme');
-
-            if (previousBodyTheme) document.body.setAttribute('data-theme', previousBodyTheme);
-            else document.body.removeAttribute('data-theme');
-        };
-    }, [builderTheme]);
-
     const [zoomScale, setZoomScale] = useState(1);
     const [activeGuides, setActiveGuides] = useState({ h: [], v: [] }); // { h: [y1, y2...], v: [x1, x2...] }
     const [sidebarSearch, setSidebarSearch] = useState('');
@@ -9671,22 +9653,26 @@ const AppBuilder = () => {
     return (
         <div
             data-theme={builderTheme.toLowerCase()}
-            className="builder-shell"
-        >
+            style={{
+                height: '100%',
+                backgroundColor: 'var(--bg-primary)',
+                color: 'var(--text-primary)',
+                display: 'flex',
+                flexDirection: 'column',
+                fontFamily: "'Inter', sans-serif"
+            }}>
             {/* Top Navigation / Header */}
-            <div
-                className="builder-shell__header"
-                style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '0 20px',
-                    height: '56px',
-                    color: 'var(--header-text)',
-                    zIndex: 100,
-                    boxShadow: 'var(--shadow-sm)'
-                }}
-            >
+            <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '0 20px',
+                height: '56px',
+                backgroundColor: 'var(--header-bg)',
+                color: 'var(--header-text)',
+                zIndex: 100,
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                     <div style={{ fontWeight: 900, fontSize: '1.2rem', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--header-text)' }}>
                         <Zap size={20} color="var(--header-text)" fill="var(--header-text)" /> MAVI-M
