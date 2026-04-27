@@ -173,6 +173,29 @@ const DEVICE_PRESETS = {
     DESKTOP_FHD: { label: 'Desktop FHD', width: 1920, height: 1080, icon: Monitor, kind: 'PC' }
 };
 
+const DEFAULT_FRONTLINE_APP_NAME = 'New Frontline App';
+const DEFAULT_FRONTLINE_APP_CATEGORY = 'Shop Floor';
+const DEFAULT_IOT_CONFIG = {
+    brokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+    topics: []
+};
+const FRONTLINE_DRAFT_KEY_PREFIX = 'mavi_frontline_draft_';
+
+const computeAppSignature = (payload = {}) => {
+    try {
+        return JSON.stringify(payload);
+    } catch {
+        return '';
+    }
+};
+
+const formatTimeLabel = (isoValue) => {
+    if (!isoValue) return '';
+    const parsed = new Date(isoValue);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
 import { processDocument } from '../utils/aiService';
 
 import { saveFrontlineApp, getAllFrontlineApps, deleteFrontlineApp, publishApp, requestApproval, approveApp } from '../utils/supabaseFrontlineDB';
@@ -206,7 +229,8 @@ import { createShopfloorTemplate } from '../utils/shopfloorTemplate';
 import automationEngine from '../utils/automationEngine';
 import hardwareService from '../utils/hardwareService';
 import { translations } from '../i18n/translations';
-
+import ProjectManager from './ProjectManager';
+import * as projectMgmt from '../utils/projectManagement';
 
 import ConditionalFormattingPanel from './ConditionalFormattingPanel';
 
@@ -741,21 +765,23 @@ const COMPONENT_TYPES = {
 
     // Advanced & Specialized (Mavi-MES custom)
     VISION_DETECTOR: { id: 'VISION_DETECTOR', label: 'Vision AI OCR', icon: Eye, defaultProps: { label: 'Scanner', triggers: [], visibilityCondition: null, rotation: 0 } },
-    VISION_MEASUREMENT: { 
-        id: 'VISION_MEASUREMENT', 
-        label: 'Vision Measurement', 
-        icon: Camera, 
-        defaultProps: { 
-            label: 'Caliper Reading', 
-            unit: 'mm', 
-            required: false, 
-            targetVariable: '', 
-            min: null, 
+    VISION_MEASUREMENT: {
+        id: 'VISION_MEASUREMENT',
+        label: 'Vision Measurement',
+        icon: Camera,
+        defaultSize: { w: 320, h: 240 },
+        defaultProps: {
+            label: 'Caliper Reading',
+            unit: 'mm',
+            precision: 2,
+            required: false,
+            targetVariable: '',
+            min: null,
             max: null,
-            triggers: [], 
-            visibilityCondition: null, 
-            rotation: 0 
-        } 
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
     },
     IOT_DEVICE: { id: 'IOT_DEVICE', label: 'IoT Connector', icon: Cpu, defaultProps: { topic: '', triggers: [], visibilityCondition: null, rotation: 0 } },
     INTERACTIVE_TABLE: {
@@ -1331,12 +1357,12 @@ const CHROMELESS_COMPONENT_TYPES = [
     'ACTIVITY_STARTER', 'BLUETOOTH_CLIENT', 'BLUETOOTH_SERVER', 'SERIAL', 'WEB'
 ];
 const DEVICE_TRIGGER_COMPONENT_TYPES = [
-    'BARCODE', 'CAMERA_SCANNER', 'VISION_DETECTOR', 'CAMERA', 'CAMCORDER', 'FILE_UPLOAD', 'MEDIA_RECORDER',
+    'BARCODE', 'CAMERA_SCANNER', 'VISION_DETECTOR', 'VISION_MEASUREMENT', 'CAMERA', 'CAMCORDER', 'FILE_UPLOAD', 'MEDIA_RECORDER',
     'IOT_DEVICE', 'MACHINE_STATUS', 'ACCELEROMETER', 'LOCATION_SENSOR', 'BARCODE_SCANNER_NON_VISIBLE', 'CLOCK'
 ];
 const FORM_BINDABLE_COMPONENT_TYPES = [
     'TEXT_INPUT', 'TEXT_AREA', 'DROPDOWN', 'RADIO_GROUP', 'MULTI_SELECT', 'NUMBER_INPUT', 'DATE_PICKER',
-    'DATETIME_PICKER', 'BOOLEAN_TOGGLE', 'BARCODE', 'CAMERA_SCANNER', 'VISION_DETECTOR', 'MENU',
+    'DATETIME_PICKER', 'BOOLEAN_TOGGLE', 'BARCODE', 'CAMERA_SCANNER', 'VISION_DETECTOR', 'VISION_MEASUREMENT', 'MENU',
     'SLIDER', 'CHECKBOX', 'LIST_PICKER', 'LIST_VIEW', 'PASSWORD_TEXT', 'SPEECH_RECOGNIZER'
 ];
 const INPUT_WIDGET_TYPES_WITH_DATASOURCE = [
@@ -1397,7 +1423,7 @@ const MeasurementWidget = ({ comp, viewMode, onWidgetInteraction, setPreviewForm
 
     React.useEffect(() => {
         if (viewMode !== 'PREVIEW') return;
-        
+
         const unsubData = hardwareService.onData((val) => {
             setLiveValue(val);
             onWidgetInteraction(comp, 'ValueReceived', { value: val });
@@ -1423,7 +1449,7 @@ const MeasurementWidget = ({ comp, viewMode, onWidgetInteraction, setPreviewForm
 
     const handleCapture = () => {
         if (viewMode !== 'PREVIEW') return;
-        
+
         onWidgetInteraction(comp, 'Capture', { value: liveValue });
         setPreviewFormValues(prev => ({ ...prev, [comp.id]: liveValue }));
     };
@@ -1511,12 +1537,12 @@ const MeasurementWidget = ({ comp, viewMode, onWidgetInteraction, setPreviewForm
     };
 
     return (
-        <div style={{ 
-            width: '100%', 
-            height: '100%', 
-            padding: '12px', 
-            backgroundColor: 'var(--bg-panel)', 
-            border: '1px solid var(--border-primary)', 
+        <div style={{
+            width: '100%',
+            height: '100%',
+            padding: '12px',
+            backgroundColor: 'var(--bg-panel)',
+            border: '1px solid var(--border-primary)',
             borderRadius: '12px',
             display: 'flex',
             flexDirection: 'column',
@@ -1526,11 +1552,11 @@ const MeasurementWidget = ({ comp, viewMode, onWidgetInteraction, setPreviewForm
             overflow: 'hidden'
         }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 1 }}>
-                <span style={{ 
-                    fontSize: '0.7rem', 
-                    fontWeight: 800, 
-                    color: 'var(--text-quaternary)', 
-                    textTransform: 'uppercase', 
+                <span style={{
+                    fontSize: '0.7rem',
+                    fontWeight: 800,
+                    color: 'var(--text-quaternary)',
+                    textTransform: 'uppercase',
                     letterSpacing: '0.5px',
                     display: 'flex',
                     alignItems: 'center',
@@ -1542,20 +1568,20 @@ const MeasurementWidget = ({ comp, viewMode, onWidgetInteraction, setPreviewForm
                     })()}
                     {comp.props.label || comp.props.title || t('title')}
                 </span>
-                <div style={{ 
-                    width: '8px', 
-                    height: '8px', 
-                    borderRadius: '50%', 
+                <div style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
                     backgroundColor: status === 'connected' ? '#22c55e' : status === 'error' ? '#ef4444' : '#94a3b8',
                     boxShadow: status === 'connected' ? '0 0 8px #22c55e' : 'none'
                 }} />
             </div>
 
-            <div style={{ 
-                flex: 1, 
-                display: 'flex', 
-                flexDirection: 'column', 
-                justifyContent: 'center', 
+            <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
                 alignItems: 'center',
                 position: 'relative'
             }}>
@@ -1573,14 +1599,14 @@ const MeasurementWidget = ({ comp, viewMode, onWidgetInteraction, setPreviewForm
 
             <div style={{ display: 'flex', gap: '6px' }}>
                 {status !== 'connected' ? (
-                    <button 
+                    <button
                         onClick={handleConnect}
-                        style={{ 
-                            flex: 1, 
-                            padding: '6px', 
-                            fontSize: '0.75rem', 
-                            backgroundColor: '#2563eb', 
-                            color: 'white', 
+                        style={{
+                            flex: 1,
+                            padding: '6px',
+                            fontSize: '0.75rem',
+                            backgroundColor: '#2563eb',
+                            color: 'white',
                             borderRadius: '6px',
                             display: 'flex',
                             alignItems: 'center',
@@ -1591,30 +1617,30 @@ const MeasurementWidget = ({ comp, viewMode, onWidgetInteraction, setPreviewForm
                         <Bluetooth size={14} /> {t('connect')}
                     </button>
                 ) : (
-                    <button 
+                    <button
                         onClick={() => hardwareService.disconnect()}
-                        style={{ 
-                            flex: 1, 
-                            padding: '6px', 
-                            fontSize: '0.75rem', 
-                            backgroundColor: '#ef4444', 
-                            color: 'white', 
-                            borderRadius: '6px' 
+                        style={{
+                            flex: 1,
+                            padding: '6px',
+                            fontSize: '0.75rem',
+                            backgroundColor: '#ef4444',
+                            color: 'white',
+                            borderRadius: '6px'
                         }}
                     >
                         {t('disconnect')}
                     </button>
                 )}
-                
+
                 {comp.props.showCaptureButton !== false && (
-                    <button 
+                    <button
                         onClick={handleCapture}
-                        style={{ 
-                            flex: 1, 
-                            padding: '6px', 
-                            fontSize: '0.75rem', 
-                            backgroundColor: '#16a34a', 
-                            color: 'white', 
+                        style={{
+                            flex: 1,
+                            padding: '6px',
+                            fontSize: '0.75rem',
+                            backgroundColor: '#16a34a',
+                            color: 'white',
                             borderRadius: '6px',
                             display: 'flex',
                             alignItems: 'center',
@@ -1697,7 +1723,7 @@ const ListPickerWidget = ({ comp, viewMode, onWidgetInteraction, setActiveListPi
 };
 
 const AppBuilder = () => {
-    const [appName, setAppName] = useState('My Frontline App');
+    const [appName, setAppName] = useState(DEFAULT_FRONTLINE_APP_NAME);
     const [appMeta, setAppMeta] = useState({
         version: 1,
         approval_status: 'DRAFT',
@@ -1706,7 +1732,7 @@ const AppBuilder = () => {
         approved_by: null,
         approved_at: null
     });
-    const [appCategory, setAppCategory] = useState('Shop Floor');
+    const [appCategory, setAppCategory] = useState(DEFAULT_FRONTLINE_APP_CATEGORY);
     const [steps, setSteps] = useState([
         { id: 'screen_1', title: 'Screen 1', stepType: 'Screen', cycleTimeSeconds: 60, components: [], triggers: [], logic: { xml: null, code: '' } }
     ]);
@@ -1721,6 +1747,10 @@ const AppBuilder = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [recentlyAddedCompId, setRecentlyAddedCompId] = useState(null);
     const [appsList, setAppsList] = useState([]);
+    const [projectSearch, setProjectSearch] = useState('');
+    const [lastSavedSignature, setLastSavedSignature] = useState(null);
+    const [lastSavedAt, setLastSavedAt] = useState(null);
+    const [lastDraftSavedAt, setLastDraftSavedAt] = useState(null);
     const [viewMode, setViewMode] = useState('DESIGN'); // DESIGN, PREVIEW, or DIAGRAM
     const [clipboard, setClipboard] = useState(null);
     const [appBackgroundColor, setAppBackgroundColor] = useState('#ffffff');
@@ -1729,6 +1759,24 @@ const AppBuilder = () => {
 
     useEffect(() => {
         localStorage.setItem('mavi-builder-theme', builderTheme);
+    }, [builderTheme]);
+
+    useEffect(() => {
+        if (typeof document === 'undefined') return undefined;
+        const themeAttr = builderTheme.toLowerCase();
+        const previousDocTheme = document.documentElement.getAttribute('data-theme');
+        const previousBodyTheme = document.body.getAttribute('data-theme');
+
+        document.documentElement.setAttribute('data-theme', themeAttr);
+        document.body.setAttribute('data-theme', themeAttr);
+
+        return () => {
+            if (previousDocTheme) document.documentElement.setAttribute('data-theme', previousDocTheme);
+            else document.documentElement.removeAttribute('data-theme');
+
+            if (previousBodyTheme) document.body.setAttribute('data-theme', previousBodyTheme);
+            else document.body.removeAttribute('data-theme');
+        };
     }, [builderTheme]);
 
     const [zoomScale, setZoomScale] = useState(1);
@@ -6310,14 +6358,22 @@ const AppBuilder = () => {
 
     const handleDeleteApp = async (id, e) => {
         e.stopPropagation();
+        e.preventDefault();
+        
+        if (!id) {
+            alert('Project ID tidak valid');
+            return;
+        }
+        
         if (confirm('Are you sure you want to delete this app? This action cannot be undone.')) {
             try {
                 await deleteFrontlineApp(id);
                 if (currentAppId === id) resetBuilder();
-                loadApps();
+                await loadApps();
+                alert('Project deleted successfully!');
             } catch (err) {
                 console.error('Delete failed:', err);
-                alert('Failed to delete app.');
+                alert('Failed to delete app: ' + (err.message || 'Unknown error'));
             }
         }
     };
@@ -6402,6 +6458,141 @@ const AppBuilder = () => {
         });
     };
 
+    const handleImportProject = async (importedData) => {
+        try {
+            // Create new app with imported data
+            setCurrentAppId(null);
+            setAppName(importedData.name);
+            setAppCategory(importedData.category);
+            setSteps(importedData.config?.steps || []);
+            setBaseComponents(importedData.config?.baseComponents || []);
+            setAppTriggers(importedData.config?.appTriggers || []);
+            setAppVariables(importedData.config?.appVariables || []);
+            setAppFunctions(importedData.config?.appFunctions || []);
+            setAppTables(importedData.config?.appTables || []);
+            setRecordPlaceholders(importedData.config?.recordPlaceholders || []);
+            setMaterialId(importedData.config?.materialId || null);
+            setProductImage(importedData.config?.productImage || '');
+            setIotConfig(importedData.config?.iotConfig || {});
+            setIntegrationConnectors(importedData.config?.integrationConnectors || []);
+            setAppBackgroundColor(importedData.config?.appBackgroundColor || '#ffffff');
+            setAppThemeMode(importedData.config?.appThemeMode || 'light');
+            setLeftSidebarEnabled(importedData.config?.leftSidebarEnabled !== false);
+            setRightSidebarEnabled(importedData.config?.rightSidebarEnabled !== false);
+            setCopilotEnabled(importedData.config?.copilotEnabled !== false);
+            setStepListEnabled(importedData.config?.stepListEnabled !== false);
+
+            alert('Project imported successfully! Click Save to save this as a new project.');
+        } catch (error) {
+            console.error('Import failed:', error);
+            alert('Failed to import project: ' + error.message);
+        }
+    };
+
+    const handleDuplicateProject = async (duplicatedData) => {
+        try {
+            // Create new app with duplicated data
+            setCurrentAppId(null);
+            setAppName(duplicatedData.name);
+            setAppCategory(duplicatedData.category);
+            setSteps(duplicatedData.config?.steps || []);
+            setBaseComponents(duplicatedData.config?.baseComponents || []);
+            setAppTriggers(duplicatedData.config?.appTriggers || []);
+            setAppVariables(duplicatedData.config?.appVariables || []);
+            setAppFunctions(duplicatedData.config?.appFunctions || []);
+            setAppTables(duplicatedData.config?.appTables || []);
+            setRecordPlaceholders(duplicatedData.config?.recordPlaceholders || []);
+            setMaterialId(duplicatedData.config?.materialId || null);
+            setProductImage(duplicatedData.config?.productImage || '');
+            setIotConfig(duplicatedData.config?.iotConfig || {});
+            setIntegrationConnectors(duplicatedData.config?.integrationConnectors || []);
+            setAppBackgroundColor(duplicatedData.config?.appBackgroundColor || '#ffffff');
+            setAppThemeMode(duplicatedData.config?.appThemeMode || 'light');
+            setLeftSidebarEnabled(duplicatedData.config?.leftSidebarEnabled !== false);
+            setRightSidebarEnabled(duplicatedData.config?.rightSidebarEnabled !== false);
+            setCopilotEnabled(duplicatedData.config?.copilotEnabled !== false);
+            setStepListEnabled(duplicatedData.config?.stepListEnabled !== false);
+
+            alert('Project duplicated successfully! Click Save to save this as a new project.');
+        } catch (error) {
+            console.error('Duplication failed:', error);
+            alert('Failed to duplicate project: ' + error.message);
+        }
+    };
+
+    const handleAutoSave = () => {
+        try {
+            if (currentAppId) {
+                const draft = {
+                    id: currentAppId,
+                    name: appName,
+                    category: appCategory,
+                    config: {
+                        steps,
+                        baseComponents,
+                        appTriggers,
+                        appVariables,
+                        appFunctions,
+                        appTables,
+                        recordPlaceholders,
+                        materialId,
+                        productImage,
+                        iotConfig,
+                        integrationConnectors,
+                        appBackgroundColor,
+                        appThemeMode,
+                        leftSidebarEnabled,
+                        rightSidebarEnabled,
+                        copilotEnabled,
+                        stepListEnabled
+                    }
+                };
+                projectMgmt.autoSaveDraft(draft);
+            }
+        } catch (error) {
+            console.error('Auto-save failed:', error);
+        }
+    };
+
+    const handleRecoverDraft = (appId) => {
+        try {
+            const draft = projectMgmt.getAutoSavedDraft(appId);
+            if (draft) {
+                handleImportProject(draft.data);
+                projectMgmt.clearAutoSavedDraft(appId);
+            }
+        } catch (error) {
+            console.error('Draft recovery failed:', error);
+        }
+    };
+
+    const getCurrentApp = () => ({
+        id: currentAppId,
+        name: appName,
+        category: appCategory,
+        config: {
+            steps,
+            baseComponents,
+            appTriggers,
+            appVariables,
+            appFunctions,
+            appTables,
+            recordPlaceholders,
+            materialId,
+            productImage,
+            iotConfig,
+            integrationConnectors,
+            appBackgroundColor,
+            appThemeMode,
+            leftSidebarEnabled,
+            rightSidebarEnabled,
+            copilotEnabled,
+            stepListEnabled
+        },
+        version: appMeta.version,
+        approval_status: appMeta.approval_status,
+        is_published: appMeta.is_published
+    });
 
     const handleCopyUrl = () => {
         navigator.clipboard.writeText(publishModal.url);
@@ -8574,6 +8765,75 @@ const AppBuilder = () => {
                         </div>
                     </div>
                 );
+            case 'VISION_MEASUREMENT': {
+                const currentValue = previewFormValues[comp.id] ?? '';
+                const precision = Number.isFinite(Number(comp.props.precision))
+                    ? Math.min(Math.max(Number(comp.props.precision), 0), 6)
+                    : 2;
+                const minValue = typeof comp.props.min === 'number' ? comp.props.min : 0;
+                const maxValue = typeof comp.props.max === 'number' ? comp.props.max : minValue + 10;
+                const unitLabel = comp.props.unit || 'mm';
+
+                const handleSimulatedScan = () => {
+                    if (viewMode !== 'PREVIEW') return;
+                    const span = maxValue > minValue ? (maxValue - minValue) : 10;
+                    const rawValue = minValue + Math.random() * span;
+                    const nextValue = rawValue.toFixed(precision);
+                    setPreviewFormValues(prev => ({ ...prev, [comp.id]: nextValue }));
+                    if (comp.props.targetVariable) {
+                        setAppVariables(prev => prev.map(v => v.name === comp.props.targetVariable ? { ...v, value: nextValue } : v));
+                    }
+                    onWidgetInteraction(comp, 'ON_CHANGE', { value: nextValue });
+                };
+
+                return (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', gap: '12px', padding: '14px', backgroundColor: 'var(--bg-panel)', borderRadius: '12px', border: '1px solid var(--border-primary)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                {comp.props.label || 'Vision Measurement'}{comp.props.required ? ' *' : ''}
+                            </div>
+                            <div style={{ fontSize: '0.65rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <Camera size={14} />
+                                Live Vision
+                            </div>
+                        </div>
+                        <div style={{ flex: 1, minHeight: '140px', borderRadius: '10px', position: 'relative', overflow: 'hidden', background: 'radial-gradient(circle at center, rgba(15,23,42,0.6) 0%, rgba(15,23,42,0.95) 80%)', border: '2px solid rgba(148,163,184,0.25)' }}>
+                            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(45deg, rgba(59,130,246,0.12), rgba(14,116,144,0.18))' }} />
+                            <div style={{ position: 'absolute', inset: '18%', border: '2px dashed rgba(255,255,255,0.35)', borderRadius: '12px', pointerEvents: 'none' }} />
+                            <div style={{ position: 'absolute', top: '10px', left: '12px', backgroundColor: 'rgba(15,23,42,0.7)', color: '#f8fafc', padding: '4px 10px', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.05em' }}>
+                                Align Caliper Display
+                            </div>
+                            <Camera size={48} color="rgba(226,232,240,0.4)" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', border: '1px solid var(--border-secondary)', backgroundColor: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <span style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                        {currentValue !== '' && currentValue !== null ? currentValue : (viewMode === 'PREVIEW' ? '--.--' : 'Awaiting scan')}
+                                    </span>
+                                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748b' }}>{unitLabel}</span>
+                                </div>
+                                {viewMode === 'PREVIEW' ? (
+                                    <button
+                                        onClick={handleSimulatedScan}
+                                        style={{ padding: '10px 18px', borderRadius: '10px', border: 'none', backgroundColor: '#3b82f6', color: 'white', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 12px rgba(59,130,246,0.35)' }}
+                                    >
+                                        <Camera size={16} />
+                                        Simulate Scan
+                                    </button>
+                                ) : (
+                                    <div style={{ fontSize: '0.68rem', color: '#94a3b8', fontStyle: 'italic' }}>Buka mode Preview untuk mencoba pemindaian</div>
+                                )}
+                            </div>
+                            {comp.props.targetVariable && (
+                                <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>
+                                    Nilai akan disimpan ke variabel @{comp.props.targetVariable}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
             case 'MEASUREMENT_WIDGET':
             case 'OUTSIDE_MICROMETER':
             case 'INSIDE_MICROMETER':
@@ -8729,7 +8989,7 @@ const AppBuilder = () => {
                 const dgMin = comp.props.min || 0;
                 const dgMax = comp.props.max || 100;
                 const dgNorm = Math.min(100, Math.max(0, ((dgVal - dgMin) / (dgMax - dgMin)) * 100));
-                
+
                 // Rotation: 270 degrees total, centered at the top
                 // Start: -135 degrees, End: 135 degrees
                 const rotationDeg = (dgNorm * 2.7) - 135;
@@ -8737,41 +8997,41 @@ const AppBuilder = () => {
                 return (
                     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-panel)', borderRadius: '12px', border: '1px solid var(--border-primary)', padding: '15px', position: 'relative' }}>
                         <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-quaternary)', textTransform: 'uppercase', marginBottom: '10px' }}>{comp.props.title}</div>
-                        
+
                         <div style={{ position: 'relative', width: '85%', aspectRatio: '1/1' }}>
                             <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%', transform: 'rotate(0deg)' }}>
                                 {/* Background Track */}
-                                <path 
-                                    d="M 20 80 A 42 42 0 1 1 80 80" 
-                                    fill="none" 
-                                    stroke="#e2e8f0" 
-                                    strokeWidth="8" 
+                                <path
+                                    d="M 20 80 A 42 42 0 1 1 80 80"
+                                    fill="none"
+                                    stroke="#e2e8f0"
+                                    strokeWidth="8"
                                     strokeLinecap="round"
                                     style={{ transform: 'rotate(0deg)', transformOrigin: '50% 50%' }}
                                 />
                                 {/* Active Track */}
-                                <path 
-                                    d="M 20 80 A 42 42 0 1 1 80 80" 
-                                    fill="none" 
-                                    stroke={comp.props.color || '#2563eb'} 
-                                    strokeWidth="8" 
+                                <path
+                                    d="M 20 80 A 42 42 0 1 1 80 80"
+                                    fill="none"
+                                    stroke={comp.props.color || '#2563eb'}
+                                    strokeWidth="8"
                                     strokeLinecap="round"
                                     strokeDasharray="198"
                                     strokeDashoffset={198 - (dgNorm / 100) * 198}
                                     style={{ transition: 'stroke-dashoffset 0.5s ease', transform: 'rotate(0deg)', transformOrigin: '50% 50%' }}
                                 />
-                                
+
                                 {/* Center Dot */}
                                 <circle cx="50" cy="50" r="4" fill="#1e293b" />
-                                
+
                                 {/* Needle */}
-                                <line 
-                                    x1="50" y1="50" x2="50" y2="15" 
-                                    stroke="#ef4444" 
-                                    strokeWidth="2.5" 
+                                <line
+                                    x1="50" y1="50" x2="50" y2="15"
+                                    stroke="#ef4444"
+                                    strokeWidth="2.5"
                                     strokeLinecap="round"
-                                    style={{ 
-                                        transform: `rotate(${rotationDeg}deg)`, 
+                                    style={{
+                                        transform: `rotate(${rotationDeg}deg)`,
                                         transformOrigin: '50% 50%',
                                         transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
                                     }}
@@ -9409,28 +9669,24 @@ const AppBuilder = () => {
     };
 
     return (
-        <div 
+        <div
             data-theme={builderTheme.toLowerCase()}
-            style={{
-                height: '100%',
-                backgroundColor: 'var(--bg-primary)',
-                color: 'var(--text-primary)',
-                display: 'flex',
-            flexDirection: 'column',
-            fontFamily: "'Inter', sans-serif"
-        }}>
+            className="builder-shell"
+        >
             {/* Top Navigation / Header */}
-            <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '0 20px',
-                height: '56px',
-                backgroundColor: 'var(--header-bg)',
-                color: 'var(--header-text)',
-                zIndex: 100,
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-            }}>
+            <div
+                className="builder-shell__header"
+                style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '0 20px',
+                    height: '56px',
+                    color: 'var(--header-text)',
+                    zIndex: 100,
+                    boxShadow: 'var(--shadow-sm)'
+                }}
+            >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                     <div style={{ fontWeight: 900, fontSize: '1.2rem', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--header-text)' }}>
                         <Zap size={20} color="var(--header-text)" fill="var(--header-text)" /> MAVI-M
@@ -9544,7 +9800,7 @@ const AppBuilder = () => {
                                 >
                                     {/* Tall rectangle = portrait icon */}
                                     <svg width="10" height="14" viewBox="0 0 10 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <rect x="0.5" y="0.5" width="9" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill={previewOrientation === 'PORTRAIT' ? 'currentColor' : 'none'} fillOpacity="0.2"/>
+                                        <rect x="0.5" y="0.5" width="9" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill={previewOrientation === 'PORTRAIT' ? 'currentColor' : 'none'} fillOpacity="0.2" />
                                     </svg>
                                     Portrait
                                 </button>
@@ -9571,7 +9827,7 @@ const AppBuilder = () => {
                                 >
                                     {/* Wide rectangle = landscape icon */}
                                     <svg width="14" height="10" viewBox="0 0 14 10" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <rect x="0.5" y="0.5" width="13" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill={previewOrientation === 'LANDSCAPE' ? 'currentColor' : 'none'} fillOpacity="0.2"/>
+                                        <rect x="0.5" y="0.5" width="13" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill={previewOrientation === 'LANDSCAPE' ? 'currentColor' : 'none'} fillOpacity="0.2" />
                                     </svg>
                                     Landscape
                                 </button>
@@ -9701,6 +9957,17 @@ const AppBuilder = () => {
                     >
                         <Save size={16} /> {isSaving ? 'Saving...' : 'Save'}
                     </button>
+                    {currentAppId && (
+                        <ProjectManager
+                            app={getCurrentApp()}
+                            onImport={handleImportProject}
+                            onDuplicate={handleDuplicateProject}
+                            onAppChange={(app) => {
+                                loadApp(app);
+                                handleImportProject(app);
+                            }}
+                        />
+                    )}
                     <button
                         onClick={() => {
                             if (!currentAppId) {
@@ -10018,8 +10285,8 @@ const AppBuilder = () => {
                                     }}
                                 >
                                     <div style={{
-                                        background: openWidgetPaletteKey === catKey 
-                                            ? `linear-gradient(135deg, ${category.color} 0%, ${category.color}dd 100%)` 
+                                        background: openWidgetPaletteKey === catKey
+                                            ? `linear-gradient(135deg, ${category.color} 0%, ${category.color}dd 100%)`
                                             : `${category.color}15`,
                                         padding: '8px',
                                         borderRadius: '12px',
@@ -10034,11 +10301,11 @@ const AppBuilder = () => {
                                     }}>
                                         <category.icon size={20} strokeWidth={2.5} />
                                     </div>
-                                    <span style={{ 
-                                        fontSize: '0.72rem', 
-                                        fontWeight: 700, 
-                                        color: openWidgetPaletteKey === catKey ? '#1e293b' : '#64748b', 
-                                        textAlign: 'center', 
+                                    <span style={{
+                                        fontSize: '0.72rem',
+                                        fontWeight: 700,
+                                        color: openWidgetPaletteKey === catKey ? '#1e293b' : '#64748b',
+                                        textAlign: 'center',
                                         width: '100%',
                                         letterSpacing: '0.01em'
                                     }}>
@@ -10968,8 +11235,6 @@ const AppBuilder = () => {
                                                 <div
                                                     key={app.id}
                                                     onClick={() => loadApp(app)}
-                                                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--odoo-accent)'; e.currentTarget.querySelector('.delete-btn').style.opacity = 1; }}
-                                                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.querySelector('.delete-btn').style.opacity = 0; }}
                                                     style={{
                                                         padding: '10px 12px',
                                                         borderRadius: '6px',
@@ -10979,22 +11244,56 @@ const AppBuilder = () => {
                                                         alignItems: 'center',
                                                         backgroundColor: currentAppId === app.id ? 'var(--odoo-accent)' : 'transparent',
                                                         border: currentAppId === app.id ? '1px solid var(--odoo-teal)' : '1px solid transparent',
-                                                        transition: 'all 0.15s'
+                                                        transition: 'all 0.15s',
+                                                        position: 'relative',
+                                                        group: true
+                                                    }}
+                                                    onMouseEnter={(e) => { 
+                                                        e.currentTarget.style.backgroundColor = 'var(--odoo-accent)';
+                                                        const btn = e.currentTarget.querySelector('[data-delete-btn]');
+                                                        if (btn) btn.style.opacity = '1';
+                                                    }}
+                                                    onMouseLeave={(e) => { 
+                                                        if (currentAppId !== app.id) {
+                                                            e.currentTarget.style.backgroundColor = 'transparent';
+                                                        }
+                                                        const btn = e.currentTarget.querySelector('[data-delete-btn]');
+                                                        if (btn) btn.style.opacity = '0.3';
                                                     }}
                                                 >
-                                                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
                                                         <span style={{ fontSize: '0.85rem', fontWeight: currentAppId === app.id ? 700 : 500, color: currentAppId === app.id ? 'var(--odoo-teal)' : 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{app.name}</span>
                                                         <span style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)' }}>Updated {new Date(app.updated_at).toLocaleDateString()}</span>
                                                     </div>
-                                                    <div className="delete-btn" style={{ opacity: 0, transition: 'opacity 0.2s', display: 'flex', gap: '5px' }}>
+                                                    <div style={{ opacity: 0.3, transition: 'opacity 0.2s ease', display: 'flex', gap: '5px', marginLeft: '8px' }} data-delete-btn>
                                                         <button
                                                             onClick={(e) => handleDeleteApp(app.id, e)}
                                                             title="Delete App"
-                                                            style={{ border: 'none', backgroundColor: 'transparent', color: 'var(--text-quaternary)', padding: '4px', cursor: 'pointer', borderRadius: '4px' }}
-                                                            onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
-                                                            onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
+                                                            style={{ 
+                                                                border: 'none', 
+                                                                backgroundColor: 'transparent', 
+                                                                color: '#ef4444', 
+                                                                padding: '6px 8px', 
+                                                                cursor: 'pointer', 
+                                                                borderRadius: '4px',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                fontSize: '0.8rem',
+                                                                fontWeight: '600',
+                                                                transition: 'all 0.2s ease'
+                                                            }}
+                                                            onMouseEnter={(e) => {
+                                                                e.currentTarget.style.backgroundColor = '#ef4444';
+                                                                e.currentTarget.style.color = '#ffffff';
+                                                            }}
+                                                            onMouseLeave={(e) => {
+                                                                e.currentTarget.style.backgroundColor = 'transparent';
+                                                                e.currentTarget.style.color = '#ef4444';
+                                                            }}
                                                         >
-                                                            <Trash2 size={14} />
+                                                            <Trash2 size={14} style={{ marginRight: '4px' }} />
+                                                            Delete
                                                         </button>
                                                     </div>
                                                 </div>
@@ -14772,11 +15071,11 @@ const AppBuilder = () => {
                                                             </div>
                                                         </div>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px' }}>
-                                                            <input 
-                                                                type="checkbox" 
+                                                            <input
+                                                                type="checkbox"
                                                                 id={`show-cap-${selectedComp.id}`}
-                                                                checked={selectedComp.props.showCaptureButton !== false} 
-                                                                onChange={(e) => updateComponentProps(selectedComp.id, { showCaptureButton: e.target.checked })} 
+                                                                checked={selectedComp.props.showCaptureButton !== false}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { showCaptureButton: e.target.checked })}
                                                             />
                                                             <label htmlFor={`show-cap-${selectedComp.id}`} style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Show Capture Button</label>
                                                         </div>
@@ -14813,6 +15112,94 @@ const AppBuilder = () => {
                                                             <label htmlFor={`show-process-cycle-${selectedComp.id}`} style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
                                                                 Show process cycle status
                                                             </label>
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {selectedComp.type === 'VISION_MEASUREMENT' && (
+                                                    <>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label>
+                                                            <input
+                                                                value={selectedComp.props.label || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            />
+                                                        </div>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>UNIT</label>
+                                                                <input
+                                                                    value={selectedComp.props.unit || 'mm'}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { unit: e.target.value })}
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                />
+                                                            </div>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PRECISION (DESIMAL)</label>
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max="6"
+                                                                    value={selectedComp.props.precision ?? 2}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { precision: Math.max(0, Math.min(6, parseInt(e.target.value) || 0)) })}
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MIN VALUE (Opsional)</label>
+                                                                <input
+                                                                    type="number"
+                                                                    value={selectedComp.props.min ?? ''}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { min: e.target.value === '' ? null : parseFloat(e.target.value) })}
+                                                                    placeholder="Auto"
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                />
+                                                            </div>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MAX VALUE (Opsional)</label>
+                                                                <input
+                                                                    type="number"
+                                                                    value={selectedComp.props.max ?? ''}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { max: e.target.value === '' ? null : parseFloat(e.target.value) })}
+                                                                    placeholder="Auto"
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>TARGET VARIABLE</label>
+                                                            <select
+                                                                value={selectedComp.props.targetVariable || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            >
+                                                                <option value="">Tidak ada</option>
+                                                                {appVariables.map(v => (
+                                                                    <option key={v.name} value={v.name}>{v.name}</option>
+                                                                ))}
+                                                            </select>
+                                                            {appVariables.length === 0 && (
+                                                                <div style={{ marginTop: '6px', fontSize: '0.65rem', color: '#94a3b8' }}>
+                                                                    Belum ada variable yang dibuat di aplikasi ini.
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            <input
+                                                                id={`vision-required-${selectedComp.id}`}
+                                                                type="checkbox"
+                                                                checked={!!selectedComp.props.required}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { required: e.target.checked })}
+                                                            />
+                                                            <label htmlFor={`vision-required-${selectedComp.id}`} style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                                                                Wajibkan operator mengisi hasil pengukuran
+                                                            </label>
+                                                        </div>
+                                                        <div style={{ marginTop: '6px', fontSize: '0.65rem', color: '#94a3b8', lineHeight: 1.4 }}>
+                                                            Mode Preview menyediakan kamera simulasi dan tombol "Simulate Scan" untuk membantu pengujian tanpa perangkat vision.
                                                         </div>
                                                     </>
                                                 )}

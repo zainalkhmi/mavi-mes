@@ -1,5 +1,75 @@
 import { getSupabaseClient } from './supabaseManualDB.js';
 
+const LOCAL_APP_CACHE_KEYS = ['offline_apps_cache', 'mavi_offline_vault', 'draft_frontline_apps'];
+
+const pruneLocalAppCaches = (appId) => {
+    if (typeof window === 'undefined' || !window?.localStorage) return;
+
+    const normalizedId = String(appId ?? '');
+
+    LOCAL_APP_CACHE_KEYS.forEach((key) => {
+        try {
+            const raw = window.localStorage.getItem(key);
+            if (!raw) return;
+
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+                const next = parsed.filter(app => String(app?.id ?? '') !== normalizedId);
+                if (next.length === parsed.length) return;
+
+                if (next.length > 0) {
+                    window.localStorage.setItem(key, JSON.stringify(next));
+                } else {
+                    window.localStorage.removeItem(key);
+                }
+            } else if (parsed && typeof parsed === 'object') {
+                let mutated = false;
+                Object.keys(parsed).forEach((cacheKey) => {
+                    const value = parsed[cacheKey];
+                    if (String(cacheKey) === normalizedId || (value && String(value.id ?? '') === normalizedId)) {
+                        delete parsed[cacheKey];
+                        mutated = true;
+                    }
+                });
+
+                if (mutated) {
+                    if (Object.keys(parsed).length > 0) {
+                        window.localStorage.setItem(key, JSON.stringify(parsed));
+                    } else {
+                        window.localStorage.removeItem(key);
+                    }
+                }
+            }
+        } catch (cacheErr) {
+            console.warn(`[Cache] Failed to prune ${key}`, cacheErr);
+        }
+    });
+};
+
+const isNetworkError = (error) => {
+    if (!error) return false;
+    const message = String(error.message || error.toString() || '').toLowerCase();
+    if (!message) return false;
+
+    return (
+        message.includes('failed to fetch') ||
+        message.includes('fetch failed') ||
+        message.includes('networkerror') ||
+        message.includes('network request failed') ||
+        message.includes('network timeout') ||
+        message.includes('request timed out') ||
+        message.includes('socket hang up') ||
+        message.includes('offline') ||
+        message.includes('dns') ||
+        message.includes('cors')
+    );
+};
+
+const isUuid = (value) => {
+    if (!value || typeof value !== 'string') return false;
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.trim());
+};
+
 export async function getTables() {
     try {
         const supabase = getSupabaseClient();
@@ -352,15 +422,34 @@ export async function approveApp(appId, operatorId) {
 }
 
 export async function deleteFrontlineApp(id) {
-    try {
-        const supabase = getSupabaseClient();
+    const normalizedId = String(id ?? '').trim();
+    if (!normalizedId) {
+        console.warn('[FrontlineApp] deleteFrontlineApp called without a valid id');
+        return true;
+    }
 
+    // If the ID is not a UUID, we treat it as an offline-only draft
+    if (!isUuid(normalizedId)) {
+        pruneLocalAppCaches(normalizedId);
+        return true;
+    }
+
+    let supabase;
+    try {
+        supabase = getSupabaseClient();
+    } catch (clientError) {
+        console.warn('[Offline Mode] Supabase client unavailable during delete, pruning local caches only.', clientError);
+        pruneLocalAppCaches(normalizedId);
+        return true;
+    }
+
+    try {
         // Delete dependent queue rows first to avoid FK conflicts (409 / 23503)
         // when production_queue.app_id still references this frontline app.
         const { error: queueError } = await supabase
             .from('production_queue')
             .delete()
-            .eq('app_id', id);
+            .eq('app_id', normalizedId);
 
         if (queueError) {
             // Ignore when table does not exist in older schemas, otherwise surface error.
@@ -368,25 +457,41 @@ export async function deleteFrontlineApp(id) {
             if (!isMissingTable) throw queueError;
         }
 
+        // Remove completion history to avoid FK conflicts with completions.app_id
+        const { error: completionsError } = await supabase
+            .from('completions')
+            .delete()
+            .eq('app_id', normalizedId);
+
+        if (completionsError) {
+            const isMissingTable = completionsError.code === '42P01' || String(completionsError.message || '').toLowerCase().includes('completions');
+            if (!isMissingTable) throw completionsError;
+        }
+
         const { error } = await supabase
             .from('frontline_apps')
             .delete()
-            .eq('id', id);
+            .eq('id', normalizedId);
 
         if (error) {
             const isFkConflict = error.code === '23503' || String(error.message || '').toLowerCase().includes('foreign key');
             if (isFkConflict) {
-                throw new Error('Cannot delete app because it is still referenced by related records. Remove dependent records first, then retry.');
+                const fkError = new Error('Cannot delete app because it is still referenced by related records. Remove dependent records first, then retry.');
+                fkError.code = '23503';
+                throw fkError;
             }
             throw error;
         }
 
+        pruneLocalAppCaches(normalizedId);
         return true;
     } catch (err) {
-        console.warn('[Offline Mode] Intercepting delete, applying to localStorage cache', err);
-        const cached = JSON.parse(localStorage.getItem('offline_apps_cache') || '[]');
-        const nextCached = cached.filter(a => a.id !== id);
-        localStorage.setItem('offline_apps_cache', JSON.stringify(nextCached));
+        if (!isNetworkError(err)) {
+            throw err;
+        }
+
+        console.warn('[Offline Mode] Intercepting delete, applying to local caches', err);
+        pruneLocalAppCaches(normalizedId);
         return true;
     }
 }
