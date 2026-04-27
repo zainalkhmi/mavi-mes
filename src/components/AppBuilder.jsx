@@ -148,17 +148,16 @@ import {
     UserPlus,
     MessageSquare,
     Contact,
-    Server,
     Triangle,
-    Minus,
+    Server,
     Shapes,
-    Calculator,
     Sigma,
     TableProperties,
     Moon,
+    Wrench,
     Ruler,
     Disc,
-    Wrench
+    Minus
 } from 'lucide-react';
 
 // --- Device Presets for Builder/Preview Canvas ---
@@ -209,6 +208,8 @@ import hardwareService from '../utils/hardwareService';
 import { translations } from '../i18n/translations';
 
 
+import ConditionalFormattingPanel from './ConditionalFormattingPanel';
+
 const COMPONENT_TYPES = {
     // 1. User Interface
     BUTTON: {
@@ -248,7 +249,8 @@ const COMPONENT_TYPES = {
 
             triggers: [],
             visibilityCondition: null,
-            rotation: 0
+            rotation: 0,
+            conditionalFormattingRules: []
         }
     },
     CHECKBOX: {
@@ -346,8 +348,8 @@ const COMPONENT_TYPES = {
         defaultProps: {
             text: 'Label text',
             fontSize: 14,
-            textColor: '#0f172a',
-            color: '#0f172a', // legacy
+            textcolor: 'var(--text-primary)',
+            color: 'var(--text-primary)', // legacy
             backgroundColor: 'transparent',
             fontBold: false,
             fontWeight: 'normal', // legacy
@@ -363,7 +365,8 @@ const COMPONENT_TYPES = {
             widthPercent: -1,
             triggers: [],
             visibilityCondition: null,
-            rotation: 0
+            rotation: 0,
+            conditionalFormattingRules: []
         }
     },
     LIST_PICKER: {
@@ -379,7 +382,7 @@ const COMPONENT_TYPES = {
             elementsFromString: '',
             selection: '',
             selectionIndex: 0,
-            itemBackgroundColor: '#ffffff',
+            itemBackgroundColor: 'var(--bg-panel)',
             itemTextColor: '#000000',
             showFilterBar: false,
             showFeedback: true,
@@ -432,7 +435,7 @@ const COMPONENT_TYPES = {
 
             // Typography (Main)
             fontSize: 16,
-            textColor: '#0f172a',
+            textcolor: 'var(--text-primary)',
             fontTypeface: 'DEFAULT',
 
             // Typography (Detail)
@@ -487,12 +490,12 @@ const COMPONENT_TYPES = {
             fontSize: 14,
             fontTypeface: 'SANS_SERIF',
             hint: 'Password...',
-            hintColor: '#94a3b8',
+            hintcolor: 'var(--text-quaternary)',
             numbersOnly: false,
             passwordVisible: false,
             text: '',
             textAlignment: 0, // 0: Normal/Left, 1: Center, 2: Opposite/Right
-            textColor: '#0f172a',
+            textcolor: 'var(--text-primary)',
             visible: true,
             triggers: [],
             visibilityCondition: null,
@@ -541,11 +544,12 @@ const COMPONENT_TYPES = {
             selectionIndex: 0,
             showFeedback: true,
             textAlignment: 0, // 0: Normal, 1: Center, 2: Opposite
-            textColor: '#0f172a',
+            textcolor: 'var(--text-primary)',
             visible: true,
             triggers: [],
             visibilityCondition: null,
-            rotation: 0
+            rotation: 0,
+            conditionalFormattingRules: []
         }
     },
     BOOLEAN_TOGGLE: {
@@ -562,7 +566,7 @@ const COMPONENT_TYPES = {
             fontTypeface: 'SANS_SERIF',
             on: false,
             text: 'Switch',
-            textColor: '#0f172a',
+            textcolor: 'var(--text-primary)',
             thumbColorActive: '#ffffff',
             thumbColorInactive: '#ffffff',
             trackColorActive: '#2563eb',
@@ -586,17 +590,18 @@ const COMPONENT_TYPES = {
             fontSize: 14,
             fontTypeface: 'SANS_SERIF',
             hint: 'Hint...',
-            hintColor: '#94a3b8',
+            hintcolor: 'var(--text-quaternary)',
             multiLine: false,
             numbersOnly: false,
             readOnly: false,
             text: '',
             textAlignment: 0,
-            textColor: '#0f172a',
+            textcolor: 'var(--text-primary)',
             visible: true,
             triggers: [],
             visibilityCondition: null,
-            rotation: 0
+            rotation: 0,
+            conditionalFormattingRules: []
         }
     },
     TEXT_AREA: {
@@ -612,13 +617,13 @@ const COMPONENT_TYPES = {
             fontSize: 14,
             fontTypeface: 'SANS_SERIF',
             hint: 'Describe...',
-            hintColor: '#94a3b8',
+            hintcolor: 'var(--text-quaternary)',
             multiLine: true,
             numbersOnly: false,
             readOnly: false,
             text: '',
             textAlignment: 0,
-            textColor: '#0f172a',
+            textcolor: 'var(--text-primary)',
             visible: true,
             triggers: [],
             visibilityCondition: null,
@@ -645,7 +650,7 @@ const COMPONENT_TYPES = {
             showFeedback: true,
             text: 'Select Time',
             textAlignment: 1, // 1: Center
-            textColor: '#0f172a',
+            textcolor: 'var(--text-primary)',
             visible: true,
             triggers: [],
             visibilityCondition: null,
@@ -659,8 +664,8 @@ const COMPONENT_TYPES = {
     // 3. Media
     CAMERA: { id: 'CAMERA', label: 'Camera', icon: Camera, defaultProps: { triggers: [], visibilityCondition: null, rotation: 0 } },
     CAMCORDER: { id: 'CAMCORDER', label: 'Camcorder', icon: Video, defaultProps: { triggers: [], visibilityCondition: null, rotation: 0 } },
-    FILE_PICKER: { id: 'FILE_PICKER', label: 'FilePicker', icon: FileInput, defaultProps: { action: 'Pick Existing File', backgroundColor: '#e2e8f0', enabled: true, fontBold: false, fontItalic: false, fontSize: 14, fontTypeface: 'SANS_SERIF', height: 'automatic', heightPercent: 100, image: '', mimeType: '*/*', selection: '', shape: 0, showFeedback: true, text: 'Pick File', textAlignment: 1, textColor: '#0f172a', visible: true, width: 'automatic', widthPercent: 100, triggers: [], visibilityCondition: null, rotation: 0 } },
-    IMAGE_PICKER: { id: 'IMAGE_PICKER', label: 'ImagePicker', icon: ImageIcon, defaultProps: { backgroundColor: '#e2e8f0', enabled: true, fontBold: false, fontItalic: false, fontSize: 14, fontTypeface: 'SANS_SERIF', height: 'automatic', heightPercent: 100, image: '', selection: '', shape: 0, showFeedback: true, text: 'Pick Image', textAlignment: 1, textColor: '#0f172a', visible: true, width: 'automatic', widthPercent: 100, triggers: [], visibilityCondition: null, rotation: 0 } },
+    FILE_PICKER: { id: 'FILE_PICKER', label: 'FilePicker', icon: FileInput, defaultProps: { action: 'Pick Existing File', backgroundColor: '#e2e8f0', enabled: true, fontBold: false, fontItalic: false, fontSize: 14, fontTypeface: 'SANS_SERIF', height: 'automatic', heightPercent: 100, image: '', mimeType: '*/*', selection: '', shape: 0, showFeedback: true, text: 'Pick File', textAlignment: 1, textcolor: 'var(--text-primary)', visible: true, width: 'automatic', widthPercent: 100, triggers: [], visibilityCondition: null, rotation: 0 } },
+    IMAGE_PICKER: { id: 'IMAGE_PICKER', label: 'ImagePicker', icon: ImageIcon, defaultProps: { backgroundColor: '#e2e8f0', enabled: true, fontBold: false, fontItalic: false, fontSize: 14, fontTypeface: 'SANS_SERIF', height: 'automatic', heightPercent: 100, image: '', selection: '', shape: 0, showFeedback: true, text: 'Pick Image', textAlignment: 1, textcolor: 'var(--text-primary)', visible: true, width: 'automatic', widthPercent: 100, triggers: [], visibilityCondition: null, rotation: 0 } },
     PLAYER: { id: 'PLAYER', label: 'Player', icon: PlayCircle, defaultProps: { isPlaying: false, loop: false, playOnlyInForeground: true, source: '', volume: 50, triggers: [], visibilityCondition: null, rotation: 0 } },
     SOUND: { id: 'SOUND', label: 'Sound', icon: Volume2, defaultProps: { minimumInterval: 500, source: '', triggers: [], visibilityCondition: null, rotation: 0 } },
     SOUND_RECORDER: { id: 'SOUND_RECORDER', label: 'SoundRecorder', icon: Mic, defaultProps: { savedRecording: '', triggers: [], visibilityCondition: null, rotation: 0 } },
@@ -736,6 +741,22 @@ const COMPONENT_TYPES = {
 
     // Advanced & Specialized (Mavi-MES custom)
     VISION_DETECTOR: { id: 'VISION_DETECTOR', label: 'Vision AI OCR', icon: Eye, defaultProps: { label: 'Scanner', triggers: [], visibilityCondition: null, rotation: 0 } },
+    VISION_MEASUREMENT: { 
+        id: 'VISION_MEASUREMENT', 
+        label: 'Vision Measurement', 
+        icon: Camera, 
+        defaultProps: { 
+            label: 'Caliper Reading', 
+            unit: 'mm', 
+            required: false, 
+            targetVariable: '', 
+            min: null, 
+            max: null,
+            triggers: [], 
+            visibilityCondition: null, 
+            rotation: 0 
+        } 
+    },
     IOT_DEVICE: { id: 'IOT_DEVICE', label: 'IoT Connector', icon: Cpu, defaultProps: { topic: '', triggers: [], visibilityCondition: null, rotation: 0 } },
     INTERACTIVE_TABLE: {
         id: 'INTERACTIVE_TABLE',
@@ -748,7 +769,8 @@ const COMPONENT_TYPES = {
             linkedRecordPlaceholderId: '',
             triggers: [],
             visibilityCondition: null,
-            rotation: 0
+            rotation: 0,
+            conditionalFormattingRules: []
         }
     },
     ANALYTIC: {
@@ -784,7 +806,7 @@ const COMPONENT_TYPES = {
         label: 'CAD',
         icon: Layers,
         defaultSize: { w: 320, h: 220 },
-        defaultProps: { source: '', fileUrl: '', title: 'CAD Viewer', format: 'STL', backgroundColor: '#0f172a', showGrid: true, autoRotate: false, visible: true, triggers: [], visibilityCondition: null, rotation: 0 }
+        defaultProps: { source: '', fileUrl: '', title: 'CAD Viewer', format: 'STL', backgroundcolor: 'var(--text-primary)', showGrid: true, autoRotate: false, visible: true, triggers: [], visibilityCondition: null, rotation: 0 }
     },
     WEBPAGE: {
         id: 'WEBPAGE',
@@ -826,7 +848,7 @@ const COMPONENT_TYPES = {
         label: 'Gauge',
         icon: Gauge,
         defaultSize: { w: 240, h: 90 },
-        defaultProps: { value: 0, min: 0, max: 100, unit: '%', color: '#3b82f6', label: 'KPI', visible: true, triggers: [], visibilityCondition: null, rotation: 0 }
+        defaultProps: { value: 0, min: 0, max: 100, unit: '%', color: '#3b82f6', label: 'KPI', visible: true, triggers: [], visibilityCondition: null, rotation: 0, conditionalFormattingRules: [] }
     },
 
     // Industrial Embedded Widgets (Tulip Parity)
@@ -891,7 +913,8 @@ const COMPONENT_TYPES = {
             visible: true,
             triggers: [],
             visibilityCondition: null,
-            rotation: 0
+            rotation: 0,
+            conditionalFormattingRules: []
         }
     },
     GAUGE_CIRCULAR: {
@@ -910,17 +933,18 @@ const COMPONENT_TYPES = {
             visible: true,
             triggers: [],
             visibilityCondition: null,
-            rotation: 0
+            rotation: 0,
+            conditionalFormattingRules: []
         }
     },
     ANOMALY_DETECTION: { id: 'ANOMALY_DETECTION', label: 'AnomalyDetection', icon: AlertTriangle, defaultProps: { triggers: [], visibilityCondition: null, rotation: 0 } },
     REGRESSION: { id: 'REGRESSION', label: 'Regression', icon: LineChart, defaultProps: { triggers: [], visibilityCondition: null, rotation: 0 } },
 
     // 11. Social
-    CONTACT_PICKER: { id: 'CONTACT_PICKER', label: 'ContactPicker', icon: UserCircle, defaultProps: { backgroundColor: 'var(--bg-panel)', textColor: '#0f172a', text: 'Select Contact', fontSize: 14, fontBold: false, fontItalic: false, fontTypeface: 'SANS_SERIF', enabled: true, visible: true, shape: 0, showFeedback: true, contactName: '', emailAddress: '', phoneNumber: '', picture: '', triggers: [], visibilityCondition: null, rotation: 0, width: 'automatic', height: 'automatic' } },
-    EMAIL_PICKER: { id: 'EMAIL_PICKER', label: 'EmailPicker', icon: Mail, defaultProps: { backgroundColor: 'var(--bg-panel)', textColor: '#0f172a', text: '', hint: 'Email address...', fontSize: 14, fontBold: false, fontItalic: false, fontTypeface: 'SANS_SERIF', enabled: true, visible: true, triggers: [], visibilityCondition: null, rotation: 0, width: 'automatic', height: 'automatic' } },
+    CONTACT_PICKER: { id: 'CONTACT_PICKER', label: 'ContactPicker', icon: UserCircle, defaultProps: { backgroundColor: 'var(--bg-panel)', textcolor: 'var(--text-primary)', text: 'Select Contact', fontSize: 14, fontBold: false, fontItalic: false, fontTypeface: 'SANS_SERIF', enabled: true, visible: true, shape: 0, showFeedback: true, contactName: '', emailAddress: '', phoneNumber: '', picture: '', triggers: [], visibilityCondition: null, rotation: 0, width: 'automatic', height: 'automatic' } },
+    EMAIL_PICKER: { id: 'EMAIL_PICKER', label: 'EmailPicker', icon: Mail, defaultProps: { backgroundColor: 'var(--bg-panel)', textcolor: 'var(--text-primary)', text: '', hint: 'Email address...', fontSize: 14, fontBold: false, fontItalic: false, fontTypeface: 'SANS_SERIF', enabled: true, visible: true, triggers: [], visibilityCondition: null, rotation: 0, width: 'automatic', height: 'automatic' } },
     PHONE_CALL: { id: 'PHONE_CALL', label: 'PhoneCall', icon: Phone, defaultProps: { phoneNumber: '', triggers: [], visibilityCondition: null, rotation: 0 } },
-    PHONE_NUMBER_PICKER: { id: 'PHONE_NUMBER_PICKER', label: 'PhoneNumberPicker', icon: UserPlus, defaultProps: { backgroundColor: 'var(--bg-panel)', textColor: '#0f172a', text: 'Select Phone', fontSize: 14, fontBold: false, fontItalic: false, fontTypeface: 'SANS_SERIF', enabled: true, visible: true, shape: 0, showFeedback: true, contactName: '', phoneNumber: '', triggers: [], visibilityCondition: null, rotation: 0, width: 'automatic', height: 'automatic' } },
+    PHONE_NUMBER_PICKER: { id: 'PHONE_NUMBER_PICKER', label: 'PhoneNumberPicker', icon: UserPlus, defaultProps: { backgroundColor: 'var(--bg-panel)', textcolor: 'var(--text-primary)', text: 'Select Phone', fontSize: 14, fontBold: false, fontItalic: false, fontTypeface: 'SANS_SERIF', enabled: true, visible: true, shape: 0, showFeedback: true, contactName: '', phoneNumber: '', triggers: [], visibilityCondition: null, rotation: 0, width: 'automatic', height: 'automatic' } },
     SHARING: { id: 'SHARING', label: 'Sharing', icon: Share2, defaultProps: { triggers: [], visibilityCondition: null, rotation: 0 } },
     TEXTING: { id: 'TEXTING', label: 'Texting', icon: MessageSquare, defaultProps: { phoneNumber: '', message: '', receivingEnabled: 1, googleVoiceEnabled: false, triggers: [], visibilityCondition: null, rotation: 0 } },
 
@@ -932,7 +956,7 @@ const COMPONENT_TYPES = {
         defaultSize: { w: 300, h: 150 },
         defaultProps: {
             backgroundColor: 'var(--bg-panel)',
-            penColor: '#0f172a',
+            pencolor: 'var(--text-primary)',
             thickness: 2,
             required: false,
             visible: true,
@@ -986,7 +1010,7 @@ const COMPONENT_TYPES = {
     OUTSIDE_MICROMETER: {
         id: 'OUTSIDE_MICROMETER',
         label: 'Outside Micrometer',
-        icon: Ruler,
+        icon: Maximize,
         defaultSize: { w: 260, h: 130 },
         defaultProps: {
             label: 'Outside Micrometer',
@@ -1005,7 +1029,7 @@ const COMPONENT_TYPES = {
     INSIDE_MICROMETER: {
         id: 'INSIDE_MICROMETER',
         label: 'Inside Micrometer',
-        icon: Ruler,
+        icon: Minimize,
         defaultSize: { w: 260, h: 130 },
         defaultProps: {
             label: 'Inside Micrometer',
@@ -1024,7 +1048,7 @@ const COMPONENT_TYPES = {
     DIAL_HEIGHT_GAUGE: {
         id: 'DIAL_HEIGHT_GAUGE',
         label: 'Dial Height Gauge',
-        icon: Ruler,
+        icon: ArrowUp,
         defaultSize: { w: 240, h: 150 },
         defaultProps: {
             label: 'Height Gauge',
@@ -1043,7 +1067,7 @@ const COMPONENT_TYPES = {
     DEPTH_GAUGE: {
         id: 'DEPTH_GAUGE',
         label: 'Depth Gauge',
-        icon: Ruler,
+        icon: ArrowDown,
         defaultSize: { w: 240, h: 120 },
         defaultProps: {
             label: 'Depth Gauge',
@@ -1081,7 +1105,7 @@ const COMPONENT_TYPES = {
     TORQUE_WRENCH: {
         id: 'TORQUE_WRENCH',
         label: 'Torque Wrench',
-        icon: Wrench || Ruler, // I'll use Ruler if Wrench is not available, but let's check imports
+        icon: Wrench || Ruler || Settings,
         defaultSize: { w: 280, h: 120 },
         defaultProps: {
             label: 'Torque Wrench',
@@ -1110,25 +1134,6 @@ const COMPONENT_TYPES = {
             precision: 2,
             min: 0,
             max: 500,
-            visible: true,
-            triggers: [],
-            visibilityCondition: null,
-            rotation: 0
-        }
-    },
-    INSIDE_MICROMETER: {
-        id: 'INSIDE_MICROMETER',
-        label: 'Inside Micrometer',
-        icon: Ruler,
-        defaultSize: { w: 260, h: 130 },
-        defaultProps: {
-            label: 'Inside Micrometer',
-            connectionType: 'SERIAL',
-            baudRate: 9600,
-            unit: 'mm',
-            precision: 2,
-            min: 5,
-            max: 30,
             visible: true,
             triggers: [],
             visibilityCondition: null,
@@ -1165,7 +1170,7 @@ const COMPONENT_TYPES = {
             placeholder: 'Select items...',
             maxSelections: 0, // 0 for unlimited
             backgroundColor: 'var(--bg-panel)',
-            textColor: '#0f172a',
+            textcolor: 'var(--text-primary)',
             fontSize: 14,
             visible: true,
             enabled: true,
@@ -1177,7 +1182,7 @@ const COMPONENT_TYPES = {
     TABLE_AGGREGATION: {
         id: 'TABLE_AGGREGATION',
         label: 'Table Aggregation',
-        icon: Calculator,
+        icon: BarChart3,
         defaultSize: { w: 160, h: 80 },
         defaultProps: {
             tableId: '',
@@ -1186,7 +1191,7 @@ const COMPONENT_TYPES = {
             prefix: '',
             suffix: '',
             fontSize: 24,
-            textColor: '#0f172a',
+            textcolor: 'var(--text-primary)',
             backgroundColor: 'var(--bg-secondary)',
             visible: true,
             triggers: [],
@@ -1204,7 +1209,7 @@ const COMPONENT_TYPES = {
             fieldsToShow: [], // Array of field names
             backgroundColor: 'var(--bg-panel)',
             borderColor: '#e2e8f0',
-            textColor: '#0f172a',
+            textcolor: 'var(--text-primary)',
             visible: true,
             triggers: [],
             visibilityCondition: null,
@@ -1239,7 +1244,7 @@ const CATEGORIZED_COMPONENTS = {
             'SLIDER', 'DROPDOWN', 'MULTI_SELECT', 'LIST_PICKER', 'LIST_VIEW',
             'DATE_PICKER', 'DATETIME_PICKER', 'IMAGE', 'EMBED_WEB', 'VIDEO_PLAYER',
             'FILE_PICKER', 'IMAGE_PICKER', 'SIGNATURE_PAD', 'SIGNATURE',
-            'MEASUREMENT_WIDGET', 'DIAL_GAUGE', 'GAUGE_CIRCULAR', 'OUTSIDE_MICROMETER', 'INSIDE_MICROMETER', 'DIAL_HEIGHT_GAUGE', 'DEPTH_GAUGE', 'ROUGHNESS_TESTER', 'TORQUE_WRENCH', 'WEIGHING_SCALE', 'NOTIFIER', 'CUSTOM_WIDGET'
+            'NOTIFIER', 'CUSTOM_WIDGET'
         ]
     },
     // 2. Tables, records, storage
@@ -1308,7 +1313,7 @@ const CATEGORIZED_COMPONENTS = {
         label: 'Measurement',
         icon: Ruler,
         color: '#f43f5e',
-        types: ['MEASUREMENT_WIDGET', 'GAUGE', 'DIAL_GAUGE', 'GAUGE_CIRCULAR', 'OUTSIDE_MICROMETER', 'INSIDE_MICROMETER', 'DIAL_HEIGHT_GAUGE', 'DEPTH_GAUGE', 'ROUGHNESS_TESTER', 'TORQUE_WRENCH', 'WEIGHING_SCALE']
+        types: ['VISION_MEASUREMENT', 'MEASUREMENT_WIDGET', 'GAUGE', 'DIAL_GAUGE', 'GAUGE_CIRCULAR', 'OUTSIDE_MICROMETER', 'INSIDE_MICROMETER', 'DIAL_HEIGHT_GAUGE', 'DEPTH_GAUGE', 'ROUGHNESS_TESTER', 'TORQUE_WRENCH', 'WEIGHING_SCALE']
     }
 };
 
@@ -1521,7 +1526,20 @@ const MeasurementWidget = ({ comp, viewMode, onWidgetInteraction, setPreviewForm
             overflow: 'hidden'
         }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 1 }}>
-                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-quaternary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <span style={{ 
+                    fontSize: '0.7rem', 
+                    fontWeight: 800, 
+                    color: 'var(--text-quaternary)', 
+                    textTransform: 'uppercase', 
+                    letterSpacing: '0.5px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                }}>
+                    {(() => {
+                        const Icon = COMPONENT_TYPES[comp.type]?.icon || Ruler;
+                        return <Icon size={14} strokeWidth={2.5} />;
+                    })()}
                     {comp.props.label || comp.props.title || t('title')}
                 </span>
                 <div style={{ 
@@ -2532,7 +2550,7 @@ const AppBuilder = () => {
 
         const fieldRowStyle = { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' };
         const labelStyle = { width: '80px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)', textTransform: 'uppercase' };
-        const inputStyle = { flex: 1, padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem', color: 'var(--text-primary)' };
+        const inputStyle = { flex: 1, padding: '8px 12px', border: '1px solid var(--border-secondary)', borderRadius: '6px', fontSize: '0.85rem', color: 'var(--text-primary)' };
 
         return (
             <div style={{ marginTop: '4px' }}>
@@ -2553,7 +2571,7 @@ const AppBuilder = () => {
                                 <select
                                     value={act.payload?.valueType || 'STATIC'}
                                     onChange={(e) => updateAct({ valueType: e.target.value })}
-                                    style={{ width: '100px', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.8rem', fontWeight: 600 }}
+                                    style={{ width: '100px', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem', fontWeight: 600 }}
                                 >
                                     <option value="STATIC">Static</option>
                                     <option value="EXPRESSION">Exp</option>
@@ -2588,7 +2606,7 @@ const AppBuilder = () => {
                             <select
                                 value={act.payload?.valueType || 'STATIC'}
                                 onChange={(e) => updateAct({ valueType: e.target.value })}
-                                style={{ width: '100px', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.8rem', fontWeight: 600 }}
+                                style={{ width: '100px', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem', fontWeight: 600 }}
                             >
                                 <option value="STATIC">Static</option>
                                 <option value="EXPRESSION">Exp</option>
@@ -2644,7 +2662,7 @@ const AppBuilder = () => {
                                 type="number"
                                 value={act.payload?.amount || 1}
                                 onChange={(e) => updateAct({ amount: Number(e.target.value) })}
-                                style={{ width: '100px', padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem' }}
+                                style={{ width: '100px', padding: '8px 12px', border: '1px solid var(--border-secondary)', borderRadius: '6px', fontSize: '0.85rem' }}
                             />
                         </div>
                     </>
@@ -2689,7 +2707,7 @@ const AppBuilder = () => {
                                 <select
                                     value={act.payload?.idType || 'STATIC'}
                                     onChange={(e) => updateAct({ idType: e.target.value })}
-                                    style={{ width: '100px', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.8rem', fontWeight: 600 }}
+                                    style={{ width: '100px', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem', fontWeight: 600 }}
                                 >
                                     <option value="STATIC">Static</option>
                                     <option value="VARIABLE">Var</option>
@@ -2771,7 +2789,7 @@ const AppBuilder = () => {
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             {Object.entries(act.payload?.mappings || {}).length === 0 ? (
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-quaternary)', padding: '12px', backgroundColor: 'var(--bg-panel)', border: '1px dashed #cbd5e1', borderRadius: '8px', textAlign: 'center' }}>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-quaternary)', padding: '12px', backgroundColor: 'var(--bg-panel)', border: '1px dashed var(--border-secondary)', borderRadius: '8px', textAlign: 'center' }}>
                                     No mappings added.
                                 </div>
                             ) : (
@@ -2793,7 +2811,7 @@ const AppBuilder = () => {
                                                     updateAct({ mappings: nextMappings });
                                                 }}
                                                 placeholder="column_name"
-                                                style={{ padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.72rem' }}
+                                                style={{ padding: '6px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.72rem' }}
                                             />
                                             <select
                                                 value={mapType}
@@ -2802,7 +2820,7 @@ const AppBuilder = () => {
                                                     nextMappings[col] = { value: mapValue, type: e.target.value };
                                                     updateAct({ mappings: nextMappings });
                                                 }}
-                                                style={{ padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.7rem' }}
+                                                style={{ padding: '6px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.7rem' }}
                                             >
                                                 <option value="STATIC">Static</option>
                                                 <option value="EXPRESSION">Exp</option>
@@ -2815,7 +2833,7 @@ const AppBuilder = () => {
                                                     updateAct({ mappings: nextMappings });
                                                 }}
                                                 placeholder="e.g. @FORM.comp_123"
-                                                style={{ padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.72rem' }}
+                                                style={{ padding: '6px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.72rem' }}
                                             />
                                             <button
                                                 onClick={() => {
@@ -2839,7 +2857,7 @@ const AppBuilder = () => {
                         <select
                             value={act.payload?.placeholderId || ''}
                             onChange={(e) => updateAct({ placeholderId: e.target.value })}
-                            style={{ flex: 1, padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem' }}
+                            style={{ flex: 1, padding: '8px', border: '1px solid var(--border-secondary)', borderRadius: '6px', fontSize: '0.85rem' }}
                         >
                             <option value="">Select Placeholder...</option>
                             {recordPlaceholders.map(rp => <option key={rp.id} value={rp.id}>{rp.name}</option>)}
@@ -2878,7 +2896,7 @@ const AppBuilder = () => {
                                                     nextParams[input.name] = { ...nextParams[input.name], type: e.target.value };
                                                     updateAct({ parameters: nextParams });
                                                 }}
-                                                style={{ width: '80px', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.75rem' }}
+                                                style={{ width: '80px', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.75rem' }}
                                             >
                                                 <option value="STATIC">Value</option>
                                                 <option value="EXPRESSION">Exp</option>
@@ -2970,7 +2988,7 @@ const AppBuilder = () => {
                                                     nextParams[input.name] = { ...nextParams[input.name], type: e.target.value };
                                                     updateAct({ parameters: nextParams });
                                                 }}
-                                                style={{ width: '80px', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.75rem' }}
+                                                style={{ width: '80px', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.75rem' }}
                                             >
                                                 <option value="STATIC">Value</option>
                                                 <option value="EXPRESSION">Exp</option>
@@ -5674,7 +5692,7 @@ const AppBuilder = () => {
         const createSignatureComponents = () => {
             const stamp = Date.now();
             return [
-                { id: `comp_${stamp}_1`, type: 'TEXT', x: 70, y: 85, w: 560, h: 45, props: { ...COMPONENT_TYPES.TEXT.defaultProps, text: 'Supervisor Sign-off', fontSize: 28, fontWeight: 'bold', color: '#0f172a' } },
+                { id: `comp_${stamp}_1`, type: 'TEXT', x: 70, y: 85, w: 560, h: 45, props: { ...COMPONENT_TYPES.TEXT.defaultProps, text: 'Supervisor Sign-off', fontSize: 28, fontWeight: 'bold', color: 'var(--text-primary)' } },
                 { id: `comp_${stamp}_2`, type: 'TEXT_INPUT', x: 70, y: 150, w: 560, h: 90, props: { ...COMPONENT_TYPES.TEXT_INPUT.defaultProps, label: 'Verifier Name', placeholder: 'Input supervisor name...', required: true } },
                 { id: `comp_${stamp}_3`, type: 'SIGNATURE', x: 70, y: 260, w: 560, h: 170, props: { ...COMPONENT_TYPES.SIGNATURE.defaultProps, label: 'Digital Signature', required: true } },
                 { id: `comp_${stamp}_4`, type: 'DATETIME_PICKER', x: 70, y: 450, w: 320, h: 90, props: { ...COMPONENT_TYPES.DATETIME_PICKER.defaultProps, label: 'Signed At', required: true } }
@@ -5697,7 +5715,7 @@ const AppBuilder = () => {
                 ]
                 : stepType === 'Signature Form'
                     ? [
-                        { id: `comp_${stamp}_1`, name: getUniqueWidgetName('signoff_title'), displayName: 'Sign-off Title', type: 'TEXT', x: 70, y: 85, w: 560, h: 45, props: { ...COMPONENT_TYPES.TEXT.defaultProps, text: 'Supervisor Sign-off', fontSize: 28, fontWeight: 'bold', color: '#0f172a' } },
+                        { id: `comp_${stamp}_1`, name: getUniqueWidgetName('signoff_title'), displayName: 'Sign-off Title', type: 'TEXT', x: 70, y: 85, w: 560, h: 45, props: { ...COMPONENT_TYPES.TEXT.defaultProps, text: 'Supervisor Sign-off', fontSize: 28, fontWeight: 'bold', color: 'var(--text-primary)' } },
                         { id: `comp_${stamp}_2`, name: getUniqueWidgetName('verifier_name'), displayName: 'Verifier Name', type: 'TEXT_INPUT', x: 70, y: 150, w: 560, h: 90, props: { ...COMPONENT_TYPES.TEXT_INPUT.defaultProps, label: 'Verifier Name', placeholder: 'Input supervisor name...', required: true } },
                         { id: `comp_${stamp}_3`, name: getUniqueWidgetName('digital_signature'), displayName: 'Signature Field', type: 'SIGNATURE', x: 70, y: 260, w: 560, h: 170, props: { ...COMPONENT_TYPES.SIGNATURE.defaultProps, label: 'Digital Signature', required: true } },
                         { id: `comp_${stamp}_4`, name: getUniqueWidgetName('signed_at'), displayName: 'Signed At', type: 'DATETIME_PICKER', x: 70, y: 450, w: 320, h: 90, props: { ...COMPONENT_TYPES.DATETIME_PICKER.defaultProps, label: 'Signed At', required: true } }
@@ -6324,10 +6342,17 @@ const AppBuilder = () => {
             });
             const url = `${window.location.origin}/terminal/${published.id}`;
             setPublishModal({ isOpen: true, url });
-            alert(`App Published V${published.version} successfully!`);
+            alert(`App Published V${published.version || 1} successfully!`);
+            if (!published.is_published && published.id) {
+                console.warn('App published but is_published flag missing in DB. Running in legacy mode.');
+            }
         } catch (err) {
             console.error('Publish failed:', err);
-            alert('Failed to publish app.');
+            if (String(err.message || '').includes('column')) {
+                alert('Publish failed: Database schema mismatch. Please run the latest SQL setup script in your Supabase SQL Editor.');
+            } else {
+                alert('Failed to publish app. Check console for details.');
+            }
         } finally {
             setIsSaving(false);
         }
@@ -6983,7 +7008,7 @@ const AppBuilder = () => {
             <div style={{ borderBottom: '1px solid var(--border-secondary)', paddingBottom: '15px', marginBottom: '15px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                     <Database size={14} color="#3b82f6" />
-                    <label style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>Data Source</label>
+                    <label style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase' }}>Data Source</label>
                     {showUnmappedWarning && (
                         <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', color: '#b45309', fontWeight: 700 }}>
                             <AlertTriangle size={12} color="#f59e0b" />
@@ -7017,7 +7042,7 @@ const AppBuilder = () => {
 
                             updateComponentProps(selectedComp.id, { dataSourceType: nextType });
                         }}
-                        style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: '#0f172a', marginBottom: '12px', fontSize: '0.85rem' }}
+                        style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)', marginBottom: '12px', fontSize: '0.85rem' }}
                     >
                         <option value="SYSTEM_INFO">System Info</option>
                         <option value="VARIABLE">Variable</option>
@@ -7031,7 +7056,7 @@ const AppBuilder = () => {
                             <select
                                 value={selectedComp.props.bindingConfig?.tableId || ''}
                                 onChange={(e) => updateComponentProps(selectedComp.id, { bindingConfig: { ...selectedComp.props.bindingConfig, tableId: e.target.value } })}
-                                style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.75rem' }}
+                                style={{ width: '100%', padding: '6px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.75rem' }}
                             >
                                 <option value="">Select...</option>
                                 {tables.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -7044,7 +7069,7 @@ const AppBuilder = () => {
                                         value={selectedComp.props.bindingConfig?.lookupColumn || ''}
                                         onChange={(e) => updateComponentProps(selectedComp.id, { bindingConfig: { ...selectedComp.props.bindingConfig, lookupColumn: e.target.value } })}
                                         placeholder="id"
-                                        style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.75rem' }}
+                                        style={{ width: '100%', padding: '6px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.75rem' }}
                                     />
                                 </div>
                                 <div>
@@ -7053,7 +7078,7 @@ const AppBuilder = () => {
                                         value={selectedComp.props.bindingConfig?.lookupValue || ''}
                                         onChange={(e) => updateComponentProps(selectedComp.id, { bindingConfig: { ...selectedComp.props.bindingConfig, lookupValue: e.target.value } })}
                                         placeholder="e.g. 1"
-                                        style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.75rem' }}
+                                        style={{ width: '100%', padding: '6px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.75rem' }}
                                     />
                                 </div>
                             </div>
@@ -7063,7 +7088,7 @@ const AppBuilder = () => {
                                 value={selectedComp.props.bindingConfig?.resultColumn || ''}
                                 onChange={(e) => updateComponentProps(selectedComp.id, { bindingConfig: { ...selectedComp.props.bindingConfig, resultColumn: e.target.value } })}
                                 placeholder="title, description..."
-                                style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.75rem' }}
+                                style={{ width: '100%', padding: '6px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.75rem' }}
                             />
                         </div>
                     ) : normalizedType === 'IOT' ? (
@@ -7084,7 +7109,7 @@ const AppBuilder = () => {
                         <select
                             value={String(selectedComp.props.varSource || '').startsWith('APP_INFO.') ? selectedComp.props.varSource : 'APP_INFO.USER'}
                             onChange={(e) => updateComponentProps(selectedComp.id, { varSource: e.target.value })}
-                            style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: '#0f172a', fontSize: '0.85rem' }}
+                            style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)', fontSize: '0.85rem' }}
                         >
                             <option value="APP_INFO.USER">Logged-in User</option>
                             <option value="APP_INFO.STATION">Station Name</option>
@@ -7095,7 +7120,7 @@ const AppBuilder = () => {
                         <select
                             value={selectedComp.props.varSource}
                             onChange={(e) => updateComponentProps(selectedComp.id, { varSource: e.target.value })}
-                            style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: '#0f172a', fontSize: '0.85rem' }}
+                            style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)', fontSize: '0.85rem' }}
                         >
                             {appVariables.length > 0 && (
                                 <optgroup label="App Variables">
@@ -7452,7 +7477,7 @@ const AppBuilder = () => {
                                     cursor: (viewMode === 'PREVIEW' && isCbEnabled) ? 'pointer' : 'default',
                                     accentColor: '#3b82f6',
                                     borderRadius: '4px',
-                                    border: '2px solid #cbd5e1'
+                                    border: '2px solid var(--border-secondary)'
                                 }}
                             />
                         </div>
@@ -7535,7 +7560,7 @@ const AppBuilder = () => {
                             cursor: (viewMode === 'PREVIEW' && isDpEnabled) ? 'pointer' : 'default',
                             transition: 'all 0.2s',
                             boxShadow: (viewMode === 'PREVIEW' && isDpEnabled && comp.props.showFeedback) ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                            border: '1px solid #cbd5e1',
+                            border: '1px solid var(--border-secondary)',
                             ...dpShapeStyles[comp.props.shape || 0],
                             ...commonTextStyle
                         }}
@@ -7600,7 +7625,7 @@ const AppBuilder = () => {
 
                         {/* Design mode placeholder if empty */}
                         {viewMode === 'DESIGN' && sprites.length === 0 && (
-                            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.8rem', pointerEvents: 'none' }}>
+                            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-quaternary)', fontSize: '0.8rem', pointerEvents: 'none' }}>
                                 Canvas Area (Drag Sprites Here)
                             </div>
                         )}
@@ -7766,7 +7791,7 @@ const AppBuilder = () => {
                             cursor: (viewMode === 'PREVIEW' && isTpEnabled) ? 'pointer' : 'default',
                             transition: 'all 0.2s',
                             boxShadow: (viewMode === 'PREVIEW' && isTpEnabled && comp.props.showFeedback) ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                            border: '1px solid #cbd5e1',
+                            border: '1px solid var(--border-secondary)',
                             ...tpShapeStyles[comp.props.shape || 0]
                         }}
                     >
@@ -7882,7 +7907,7 @@ const AppBuilder = () => {
                         {comp.props.showFilterBar && (
                             <div style={{ padding: '8px', borderBottom: '1px solid var(--border-secondary)', backgroundColor: 'var(--bg-secondary)' }}>
                                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                                    <Search size={14} style={{ position: 'absolute', left: '10px', color: '#94a3b8' }} />
+                                    <Search size={14} style={{ position: 'absolute', left: '10px', color: 'var(--text-quaternary)' }} />
                                     <input
                                         type="text"
                                         placeholder={comp.props.hintText || 'Search...'}
@@ -7980,7 +8005,7 @@ const AppBuilder = () => {
                                 );
                             })}
                             {filteredItems.length === 0 && (
-                                <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem', fontStyle: 'italic' }}>
+                                <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-quaternary)', fontSize: '0.8rem', fontStyle: 'italic' }}>
                                     No items found
                                 </div>
                             )}
@@ -8068,7 +8093,7 @@ const AppBuilder = () => {
                     width: '100%',
                     padding: '10px',
                     borderRadius: '6px',
-                    border: '1px solid #cbd5e1',
+                    border: '1px solid var(--border-secondary)',
                     backgroundColor: comp.props.backgroundColor || '#ffffff',
                     color: comp.props.textColor || '#0f172a',
                     fontSize: `${comp.props.fontSize || 14}px`,
@@ -8304,13 +8329,13 @@ const AppBuilder = () => {
                 const percent = ((gaugeVal - comp.props.min) / (comp.props.max - comp.props.min)) * 100;
                 return (
                     <div style={{ width: '100%', textAlign: 'center' }}>
-                        <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>{comp.props.label}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>{comp.props.label}</div>
                         <div style={{ height: '12px', backgroundColor: '#e2e8f0', borderRadius: '6px', overflow: 'hidden', marginBottom: '10px' }}>
                             <div style={{ width: `${Math.min(100, Math.max(0, percent))}%`, height: '100%', backgroundColor: comp.props.color || '#3b82f6', transition: 'width 0.3s' }} />
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: '#94a3b8' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--text-quaternary)' }}>
                             <span>{comp.props.min}</span>
-                            <span style={{ fontSize: '1rem', color: '#0f172a', fontWeight: 900 }}>{gaugeVal} {comp.props.unit}</span>
+                            <span style={{ fontSize: '1rem', color: 'var(--text-primary)', fontWeight: 900 }}>{gaugeVal} {comp.props.unit}</span>
                             <span>{comp.props.max}</span>
                         </div>
                     </div>
@@ -8326,17 +8351,17 @@ const AppBuilder = () => {
                             <div style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase' }}>
                                 {comp.props.mode || 'ELAPSED'}
                             </div>
-                            <div style={{ fontSize: '1.4rem', color: '#0f172a', fontWeight: 900 }}>{comp.props.value || '00:00'}</div>
+                            <div style={{ fontSize: '1.4rem', color: 'var(--text-primary)', fontWeight: 900 }}>{comp.props.value || '00:00'}</div>
                         </div>
                     </div>
                 );
             case 'ANALYTIC':
                 return (
-                    <div style={{ width: '100%', height: '100%', border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden', backgroundColor: 'var(--bg-panel)', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ width: '100%', height: '100%', border: '1px solid var(--border-secondary)', borderRadius: '8px', overflow: 'hidden', backgroundColor: 'var(--bg-panel)', display: 'flex', flexDirection: 'column' }}>
                         <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-primary)', fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-secondary)' }}>
                             {comp.props.title || 'Live Analysis'}
                         </div>
-                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-quaternary)', fontSize: '0.75rem' }}>
                             Dashboard Analysis Embed
                         </div>
                     </div>
@@ -8355,7 +8380,7 @@ const AppBuilder = () => {
                     <div style={{ width: '100%', height: '100%', border: '1px solid var(--border-primary)', borderRadius: '10px', backgroundColor: 'var(--bg-panel)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '12px' }}>
                         <div style={{ fontSize: '0.62rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase' }}>{comp.props.machineId || 'Machine'}</div>
                         <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 700 }}>{comp.props.attribute || 'Attribute'}</div>
-                        <div style={{ fontSize: '1.3rem', color: '#0f172a', fontWeight: 900 }}>{comp.props.value ?? '--'} <span style={{ fontSize: '0.75rem', color: 'var(--text-quaternary)' }}>{comp.props.unit || ''}</span></div>
+                        <div style={{ fontSize: '1.3rem', color: 'var(--text-primary)', fontWeight: 900 }}>{comp.props.value ?? '--'} <span style={{ fontSize: '0.75rem', color: 'var(--text-quaternary)' }}>{comp.props.unit || ''}</span></div>
                     </div>
                 );
             case 'MACHINE_TIMELINE':
@@ -8381,7 +8406,7 @@ const AppBuilder = () => {
                             <div style={{ alignSelf: 'flex-start', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', borderRadius: '10px', padding: '6px 8px', fontSize: '0.72rem' }}>How can I help?</div>
                             <div style={{ alignSelf: 'flex-end', backgroundColor: '#dbeafe', color: '#1e3a8a', borderRadius: '10px', padding: '6px 8px', fontSize: '0.72rem' }}>Show machine status</div>
                         </div>
-                        <div style={{ padding: '8px', borderTop: '1px solid var(--border-primary)', color: '#94a3b8', fontSize: '0.72rem' }}>{comp.props.placeholder || 'Ask anything...'}</div>
+                        <div style={{ padding: '8px', borderTop: '1px solid var(--border-primary)', color: 'var(--text-quaternary)', fontSize: '0.72rem' }}>{comp.props.placeholder || 'Ask anything...'}</div>
                     </div>
                 );
             case 'SPEECH_RECOGNIZER': {
@@ -8433,7 +8458,7 @@ const AppBuilder = () => {
                                 width: '100%',
                                 padding: '8px 10px',
                                 borderRadius: '6px',
-                                border: '1px solid #cbd5e1',
+                                border: '1px solid var(--border-secondary)',
                                 backgroundColor: (isEnabled && viewMode === 'PREVIEW') ? '#eff6ff' : '#f8fafc',
                                 color: '#1e3a8a',
                                 fontSize: '0.8rem',
@@ -8507,7 +8532,7 @@ const AppBuilder = () => {
                                         <div style={{ padding: '10px', fontSize: '0.72rem', color: 'var(--text-quaternary)' }}>Loading rows...</div>
                                     )}
                                     {!loading && rows.length === 0 && (
-                                        <div style={{ padding: '10px', fontSize: '0.72rem', color: '#94a3b8' }}>No rows found</div>
+                                        <div style={{ padding: '10px', fontSize: '0.72rem', color: 'var(--text-quaternary)' }}>No rows found</div>
                                     )}
                                     {!loading && rows.map((row, rIdx) => {
                                         const rowId = row?.id ?? row?._id ?? JSON.stringify(row);
@@ -8544,7 +8569,7 @@ const AppBuilder = () => {
                                 <ClipboardList size={16} color="#0ea5e9" /> {comp.props.title || 'Record History'}
                             </span>
                         </div>
-                        <div style={{ flex: 1, overflowY: 'auto', padding: '10px', color: '#94a3b8', fontSize: '0.75rem', textAlign: 'center' }}>
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '10px', color: 'var(--text-quaternary)', fontSize: '0.75rem', textAlign: 'center' }}>
                             Snapshot View (Runtime Only)
                         </div>
                     </div>
@@ -8569,7 +8594,7 @@ const AppBuilder = () => {
                 );
             case 'IOT_DEVICE':
                 return (
-                    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '15px', backgroundColor: 'var(--bg-secondary)', border: '1px dashed #cbd5e1', borderRadius: '6px' }}>
+                    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '15px', backgroundColor: 'var(--bg-secondary)', border: '1px dashed var(--border-secondary)', borderRadius: '6px' }}>
                         <Cpu size={32} color="#0ea5e9" style={{ marginBottom: '8px' }} />
                         <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{comp.props.label || 'IoT Device'}</div>
                         <div style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', marginTop: '4px' }}>{comp.props.deviceType || 'Generic'} | {comp.props.ipAddress || '0.0.0.0'}</div>
@@ -8607,8 +8632,8 @@ const AppBuilder = () => {
                 return (
                     <div style={{ padding: '15px', backgroundColor: 'var(--bg-panel)', borderRadius: '8px', border: '1px solid var(--border-primary)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
                         <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-tertiary)', marginBottom: '10px' }}>{comp.props.title || comp.type}</div>
-                        <div style={{ flex: 1, backgroundColor: 'var(--bg-secondary)', borderRadius: '4px', border: '1px dashed #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Activity size={32} color="#94a3b8" />
+                        <div style={{ flex: 1, backgroundColor: 'var(--bg-secondary)', borderRadius: '4px', border: '1px dashed var(--border-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Activity size={32} color="var(--text-quaternary)" />
                         </div>
                     </div>
                 );
@@ -8616,7 +8641,7 @@ const AppBuilder = () => {
             case 'CLOCK':
                 return (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', border: '1px solid var(--border-primary)', borderRadius: '6px', backgroundColor: 'var(--bg-secondary)' }}>
-                        <Clock size={16} color="#64748b" />
+                        <Clock size={16} color="var(--text-quaternary)" />
                         <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                             {viewMode === 'PREVIEW' ? '00:00:00' : 'CLOCK'}
                         </span>
@@ -8637,7 +8662,7 @@ const AppBuilder = () => {
                         </div>
                         <div style={{ flex: 1, padding: '15px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                             {comp.props.showLabel && <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)', textTransform: 'uppercase' }}>Machine ID</div>}
-                            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a' }}>{comp.props.label || 'Machine 01'}</div>
+                            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)' }}>{comp.props.label || 'Machine 01'}</div>
                             <div style={{ marginTop: '8px', width: '30px', height: '4px', backgroundColor: statusColor, borderRadius: '2px' }} />
                         </div>
                     </div>
@@ -8658,7 +8683,7 @@ const AppBuilder = () => {
                             ) : (
                                 <div style={{ textAlign: 'center' }}>
                                     <FileText size={40} color="#cbd5e1" style={{ marginBottom: '10px' }} />
-                                    <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>No PDF Source Provided</div>
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-quaternary)', fontStyle: 'italic' }}>No PDF Source Provided</div>
                                 </div>
                             )}
                         </div>
@@ -8668,7 +8693,7 @@ const AppBuilder = () => {
                 return (
                     <div style={{ width: '100%', height: '100%', borderRadius: '8px', overflow: 'hidden', border: '1px solid #1f2937', backgroundColor: comp.props.backgroundColor || '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                         <div style={{ width: '55%', height: '55%', border: '2px solid rgba(148,163,184,0.7)', transform: 'rotate(12deg)', borderRadius: '6px' }} />
-                        <div style={{ position: 'absolute', bottom: '8px', left: '8px', right: '8px', fontSize: '0.68rem', color: '#cbd5e1', textAlign: 'center' }}>
+                        <div style={{ position: 'absolute', bottom: '8px', left: '8px', right: '8px', fontSize: '0.68rem', color: 'var(--border-secondary)', textAlign: 'center' }}>
                             {(comp.props.source || comp.props.fileUrl) ? 'CAD model loaded' : 'No CAD source set'}
                         </div>
                     </div>
@@ -8801,7 +8826,7 @@ const AppBuilder = () => {
                 return (
                     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '10px' }}>
                         <div style={{ position: 'relative', width: '80%', paddingBottom: '40%', overflow: 'hidden' }}>
-                            <div style={{ position: 'absolute', width: '100%', height: '200%', border: '15px solid #e2e8f0', borderRadius: '50%', top: 0, left: 0 }} />
+                            <div style={{ position: 'absolute', width: '100%', height: '200%', border: '15px solid var(--border-primary)', borderRadius: '50%', top: 0, left: 0 }} />
                             <div style={{
                                 position: 'absolute', bottom: '0', left: '50%', width: '4px', height: '90%',
                                 backgroundColor: comp.props.color || '#3b82f6', transformOrigin: 'bottom center',
@@ -8811,8 +8836,8 @@ const AppBuilder = () => {
                             </div>
                         </div>
                         <div style={{ marginTop: '10px', textAlign: 'center' }}>
-                            <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#0f172a' }}>{gVal}<span style={{ fontSize: '0.8rem', color: 'var(--text-quaternary)', marginLeft: '2px' }}>{comp.props.unit}</span></div>
-                            <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>{comp.props.title}</div>
+                            <div style={{ fontSize: '1.2rem', fontWeight: 900, color: 'var(--text-primary)' }}>{gVal}<span style={{ fontSize: '0.8rem', color: 'var(--text-quaternary)', marginLeft: '2px' }}>{comp.props.unit}</span></div>
+                            <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-quaternary)', textTransform: 'uppercase', letterSpacing: '1px' }}>{comp.props.title}</div>
                         </div>
 
                         {comp.props.showCaptureButton !== false && (
@@ -8851,8 +8876,8 @@ const AppBuilder = () => {
                     <div style={{ width: '100%', height: '100%', backgroundColor: '#000000', borderRadius: '4px', overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
                         {viewMode === 'DESIGN' || !comp.props.source ? (
                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '16px', border: '1px solid #334155' }}>
-                                <Video size={36} color="#64748b" />
-                                <div style={{ fontSize: '0.72rem', color: '#94a3b8', textAlign: 'center', fontStyle: 'italic', lineHeight: 1.4 }}>
+                                <Video size={36} color="var(--text-quaternary)" />
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-quaternary)', textAlign: 'center', fontStyle: 'italic', lineHeight: 1.4 }}>
                                     {comp.props.source ? `VideoPlayer → ${comp.props.source}` : 'VideoPlayer (No Source)'}
                                 </div>
                             </div>
@@ -9095,9 +9120,9 @@ const AppBuilder = () => {
                         </div>
                         {comp.props.gridEnabled && chartType !== 'Pie' && (
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', borderTop: `1px solid ${comp.props.axesTextColor || '#e2e8f0'}` }}>
-                                <span style={{ fontSize: '0.5rem', color: '#94a3b8' }}>0</span>
-                                <span style={{ fontSize: '0.5rem', color: '#94a3b8' }}>50</span>
-                                <span style={{ fontSize: '0.5rem', color: '#94a3b8' }}>100</span>
+                                <span style={{ fontSize: '0.5rem', color: 'var(--text-quaternary)' }}>0</span>
+                                <span style={{ fontSize: '0.5rem', color: 'var(--text-quaternary)' }}>50</span>
+                                <span style={{ fontSize: '0.5rem', color: 'var(--text-quaternary)' }}>100</span>
                             </div>
                         )}
                     </div>
@@ -9166,7 +9191,7 @@ const AppBuilder = () => {
                                 width: '100%',
                                 padding: '8px 10px',
                                 borderRadius: '6px',
-                                border: '1px solid #cbd5e1',
+                                border: '1px solid var(--border-secondary)',
                                 backgroundColor: canSign ? '#eff6ff' : '#f8fafc',
                                 color: canSign ? '#1e3a8a' : '#94a3b8',
                                 fontSize: '0.78rem',
@@ -9192,7 +9217,7 @@ const AppBuilder = () => {
                         <div style={{ flex: 1, padding: '8px', fontSize: '0.72rem', color: 'var(--text-secondary)', overflow: 'auto' }}>
                             <div dangerouslySetInnerHTML={{ __html: comp.props.htmlTemplate || '' }} />
                             {sourceValue !== '' && (
-                                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0', color: 'var(--text-quaternary)' }}>
+                                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed var(--border-primary)', color: 'var(--text-quaternary)' }}>
                                     Input: {String(sourceValue)}
                                 </div>
                             )}
@@ -9209,7 +9234,7 @@ const AppBuilder = () => {
                         display: 'flex', flexDirection: 'column', overflow: 'hidden'
                     }}>
                         <div style={{ flex: 1, position: 'relative', backgroundColor: '#fcfcfc', cursor: 'crosshair' }}>
-                            <div style={{ position: 'absolute', bottom: '10px', left: '0', right: '0', textAlign: 'center', fontSize: '0.7rem', color: '#cbd5e1', pointerEvents: 'none' }}>
+                            <div style={{ position: 'absolute', bottom: '10px', left: '0', right: '0', textAlign: 'center', fontSize: '0.7rem', color: 'var(--border-secondary)', pointerEvents: 'none' }}>
                                 Sign Here
                             </div>
                         </div>
@@ -9229,10 +9254,10 @@ const AppBuilder = () => {
                         backgroundColor: 'var(--bg-panel)', borderRadius: '12px', border: '1px solid var(--border-primary)',
                         display: 'flex', flexDirection: 'column', padding: '12px', justifyContent: 'center', alignItems: 'center'
                     }}>
-                        <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                        <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-quaternary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
                             {comp.props.label || 'Total Summary'}
                         </div>
-                        <div style={{ fontSize: '2rem', fontWeight: 900, color: '#0f172a' }}>
+                        <div style={{ fontSize: '2rem', fontWeight: 900, color: 'var(--text-primary)' }}>
                             {comp.props.value || '1,234'}
                         </div>
                         <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#22c55e' }}>
@@ -9255,7 +9280,7 @@ const AppBuilder = () => {
                             {[1, 2, 3].map(i => (
                                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border-secondary)' }}>
                                     <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-quaternary)' }}>Label {i}</span>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#0f172a' }}>Value {i}</span>
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-primary)' }}>Value {i}</span>
                                 </div>
                             ))}
                         </div>
@@ -9269,15 +9294,15 @@ const AppBuilder = () => {
                             <MapIcon size={14} color="#f59e0b" />
                             <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-primary)', flex: 1 }}>{comp.props.mapType} View</span>
                             <div style={{ display: 'flex', gap: '4px' }}>
-                                {comp.props.showZoom && <div style={{ width: '16px', height: '16px', borderRadius: '2px', backgroundColor: '#cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 900 }}>+</div>}
-                                {comp.props.showZoom && <div style={{ width: '16px', height: '16px', borderRadius: '2px', backgroundColor: '#cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 900 }}>-</div>}
+                                {comp.props.showZoom && <div style={{ width: '16px', height: '16px', borderRadius: '2px', backgroundcolor: 'var(--border-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 900 }}>+</div>}
+                                {comp.props.showZoom && <div style={{ width: '16px', height: '16px', borderRadius: '2px', backgroundcolor: 'var(--border-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 900 }}>-</div>}
                             </div>
                         </div>
                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(circle, #e2e8f0 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', opacity: 0.6 }}>
-                                <MapPin size={32} color="#94a3b8" />
+                                <MapPin size={32} color="var(--text-quaternary)" />
                                 <div style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 600 }}>{comp.props.center}</div>
-                                <div style={{ fontSize: '0.6rem', color: '#94a3b8', fontStyle: 'italic' }}>Zoom: {comp.props.zoomLevel}</div>
+                                <div style={{ fontSize: '0.6rem', color: 'var(--text-quaternary)', fontStyle: 'italic' }}>Zoom: {comp.props.zoomLevel}</div>
                             </div>
                         </div>
                         {comp.props.showScale && (
@@ -9287,7 +9312,7 @@ const AppBuilder = () => {
                         )}
                         {comp.props.showCompass && (
                             <div style={{ position: 'absolute', top: '40px', right: '8px', width: '24px', height: '24px', borderRadius: '50%', border: '1px solid #94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <Compass size={14} color="#94a3b8" />
+                                <Compass size={14} color="var(--text-quaternary)" />
                             </div>
                         )}
                     </div>
@@ -9307,7 +9332,7 @@ const AppBuilder = () => {
                                 </div>
                                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '16px' }}>
                                     <Globe size={36} color="#cbd5e1" />
-                                    <div style={{ fontSize: '0.72rem', color: '#94a3b8', textAlign: 'center', fontStyle: 'italic', lineHeight: 1.4 }}>
+                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-quaternary)', textAlign: 'center', fontStyle: 'italic', lineHeight: 1.4 }}>
                                         {comp.props.homeUrl || comp.props.url ? `WebViewer → ${comp.props.homeUrl || comp.props.url}` : 'Set a Home URL in the properties panel'}
                                     </div>
                                     <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '4px' }}>
@@ -9340,7 +9365,7 @@ const AppBuilder = () => {
                             ) : (
                                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                                     <Globe size={40} color="#cbd5e1" />
-                                    <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>No URL configured</div>
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-quaternary)', fontStyle: 'italic' }}>No URL configured</div>
                                 </div>
                             )
                         )}
@@ -9359,7 +9384,7 @@ const AppBuilder = () => {
                                 muted={!!comp.props.muted}
                             />
                         ) : (
-                            <div style={{ color: '#94a3b8', fontSize: '0.8rem' }}>No video URL configured</div>
+                            <div style={{ color: 'var(--text-quaternary)', fontSize: '0.8rem' }}>No video URL configured</div>
                         )}
                     </div>
                 );
@@ -9367,7 +9392,7 @@ const AppBuilder = () => {
                 if (CHROMELESS_COMPONENT_TYPES.includes(comp.type)) {
                     if (viewMode === 'DESIGN') {
                         return (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px', border: '1px solid #cbd5e1', opacity: 0.6 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px', border: '1px solid var(--border-secondary)', opacity: 0.6 }}>
                                 <Database size={16} />
                                 <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>{comp.id} ({comp.type})</span>
                             </div>
@@ -9590,9 +9615,12 @@ const AppBuilder = () => {
                                 cursor: 'pointer',
                                 fontWeight: 700,
                                 transition: 'all 0.2s',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
                                 boxShadow: viewMode === 'DESIGN' ? '0 2px 4px rgba(0,0,0,0.2)' : 'none'
                             }}
-                        >Design</button>
+                        ><Layout size={14} /> Design</button>
                         <button
                             onClick={() => setViewMode('PREVIEW')}
                             style={{
@@ -9623,9 +9651,12 @@ const AppBuilder = () => {
                                 cursor: 'pointer',
                                 fontWeight: 700,
                                 transition: 'all 0.2s',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
                                 boxShadow: viewMode === 'DIAGRAM' ? '0 2px 4px rgba(0,0,0,0.2)' : 'none'
                             }}
-                        >Code Blocks</button>
+                        ><Blocks size={14} /> Code Blocks</button>
                     </div>
                     <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
                     <button
@@ -10063,7 +10094,7 @@ const AppBuilder = () => {
                                     }}>
                                         {catKey === 'SHAPES' && (
                                             <>
-                                                <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', padding: '4px 8px', textTransform: 'uppercase' }}>Shapes</div>
+                                                <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-quaternary)', padding: '4px 8px', textTransform: 'uppercase' }}>Shapes</div>
                                                 <div style={{ padding: '4px' }}>
                                                     <ShapePicker
                                                         onSelect={(shapeType) => {
@@ -10075,7 +10106,7 @@ const AppBuilder = () => {
                                                     />
                                                 </div>
                                                 <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '8px 0' }} />
-                                                <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', padding: '4px 8px', textTransform: 'uppercase' }}>3D & Advanced Assets</div>
+                                                <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-quaternary)', padding: '4px 8px', textTransform: 'uppercase' }}>3D & Advanced Assets</div>
                                             </>
                                         )}
 
@@ -10166,7 +10197,7 @@ const AppBuilder = () => {
                             onMouseEnter={e => { e.currentTarget.style.backgroundColor = isCanvasLocked ? '#c7d2fe' : '#f1f5f9' }}
                             onMouseLeave={e => { e.currentTarget.style.backgroundColor = isCanvasLocked ? '#e0e7ff' : '#f8fafc' }}
                         >
-                            {isCanvasLocked ? <Unlock size={16} color="#4338ca" /> : <Lock size={16} color="#475569" />}
+                            {isCanvasLocked ? <Unlock size={16} color="#4338ca" /> : <Lock size={16} color="var(--text-tertiary)" />}
                             <span style={{ fontSize: '0.6rem', color: isCanvasLocked ? '#4338ca' : '#475569', fontWeight: 600 }}>{isCanvasLocked ? 'Buka' : 'Kunci'}</span>
                         </button>
                         <button
@@ -10193,7 +10224,7 @@ const AppBuilder = () => {
                             onMouseEnter={e => { if (selectedCompId) e.currentTarget.style.backgroundColor = '#f1f5f9' }}
                             onMouseLeave={e => { if (selectedCompId) e.currentTarget.style.backgroundColor = '#f8fafc' }}
                         >
-                            <BringToFront size={16} color="#475569" />
+                            <BringToFront size={16} color="var(--text-tertiary)" />
                             <span style={{ fontSize: '0.6rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>Forward</span>
                         </button>
                         <button
@@ -10220,7 +10251,7 @@ const AppBuilder = () => {
                             onMouseEnter={e => { if (selectedCompId) e.currentTarget.style.backgroundColor = '#f1f5f9' }}
                             onMouseLeave={e => { if (selectedCompId) e.currentTarget.style.backgroundColor = '#f8fafc' }}
                         >
-                            <SendToBack size={16} color="#475569" />
+                            <SendToBack size={16} color="var(--text-tertiary)" />
                             <span style={{ fontSize: '0.6rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>Back</span>
                         </button>
                     </div>
@@ -10266,7 +10297,7 @@ const AppBuilder = () => {
                 ) : viewMode === 'TABLES' ? (
                     <div style={{ flex: 1, backgroundColor: 'var(--bg-tertiary)', padding: '40px', overflowY: 'auto' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                            <h2 style={{ fontSize: '1.5rem', color: '#0f172a', fontWeight: 800 }}>Data Tables</h2>
+                            <h2 style={{ fontSize: '1.5rem', color: 'var(--text-primary)', fontWeight: 800 }}>Data Tables</h2>
                             <button
                                 onClick={() => {
                                     setProPrompt({
@@ -10293,18 +10324,18 @@ const AppBuilder = () => {
                                             <Table size={20} />
                                         </div>
                                         <div>
-                                            <h3 style={{ fontSize: '1rem', color: '#0f172a', margin: 0 }}>{table.name}</h3>
+                                            <h3 style={{ fontSize: '1rem', color: 'var(--text-primary)', margin: 0 }}>{table.name}</h3>
                                             <span style={{ fontSize: '0.75rem', color: 'var(--text-quaternary)' }}>ID: {table.id}</span>
                                         </div>
                                     </div>
                                     <div style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', backgroundColor: 'var(--bg-secondary)', padding: '10px', borderRadius: '6px' }}>
                                         <strong>Columns:</strong> {table.columns?.join(', ')}
                                     </div>
-                                    <button style={{ marginTop: '15px', width: '100%', padding: '8px', backgroundColor: 'transparent', border: '1px solid #cbd5e1', borderRadius: '6px', color: 'var(--text-tertiary)', fontWeight: 'bold', cursor: 'pointer' }}>View Records</button>
+                                    <button style={{ marginTop: '15px', width: '100%', padding: '8px', backgroundColor: 'transparent', border: '1px solid var(--border-secondary)', borderRadius: '6px', color: 'var(--text-tertiary)', fontWeight: 'bold', cursor: 'pointer' }}>View Records</button>
                                 </div>
                             ))}
                             {tables.length === 0 && (
-                                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: 'var(--text-quaternary)', backgroundColor: 'var(--bg-panel)', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
+                                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: 'var(--text-quaternary)', backgroundColor: 'var(--bg-panel)', borderRadius: '12px', border: '1px dashed var(--border-secondary)' }}>
                                     No tables exist yet. Create one to store data!
                                 </div>
                             )}
@@ -10317,7 +10348,7 @@ const AppBuilder = () => {
                             <div style={{
                                 width: '260px',
                                 backgroundColor: 'var(--bg-panel)',
-                                borderRight: '1px solid #e5e7eb',
+                                borderRight: '1px solid var(--border-primary)',
                                 display: 'flex',
                                 flexDirection: 'column',
                                 fontFamily: "'Inter', sans-serif"
@@ -10325,14 +10356,14 @@ const AppBuilder = () => {
                                 {/* Developer Mode Header */}
                                 <div style={{
                                     padding: '14px 16px 10px',
-                                    borderBottom: '1px solid #e5e7eb',
+                                    borderBottom: '1px solid var(--border-primary)',
                                     background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)'
                                 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                                         <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#22c55e', boxShadow: '0 0 6px #22c55e' }} />
                                         <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#ffffff', letterSpacing: '0.02em' }}>Developer Mode</span>
                                     </div>
-                                    <span style={{ fontSize: '0.65rem', color: '#94a3b8', letterSpacing: '0.05em' }}>Test sessions are not saved</span>
+                                    <span style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', letterSpacing: '0.05em' }}>Test sessions are not saved</span>
                                 </div>
 
                                 {/* Session Parameters */}
@@ -10369,7 +10400,7 @@ const AppBuilder = () => {
                                                     <option key={u} value={u}>{u}</option>
                                                 ))}
                                             </select>
-                                            <button title="Clear user" onClick={() => setDevModeUser('')} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}>
+                                            <button title="Clear user" onClick={() => setDevModeUser('')} style={{ background: 'none', border: 'none', color: 'var(--text-quaternary)', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}>
                                                 <X size={14} />
                                             </button>
                                         </div>
@@ -10381,7 +10412,7 @@ const AppBuilder = () => {
                                         <select
                                             value={devModeConnEnv}
                                             onChange={e => setDevModeConnEnv(e.target.value)}
-                                            style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--border-primary)', borderRadius: '6px', fontSize: '0.8rem', color: '#94a3b8', backgroundColor: 'var(--bg-secondary)', outline: 'none', cursor: 'pointer' }}
+                                            style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--border-primary)', borderRadius: '6px', fontSize: '0.8rem', color: 'var(--text-quaternary)', backgroundColor: 'var(--bg-secondary)', outline: 'none', cursor: 'pointer' }}
                                         >
                                             <option value="development">development</option>
                                             <option value="production">production</option>
@@ -10453,7 +10484,7 @@ const AppBuilder = () => {
                                 {/* Live Data Panel */}
                                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                                     {/* Tabs */}
-                                    <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
+                                    <div style={{ display: 'flex', borderBottom: '1px solid var(--border-primary)', backgroundColor: '#f9fafb' }}>
                                         {['Variables', 'Record Placeholders'].map(tab => (
                                             <button
                                                 key={tab}
@@ -10481,7 +10512,7 @@ const AppBuilder = () => {
                                         <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
                                             {/* Search */}
                                             <div style={{ position: 'relative', marginBottom: '8px' }}>
-                                                <Search size={12} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                                <Search size={12} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-quaternary)' }} />
                                                 <input
                                                     placeholder="Search Variables"
                                                     style={{ width: '100%', padding: '5px 8px 5px 26px', border: '1px solid var(--border-primary)', borderRadius: '6px', fontSize: '0.75rem', color: 'var(--text-primary)', backgroundColor: 'var(--bg-secondary)', outline: 'none', boxSizing: 'border-box' }}
@@ -10493,7 +10524,7 @@ const AppBuilder = () => {
                                             </div>
                                             {/* Variable list */}
                                             {appVariables.length === 0 ? (
-                                                <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem', padding: '20px 0' }}>No variables defined</div>
+                                                <div style={{ textAlign: 'center', color: 'var(--text-quaternary)', fontSize: '0.75rem', padding: '20px 0' }}>No variables defined</div>
                                             ) : (
                                                 appVariables.map(v => (
                                                     <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 6px', borderRadius: '5px', marginBottom: '2px', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-secondary)' }}>
@@ -10505,7 +10536,7 @@ const AppBuilder = () => {
                                                         </div>
                                                         <div style={{ flex: 1, minWidth: 0 }}>
                                                             <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.name}</div>
-                                                            <div style={{ fontSize: '0.6rem', color: '#94a3b8' }}>{v.type}</div>
+                                                            <div style={{ fontSize: '0.6rem', color: 'var(--text-quaternary)' }}>{v.type}</div>
                                                         </div>
                                                     </div>
                                                 ))
@@ -10517,7 +10548,7 @@ const AppBuilder = () => {
                                     {devModeLiveTab === 'Record Placeholders' && (
                                         <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
                                             {recordPlaceholders.length === 0 ? (
-                                                <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem', padding: '20px 0' }}>No record placeholders defined</div>
+                                                <div style={{ textAlign: 'center', color: 'var(--text-quaternary)', fontSize: '0.75rem', padding: '20px 0' }}>No record placeholders defined</div>
                                             ) : (
                                                 recordPlaceholders.map(rp => {
                                                     const tbl = tables.find(t => t.id === rp.tableId);
@@ -10546,10 +10577,10 @@ const AppBuilder = () => {
                                 display: 'flex',
                                 flexDirection: 'column'
                             }}>
-                                <div style={{ display: 'flex', minHeight: '310px', borderBottom: '1px solid #e5e7eb' }}>
+                                <div style={{ display: 'flex', minHeight: '310px', borderBottom: '1px solid var(--border-primary)' }}>
                                     {/* Tulip-like Screen Browser */}
                                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                                        <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb', backgroundColor: '#f3f4f6' }}>
+                                        <div style={{ display: 'flex', borderBottom: '1px solid var(--border-primary)', backgroundColor: '#f3f4f6' }}>
                                             {['SCREENS', 'RECORDS'].map(tab => (
                                                 <button
                                                     key={tab}
@@ -10575,7 +10606,7 @@ const AppBuilder = () => {
                                             <>
                                                 <div style={{ flex: 1, overflowY: 'auto', padding: '8px', backgroundColor: '#f9fafb' }}>
                                                     {filteredSteps.length === 0 ? (
-                                                        <div style={{ padding: '10px', fontSize: '0.85rem', color: '#94a3b8' }}>No screen found.</div>
+                                                        <div style={{ padding: '10px', fontSize: '0.85rem', color: 'var(--text-quaternary)' }}>No screen found.</div>
                                                     ) : (
                                                         filteredSteps.map((step, idx) => {
                                                             const isGroup = step.stepType === 'Step Group';
@@ -10642,7 +10673,7 @@ const AppBuilder = () => {
                                                                         <button
                                                                             onClick={(e) => deleteStep(step.id, e)}
                                                                             title="Delete Group"
-                                                                            style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#94a3b8' }}
+                                                                            style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'var(--text-quaternary)' }}
                                                                             onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
                                                                             onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
                                                                         >
@@ -10706,7 +10737,7 @@ const AppBuilder = () => {
                                                                         <button
                                                                             onClick={(e) => deleteStep(step.id, e)}
                                                                             title="Delete Screen"
-                                                                            style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#94a3b8' }}
+                                                                            style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'var(--text-quaternary)' }}
                                                                             onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
                                                                             onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
                                                                         >
@@ -10718,7 +10749,7 @@ const AppBuilder = () => {
                                                                     {expandedSteps[step.id] && (
                                                                         <div style={{ paddingLeft: isChild ? '45px' : '27px', marginBottom: '6px' }}>
                                                                             {step.components.length === 0 ? (
-                                                                                <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic', padding: '4px' }}>No widgets</div>
+                                                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-quaternary)', fontStyle: 'italic', padding: '4px' }}>No widgets</div>
                                                                             ) : (
                                                                                 step.components.map(comp => {
                                                                                     const compConfig = COMPONENT_TYPES[comp.type] || { label: comp.type, icon: Square };
@@ -10775,7 +10806,7 @@ const AppBuilder = () => {
                                                         {activeDropdown === 'ADD_TABLE' && (
                                                             <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', width: '200px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '6px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', zIndex: 100 }}>
                                                                 {tables.filter(t => !appTables.includes(t.id)).length === 0 ? (
-                                                                    <div style={{ padding: '10px', fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>No more tables available</div>
+                                                                    <div style={{ padding: '10px', fontSize: '0.75rem', color: 'var(--text-quaternary)', fontStyle: 'italic' }}>No more tables available</div>
                                                                 ) : (
                                                                     tables.filter(t => !appTables.includes(t.id)).map(t => (
                                                                         <div
@@ -10798,7 +10829,7 @@ const AppBuilder = () => {
                                                 </div>
 
                                                 {appTables.length === 0 ? (
-                                                    <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', backgroundColor: 'var(--bg-panel)', borderRadius: '8px', border: '1px dashed #cbd5e1', fontSize: '0.85rem' }}>
+                                                    <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-quaternary)', backgroundColor: 'var(--bg-panel)', borderRadius: '8px', border: '1px dashed var(--border-secondary)', fontSize: '0.85rem' }}>
                                                         No tables added to this app yet. Click "Add Table" to start.
                                                     </div>
                                                 ) : (
@@ -10815,7 +10846,7 @@ const AppBuilder = () => {
                                                                         </div>
                                                                         <button
                                                                             onClick={() => handleRemoveTableFromApp(tId)}
-                                                                            style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
+                                                                            style={{ background: 'transparent', border: 'none', color: 'var(--text-quaternary)', cursor: 'pointer', padding: '4px' }}
                                                                             title="Remove Table from App"
                                                                         >
                                                                             <X size={14} />
@@ -10846,10 +10877,10 @@ const AppBuilder = () => {
                                                                                                 const nextQueries = table.queries.map(item => item.id === q.id ? updatedQ : item);
                                                                                                 updateTable(tId, { queries: nextQueries });
                                                                                             }
-                                                                                        })} style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer' }}><ChevronRight size={12} /></button>
+                                                                                        })} style={{ border: 'none', background: 'transparent', color: 'var(--text-quaternary)', cursor: 'pointer' }}><ChevronRight size={12} /></button>
                                                                                     </div>
                                                                                 ))}
-                                                                                {(table.queries || []).length === 0 && <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontStyle: 'italic' }}>No queries defined</div>}
+                                                                                {(table.queries || []).length === 0 && <div style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', fontStyle: 'italic' }}>No queries defined</div>}
                                                                             </div>
                                                                         </div>
 
@@ -10879,10 +10910,10 @@ const AppBuilder = () => {
                                                                                                 const nextAggs = table.aggregations.map(item => item.id === a.id ? updatedA : item);
                                                                                                 updateTable(tId, { aggregations: nextAggs });
                                                                                             }
-                                                                                        })} style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer' }}><ChevronRight size={12} /></button>
+                                                                                        })} style={{ border: 'none', background: 'transparent', color: 'var(--text-quaternary)', cursor: 'pointer' }}><ChevronRight size={12} /></button>
                                                                                     </div>
                                                                                 ))}
-                                                                                {(table.aggregations || []).length === 0 && <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontStyle: 'italic' }}>No aggregations defined</div>}
+                                                                                {(table.aggregations || []).length === 0 && <div style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', fontStyle: 'italic' }}>No aggregations defined</div>}
                                                                             </div>
                                                                         </div>
 
@@ -10908,10 +10939,10 @@ const AppBuilder = () => {
                                                                                 {recordPlaceholders.filter(rp => rp.tableId === tId).map(rp => (
                                                                                     <div key={rp.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 8px', backgroundColor: '#f0fdf4', borderRadius: '4px', fontSize: '0.75rem', border: '1px solid #dcfce7' }}>
                                                                                         <span style={{ color: '#166534', fontWeight: 700 }}>{rp.name}</span>
-                                                                                        <button onClick={() => setRecordPlaceholders(recordPlaceholders.filter(r => r.id !== rp.id))} style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer' }}><Trash2 size={10} /></button>
+                                                                                        <button onClick={() => setRecordPlaceholders(recordPlaceholders.filter(r => r.id !== rp.id))} style={{ border: 'none', background: 'transparent', color: 'var(--text-quaternary)', cursor: 'pointer' }}><Trash2 size={10} /></button>
                                                                                     </div>
                                                                                 ))}
-                                                                                {recordPlaceholders.filter(rp => rp.tableId === tId).length === 0 && <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontStyle: 'italic' }}>No placeholders</div>}
+                                                                                {recordPlaceholders.filter(rp => rp.tableId === tId).length === 0 && <div style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', fontStyle: 'italic' }}>No placeholders</div>}
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -10926,12 +10957,12 @@ const AppBuilder = () => {
                                 </div>
 
                                 <div style={{ padding: '20px', borderTop: '1px solid var(--border-secondary)', flex: 1, overflowY: 'auto' }}>
-                                    <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginBottom: '15px', textTransform: 'uppercase', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', marginBottom: '15px', textTransform: 'uppercase', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
                                         <FolderOpen size={12} /> MY FRONT-LINE APPS
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                         {appsList.length === 0 ? (
-                                            <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic', padding: '10px', textAlign: 'center' }}>No saved apps yet.</div>
+                                            <div style={{ fontSize: '0.8rem', color: 'var(--text-quaternary)', fontStyle: 'italic', padding: '10px', textAlign: 'center' }}>No saved apps yet.</div>
                                         ) : (
                                             appsList.map(app => (
                                                 <div
@@ -10953,13 +10984,13 @@ const AppBuilder = () => {
                                                 >
                                                     <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                                                         <span style={{ fontSize: '0.85rem', fontWeight: currentAppId === app.id ? 700 : 500, color: currentAppId === app.id ? 'var(--odoo-teal)' : 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{app.name}</span>
-                                                        <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Updated {new Date(app.updated_at).toLocaleDateString()}</span>
+                                                        <span style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)' }}>Updated {new Date(app.updated_at).toLocaleDateString()}</span>
                                                     </div>
                                                     <div className="delete-btn" style={{ opacity: 0, transition: 'opacity 0.2s', display: 'flex', gap: '5px' }}>
                                                         <button
                                                             onClick={(e) => handleDeleteApp(app.id, e)}
                                                             title="Delete App"
-                                                            style={{ border: 'none', backgroundColor: 'transparent', color: '#94a3b8', padding: '4px', cursor: 'pointer', borderRadius: '4px' }}
+                                                            style={{ border: 'none', backgroundColor: 'transparent', color: 'var(--text-quaternary)', padding: '4px', cursor: 'pointer', borderRadius: '4px' }}
                                                             onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
                                                             onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
                                                         >
@@ -11262,7 +11293,7 @@ const AppBuilder = () => {
                                                 <p style={{
                                                     marginTop: '18px',
                                                     fontSize: '0.72rem',
-                                                    color: '#94a3b8',
+                                                    color: 'var(--text-quaternary)',
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     gap: '5px'
@@ -11667,10 +11698,10 @@ const AppBuilder = () => {
                                             {appCompletions.length === 0 ? (
                                                 <>
                                                     <div style={{ backgroundColor: '#e2e8f0', padding: '12px', borderRadius: '12px', marginBottom: '8px', opacity: 0.5 }}>
-                                                        <FileText size={24} color="#64748b" />
+                                                        <FileText size={24} color="var(--text-quaternary)" />
                                                     </div>
                                                     <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-quaternary)', textAlign: 'center' }}>No data available for the time range selected</div>
-                                                    <div style={{ fontSize: '0.65rem', color: '#94a3b8', textAlign: 'center' }}>Try selecting a longer time range to see data.</div>
+                                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', textAlign: 'center' }}>Try selecting a longer time range to see data.</div>
                                                 </>
                                             ) : (
                                                 appCompletions.slice(0, 20).map((comp, i) => (
@@ -11678,7 +11709,7 @@ const AppBuilder = () => {
                                                         <CheckCircle2 size={14} color="#10b981" />
                                                         <div style={{ flex: 1, minWidth: 0 }}>
                                                             <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>Completion #{i + 1}</div>
-                                                            <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>{new Date(comp.created_at || Date.now()).toLocaleString()}</div>
+                                                            <div style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)' }}>{new Date(comp.created_at || Date.now()).toLocaleString()}</div>
                                                         </div>
                                                         <span style={{ fontSize: '0.65rem', backgroundColor: '#d1fae5', color: '#065f46', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>COMPLETE</span>
                                                     </div>
@@ -11758,7 +11789,7 @@ const AppBuilder = () => {
                                                 </div>
 
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                                    <label style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>Alignment</label>
+                                                    <label style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase' }}>Alignment</label>
                                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '4px' }}>
                                                         <button onClick={() => alignComponents('left')} title="Align Left" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-primary)', borderRadius: '4px', padding: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-quaternary)' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={e => e.currentTarget.style.backgroundColor = '#f8fafc'}><AlignLeft size={16} /></button>
                                                         <button onClick={() => alignComponents('center')} title="Align Center (H)" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-primary)', borderRadius: '4px', padding: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-quaternary)' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={e => e.currentTarget.style.backgroundColor = '#f8fafc'}><AlignCenter size={16} /></button>
@@ -11770,7 +11801,7 @@ const AppBuilder = () => {
                                                 </div>
 
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                                    <label style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>Distribution</label>
+                                                    <label style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase' }}>Distribution</label>
                                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
                                                         <button onClick={() => distributeComponents('horizontal')} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-primary)', borderRadius: '4px', padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '0.7rem', color: 'var(--text-quaternary)' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={e => e.currentTarget.style.backgroundColor = '#f8fafc'}><MoveHorizontal size={14} /> Horizontally</button>
                                                         <button onClick={() => distributeComponents('vertical')} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-primary)', borderRadius: '4px', padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '0.7rem', color: 'var(--text-quaternary)' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={e => e.currentTarget.style.backgroundColor = '#f8fafc'}><MoveVertical size={14} /> Vertically</button>
@@ -11778,7 +11809,7 @@ const AppBuilder = () => {
                                                 </div>
 
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' }}>
-                                                    <label style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>Bulk Actions</label>
+                                                    <label style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase' }}>Bulk Actions</label>
                                                     <div style={{ display: 'flex', gap: '8px' }}>
                                                         <button onClick={() => handleCopy()} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px', background: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '6px', fontSize: '0.75rem', color: 'var(--text-quaternary)', cursor: 'pointer' }}><Copy size={14} /> Copy</button>
                                                         <button onClick={() => handleDelete()} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px', background: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '6px', fontSize: '0.75rem', color: '#ef4444', cursor: 'pointer' }}><Trash2 size={14} /> Delete</button>
@@ -11858,7 +11889,7 @@ const AppBuilder = () => {
                                                         <Zap size={16} fill="white" /> EDIT WIDGET LOGIC
                                                     </button>
                                                     <div style={{ position: 'relative' }}>
-                                                        <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                                        <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-quaternary)' }} />
                                                         <input
                                                             type="text"
                                                             placeholder="Search properties..."
@@ -11875,7 +11906,7 @@ const AppBuilder = () => {
                                                 {/* Layout Properties */}
                                                 <div style={{ borderBottom: '1px solid var(--border-secondary)', paddingBottom: '15px' }}>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                                                        <label style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>Triggers</label>
+                                                        <label style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase' }}>Triggers</label>
                                                     </div>
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                                         {[
@@ -11887,7 +11918,7 @@ const AppBuilder = () => {
                                                             return (
                                                                 <div key={group.label}>
                                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                                                        <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600 }}>{group.label}</span>
+                                                                        <span style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 600 }}>{group.label}</span>
                                                                         {group.label === 'Interactions' && (
                                                                             <button
                                                                                 onClick={() => {
@@ -11953,7 +11984,7 @@ const AppBuilder = () => {
                                                                                         ><Pencil size={11} /></button>
                                                                                         <button
                                                                                             onClick={() => updateComponentProps(selectedComp.id, { triggers: selectedComp.props.triggers.filter(t => t.id !== trig.id) })}
-                                                                                            style={{ background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer' }}
+                                                                                            style={{ background: 'none', border: 'none', color: 'var(--border-secondary)', cursor: 'pointer' }}
                                                                                             onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
                                                                                             onMouseLeave={e => e.currentTarget.style.color = '#cbd5e1'}
                                                                                         ><X size={11} /></button>
@@ -11962,7 +11993,7 @@ const AppBuilder = () => {
                                                                             );
                                                                         })}
                                                                         {groupTriggers.length === 0 && group.label === 'Interactions' && (
-                                                                            <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontStyle: 'italic' }}>No interaction triggers</div>
+                                                                            <div style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', fontStyle: 'italic' }}>No interaction triggers</div>
                                                                         )}
                                                                     </div>
                                                                 </div>
@@ -11972,7 +12003,7 @@ const AppBuilder = () => {
                                                 </div>
 
                                                 <div style={{ borderBottom: '1px solid var(--border-secondary)', paddingBottom: '15px' }}>
-                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Layout</label>
+                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Layout</label>
                                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                                                         <div>
                                                             <label style={{ display: 'block', fontSize: '0.6rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>X</label>
@@ -12023,26 +12054,26 @@ const AppBuilder = () => {
 
                                                 {/* Arrange Properties */}
                                                 <div style={{ borderBottom: '1px solid var(--border-secondary)', paddingBottom: '15px', paddingTop: '15px' }}>
-                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Arrange</label>
+                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Arrange</label>
                                                     <div style={{ display: 'flex', gap: '8px' }}>
                                                         <button title="Bring to Front" onClick={() => reorderComponent(selectedComp.id, 'FRONT')} style={{ flex: 1, padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', cursor: 'pointer', display: 'flex', justifyContent: 'center' }}>
-                                                            <BringToFront size={16} color="#475569" />
+                                                            <BringToFront size={16} color="var(--text-tertiary)" />
                                                         </button>
                                                         <button title="Bring Forward" onClick={() => reorderComponent(selectedComp.id, 'FORWARD')} style={{ flex: 1, padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', cursor: 'pointer', display: 'flex', justifyContent: 'center' }}>
-                                                            <ArrowUp size={16} color="#475569" />
+                                                            <ArrowUp size={16} color="var(--text-tertiary)" />
                                                         </button>
                                                         <button title="Send Backward" onClick={() => reorderComponent(selectedComp.id, 'BACKWARD')} style={{ flex: 1, padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', cursor: 'pointer', display: 'flex', justifyContent: 'center' }}>
-                                                            <ArrowDown size={16} color="#475569" />
+                                                            <ArrowDown size={16} color="var(--text-tertiary)" />
                                                         </button>
                                                         <button title="Send to Back" onClick={() => reorderComponent(selectedComp.id, 'BACK')} style={{ flex: 1, padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', cursor: 'pointer', display: 'flex', justifyContent: 'center' }}>
-                                                            <SendToBack size={16} color="#475569" />
+                                                            <SendToBack size={16} color="var(--text-tertiary)" />
                                                         </button>
                                                     </div>
                                                 </div>
 
                                                 {/* Transform Properties */}
                                                 <div style={{ borderBottom: '1px solid var(--border-secondary)', paddingBottom: '15px', paddingTop: '15px' }}>
-                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Transform</label>
+                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Transform</label>
                                                     <div>
                                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                                                             <label style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)' }}>Rotation</label>
@@ -12061,7 +12092,7 @@ const AppBuilder = () => {
 
                                                 {/* Visibility Properties */}
                                                 <div style={{ borderBottom: '1px solid var(--border-secondary)', paddingBottom: '15px', paddingTop: '15px' }}>
-                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Visibility</label>
+                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Visibility</label>
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                             <input
@@ -12082,7 +12113,7 @@ const AppBuilder = () => {
                                                         {selectedComp.props.visibilityCondition && (
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: 'var(--bg-secondary)', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-primary)' }}>
                                                                 <div>
-                                                                    <label style={{ display: 'block', fontSize: '0.6rem', color: '#94a3b8', marginBottom: '4px' }}>VARIABLE</label>
+                                                                    <label style={{ display: 'block', fontSize: '0.6rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>VARIABLE</label>
                                                                     <select
                                                                         value={selectedComp.props.visibilityCondition.variable}
                                                                         onChange={(e) => updateComponentProps(selectedComp.id, { visibilityCondition: { ...selectedComp.props.visibilityCondition, variable: e.target.value } })}
@@ -12094,7 +12125,7 @@ const AppBuilder = () => {
                                                                 </div>
                                                                 <div style={{ display: 'flex', gap: '4px' }}>
                                                                     <div style={{ flex: 1 }}>
-                                                                        <label style={{ display: 'block', fontSize: '0.6rem', color: '#94a3b8', marginBottom: '4px' }}>OP</label>
+                                                                        <label style={{ display: 'block', fontSize: '0.6rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>OP</label>
                                                                         <select
                                                                             value={selectedComp.props.visibilityCondition.operator}
                                                                             onChange={(e) => updateComponentProps(selectedComp.id, { visibilityCondition: { ...selectedComp.props.visibilityCondition, operator: e.target.value } })}
@@ -12108,7 +12139,7 @@ const AppBuilder = () => {
                                                                         </select>
                                                                     </div>
                                                                     <div style={{ flex: 2 }}>
-                                                                        <label style={{ display: 'block', fontSize: '0.6rem', color: '#94a3b8', marginBottom: '4px' }}>VALUE</label>
+                                                                        <label style={{ display: 'block', fontSize: '0.6rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>VALUE</label>
                                                                         <input
                                                                             type="text"
                                                                             value={selectedComp.props.visibilityCondition.value}
@@ -12124,7 +12155,7 @@ const AppBuilder = () => {
 
                                                 {/* Effects Properties */}
                                                 <div style={{ borderBottom: '1px solid var(--border-secondary)', paddingBottom: '15px', paddingTop: '15px' }}>
-                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Effects</label>
+                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Effects</label>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                         <input
                                                             type="checkbox"
@@ -12165,11 +12196,11 @@ const AppBuilder = () => {
                                                             width: '100%',
                                                             padding: '10px 12px',
                                                             backgroundColor: 'var(--bg-panel)',
-                                                            border: '1px solid #cbd5e1',
+                                                            border: '1px solid var(--border-secondary)',
                                                             borderRadius: '8px',
                                                             fontSize: '0.95rem',
                                                             fontWeight: 600,
-                                                            color: '#0f172a',
+                                                            color: 'var(--text-primary)',
                                                             outline: 'none',
                                                             marginBottom: '15px'
                                                         }}
@@ -12195,16 +12226,16 @@ const AppBuilder = () => {
                                                             width: '100%',
                                                             padding: '10px 12px',
                                                             backgroundColor: 'var(--bg-panel)',
-                                                            border: '1px solid #cbd5e1',
+                                                            border: '1px solid var(--border-secondary)',
                                                             borderRadius: '8px',
                                                             fontSize: '0.95rem',
                                                             fontWeight: 600,
-                                                            color: '#0f172a',
+                                                            color: 'var(--text-primary)',
                                                             outline: 'none',
                                                             transition: 'border-color 0.2s'
                                                         }}
                                                     />
-                                                    <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '8px', lineHeight: '1.4' }}>
+                                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', marginTop: '8px', lineHeight: '1.4' }}>
                                                         Unique name used for triggers and logic. Auto-renames if duplicate.
                                                     </div>
 
@@ -12284,13 +12315,13 @@ const AppBuilder = () => {
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', borderBottom: '1px solid var(--border-secondary)', paddingBottom: '15px' }}>
                                                         {/* Label */}
                                                         <div>
-                                                            <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>Button Label</label>
+                                                            <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>Button Label</label>
                                                             <input value={selectedComp.props.label || ''} onChange={e => updateComponentProps(selectedComp.id, { label: e.target.value })} style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-primary)', borderRadius: '6px', fontSize: '0.85rem' }} />
                                                         </div>
 
                                                         {/* Color Variant */}
                                                         <div>
-                                                            <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>Color Variant</label>
+                                                            <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>Color Variant</label>
                                                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px' }}>
                                                                 {[
                                                                     { key: 'blue', bg: '#2563eb', label: 'Blue' },
@@ -12320,7 +12351,7 @@ const AppBuilder = () => {
 
                                                         {/* Icon selector */}
                                                         <div>
-                                                            <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>Icon</label>
+                                                            <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>Icon</label>
                                                             <select
                                                                 value={selectedComp.props.iconName || 'ChevronRight'}
                                                                 onChange={e => updateComponentProps(selectedComp.id, { iconName: e.target.value })}
@@ -12334,7 +12365,7 @@ const AppBuilder = () => {
 
                                                         {/* Icon Position */}
                                                         <div>
-                                                            <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>Icon Position</label>
+                                                            <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>Icon Position</label>
                                                             <div style={{ display: 'flex', gap: '8px' }}>
                                                                 {['left', 'right'].map(pos => (
                                                                     <button
@@ -12354,13 +12385,13 @@ const AppBuilder = () => {
 
                                                         {/* Font Size */}
                                                         <div>
-                                                            <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>Font Size: {selectedComp.props.fontSize || 14}px</label>
+                                                            <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>Font Size: {selectedComp.props.fontSize || 14}px</label>
                                                             <input type="range" min="10" max="28" value={selectedComp.props.fontSize || 14} onChange={e => updateComponentProps(selectedComp.id, { fontSize: parseInt(e.target.value) })} style={{ width: '100%' }} />
                                                         </div>
 
                                                         {/* Action */}
                                                         <div>
-                                                            <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>Action</label>
+                                                            <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>Action</label>
                                                             <select
                                                                 value={selectedComp.props.action || 'NEXT_STEP'}
                                                                 onChange={e => updateComponentProps(selectedComp.id, { action: e.target.value })}
@@ -12375,7 +12406,7 @@ const AppBuilder = () => {
                                                         </div>
                                                         {selectedComp.props.action === 'GO_TO_STEP' && (
                                                             <div>
-                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>Target Step</label>
+                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>Target Step</label>
                                                                 <select
                                                                     value={selectedComp.props.targetStepId || ''}
                                                                     onChange={e => updateComponentProps(selectedComp.id, { targetStepId: e.target.value })}
@@ -12406,12 +12437,12 @@ const AppBuilder = () => {
                                                         </div>
                                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                                                             <div>
-                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', marginBottom: '4px' }}>TEXT COLOR</label>
+                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>TEXT COLOR</label>
                                                                 <ColorPicker value={selectedComp.props.color || '#0f172a'} onChange={(val) => updateComponentProps(selectedComp.id, { color: val })} />
 
                                                             </div>
                                                             <div>
-                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', marginBottom: '4px' }}>BACKGROUND</label>
+                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>BACKGROUND</label>
                                                                 <ColorPicker value={selectedComp.props.backgroundColor || '#ffffff'} onChange={(val) => updateComponentProps(selectedComp.id, { backgroundColor: val })} />
 
                                                             </div>
@@ -12425,10 +12456,10 @@ const AppBuilder = () => {
                                                         {/* Section: Content */}
                                                         {(sidebarSearch === '' || 'content text label html format margins'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>Content</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>Content</label>
                                                                 <div className="prop-group" style={{ marginBottom: '12px' }}>
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Text Content</label>
-                                                                    <textarea value={selectedComp.props.text || ''} onChange={(e) => updateComponentProps(selectedComp.id, { text: e.target.value })} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: '#0f172a', minHeight: '80px', fontFamily: 'inherit', fontSize: '0.85rem' }} />
+                                                                    <textarea value={selectedComp.props.text || ''} onChange={(e) => updateComponentProps(selectedComp.id, { text: e.target.value })} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)', minHeight: '80px', fontFamily: 'inherit', fontSize: '0.85rem' }} />
                                                                 </div>
                                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                                                                     <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>HTML Format</label>
@@ -12444,7 +12475,7 @@ const AppBuilder = () => {
                                                         {/* Section: Interaction */}
                                                         {(sidebarSearch === '' || 'interaction visible'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
                                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                     <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Visible</label>
                                                                     <input type="checkbox" checked={selectedComp.props.visible !== false} onChange={(e) => updateComponentProps(selectedComp.id, { visible: e.target.checked })} style={{ width: '16px', height: '16px' }} />
@@ -12455,7 +12486,7 @@ const AppBuilder = () => {
                                                         {/* Section: Appearance */}
                                                         {(sidebarSearch === '' || 'appearance background color text color alignment'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
                                                                 <div className="prop-group" style={{ marginBottom: '12px' }}>
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Background Color</label>
                                                                     <ColorPicker value={selectedComp.props.backgroundColor || 'transparent'} onChange={(val) => updateComponentProps(selectedComp.id, { backgroundColor: val })} />
@@ -12478,7 +12509,7 @@ const AppBuilder = () => {
                                                         {/* Section: Typography */}
                                                         {(sidebarSearch === '' || 'typography font size typeface bold italic'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Typography</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Typography</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Font Size</label>
@@ -12513,11 +12544,11 @@ const AppBuilder = () => {
                                                         <div style={{ display: 'flex', gap: '10px' }}>
                                                             <div style={{ flex: 1 }}>
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>MIN</label>
-                                                                <input type="number" value={selectedComp.props.min} onChange={(e) => updateComponentProps(selectedComp.id, { min: parseFloat(e.target.value) })} style={{ width: '100%', padding: '10px', backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: '#0f172a' }} />
+                                                                <input type="number" value={selectedComp.props.min} onChange={(e) => updateComponentProps(selectedComp.id, { min: parseFloat(e.target.value) })} style={{ width: '100%', padding: '10px', backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)' }} />
                                                             </div>
                                                             <div style={{ flex: 1 }}>
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>MAX</label>
-                                                                <input type="number" value={selectedComp.props.max} onChange={(e) => updateComponentProps(selectedComp.id, { max: parseFloat(e.target.value) })} style={{ width: '100%', padding: '10px', backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: '#0f172a' }} />
+                                                                <input type="number" value={selectedComp.props.max} onChange={(e) => updateComponentProps(selectedComp.id, { max: parseFloat(e.target.value) })} style={{ width: '100%', padding: '10px', backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)' }} />
                                                             </div>
                                                         </div>
                                                     </>
@@ -12528,7 +12559,7 @@ const AppBuilder = () => {
                                                         {/* Section: Content */}
                                                         {(sidebarSearch === '' || 'content text label image'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>Content</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>Content</label>
                                                                 <div className="prop-group" style={{ marginBottom: '10px' }}>
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Text</label>
                                                                     <input value={selectedComp.props.text || selectedComp.props.label || ''} onChange={(e) => updateComponentProps(selectedComp.id, { text: e.target.value, label: e.target.value })} style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
@@ -12543,7 +12574,7 @@ const AppBuilder = () => {
                                                         {/* Section: Interaction */}
                                                         {(sidebarSearch === '' || 'interaction enabled visible feedback click'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                         <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Enabled</label>
@@ -12564,7 +12595,7 @@ const AppBuilder = () => {
                                                         {/* Section: Appearance */}
                                                         {(sidebarSearch === '' || 'appearance background color shape font typeface'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
 
                                                                 <div className="prop-group" style={{ marginBottom: '12px' }}>
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Background Color</label>
@@ -12600,7 +12631,7 @@ const AppBuilder = () => {
                                                         {/* Section: Typography */}
                                                         {(sidebarSearch === '' || 'typography font size bold italic typeface'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Typography</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Typography</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Font Size</label>
@@ -12634,7 +12665,7 @@ const AppBuilder = () => {
                                                         {/* Section: Content */}
                                                         {(sidebarSearch === '' || 'content text label'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>Content</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>Content</label>
                                                                 <div className="prop-group">
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Text</label>
                                                                     <input value={selectedComp.props.text || selectedComp.props.label || ''} onChange={(e) => updateComponentProps(selectedComp.id, { text: e.target.value, label: e.target.value })} style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
@@ -12645,7 +12676,7 @@ const AppBuilder = () => {
                                                         {/* Section: State */}
                                                         {(sidebarSearch === '' || 'state checked default value'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Initial State</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Initial State</label>
                                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                     <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Checked</label>
                                                                     <input type="checkbox" checked={selectedComp.props.checked || selectedComp.props.defaultValue || false} onChange={(e) => updateComponentProps(selectedComp.id, { checked: e.target.checked, defaultValue: e.target.checked })} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
@@ -12656,7 +12687,7 @@ const AppBuilder = () => {
                                                         {/* Section: Interaction */}
                                                         {(sidebarSearch === '' || 'interaction enabled visible'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                         <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Enabled</label>
@@ -12673,7 +12704,7 @@ const AppBuilder = () => {
                                                         {/* Section: Appearance */}
                                                         {(sidebarSearch === '' || 'appearance background color text color'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
 
                                                                 <div className="prop-group" style={{ marginBottom: '12px' }}>
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Background Color</label>
@@ -12690,7 +12721,7 @@ const AppBuilder = () => {
                                                         {/* Section: Typography */}
                                                         {(sidebarSearch === '' || 'typography font size bold italic typeface'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Typography</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Typography</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Font Size</label>
@@ -12722,7 +12753,7 @@ const AppBuilder = () => {
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                                         {/* Section: Content */}
                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>Content</label>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>Content</label>
                                                             <div className="prop-group" style={{ marginBottom: '10px' }}>
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Button Text</label>
                                                                 <input value={selectedComp.props.text || selectedComp.props.label || ''} onChange={(e) => updateComponentProps(selectedComp.id, { text: e.target.value, label: e.target.value })} style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
@@ -12748,7 +12779,7 @@ const AppBuilder = () => {
 
                                                         {/* Section: Interaction */}
                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                     <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Show Filter Bar</label>
@@ -12771,7 +12802,7 @@ const AppBuilder = () => {
 
                                                         {/* Section: Appearance */}
                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
                                                             <div className="prop-group" style={{ marginBottom: '12px' }}>
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Button Color</label>
                                                                 <ColorPicker value={selectedComp.props.backgroundColor || '#3b82f6'} onChange={(val) => updateComponentProps(selectedComp.id, { backgroundColor: val })} />
@@ -12801,7 +12832,7 @@ const AppBuilder = () => {
                                                         {/* Section: Content */}
                                                         {(sidebarSearch === '' || 'content elements prompt prompt selection'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>Content</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>Content</label>
                                                                 <div className="prop-group" style={{ marginBottom: '10px' }}>
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Prompt</label>
                                                                     <input value={selectedComp.props.prompt || ''} onChange={(e) => updateComponentProps(selectedComp.id, { prompt: e.target.value })} style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
@@ -12825,7 +12856,7 @@ const AppBuilder = () => {
                                                         {/* Section: Interaction */}
                                                         {(sidebarSearch === '' || 'interaction enabled visible feedback filter'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                         <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Show Filter Bar</label>
@@ -12850,7 +12881,7 @@ const AppBuilder = () => {
                                                         {/* Section: Appearance */}
                                                         {(sidebarSearch === '' || 'appearance background color shape text color alignment'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
                                                                 <div className="prop-group" style={{ marginBottom: '12px' }}>
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Button Color</label>
                                                                     <ColorPicker value={selectedComp.props.backgroundColor || '#3b82f6'} onChange={(val) => updateComponentProps(selectedComp.id, { backgroundColor: val })} />
@@ -12886,7 +12917,7 @@ const AppBuilder = () => {
                                                         {/* Section: Content */}
                                                         {(sidebarSearch === '' || 'content text label button'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>Content</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>Content</label>
                                                                 <div className="prop-group">
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Button Text</label>
                                                                     <input value={selectedComp.props.text || selectedComp.props.label || ''} onChange={(e) => updateComponentProps(selectedComp.id, { text: e.target.value, label: e.target.value })} style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
@@ -12897,7 +12928,7 @@ const AppBuilder = () => {
                                                         {/* Section: Interaction */}
                                                         {(sidebarSearch === '' || 'interaction enabled visible feedback'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                         <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Enabled</label>
@@ -12918,7 +12949,7 @@ const AppBuilder = () => {
                                                         {/* Section: Appearance */}
                                                         {(sidebarSearch === '' || 'appearance background color text image shape alignment'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Background Color</label>
@@ -12956,7 +12987,7 @@ const AppBuilder = () => {
                                                         {/* Section: Typography */}
                                                         {(sidebarSearch === '' || 'typography font size bold italic typeface'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Typography</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Typography</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Font Size</label>
@@ -12989,7 +13020,7 @@ const AppBuilder = () => {
                                                         {/* Section: Content */}
                                                         {(sidebarSearch === '' || 'content text label button'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>Content</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>Content</label>
                                                                 <div className="prop-group">
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Button Text</label>
                                                                     <input value={selectedComp.props.text || selectedComp.props.label || ''} onChange={(e) => updateComponentProps(selectedComp.id, { text: e.target.value, label: e.target.value })} style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
@@ -13000,7 +13031,7 @@ const AppBuilder = () => {
                                                         {/* Section: Interaction */}
                                                         {(sidebarSearch === '' || 'interaction enabled visible feedback'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                         <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Enabled</label>
@@ -13021,7 +13052,7 @@ const AppBuilder = () => {
                                                         {/* Section: Appearance */}
                                                         {(sidebarSearch === '' || 'appearance background color text image shape alignment'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Background Color</label>
@@ -13059,7 +13090,7 @@ const AppBuilder = () => {
                                                         {/* Section: Typography */}
                                                         {(sidebarSearch === '' || 'typography font size bold italic typeface'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Typography</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Typography</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Font Size</label>
@@ -13093,11 +13124,11 @@ const AppBuilder = () => {
                                                     <>
                                                         <div className="prop-group">
                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label>
-                                                            <input value={selectedComp.props.label} onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: '#0f172a' }} />
+                                                            <input value={selectedComp.props.label} onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)' }} />
                                                         </div>
                                                         <div className="prop-group">
                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>TARGET QTY (QTY Required)</label>
-                                                            <input type="number" min="1" value={selectedComp.props.targetQty} onChange={(e) => updateComponentProps(selectedComp.id, { targetQty: parseInt(e.target.value) || 1 })} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: '#0f172a' }} />
+                                                            <input type="number" min="1" value={selectedComp.props.targetQty} onChange={(e) => updateComponentProps(selectedComp.id, { targetQty: parseInt(e.target.value) || 1 })} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)' }} />
                                                         </div>
                                                     </>
                                                 )}
@@ -13107,7 +13138,7 @@ const AppBuilder = () => {
                                                         {/* Section: Content */}
                                                         {(sidebarSearch === '' || 'content picture src alt description upload'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Content</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Content</label>
                                                                 <div className="prop-group" style={{ marginBottom: '12px' }}>
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Picture URL</label>
                                                                     <input value={selectedComp.props.picture || selectedComp.props.src || ''} onChange={(e) => updateComponentProps(selectedComp.id, { picture: e.target.value, src: e.target.value })} placeholder="https://..." style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
@@ -13118,7 +13149,7 @@ const AppBuilder = () => {
                                                                 </div>
                                                                 <div style={{ position: 'relative' }}>
                                                                     <input type="file" ref={widgetImageInputRef} style={{ display: 'none' }} accept="image/*" onChange={(e) => handleLocalImageUpload(e, selectedComp.id)} />
-                                                                    <button onClick={() => widgetImageInputRef.current?.click()} disabled={isUploadingImage} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-secondary)', border: '1px dashed #cbd5e1', borderRadius: '4px', color: 'var(--text-tertiary)', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: isUploadingImage ? 'not-allowed' : 'pointer' }}>
+                                                                    <button onClick={() => widgetImageInputRef.current?.click()} disabled={isUploadingImage} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-secondary)', border: '1px dashed var(--border-secondary)', borderRadius: '4px', color: 'var(--text-tertiary)', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: isUploadingImage ? 'not-allowed' : 'pointer' }}>
                                                                         {isUploadingImage ? (
                                                                             <><Loader2 size={14} className="animate-spin" /> Uploading...</>
                                                                         ) : (
@@ -13132,7 +13163,7 @@ const AppBuilder = () => {
                                                         {/* Section: Interaction */}
                                                         {(sidebarSearch === '' || 'interaction clickable visible'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                         <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Clickable</label>
@@ -13149,7 +13180,7 @@ const AppBuilder = () => {
                                                         {/* Section: Appearance */}
                                                         {(sidebarSearch === '' || 'appearance scaling scale rotation animation'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
                                                                 <div className="prop-group" style={{ marginBottom: '12px' }}>
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Scaling</label>
                                                                     <select value={selectedComp.props.scaling || 0} onChange={(e) => updateComponentProps(selectedComp.id, { scaling: parseInt(e.target.value) })} style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}>
@@ -13187,7 +13218,7 @@ const AppBuilder = () => {
                                                         {/* Section: Appearance */}
                                                         {(sidebarSearch === '' || 'appearance color border rotation radius width'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
 
                                                                 <div className="prop-group" style={{ marginBottom: '12px' }}>
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Fill Color</label>
@@ -13249,11 +13280,11 @@ const AppBuilder = () => {
                                                         <input value={selectedComp.props.title || ''} onChange={(e) => updateComponentProps(selectedComp.id, { title: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', marginBottom: '12px' }} />
 
                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PDF URL</label>
-                                                        <input value={selectedComp.props.url} onChange={(e) => updateComponentProps(selectedComp.id, { url: e.target.value })} placeholder="https://..." style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: '#0f172a', marginBottom: '12px' }} />
+                                                        <input value={selectedComp.props.url} onChange={(e) => updateComponentProps(selectedComp.id, { url: e.target.value })} placeholder="https://..." style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)', marginBottom: '12px' }} />
 
                                                         <div style={{ position: 'relative', marginBottom: '12px' }}>
                                                             <input type="file" ref={widgetPdfInputRef} style={{ display: 'none' }} accept="application/pdf" onChange={(e) => handleLocalPdfUpload(e, selectedComp.id)} />
-                                                            <button onClick={() => widgetPdfInputRef.current?.click()} disabled={isUploadingPdf} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-secondary)', border: '1px dashed #cbd5e1', borderRadius: '4px', color: 'var(--text-tertiary)', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: isUploadingPdf ? 'not-allowed' : 'pointer' }}>
+                                                            <button onClick={() => widgetPdfInputRef.current?.click()} disabled={isUploadingPdf} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-secondary)', border: '1px dashed var(--border-secondary)', borderRadius: '4px', color: 'var(--text-tertiary)', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: isUploadingPdf ? 'not-allowed' : 'pointer' }}>
                                                                 {isUploadingPdf ? (
                                                                     <><Loader2 size={14} className="animate-spin" /> Uploading...</>
                                                                 ) : (
@@ -13284,7 +13315,7 @@ const AppBuilder = () => {
                                                 {selectedComp.type === 'VIDEO' && (
                                                     <div className="prop-group">
                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>VIDEO URL (Direct or YouTube)</label>
-                                                        <input value={selectedComp.props.url} onChange={(e) => updateComponentProps(selectedComp.id, { url: e.target.value })} placeholder="https://..." style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: '#0f172a' }} />
+                                                        <input value={selectedComp.props.url} onChange={(e) => updateComponentProps(selectedComp.id, { url: e.target.value })} placeholder="https://..." style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)' }} />
                                                     </div>
                                                 )}
 
@@ -13292,7 +13323,7 @@ const AppBuilder = () => {
                                                 {['PLAYER', 'SOUND', 'VIDEO_PLAYER', 'SPEECH_RECOGNIZER', 'TEXT_TO_SPEECH', 'FILE_PICKER', 'SOUND_RECORDER'].includes(selectedComp.type) && (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                            <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Media Config</div>
+                                                            <div style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Media Config</div>
 
                                                             {['PLAYER', 'SOUND', 'VIDEO_PLAYER'].includes(selectedComp.type) && (
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
@@ -13327,7 +13358,7 @@ const AppBuilder = () => {
                                                                 {/* PLAYER Settings */}
                                                                 {selectedComp.type === 'PLAYER' && (sidebarSearch === '' || 'media player volume source loop foreground'.includes(sidebarSearch.toLowerCase())) && (
                                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Media Properties</label>
+                                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Media Properties</label>
                                                                         <div className="prop-group" style={{ marginBottom: '12px' }}>
                                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Source</label>
                                                                             <input value={selectedComp.props.source || ''} onChange={(e) => updateComponentProps(selectedComp.id, { source: e.target.value })} placeholder="audio.mp3" style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
@@ -13352,7 +13383,7 @@ const AppBuilder = () => {
                                                                 {/* VIDEO_PLAYER Settings */}
                                                                 {selectedComp.type === 'VIDEO_PLAYER' && (sidebarSearch === '' || 'media video player volume source full screen'.includes(sidebarSearch.toLowerCase())) && (
                                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Video Properties</label>
+                                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Video Properties</label>
                                                                         <div className="prop-group" style={{ marginBottom: '12px' }}>
                                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Source</label>
                                                                             <input value={selectedComp.props.source || ''} onChange={(e) => updateComponentProps(selectedComp.id, { source: e.target.value })} placeholder="video.mp4" style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
@@ -13371,7 +13402,7 @@ const AppBuilder = () => {
                                                                 {/* SPEECH_RECOGNIZER Settings */}
                                                                 {selectedComp.type === 'SPEECH_RECOGNIZER' && (sidebarSearch === '' || 'media speech recognizer legacy dialog'.includes(sidebarSearch.toLowerCase())) && (
                                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
+                                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
                                                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                             <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Use Legacy (Dialog Mode)</label>
                                                                             <input type="checkbox" checked={selectedComp.props.useLegacy !== false} onChange={(e) => updateComponentProps(selectedComp.id, { useLegacy: e.target.checked })} style={{ width: '16px', height: '16px' }} />
@@ -13382,7 +13413,7 @@ const AppBuilder = () => {
                                                                 {/* TEXT_TO_SPEECH Settings */}
                                                                 {selectedComp.type === 'TEXT_TO_SPEECH' && (sidebarSearch === '' || 'media speech tts language country pitch rate'.includes(sidebarSearch.toLowerCase())) && (
                                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>TTS Config</label>
+                                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>TTS Config</label>
                                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                                                             <div className="prop-group">
                                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Language (ISO)</label>
@@ -13414,7 +13445,7 @@ const AppBuilder = () => {
                                                         {/* Section: Configuration */}
                                                         {(sidebarSearch === '' || 'config refresh sensor time interval distance sensitivity'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Sensor Config</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Sensor Config</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
 
                                                                     {selectedComp.type === 'CLOCK' && (
@@ -13525,7 +13556,7 @@ const AppBuilder = () => {
                                                         {/* Section: Interaction */}
                                                         {(sidebarSearch === '' || 'interaction enabled'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                         <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Enabled</label>
@@ -13543,7 +13574,7 @@ const AppBuilder = () => {
                                                         {/* Section: Configuration */}
                                                         {(sidebarSearch === '' || 'config storage project redis token spreadsheet namespace server url'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Storage Config</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Storage Config</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
 
                                                                     {selectedComp.type === 'CLOUD_DB' && (
@@ -13645,7 +13676,7 @@ const AppBuilder = () => {
                                                 {['CHART', 'CHART_DATA_2D', 'TRENDLINE'].includes(selectedComp.type) && (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                            <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Chart Analytics</div>
+                                                            <div style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Chart Analytics</div>
                                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
 
                                                                 {/* ── Chart Configurations ── */}
@@ -13654,7 +13685,7 @@ const AppBuilder = () => {
                                                                         {/* Section: Configuration */}
                                                                         {(sidebarSearch === '' || 'config chart data trendline type description model'.includes(sidebarSearch.toLowerCase())) && (
                                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Chart Config</label>
+                                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Chart Config</label>
                                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
 
                                                                                     {selectedComp.type === 'CHART' && (
@@ -13734,7 +13765,7 @@ const AppBuilder = () => {
                                                                         {/* Section: Appearance */}
                                                                         {(sidebarSearch === '' || 'appearance color axes'.includes(sidebarSearch.toLowerCase())) && (
                                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
                                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                                     {selectedComp.type === 'CHART' && (
                                                                                         <div className="prop-group">
@@ -13765,7 +13796,7 @@ const AppBuilder = () => {
                                                         {/* Section: Configuration */}
                                                         {(sidebarSearch === '' || 'config map marker circle lat lon zoom api transport'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Map Config</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Map Config</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
 
                                                                     {selectedComp.type === 'MAP' && (
@@ -13863,7 +13894,7 @@ const AppBuilder = () => {
                                                         {/* Section: Appearance */}
                                                         {(sidebarSearch === '' || 'appearance title stroke color'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     {['MARKER', 'CIRCLE', 'POLYGON', 'RECTANGLE', 'LINE_STRING'].includes(selectedComp.type) && (
                                                                         <>
@@ -13888,7 +13919,7 @@ const AppBuilder = () => {
                                                         {/* Section: Content */}
                                                         {(sidebarSearch === '' || 'content url home webviewstring'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Content</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Content</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Home URL</label>
@@ -13915,7 +13946,7 @@ const AppBuilder = () => {
                                                         {/* Section: Interaction */}
                                                         {(sidebarSearch === '' || 'interaction links ssl permission camera location microphone visible'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                                                     {[
                                                                         { key: 'followLinks', label: 'Follow Links' },
@@ -13951,7 +13982,7 @@ const AppBuilder = () => {
                                                             value={selectedComp.props.label}
                                                             onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })}
                                                             placeholder="Location Name"
-                                                            style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: '#0f172a', marginBottom: '12px' }}
+                                                            style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)', marginBottom: '12px' }}
                                                         />
 
                                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
@@ -13962,7 +13993,7 @@ const AppBuilder = () => {
                                                                     step="0.0001"
                                                                     value={selectedComp.props.lat}
                                                                     onChange={(e) => updateComponentProps(selectedComp.id, { lat: parseFloat(e.target.value) || 0 })}
-                                                                    style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: '#0f172a' }}
+                                                                    style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)' }}
                                                                 />
                                                             </div>
                                                             <div>
@@ -13972,7 +14003,7 @@ const AppBuilder = () => {
                                                                     step="0.0001"
                                                                     value={selectedComp.props.lng}
                                                                     onChange={(e) => updateComponentProps(selectedComp.id, { lng: parseFloat(e.target.value) || 0 })}
-                                                                    style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: '#0f172a' }}
+                                                                    style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)' }}
                                                                 />
                                                             </div>
                                                         </div>
@@ -14004,7 +14035,7 @@ const AppBuilder = () => {
                                                         <select
                                                             value={selectedComp.props.type || 'rectangle'}
                                                             onChange={(e) => updateComponentProps(selectedComp.id, { type: e.target.value })}
-                                                            style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: '#0f172a', marginBottom: '12px' }}
+                                                            style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)', marginBottom: '12px' }}
                                                         >
                                                             <option value="rectangle">Rectangle</option>
                                                             <option value="rounded_rectangle">Rounded Rectangle</option>
@@ -14034,14 +14065,14 @@ const AppBuilder = () => {
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '12px', marginBottom: '8px' }}>
                                                                     {['rounded_rectangle'].includes(selectedComp.props.type) ? 'BORDER THICKNESS' : 'LINE THICKNESS'}
                                                                 </label>
-                                                                <input type="number" min="1" value={selectedComp.props.strokeWidth || 4} onChange={(e) => updateComponentProps(selectedComp.id, { strokeWidth: parseInt(e.target.value) || 1 })} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: '#0f172a' }} />
+                                                                <input type="number" min="1" value={selectedComp.props.strokeWidth || 4} onChange={(e) => updateComponentProps(selectedComp.id, { strokeWidth: parseInt(e.target.value) || 1 })} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)' }} />
                                                             </>
                                                         )}
 
                                                         {!['line', 'arrow_line', 'arrow_right', 'arrow_left', 'arrow_up', 'arrow_down', 'circle', 'ellipse', 'triangle', 'trapezium'].includes(selectedComp.props.type) && (
                                                             <>
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '12px', marginBottom: '8px' }}>CORNER RADIUS</label>
-                                                                <input type="number" value={selectedComp.props.borderRadius} onChange={(e) => updateComponentProps(selectedComp.id, { borderRadius: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: '#0f172a' }} />
+                                                                <input type="number" value={selectedComp.props.borderRadius} onChange={(e) => updateComponentProps(selectedComp.id, { borderRadius: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)' }} />
                                                             </>
                                                         )}
                                                     </div>
@@ -14099,15 +14130,15 @@ const AppBuilder = () => {
                                                     <>
                                                         <div className="prop-group">
                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label>
-                                                            <input value={selectedComp.props.label} onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: '#0f172a' }} />
+                                                            <input value={selectedComp.props.label} onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)' }} />
                                                         </div>
                                                         <div style={{ display: 'flex', gap: '10px' }}>
                                                             <div style={{ flex: 1 }}>
-                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', marginBottom: '4px' }}>DEFAULT</label>
+                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>DEFAULT</label>
                                                                 <input type="number" value={selectedComp.props.defaultValue} onChange={(e) => updateComponentProps(selectedComp.id, { defaultValue: parseFloat(e.target.value) || 0 })} style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
                                                             </div>
                                                             <div style={{ flex: 1 }}>
-                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', marginBottom: '4px' }}>UNIT</label>
+                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>UNIT</label>
                                                                 <input value={selectedComp.props.unit} onChange={(e) => updateComponentProps(selectedComp.id, { unit: e.target.value })} style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
                                                             </div>
                                                         </div>
@@ -14119,7 +14150,7 @@ const AppBuilder = () => {
                                                         {/* Section: Content */}
                                                         {(sidebarSearch === '' || 'content text hint label'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Content</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Content</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Text</label>
@@ -14140,7 +14171,7 @@ const AppBuilder = () => {
                                                         {/* Section: Interaction & Behavior */}
                                                         {(sidebarSearch === '' || 'interaction behavior enabled visible read multi number'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                         <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>MultiLine</label>
@@ -14169,7 +14200,7 @@ const AppBuilder = () => {
                                                         {/* Section: Appearance */}
                                                         {(sidebarSearch === '' || 'appearance background color text alignment'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Background Color</label>
@@ -14194,7 +14225,7 @@ const AppBuilder = () => {
                                                         {/* Section: Typography */}
                                                         {(sidebarSearch === '' || 'typography font size bold italic typeface'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Typography</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Typography</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Font Typeface</label>
@@ -14375,7 +14406,7 @@ const AppBuilder = () => {
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                                         {/* Content */}
                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Content</label>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Content</label>
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                 <div className="prop-group">
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Text</label>
@@ -14393,7 +14424,7 @@ const AppBuilder = () => {
                                                         </div>
                                                         {/* Behavior */}
                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Behavior</label>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Behavior</label>
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                     <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>MultiLine</label>
@@ -14415,7 +14446,7 @@ const AppBuilder = () => {
                                                         </div>
                                                         {/* Appearance */}
                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                 <div className="prop-group">
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>BackgroundColor</label>
@@ -14437,7 +14468,7 @@ const AppBuilder = () => {
                                                         </div>
                                                         {/* Typography */}
                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Typography</label>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Typography</label>
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                 <div className="prop-group">
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>FontTypeface</label>
@@ -14583,7 +14614,7 @@ const AppBuilder = () => {
                                                     <>
                                                         <div className="prop-group">
                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label>
-                                                            <input value={selectedComp.props.label} onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: '#0f172a' }} />
+                                                            <input value={selectedComp.props.label} onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)' }} />
                                                         </div>
                                                         <div className="prop-group">
                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PLACEHOLDER</label>
@@ -14628,7 +14659,7 @@ const AppBuilder = () => {
                                                         {/* Section: Content */}
                                                         {(sidebarSearch === '' || 'content text label'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>Content</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>Content</label>
                                                                 <div className="prop-group">
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Text</label>
                                                                     <input value={selectedComp.props.text || selectedComp.props.label || ''} onChange={(e) => updateComponentProps(selectedComp.id, { text: e.target.value, label: e.target.value })} style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
@@ -14639,7 +14670,7 @@ const AppBuilder = () => {
                                                         {/* Section: Interaction */}
                                                         {(sidebarSearch === '' || 'interaction enabled visible state on'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                         <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Switch On</label>
@@ -14660,7 +14691,7 @@ const AppBuilder = () => {
                                                         {/* Section: Appearance */}
                                                         {(sidebarSearch === '' || 'appearance track thumb color'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Track Color (Active)</label>
@@ -14685,7 +14716,7 @@ const AppBuilder = () => {
                                                         {/* Section: Typography */}
                                                         {(sidebarSearch === '' || 'typography font size bold italic typeface'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Typography</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Typography</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Font Size</label>
@@ -14723,20 +14754,20 @@ const AppBuilder = () => {
                                                         </div>
                                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                                                             <div>
-                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', marginBottom: '4px' }}>VALUE</label>
+                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>VALUE</label>
                                                                 <input type="number" value={selectedComp.props.value} onChange={(e) => updateComponentProps(selectedComp.id, { value: parseFloat(e.target.value) || 0 })} style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
                                                             </div>
                                                             <div>
-                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', marginBottom: '4px' }}>COLOR</label>
+                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>COLOR</label>
                                                                 <ColorPicker value={selectedComp.props.color} onChange={(val) => updateComponentProps(selectedComp.id, { color: val })} />
 
                                                             </div>
                                                             <div>
-                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', marginBottom: '4px' }}>MIN</label>
+                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>MIN</label>
                                                                 <input type="number" value={selectedComp.props.min} onChange={(e) => updateComponentProps(selectedComp.id, { min: parseFloat(e.target.value) || 0 })} style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
                                                             </div>
                                                             <div>
-                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', marginBottom: '4px' }}>MAX</label>
+                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>MAX</label>
                                                                 <input type="number" value={selectedComp.props.max} onChange={(e) => updateComponentProps(selectedComp.id, { max: parseFloat(e.target.value) || 100 })} style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
                                                             </div>
                                                         </div>
@@ -14876,7 +14907,7 @@ const AppBuilder = () => {
                                                         </div>
                                                         <div className="prop-group">
                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>DEVICE TYPE</label>
-                                                            <select value={selectedComp.props.deviceType} onChange={(e) => updateComponentProps(selectedComp.id, { deviceType: e.target.value })} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: '#0f172a' }}>
+                                                            <select value={selectedComp.props.deviceType} onChange={(e) => updateComponentProps(selectedComp.id, { deviceType: e.target.value })} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)' }}>
                                                                 <option value="Sensor">Sensor</option>
                                                                 <option value="Gauge">Gauge</option>
                                                                 <option value="Temperature">Temperature</option>
@@ -14889,11 +14920,11 @@ const AppBuilder = () => {
                                                         </div>
                                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '12px' }}>
                                                             <div>
-                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', marginBottom: '4px' }}>IP ADDRESS</label>
+                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>IP ADDRESS</label>
                                                                 <input value={selectedComp.props.ipAddress} onChange={(e) => updateComponentProps(selectedComp.id, { ipAddress: e.target.value })} style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
                                                             </div>
                                                             <div>
-                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', marginBottom: '4px' }}>PORT</label>
+                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>PORT</label>
                                                                 <input value={selectedComp.props.port} onChange={(e) => updateComponentProps(selectedComp.id, { port: e.target.value })} style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
                                                             </div>
                                                         </div>
@@ -14908,7 +14939,7 @@ const AppBuilder = () => {
                                                         </div>
                                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
                                                             <div>
-                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', marginBottom: '4px' }}>CHART TYPE</label>
+                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>CHART TYPE</label>
                                                                 <select value={selectedComp.props.type} onChange={(e) => updateComponentProps(selectedComp.id, { type: e.target.value })} style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}>
                                                                     <option value="LINE">Line Chart</option>
                                                                     <option value="BAR">Bar Chart</option>
@@ -14916,7 +14947,7 @@ const AppBuilder = () => {
                                                                 </select>
                                                             </div>
                                                             <div>
-                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', marginBottom: '4px' }}>MAIN COLOR</label>
+                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>MAIN COLOR</label>
                                                                 <ColorPicker value={selectedComp.props.color} onChange={(val) => updateComponentProps(selectedComp.id, { color: val })} />
 
                                                             </div>
@@ -14931,7 +14962,7 @@ const AppBuilder = () => {
                                                                 <select
                                                                     value={selectedComp.props.tableId}
                                                                     onChange={(e) => updateComponentProps(selectedComp.id, { tableId: e.target.value })}
-                                                                    style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.75rem' }}
+                                                                    style={{ width: '100%', padding: '6px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.75rem' }}
                                                                 >
                                                                     <option value="">Select Table...</option>
                                                                     {tables.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -14944,7 +14975,7 @@ const AppBuilder = () => {
                                                                         <select
                                                                             value={selectedComp.props.xAxisColumn}
                                                                             onChange={(e) => updateComponentProps(selectedComp.id, { xAxisColumn: e.target.value })}
-                                                                            style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.75rem' }}
+                                                                            style={{ width: '100%', padding: '6px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.75rem' }}
                                                                         >
                                                                             <option value="">Column...</option>
                                                                             {tables.find(t => t.id === selectedComp.props.tableId)?.columns?.map(col => (
@@ -14958,7 +14989,7 @@ const AppBuilder = () => {
                                                                         <select
                                                                             value={selectedComp.props.yAxisColumn}
                                                                             onChange={(e) => updateComponentProps(selectedComp.id, { yAxisColumn: e.target.value })}
-                                                                            style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.75rem' }}
+                                                                            style={{ width: '100%', padding: '6px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.75rem' }}
                                                                         >
                                                                             <option value="">Column...</option>
                                                                             {tables.find(t => t.id === selectedComp.props.tableId)?.columns?.map(col => (
@@ -14984,11 +15015,11 @@ const AppBuilder = () => {
                                                         </div>
                                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
                                                             <div>
-                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', marginBottom: '4px' }}>FONT SIZE (Value)</label>
+                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>FONT SIZE (Value)</label>
                                                                 <input type="number" value={selectedComp.props.fontSize || 48} onChange={(e) => updateComponentProps(selectedComp.id, { fontSize: parseInt(e.target.value) || 48 })} style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
                                                             </div>
                                                             <div>
-                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', marginBottom: '4px' }}>VALUE COLOR</label>
+                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>VALUE COLOR</label>
                                                                 <ColorPicker value={selectedComp.props.color} onChange={(val) => updateComponentProps(selectedComp.id, { color: val })} />
                                                             </div>
                                                         </div>
@@ -15015,10 +15046,10 @@ const AppBuilder = () => {
                                                                             mapping: { value: 'value' }
                                                                         }
                                                                     })}
-                                                                    style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.75rem' }}
+                                                                    style={{ width: '100%', padding: '6px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.75rem' }}
                                                                 >
                                                                     <option value="">Select Table...</option>
-                                                                    {tables.filter(t => appTables.includes(t.id)).map(t => (
+                                                                    {tables.map(t => (
                                                                         <option key={t.id} value={t.id}>{t.name}</option>
                                                                     ))}
                                                                 </select>
@@ -15037,7 +15068,7 @@ const AppBuilder = () => {
                                                                                 mapping: { value: 'value' }
                                                                             }
                                                                         })}
-                                                                        style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.75rem' }}
+                                                                        style={{ width: '100%', padding: '6px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.75rem' }}
                                                                     >
                                                                         <option value="">None (Static Value)</option>
                                                                         {tables.find(t => t.id === selectedComp.props.tableId)?.aggregations?.map(a => (
@@ -15073,7 +15104,7 @@ const AppBuilder = () => {
                                                             <select
                                                                 value={selectedComp.props.dataSourceMode || 'TABLE'}
                                                                 onChange={(e) => updateComponentProps(selectedComp.id, { dataSourceMode: e.target.value })}
-                                                                style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.75rem' }}
+                                                                style={{ width: '100%', padding: '6px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.75rem' }}
                                                             >
                                                                 <option value="TABLE">Table</option>
                                                                 <option value="TABLE_QUERY">Table Query</option>
@@ -15086,7 +15117,7 @@ const AppBuilder = () => {
                                                                 <select
                                                                     value={selectedComp.props.dataSourceVar || ''}
                                                                     onChange={(e) => updateComponentProps(selectedComp.id, { dataSourceVar: e.target.value })}
-                                                                    style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.75rem' }}
+                                                                    style={{ width: '100%', padding: '6px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.75rem' }}
                                                                 >
                                                                     <option value="">Select variable...</option>
                                                                     {appVariables.map(v => (
@@ -15100,10 +15131,10 @@ const AppBuilder = () => {
                                                                 <select
                                                                     value={selectedComp.props.tableId || ''}
                                                                     onChange={(e) => updateComponentProps(selectedComp.id, { tableId: e.target.value, columns: [], queryId: '', aggregationId: '' })}
-                                                                    style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.75rem' }}
+                                                                    style={{ width: '100%', padding: '6px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.75rem' }}
                                                                 >
                                                                     <option value="">Select Table...</option>
-                                                                    {tables.filter(t => appTables.includes(t.id)).map(t => (
+                                                                    {tables.map(t => (
                                                                         <option key={t.id} value={t.id}>{t.name}</option>
                                                                     ))}
                                                                 </select>
@@ -15115,7 +15146,7 @@ const AppBuilder = () => {
                                                             <select
                                                                 value={selectedComp.props.linkedRecordPlaceholderId || ''}
                                                                 onChange={(e) => updateComponentProps(selectedComp.id, { linkedRecordPlaceholderId: e.target.value })}
-                                                                style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.75rem' }}
+                                                                style={{ width: '100%', padding: '6px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.75rem' }}
                                                             >
                                                                 <option value="">None (rows not selectable)</option>
                                                                 {recordPlaceholders
@@ -15131,7 +15162,7 @@ const AppBuilder = () => {
                                                                     <select
                                                                         value={selectedComp.props.queryId || ''}
                                                                         onChange={(e) => updateComponentProps(selectedComp.id, { queryId: e.target.value, aggregationId: '' })}
-                                                                        style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.75rem' }}
+                                                                        style={{ width: '100%', padding: '6px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.75rem' }}
                                                                     >
                                                                         <option value="">None (All Records)</option>
                                                                         {tables.find(t => t.id === selectedComp.props.tableId)?.queries?.map(q => (
@@ -15145,7 +15176,7 @@ const AppBuilder = () => {
                                                         {selectedComp.props.tableId && (selectedComp.props.dataSourceMode || 'TABLE') !== 'VARIABLE' && (
                                                             <div className="prop-group" style={{ marginBottom: '10px' }}>
                                                                 <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>COLUMNS TO DISPLAY</label>
-                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '150px', overflowY: 'auto', backgroundColor: 'var(--bg-panel)', border: '1px solid #cbd5e1', padding: '8px', borderRadius: '4px' }}>
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '150px', overflowY: 'auto', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-secondary)', padding: '8px', borderRadius: '4px' }}>
                                                                     {tables.find(t => t.id === selectedComp.props.tableId)?.columns?.map(col => (
                                                                         <div key={col} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                                             <input
@@ -15173,7 +15204,7 @@ const AppBuilder = () => {
                                                                 type="number"
                                                                 value={selectedComp.props.pageSize || 5}
                                                                 onChange={(e) => updateComponentProps(selectedComp.id, { pageSize: Math.max(1, parseInt(e.target.value) || 5) })}
-                                                                style={{ width: '100%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.75rem' }}
+                                                                style={{ width: '100%', padding: '6px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.75rem' }}
                                                             />
                                                         </div>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
@@ -15194,7 +15225,7 @@ const AppBuilder = () => {
                                                         {/* Section: Content */}
                                                         {(sidebarSearch === '' || 'content text hint'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Content</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Content</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Text</label>
@@ -15215,7 +15246,7 @@ const AppBuilder = () => {
                                                         {/* Section: Interaction */}
                                                         {(sidebarSearch === '' || 'interaction enabled visible read numbers'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                         <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Numbers Only</label>
@@ -15236,7 +15267,7 @@ const AppBuilder = () => {
                                                         {/* Section: Appearance */}
                                                         {(sidebarSearch === '' || 'appearance background color text alignment'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Background Color</label>
@@ -15261,7 +15292,7 @@ const AppBuilder = () => {
                                                         {/* Section: Typography */}
                                                         {(sidebarSearch === '' || 'typography font size bold italic typeface'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Typography</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Typography</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Font Size</label>
@@ -15296,7 +15327,7 @@ const AppBuilder = () => {
                                                         {/* Section: Value */}
                                                         {(sidebarSearch === '' || 'value thumb position min max'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Value Range</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Value Range</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Thumb Position</label>
@@ -15317,7 +15348,7 @@ const AppBuilder = () => {
                                                         {/* Section: Interaction */}
                                                         {(sidebarSearch === '' || 'interaction enabled visible thumb enabled'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                         <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Thumb Enabled</label>
@@ -15338,7 +15369,7 @@ const AppBuilder = () => {
                                                         {/* Section: Appearance */}
                                                         {(sidebarSearch === '' || 'appearance color track left right'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Color Left (Active)</label>
@@ -15360,7 +15391,7 @@ const AppBuilder = () => {
                                                         {/* Section: Content */}
                                                         {(sidebarSearch === '' || 'content elements selection data'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Content</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Content</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Elements (One per line)</label>
@@ -15385,7 +15416,7 @@ const AppBuilder = () => {
                                                         {/* Section: Interaction */}
                                                         {(sidebarSearch === '' || 'interaction enabled visible filter'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                         <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Show Filter Bar</label>
@@ -15402,7 +15433,7 @@ const AppBuilder = () => {
                                                         {/* Section: Appearance */}
                                                         {(sidebarSearch === '' || 'appearance background color text color selection font'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Background Color</label>
@@ -15432,7 +15463,7 @@ const AppBuilder = () => {
                                                         {/* Section: Content */}
                                                         {(sidebarSearch === '' || 'content text hint color'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Content</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Content</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Text</label>
@@ -15453,7 +15484,7 @@ const AppBuilder = () => {
                                                         {/* Section: Interaction */}
                                                         {(sidebarSearch === '' || 'interaction enabled visible'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                         <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Enabled</label>
@@ -15470,7 +15501,7 @@ const AppBuilder = () => {
                                                         {/* Section: Appearance */}
                                                         {(sidebarSearch === '' || 'appearance background color text font size'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Background Color</label>
@@ -15493,7 +15524,7 @@ const AppBuilder = () => {
                                                 {/* ── Camera & Camcorder ── */}
                                                 {['CAMERA', 'CAMCORDER'].includes(selectedComp.type) && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>
                                                             {selectedComp.type === 'CAMERA' ? 'Camera' : 'Camcorder'} Config
                                                         </label>
                                                         <div style={{ fontSize: '0.75rem', color: 'var(--text-quaternary)', backgroundColor: 'var(--bg-secondary)', padding: '10px', borderRadius: '6px', marginBottom: '8px' }}>
@@ -15508,7 +15539,7 @@ const AppBuilder = () => {
                                                         {/* Section: Content */}
                                                         {(sidebarSearch === '' || 'content text image label button'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Content</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Content</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Text</label>
@@ -15525,7 +15556,7 @@ const AppBuilder = () => {
                                                         {/* Section: Interaction */}
                                                         {(sidebarSearch === '' || 'interaction enabled visible feedback'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                         <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Enabled</label>
@@ -15546,7 +15577,7 @@ const AppBuilder = () => {
                                                         {/* Section: Appearance */}
                                                         {(sidebarSearch === '' || 'appearance background color text shape font size'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Background Color</label>
@@ -15579,7 +15610,7 @@ const AppBuilder = () => {
                                                 {selectedComp.type === 'CANVAS' && (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Canvas</label>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Canvas</label>
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                 <div className="prop-group">
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>BackgroundColor</label>
@@ -15622,7 +15653,7 @@ const AppBuilder = () => {
                                                 {selectedComp.type === 'BALL' && (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Ball</label>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Ball</label>
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                 <div className="prop-group">
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>PaintColor</label>
@@ -15673,7 +15704,7 @@ const AppBuilder = () => {
                                                 {selectedComp.type === 'IMAGE_SPRITE' && (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>ImageSprite</label>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>ImageSprite</label>
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                 <div className="prop-group">
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Picture (URL or asset)</label>
@@ -15719,7 +15750,7 @@ const AppBuilder = () => {
                                                 {/* ── Connectivity: BluetoothClient ── */}
                                                 {selectedComp.type === 'BLUETOOTH_CLIENT' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>BluetoothClient</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>BluetoothClient</label>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                             <div className="prop-group">
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>CharacterEncoding</label>
@@ -15752,7 +15783,7 @@ const AppBuilder = () => {
                                                 {/* ── Connectivity: BluetoothServer ── */}
                                                 {selectedComp.type === 'BLUETOOTH_SERVER' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>BluetoothServer</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>BluetoothServer</label>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                             <div className="prop-group">
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>CharacterEncoding</label>
@@ -15777,7 +15808,7 @@ const AppBuilder = () => {
                                                 {/* ── Connectivity: Serial ── */}
                                                 {selectedComp.type === 'SERIAL' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Serial</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Serial</label>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                             <div className="prop-group">
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>BaudRate</label>
@@ -15796,7 +15827,7 @@ const AppBuilder = () => {
                                                 {/* ── Connectivity: Web ── */}
                                                 {selectedComp.type === 'WEB' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Web (HTTP)</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Web (HTTP)</label>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                             <div className="prop-group">
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>URL</label>
@@ -15829,7 +15860,7 @@ const AppBuilder = () => {
                                                 {/* ── Connectivity: ActivityStarter ── */}
                                                 {selectedComp.type === 'ACTIVITY_STARTER' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>ActivityStarter</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>ActivityStarter</label>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                             <div className="prop-group">
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Action</label>
@@ -15880,7 +15911,7 @@ const AppBuilder = () => {
                                                                     <input type="text" value={selectedComp.props.paintColor || '#000000'} onChange={(e) => updateComponentProps(selectedComp.id, { paintColor: e.target.value })} style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '4px', fontSize: '0.8rem' }} />
                                                                 </div>
                                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                                    <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>WIDTH</span>
+                                                                    <span style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)' }}>WIDTH</span>
                                                                     <input type="number" value={selectedComp.props.lineWidth || 2} onChange={(e) => updateComponentProps(selectedComp.id, { lineWidth: parseInt(e.target.value) })} style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '4px', fontSize: '0.8rem' }} />
                                                                 </div>
                                                             </div>
@@ -15894,11 +15925,11 @@ const AppBuilder = () => {
                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>APPEARANCE</label>
                                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                                                                 <div>
-                                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', marginBottom: '4px' }}>RADIUS</label>
+                                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>RADIUS</label>
                                                                     <input type="number" value={selectedComp.props.radius || 10} onChange={(e) => updateComponentProps(selectedComp.id, { radius: parseInt(e.target.value) })} style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
                                                                 </div>
                                                                 <div>
-                                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', marginBottom: '4px' }}>Z-LAYER</label>
+                                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>Z-LAYER</label>
                                                                     <input type="number" value={selectedComp.props.z || 1} onChange={(e) => updateComponentProps(selectedComp.id, { z: parseInt(e.target.value) })} style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
                                                                 </div>
                                                             </div>
@@ -15911,16 +15942,16 @@ const AppBuilder = () => {
                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MOVEMENT</label>
                                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                                                                 <div>
-                                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', marginBottom: '4px' }}>SPEED</label>
+                                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>SPEED</label>
                                                                     <input type="number" value={selectedComp.props.speed || 0} onChange={(e) => updateComponentProps(selectedComp.id, { speed: parseFloat(e.target.value) })} style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
                                                                 </div>
                                                                 <div>
-                                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', marginBottom: '4px' }}>HEADING °</label>
+                                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>HEADING °</label>
                                                                     <input type="number" value={selectedComp.props.heading || 0} onChange={(e) => updateComponentProps(selectedComp.id, { heading: parseInt(e.target.value) })} style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
                                                                 </div>
                                                             </div>
                                                             <div style={{ marginTop: '10px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', marginBottom: '4px' }}>INTERVAL (MS)</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>INTERVAL (MS)</label>
                                                                 <input type="number" value={selectedComp.props.interval || 100} onChange={(e) => updateComponentProps(selectedComp.id, { interval: parseInt(e.target.value) })} style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
                                                             </div>
                                                         </div>
@@ -15945,11 +15976,11 @@ const AppBuilder = () => {
                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CONFIG</label>
                                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                                                                 <div>
-                                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', marginBottom: '4px' }}>UNIT X %</label>
+                                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>UNIT X %</label>
                                                                     <input type="number" step="0.1" value={selectedComp.props.originX ?? 0.5} onChange={(e) => updateComponentProps(selectedComp.id, { originX: parseFloat(e.target.value) })} style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
                                                                 </div>
                                                                 <div>
-                                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', marginBottom: '4px' }}>UNIT Y %</label>
+                                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>UNIT Y %</label>
                                                                     <input type="number" step="0.1" value={selectedComp.props.originY ?? 0.5} onChange={(e) => updateComponentProps(selectedComp.id, { originY: parseFloat(e.target.value) })} style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
                                                                 </div>
                                                             </div>
@@ -15958,11 +15989,11 @@ const AppBuilder = () => {
                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MOVEMENT</label>
                                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                                                                 <div>
-                                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', marginBottom: '4px' }}>SPEED</label>
+                                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>SPEED</label>
                                                                     <input type="number" value={selectedComp.props.speed || 0} onChange={(e) => updateComponentProps(selectedComp.id, { speed: parseFloat(e.target.value) })} style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
                                                                 </div>
                                                                 <div>
-                                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', marginBottom: '4px' }}>HEADING °</label>
+                                                                    <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>HEADING °</label>
                                                                     <input type="number" value={selectedComp.props.heading || 0} onChange={(e) => updateComponentProps(selectedComp.id, { heading: parseInt(e.target.value) })} style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
                                                                 </div>
                                                             </div>
@@ -15981,7 +16012,7 @@ const AppBuilder = () => {
                                                 {selectedComp.type === 'NOTIFIER' && (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Notifier</label>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Notifier</label>
                                                             <div style={{ fontSize: '0.75rem', color: 'var(--text-quaternary)', backgroundColor: '#fffbeb', padding: '8px 10px', borderRadius: '6px', border: '1px solid #fde68a', marginBottom: '10px' }}>
                                                                 Non-visible component. Use the Logic Editor to call <strong>ShowAlert()</strong>, <strong>ShowMessageDialog()</strong>, or <strong>ShowChooseDialog()</strong>.
                                                             </div>
@@ -16010,7 +16041,7 @@ const AppBuilder = () => {
                                                 {selectedComp.type === 'TABLE_ARRANGEMENT' && (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Grid Size</label>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Grid Size</label>
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                 <div className="prop-group">
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Rows</label>
@@ -16035,7 +16066,7 @@ const AppBuilder = () => {
                                                         {/* Section: Content */}
                                                         {(sidebarSearch === '' || 'content text label button contact'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Content</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Content</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Text (button label)</label>
@@ -16048,7 +16079,7 @@ const AppBuilder = () => {
                                                         {/* Section: Interaction */}
                                                         {(sidebarSearch === '' || 'interaction enabled visible feedback'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                         <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Enabled</label>
@@ -16069,7 +16100,7 @@ const AppBuilder = () => {
                                                         {/* Section: Appearance */}
                                                         {(sidebarSearch === '' || 'appearance background color text shape font size bold italic'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Background Color</label>
@@ -16115,7 +16146,7 @@ const AppBuilder = () => {
                                                         {/* Section: Content */}
                                                         {(sidebarSearch === '' || 'content text label button phone'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Content</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Content</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Text (button label)</label>
@@ -16128,7 +16159,7 @@ const AppBuilder = () => {
                                                         {/* Section: Interaction */}
                                                         {(sidebarSearch === '' || 'interaction enabled visible feedback'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Interaction</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                         <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Enabled</label>
@@ -16149,7 +16180,7 @@ const AppBuilder = () => {
                                                         {/* Section: Appearance */}
                                                         {(sidebarSearch === '' || 'appearance background color text shape font size bold'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Background Color</label>
@@ -16187,7 +16218,7 @@ const AppBuilder = () => {
                                                 {selectedComp.type === 'PHONE_CALL' && (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>PhoneCall</label>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>PhoneCall</label>
 
                                                             <div className="prop-group">
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>PhoneNumber (default)</label>
@@ -16201,7 +16232,7 @@ const AppBuilder = () => {
                                                 {selectedComp.type === 'TEXTING' && (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Texting (SMS)</label>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Texting (SMS)</label>
 
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                 <div className="prop-group">
@@ -16232,7 +16263,7 @@ const AppBuilder = () => {
                                                 {/* ── Social: Sharing ── */}
                                                 {selectedComp.type === 'SHARING' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Sharing</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Sharing</label>
 
                                                     </div>
                                                 )}
@@ -16241,7 +16272,7 @@ const AppBuilder = () => {
                                                 {selectedComp.type === 'MULTI_SELECT' && (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Content</label>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Content</label>
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                 <div className="prop-group">
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Label</label>
@@ -16262,7 +16293,7 @@ const AppBuilder = () => {
                                                             </div>
                                                         </div>
                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                 <div className="prop-group">
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>BackgroundColor</label>
@@ -16292,7 +16323,7 @@ const AppBuilder = () => {
                                                 {/* ── Media: Sound ── */}
                                                 {selectedComp.type === 'SOUND' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Sound</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Sound</label>
 
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                             <div className="prop-group">
@@ -16310,7 +16341,7 @@ const AppBuilder = () => {
                                                 {/* ── Media: SpeechRecognizer ── */}
                                                 {selectedComp.type === 'SPEECH_RECOGNIZER' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>SpeechRecognizer</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>SpeechRecognizer</label>
 
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                             <div className="prop-group">
@@ -16328,7 +16359,7 @@ const AppBuilder = () => {
                                                 {/* ── Media: TextToSpeech ── */}
                                                 {selectedComp.type === 'TEXT_TO_SPEECH' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>TextToSpeech</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>TextToSpeech</label>
 
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                             <div className="prop-group">
@@ -16354,7 +16385,7 @@ const AppBuilder = () => {
                                                 {/* ── Media: SoundRecorder ── */}
                                                 {selectedComp.type === 'SOUND_RECORDER' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>SoundRecorder</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>SoundRecorder</label>
 
                                                         <div className="prop-group">
                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>SavedRecording (output path)</label>
@@ -16366,7 +16397,7 @@ const AppBuilder = () => {
                                                 {/* ── Sensors: AccelerometerSensor ── */}
                                                 {selectedComp.type === 'ACCELEROMETER' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>AccelerometerSensor</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>AccelerometerSensor</label>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                             <div className="prop-group">
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Sensitivity</label>
@@ -16395,7 +16426,7 @@ const AppBuilder = () => {
                                                 {/* ── Sensors: BarcodeScanner ── */}
                                                 {selectedComp.type === 'BARCODE_SCANNER' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>BarcodeScanner</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>BarcodeScanner</label>
 
                                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                             <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>UseExternalScanner</label>
@@ -16407,7 +16438,7 @@ const AppBuilder = () => {
                                                 {/* ── Sensors: Clock ── */}
                                                 {selectedComp.type === 'CLOCK' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Clock</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Clock</label>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                             <div className="prop-group">
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>TimeInterval (ms)</label>
@@ -16428,7 +16459,7 @@ const AppBuilder = () => {
                                                 {/* ── Sensors: GyroscopeSensor ── */}
                                                 {selectedComp.type === 'GYROSCOPE_SENSOR' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>GyroscopeSensor</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>GyroscopeSensor</label>
 
                                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                             <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Enabled</label>
@@ -16440,7 +16471,7 @@ const AppBuilder = () => {
                                                 {/* ── Sensors: Barometer / Hygrometer / LightSensor / Thermometer ── */}
                                                 {['BAROMETER', 'HYGROMETER', 'LIGHT_SENSOR', 'THERMOMETER'].includes(selectedComp.type) && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>
                                                             {selectedComp.type === 'BAROMETER' ? 'Barometer' : selectedComp.type === 'HYGROMETER' ? 'Hygrometer' : selectedComp.type === 'LIGHT_SENSOR' ? 'LightSensor' : 'Thermometer'}
                                                         </label>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -16459,7 +16490,7 @@ const AppBuilder = () => {
                                                 {/* ── Sensors: MagneticFieldSensor ── */}
                                                 {selectedComp.type === 'MAGNETIC_FIELD_SENSOR' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>MagneticFieldSensor</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>MagneticFieldSensor</label>
 
                                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                             <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Enabled</label>
@@ -16471,7 +16502,7 @@ const AppBuilder = () => {
                                                 {/* ── Sensors: OrientationSensor ── */}
                                                 {selectedComp.type === 'ORIENTATION_SENSOR' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>OrientationSensor</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>OrientationSensor</label>
 
                                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                             <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Enabled</label>
@@ -16483,7 +16514,7 @@ const AppBuilder = () => {
                                                 {/* ── Sensors: NearField ── */}
                                                 {selectedComp.type === 'NEAR_FIELD' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>NearField (NFC)</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>NearField (NFC)</label>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                 <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>ReadMode</label>
@@ -16507,7 +16538,7 @@ const AppBuilder = () => {
                                                 {/* ── Sensors: Pedometer ── */}
                                                 {selectedComp.type === 'PEDOMETER' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Pedometer</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Pedometer</label>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                             <div className="prop-group">
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>StrideLength (meters)</label>
@@ -16524,7 +16555,7 @@ const AppBuilder = () => {
                                                 {/* ── Sensors: ProximitySensor ── */}
                                                 {selectedComp.type === 'PROXIMITY_SENSOR' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>ProximitySensor</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>ProximitySensor</label>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                 <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Enabled</label>
@@ -16541,7 +16572,7 @@ const AppBuilder = () => {
                                                 {/* ── Storage: CloudDB ── */}
                                                 {selectedComp.type === 'CLOUD_DB' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>CloudDB</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>CloudDB</label>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                             <div className="prop-group">
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>ProjectID</label>
@@ -16570,7 +16601,7 @@ const AppBuilder = () => {
                                                 {/* ── Storage: DataFile / File ── */}
                                                 {['DATA_FILE', 'FILE'].includes(selectedComp.type) && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>
                                                             {selectedComp.type === 'DATA_FILE' ? 'DataFile' : 'File'}
                                                         </label>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -16610,7 +16641,7 @@ const AppBuilder = () => {
                                                 {/* ── Storage: TinyDB ── */}
                                                 {selectedComp.type === 'TINY_DB' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>TinyDB</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>TinyDB</label>
                                                         <div className="prop-group">
                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Namespace</label>
                                                             <input value={selectedComp.props.namespace || 'Default'} onChange={(e) => updateComponentProps(selectedComp.id, { namespace: e.target.value })} placeholder="Default" style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
@@ -16621,7 +16652,7 @@ const AppBuilder = () => {
                                                 {/* ── Storage: TinyWebDB ── */}
                                                 {selectedComp.type === 'TINY_WEB_DB' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>TinyWebDB</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>TinyWebDB</label>
                                                         <div className="prop-group">
                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>ServiceURL</label>
                                                             <input value={selectedComp.props.serviceURL || 'http://tinywebdb.appinventor.mit.edu'} onChange={(e) => updateComponentProps(selectedComp.id, { serviceURL: e.target.value })} style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
@@ -16632,7 +16663,7 @@ const AppBuilder = () => {
                                                 {/* ── Storage: Spreadsheet ── */}
                                                 {selectedComp.type === 'SPREADSHEET' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Spreadsheet (Google Sheets)</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Spreadsheet (Google Sheets)</label>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                             <div className="prop-group">
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>SpreadsheetID</label>
@@ -16653,7 +16684,7 @@ const AppBuilder = () => {
                                                 {/* ── Maps: Marker / Circle extras ── */}
                                                 {selectedComp.type === 'MARKER' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Marker</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Marker</label>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                                                                 <div className="prop-group">
@@ -16706,7 +16737,7 @@ const AppBuilder = () => {
                                                 {/* ── Maps: Polygon / LineString ── */}
                                                 {['POLYGON', 'LINE_STRING'].includes(selectedComp.type) && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>
                                                             {selectedComp.type === 'POLYGON' ? 'Polygon' : 'LineString'}
                                                         </label>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -16749,7 +16780,7 @@ const AppBuilder = () => {
                                                 {/* ── Maps: FeatureCollection ── */}
                                                 {selectedComp.type === 'FEATURE_COLLECTION' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>FeatureCollection</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>FeatureCollection</label>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                             <div className="prop-group">
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Source (GeoJSON URL or asset)</label>
@@ -16772,7 +16803,7 @@ const AppBuilder = () => {
                                                 {/* ── Maps: Navigation ── */}
                                                 {selectedComp.type === 'NAVIGATION' && (
                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
-                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Navigation</label>
+                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Navigation</label>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                             <div className="prop-group">
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>ApiKey</label>
@@ -16895,7 +16926,7 @@ const AppBuilder = () => {
                                                                         </div>
                                                                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                                                                             <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>{trig.name}</span>
-                                                                            <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>{trig.event}</span>
+                                                                            <span style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)' }}>{trig.event}</span>
                                                                         </div>
                                                                     </div>
                                                                     <div style={{ display: 'flex', gap: '8px' }}>
@@ -16912,7 +16943,7 @@ const AppBuilder = () => {
                                                             );
                                                         })}
                                                         {(selectedComp.props.triggers || []).length === 0 && (
-                                                            <div style={{ textAlign: 'center', padding: '20px', backgroundColor: 'var(--bg-secondary)', borderRadius: '12px', border: '1px dashed #e2e8f0', color: '#94a3b8', fontSize: '0.8rem' }}>
+                                                            <div style={{ textAlign: 'center', padding: '20px', backgroundColor: 'var(--bg-secondary)', borderRadius: '12px', border: '1px dashed var(--border-primary)', color: 'var(--text-quaternary)', fontSize: '0.8rem' }}>
                                                                 No widget triggers defined
                                                             </div>
                                                         )}
@@ -16938,7 +16969,7 @@ const AppBuilder = () => {
                                                         value={currentStep?.title || ''}
                                                         onChange={(e) => updateCurrentStep({ title: e.target.value })}
                                                         placeholder="New Screen"
-                                                        style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '8px', fontSize: '0.9rem', color: '#0f172a', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+                                                        style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '8px', fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
                                                     />
                                                 </div>
 
@@ -16947,7 +16978,7 @@ const AppBuilder = () => {
                                                     <select
                                                         value={currentStep?.orientation || 'unspecified'}
                                                         onChange={(e) => updateCurrentStep({ orientation: e.target.value })}
-                                                        style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '8px', fontSize: '0.85rem', color: '#0f172a', cursor: 'pointer' }}
+                                                        style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '8px', fontSize: '0.85rem', color: 'var(--text-primary)', cursor: 'pointer' }}
                                                     >
                                                         <option value="unspecified">Unspecified</option>
                                                         <option value="portrait">Portrait</option>
@@ -16960,7 +16991,7 @@ const AppBuilder = () => {
 
                                             {/* --- Appearance --- */}
                                             <div style={{ display: 'grid', gap: '12px' }}>
-                                                <label style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Appearance</label>
+                                                <label style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Appearance</label>
 
                                                 <div style={{ padding: '12px', background: 'var(--bg-secondary)', borderRadius: '10px', border: '1px solid var(--border-primary)', display: 'grid', gap: '10px' }}>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -16976,7 +17007,7 @@ const AppBuilder = () => {
                                                                 type="text"
                                                                 value={currentStep?.backgroundColor || '#ffffff'}
                                                                 onChange={(e) => updateCurrentStep({ backgroundColor: e.target.value })}
-                                                                style={{ width: '70px', padding: '4px 6px', fontSize: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '4px', textTransform: 'uppercase' }}
+                                                                style={{ width: '70px', padding: '4px 6px', fontSize: '0.75rem', border: '1px solid var(--border-secondary)', borderRadius: '4px', textTransform: 'uppercase' }}
                                                             />
                                                         </div>
                                                     </div>
@@ -16990,7 +17021,7 @@ const AppBuilder = () => {
                                                                 placeholder="Image URL or Asset..."
                                                                 style={{ flex: 1, padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '6px', fontSize: '0.8rem' }}
                                                             />
-                                                            <button style={{ padding: '8px', background: 'var(--bg-panel)', border: '1px solid #cbd5e1', borderRadius: '6px', color: 'var(--text-quaternary)', cursor: 'pointer' }}><ImageIcon size={16} /></button>
+                                                            <button style={{ padding: '8px', background: 'var(--bg-panel)', border: '1px solid var(--border-secondary)', borderRadius: '6px', color: 'var(--text-quaternary)', cursor: 'pointer' }}><ImageIcon size={16} /></button>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -16998,7 +17029,7 @@ const AppBuilder = () => {
 
                                             {/* --- Layout --- */}
                                             <div style={{ display: 'grid', gap: '12px' }}>
-                                                <label style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Layout</label>
+                                                <label style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Layout</label>
 
                                                 <div style={{ padding: '12px', background: 'var(--bg-secondary)', borderRadius: '10px', border: '1px solid var(--border-primary)', display: 'grid', gap: '12px' }}>
                                                     <div className="prop-group">
@@ -17085,7 +17116,7 @@ const AppBuilder = () => {
 
                                             {/* --- Production settings --- */}
                                             <div style={{ display: 'grid', gap: '12px' }}>
-                                                <label style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Production (Legacy)</label>
+                                                <label style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Production (Legacy)</label>
 
                                                 <div style={{ padding: '12px', background: '#fef2f2', borderRadius: '10px', border: '1px solid #fee2e2', display: 'grid', gap: '10px' }}>
                                                     <div className="prop-group">
@@ -17145,7 +17176,7 @@ const AppBuilder = () => {
                                                                 <select
                                                                     value={currentStepFormSubmit.tableId || ''}
                                                                     onChange={(e) => updateCurrentStepFormSubmit({ tableId: e.target.value })}
-                                                                    style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.75rem' }}
+                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-secondary)', borderRadius: '6px', fontSize: '0.75rem' }}
                                                                 >
                                                                     <option value="">Select table...</option>
                                                                     {tables.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -17156,7 +17187,7 @@ const AppBuilder = () => {
                                                                 <select
                                                                     value={currentStepFormSubmit.mode || 'CREATE'}
                                                                     onChange={(e) => updateCurrentStepFormSubmit({ mode: e.target.value })}
-                                                                    style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.75rem' }}
+                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-secondary)', borderRadius: '6px', fontSize: '0.75rem' }}
                                                                 >
                                                                     <option value="CREATE">Create Record</option>
                                                                     <option value="UPDATE">Update Record</option>
@@ -17171,7 +17202,7 @@ const AppBuilder = () => {
                                                                     value={currentStepFormSubmit.recordId || ''}
                                                                     onChange={(e) => updateCurrentStepFormSubmit({ recordId: e.target.value })}
                                                                     placeholder="e.g. @ACTIVE_RECORD_ID"
-                                                                    style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.75rem' }}
+                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-secondary)', borderRadius: '6px', fontSize: '0.75rem' }}
                                                                 />
                                                             </div>
                                                         )}
@@ -17241,7 +17272,7 @@ const AppBuilder = () => {
                                                         onClick={() => addStepTriggerTemplate(item.event, item.name)}
                                                         style={{ textAlign: 'left', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '6px', backgroundColor: 'var(--bg-panel)', cursor: 'pointer' }}
                                                     >
-                                                        <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#0f172a' }}>{item.title}</div>
+                                                        <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>{item.title}</div>
                                                         <div style={{ fontSize: '0.68rem', color: 'var(--text-quaternary)', marginTop: '4px' }}>{item.desc}</div>
                                                     </button>
                                                 ))}
@@ -17327,7 +17358,7 @@ const AppBuilder = () => {
                                                                         );
                                                                     })}
                                                                     {groupTriggers.length === 0 && (
-                                                                        <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontStyle: 'italic', paddingLeft: '4px' }}>No triggers</div>
+                                                                        <div style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', fontStyle: 'italic', paddingLeft: '4px' }}>No triggers</div>
                                                                     )}
                                                                 </div>
                                                             </div>
@@ -17355,7 +17386,7 @@ const AppBuilder = () => {
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                         <span style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)' }}>Current Version</span>
-                                                        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#0f172a' }}>V{appMeta.version}</span>
+                                                        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>V{appMeta.version}</span>
                                                     </div>
 
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -17371,7 +17402,7 @@ const AppBuilder = () => {
                                                     </div>
 
                                                     {appMeta.approved_by && (
-                                                        <div style={{ fontSize: '0.68rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                                                        <div style={{ fontSize: '0.68rem', color: 'var(--text-quaternary)', fontStyle: 'italic' }}>
                                                             Approved by {appMeta.approved_by} on {new Date(appMeta.approved_at).toLocaleDateString()}
                                                         </div>
                                                     )}
@@ -17471,7 +17502,7 @@ const AppBuilder = () => {
                                             <div className="prop-group">
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        <Variable size={16} color="#475569" />
+                                                        <Variable size={16} color="var(--text-tertiary)" />
                                                         <label style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', fontWeight: 800 }}>Variables</label>
                                                     </div>
                                                     <button
@@ -17496,14 +17527,14 @@ const AppBuilder = () => {
                                                             </div>
                                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                 <div style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px' }}>
-                                                                    Val: <span style={{ color: '#0f172a', fontWeight: 600 }}>{String(v.value || v.defaultValue || '(empty)')}</span>
+                                                                    Val: <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{String(v.value || v.defaultValue || '(empty)')}</span>
                                                                 </div>
-                                                                {v.clearOnCompletion && <Clock size={12} color="#94a3b8" title="Cleared on completion" />}
+                                                                {v.clearOnCompletion && <Clock size={12} color="var(--text-quaternary)" title="Cleared on completion" />}
                                                             </div>
                                                         </div>
                                                     ))}
                                                     {appVariables.length === 0 && (
-                                                        <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8', fontSize: '0.75rem', border: '1px dashed #e2e8f0', borderRadius: '8px', backgroundColor: 'var(--bg-secondary)' }}>
+                                                        <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-quaternary)', fontSize: '0.75rem', border: '1px dashed var(--border-primary)', borderRadius: '8px', backgroundColor: 'var(--bg-secondary)' }}>
                                                             No custom variables yet. Variables are used to store and reference data across screens.
                                                         </div>
                                                     )}
@@ -17552,7 +17583,7 @@ const AppBuilder = () => {
                                                         </div>
                                                     ))}
                                                     {appFunctions.length === 0 && (
-                                                        <div style={{ textAlign: 'center', padding: '10px', color: '#94a3b8', fontSize: '0.75rem', border: '1px dashed #e2e8f0', borderRadius: '8px' }}>No app functions defined</div>
+                                                        <div style={{ textAlign: 'center', padding: '10px', color: 'var(--text-quaternary)', fontSize: '0.75rem', border: '1px dashed var(--border-primary)', borderRadius: '8px' }}>No app functions defined</div>
                                                     )}
                                                 </div>
                                             </div>
@@ -17602,7 +17633,7 @@ const AppBuilder = () => {
                                                         </div>
                                                     ))}
                                                     {appCompletions.length === 0 ? (
-                                                        <div style={{ textAlign: 'center', padding: '15px', color: '#94a3b8', fontSize: '0.75rem', border: '1px dashed #e2e8f0', borderRadius: '8px' }}>
+                                                        <div style={{ textAlign: 'center', padding: '15px', color: 'var(--text-quaternary)', fontSize: '0.75rem', border: '1px dashed var(--border-primary)', borderRadius: '8px' }}>
                                                             No completions recorded yet.<br />Run the app and trigger a Complete/Cancel action.
                                                         </div>
                                                     ) : (
@@ -17703,7 +17734,7 @@ const AppBuilder = () => {
                                                                         );
                                                                     })}
                                                                     {groupTriggers.length === 0 && (
-                                                                        <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontStyle: 'italic', paddingLeft: '4px' }}>No global triggers</div>
+                                                                        <div style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', fontStyle: 'italic', paddingLeft: '4px' }}>No global triggers</div>
                                                                     )}
                                                                 </div>
                                                             </div>
@@ -17714,7 +17745,7 @@ const AppBuilder = () => {
 
                                             <div className="prop-group">
                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>RESOLUTION</label>
-                                                <select style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: '#0f172a' }}>
+                                                <select style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)' }}>
                                                     <option>1080p (1920x1080)</option>
                                                     <option>720p (1280x720)</option>
                                                     <option>Tablet (1024x768)</option>
@@ -17749,7 +17780,7 @@ const AppBuilder = () => {
                                                         ) : (
                                                             <div
                                                                 onClick={() => document.getElementById('product-image-upload').click()}
-                                                                style={{ height: '140px', border: '2px dashed #e2e8f0', borderRadius: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', cursor: 'pointer', backgroundColor: 'var(--bg-secondary)' }}
+                                                                style={{ height: '140px', border: '2px dashed var(--border-primary)', borderRadius: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-quaternary)', cursor: 'pointer', backgroundColor: 'var(--bg-secondary)' }}
                                                             >
                                                                 {isUploadingImage ? (
                                                                     <Loader2 className="animate-spin" size={24} />
@@ -17820,7 +17851,7 @@ const AppBuilder = () => {
                                                             <div style={{ fontSize: '0.75rem', fontWeight: 700, color: leftSidebarEnabled ? '#166534' : '#475569' }}>Left Sidebar</div>
                                                             <div style={{ fontSize: '0.65rem', color: leftSidebarEnabled ? '#15803d' : '#94a3b8' }}>Current Order Info</div>
                                                         </div>
-                                                        {leftSidebarEnabled ? <ToggleRight size={24} color="#22c55e" /> : <ToggleLeft size={24} color="#94a3b8" />}
+                                                        {leftSidebarEnabled ? <ToggleRight size={24} color="#22c55e" /> : <ToggleLeft size={24} color="var(--text-quaternary)" />}
                                                     </div>
 
                                                     <div
@@ -17831,7 +17862,7 @@ const AppBuilder = () => {
                                                             <div style={{ fontSize: '0.75rem', fontWeight: 700, color: rightSidebarEnabled ? '#166534' : '#475569' }}>Right Sidebar</div>
                                                             <div style={{ fontSize: '0.65rem', color: rightSidebarEnabled ? '#15803d' : '#94a3b8' }}>Assembly Progress</div>
                                                         </div>
-                                                        {rightSidebarEnabled ? <ToggleRight size={24} color="#22c55e" /> : <ToggleLeft size={24} color="#94a3b8" />}
+                                                        {rightSidebarEnabled ? <ToggleRight size={24} color="#22c55e" /> : <ToggleLeft size={24} color="var(--text-quaternary)" />}
                                                     </div>
 
                                                     <div
@@ -17842,7 +17873,7 @@ const AppBuilder = () => {
                                                             <div style={{ fontSize: '0.75rem', fontWeight: 700, color: copilotEnabled ? '#166534' : '#475569' }}>Frontline Copilot</div>
                                                             <div style={{ fontSize: '0.65rem', color: copilotEnabled ? '#15803d' : '#94a3b8' }}>AI Sparkles Button</div>
                                                         </div>
-                                                        {copilotEnabled ? <ToggleRight size={24} color="#22c55e" /> : <ToggleLeft size={24} color="#94a3b8" />}
+                                                        {copilotEnabled ? <ToggleRight size={24} color="#22c55e" /> : <ToggleLeft size={24} color="var(--text-quaternary)" />}
                                                     </div>
 
                                                     <div
@@ -17853,7 +17884,7 @@ const AppBuilder = () => {
                                                             <div style={{ fontSize: '0.75rem', fontWeight: 700, color: stepListEnabled ? '#166534' : '#475569' }}>Screen List</div>
                                                             <div style={{ fontSize: '0.65rem', color: stepListEnabled ? '#15803d' : '#94a3b8' }}>Work Sequence Footer</div>
                                                         </div>
-                                                        {stepListEnabled ? <ToggleRight size={24} color="#22c55e" /> : <ToggleLeft size={24} color="#94a3b8" />}
+                                                        {stepListEnabled ? <ToggleRight size={24} color="#22c55e" /> : <ToggleLeft size={24} color="var(--text-quaternary)" />}
                                                     </div>
                                                 </div>
                                             </div>
@@ -17873,7 +17904,7 @@ const AppBuilder = () => {
                         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, backgroundColor: 'var(--bg-panel)', zIndex: 2 }}>
                             <div>
                                 <div style={{ fontSize: '0.72rem', color: 'var(--text-quaternary)', textTransform: 'uppercase', fontWeight: 800 }}>Completion Detail</div>
-                                <div style={{ fontSize: '1rem', color: '#0f172a', fontWeight: 800 }}>{selectedCompletion.executionId || selectedCompletion.id || 'Execution'}</div>
+                                <div style={{ fontSize: '1rem', color: 'var(--text-primary)', fontWeight: 800 }}>{selectedCompletion.executionId || selectedCompletion.id || 'Execution'}</div>
                             </div>
                             <button onClick={() => setSelectedCompletion(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-quaternary)', fontWeight: 700 }}>Close</button>
                         </div>
@@ -17889,7 +17920,7 @@ const AppBuilder = () => {
                             ].map(([label, value]) => (
                                 <div key={label} style={{ border: '1px solid var(--border-primary)', borderRadius: '8px', backgroundColor: 'var(--bg-secondary)', padding: '10px 12px' }}>
                                     <div style={{ fontSize: '0.62rem', color: 'var(--text-quaternary)', textTransform: 'uppercase', fontWeight: 800 }}>{label}</div>
-                                    <div style={{ fontSize: '0.85rem', color: '#0f172a', fontWeight: 700, marginTop: '4px', wordBreak: 'break-word' }}>{value}</div>
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 700, marginTop: '4px', wordBreak: 'break-word' }}>{value}</div>
                                 </div>
                             ))}
                         </div>
@@ -17900,13 +17931,13 @@ const AppBuilder = () => {
                                 <div style={{ padding: '10px 12px', maxHeight: '240px', overflowY: 'auto' }}>
                                     {selectedCompletion.variables && Object.keys(selectedCompletion.variables).length > 0 ? (
                                         Object.entries(selectedCompletion.variables).map(([k, v]) => (
-                                            <div key={k} style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '10px', padding: '6px 0', borderBottom: '1px dashed #e2e8f0' }}>
+                                            <div key={k} style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '10px', padding: '6px 0', borderBottom: '1px dashed var(--border-primary)' }}>
                                                 <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', fontWeight: 700 }}>{k}</div>
-                                                <div style={{ fontSize: '0.75rem', color: '#0f172a', wordBreak: 'break-word' }}>{typeof v === 'object' ? JSON.stringify(v) : String(v)}</div>
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-primary)', wordBreak: 'break-word' }}>{typeof v === 'object' ? JSON.stringify(v) : String(v)}</div>
                                             </div>
                                         ))
                                     ) : (
-                                        <div style={{ fontSize: '0.78rem', color: '#94a3b8', fontStyle: 'italic' }}>No variable snapshot.</div>
+                                        <div style={{ fontSize: '0.78rem', color: 'var(--text-quaternary)', fontStyle: 'italic' }}>No variable snapshot.</div>
                                     )}
                                 </div>
                             </div>
@@ -17926,15 +17957,15 @@ const AppBuilder = () => {
                                             <tbody>
                                                 {selectedCompletion.stepDurations.map((row, idx) => (
                                                     <tr key={`${row.stepId || 'step'}_${idx}`} style={{ borderTop: '1px solid var(--border-secondary)' }}>
-                                                        <td style={{ padding: '8px 10px', color: '#0f172a', fontWeight: 600 }}>{row.stepId || '-'}</td>
-                                                        <td style={{ padding: '8px 10px', color: '#0f172a' }}>{formatTime(Number(row.duration) || 0)}</td>
+                                                        <td style={{ padding: '8px 10px', color: 'var(--text-primary)', fontWeight: 600 }}>{row.stepId || '-'}</td>
+                                                        <td style={{ padding: '8px 10px', color: 'var(--text-primary)' }}>{formatTime(Number(row.duration) || 0)}</td>
                                                         <td style={{ padding: '8px 10px', color: 'var(--text-tertiary)' }}>{formatDateTime(row.timestamp)}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
                                         </table>
                                     ) : (
-                                        <div style={{ fontSize: '0.78rem', color: '#94a3b8', fontStyle: 'italic', padding: '10px 12px' }}>No screen duration logs.</div>
+                                        <div style={{ fontSize: '0.78rem', color: 'var(--text-quaternary)', fontStyle: 'italic', padding: '10px 12px' }}>No screen duration logs.</div>
                                     )}
                                 </div>
                             </div>
@@ -17943,7 +17974,7 @@ const AppBuilder = () => {
                         <div style={{ padding: '0 20px 20px' }}>
                             <div style={{ border: '1px solid var(--border-primary)', borderRadius: '10px', overflow: 'hidden' }}>
                                 <div style={{ padding: '10px 12px', backgroundColor: 'var(--bg-tertiary)', fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase' }}>Record Placeholders Snapshot</div>
-                                <pre style={{ margin: 0, padding: '12px', fontSize: '0.72rem', color: '#0f172a', backgroundColor: 'var(--bg-panel)', maxHeight: '220px', overflow: 'auto' }}>
+                                <pre style={{ margin: 0, padding: '12px', fontSize: '0.72rem', color: 'var(--text-primary)', backgroundColor: 'var(--bg-panel)', maxHeight: '220px', overflow: 'auto' }}>
                                     {JSON.stringify(selectedCompletion.recordPlaceholders || {}, null, 2)}
                                 </pre>
                             </div>
@@ -17967,7 +17998,7 @@ const AppBuilder = () => {
                                     value={queryEditor.query?.name || ''}
                                     onChange={(e) => setQueryEditor({ ...queryEditor, query: { ...queryEditor.query, name: e.target.value } })}
                                     placeholder="e.g. Products Not Shipped"
-                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem' }}
+                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.9rem' }}
                                 />
                             </div>
 
@@ -17994,7 +18025,7 @@ const AppBuilder = () => {
                                                         nextFilters[idx].field = e.target.value;
                                                         setQueryEditor({ ...queryEditor, query: { ...queryEditor.query, filters: nextFilters } });
                                                     }}
-                                                    style={{ flex: 1.5, padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.8rem' }}
+                                                    style={{ flex: 1.5, padding: '8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
                                                 >
                                                     <option value="">Select Field...</option>
                                                     {fields.map(f => <option key={f} value={f}>{f}</option>)}
@@ -18006,7 +18037,7 @@ const AppBuilder = () => {
                                                         nextFilters[idx].operator = e.target.value;
                                                         setQueryEditor({ ...queryEditor, query: { ...queryEditor.query, filters: nextFilters } });
                                                     }}
-                                                    style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.8rem' }}
+                                                    style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
                                                 >
                                                     <option value="equals">equals</option>
                                                     <option value="contains">contains</option>
@@ -18021,7 +18052,7 @@ const AppBuilder = () => {
                                                         setQueryEditor({ ...queryEditor, query: { ...queryEditor.query, filters: nextFilters } });
                                                     }}
                                                     placeholder="Value..."
-                                                    style={{ flex: 2, padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.8rem' }}
+                                                    style={{ flex: 2, padding: '8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
                                                 />
                                                 <button
                                                     onClick={() => {
@@ -18037,7 +18068,7 @@ const AppBuilder = () => {
                             </div>
                         </div>
                         <div style={{ padding: '20px 24px', borderTop: '1px solid var(--border-secondary)', display: 'flex', justifyContent: 'flex-end', gap: '12px', backgroundColor: 'var(--bg-secondary)' }}>
-                            <button onClick={() => setQueryEditor({ ...queryEditor, isOpen: false })} style={{ border: '1px solid #cbd5e1', backgroundColor: 'var(--bg-panel)', color: 'var(--text-secondary)', padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>Cancel</button>
+                            <button onClick={() => setQueryEditor({ ...queryEditor, isOpen: false })} style={{ border: '1px solid var(--border-secondary)', backgroundColor: 'var(--bg-panel)', color: 'var(--text-secondary)', padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>Cancel</button>
                             <button
                                 onClick={() => {
                                     queryEditor.onSave(queryEditor.query);
@@ -18067,7 +18098,7 @@ const AppBuilder = () => {
                                     value={aggregationEditor.aggregation?.name || ''}
                                     onChange={(e) => setAggregationEditor({ ...aggregationEditor, aggregation: { ...aggregationEditor.aggregation, name: e.target.value } })}
                                     placeholder="e.g. Total Amount"
-                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem' }}
+                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.9rem' }}
                                 />
                             </div>
 
@@ -18077,7 +18108,7 @@ const AppBuilder = () => {
                                     <select
                                         value={aggregationEditor.aggregation?.calculation || 'count'}
                                         onChange={(e) => setAggregationEditor({ ...aggregationEditor, aggregation: { ...aggregationEditor.aggregation, calculation: e.target.value } })}
-                                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', backgroundColor: 'var(--bg-panel)' }}
+                                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.9rem', backgroundColor: 'var(--bg-panel)' }}
                                     >
                                         <option value="count">Count Records</option>
                                         <option value="sum">Sum</option>
@@ -18092,7 +18123,7 @@ const AppBuilder = () => {
                                         <select
                                             value={aggregationEditor.aggregation?.field || ''}
                                             onChange={(e) => setAggregationEditor({ ...aggregationEditor, aggregation: { ...aggregationEditor.aggregation, field: e.target.value } })}
-                                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', backgroundColor: 'var(--bg-panel)' }}
+                                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.9rem', backgroundColor: 'var(--bg-panel)' }}
                                         >
                                             <option value="">Select Field...</option>
                                             {(tables.find(t => t.id === aggregationEditor.tableId)?.columns || []).map(f => (
@@ -18104,7 +18135,7 @@ const AppBuilder = () => {
                             </div>
                         </div>
                         <div style={{ padding: '20px 24px', borderTop: '1px solid var(--border-secondary)', display: 'flex', justifyContent: 'flex-end', gap: '12px', backgroundColor: 'var(--bg-secondary)' }}>
-                            <button onClick={() => setAggregationEditor({ ...aggregationEditor, isOpen: false })} style={{ border: '1px solid #cbd5e1', backgroundColor: 'var(--bg-panel)', color: 'var(--text-secondary)', padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>Cancel</button>
+                            <button onClick={() => setAggregationEditor({ ...aggregationEditor, isOpen: false })} style={{ border: '1px solid var(--border-secondary)', backgroundColor: 'var(--bg-panel)', color: 'var(--text-secondary)', padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>Cancel</button>
                             <button
                                 onClick={() => {
                                     aggregationEditor.onSave(aggregationEditor.aggregation);
@@ -18120,7 +18151,7 @@ const AppBuilder = () => {
             )}
 
             {triggerEditor.isOpen && triggerEditor.trigger && (
-                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(51, 65, 85, 0.4)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, color: '#0f172a' }}>
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(51, 65, 85, 0.4)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, color: 'var(--text-primary)' }}>
                     <div style={{ backgroundColor: '#e5e7eb', width: 'min(980px, 98vw)', height: '95vh', borderRadius: '4px', border: '1px solid #94a3b8', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', overflow: 'hidden' }}>
                         {/* Header */}
                         <div style={{ padding: '12px 24px', backgroundColor: 'var(--bg-panel)', borderBottom: '1px solid var(--border-primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -18144,7 +18175,7 @@ const AppBuilder = () => {
                                         onBlur={e => e.target.style.borderBottomColor = 'transparent'}
                                         placeholder="Trigger Name..."
                                     />
-                                    <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
                                         <span style={{ textTransform: 'uppercase' }}>{triggerEditor.sourceType} TRIGGER</span>
                                         {triggerEditor.trigger.event && <span>• {triggerEditor.trigger.event}</span>}
                                     </div>
@@ -18195,7 +18226,7 @@ const AppBuilder = () => {
 
                         {/* Scrollable Body */}
                         <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column' }}>
-                            <div style={{ backgroundColor: 'var(--bg-panel)', border: '1px solid #cbd5e1', borderRadius: '2px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', minHeight: '100%' }}>
+                            <div style={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-secondary)', borderRadius: '2px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', minHeight: '100%' }}>
 
                                 {/* Helper: Render Action Fields */}
                                 {(() => {
@@ -18217,7 +18248,7 @@ const AppBuilder = () => {
                                                 <select
                                                     value={source}
                                                     onChange={(e) => updateCond({ [sourceKey]: e.target.value, [valueKey]: '' })}
-                                                    style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.75rem', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-quaternary)', fontWeight: 700 }}
+                                                    style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-secondary)', fontSize: '0.75rem', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-quaternary)', fontWeight: 700 }}
                                                 >
                                                     {isLeft ? (
                                                         <>
@@ -18240,7 +18271,7 @@ const AppBuilder = () => {
                                                     <select
                                                         value={value}
                                                         onChange={(e) => updateCond({ [valueKey]: e.target.value })}
-                                                        style={{ flex: 1, padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                        style={{ flex: 1, padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                     >
                                                         <option value="">Select variable...</option>
                                                         {appVariables.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
@@ -18255,10 +18286,10 @@ const AppBuilder = () => {
                                                                 const tableId = e.target.value;
                                                                 updateCond({ [valueKey]: `${tableId}:` });
                                                             }}
-                                                            style={{ flex: 1, padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.75rem' }}
+                                                            style={{ flex: 1, padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-secondary)', fontSize: '0.75rem' }}
                                                         >
                                                             <option value="">Table...</option>
-                                                            {tables.filter(t => appTables.includes(t.id)).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                                            {tables.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                                         </select>
                                                         <select
                                                             value={value.split(':')[1] || ''}
@@ -18266,7 +18297,7 @@ const AppBuilder = () => {
                                                                 const tableId = value.split(':')[0];
                                                                 updateCond({ [valueKey]: `${tableId}:${e.target.value}` });
                                                             }}
-                                                            style={{ flex: 1, padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.75rem' }}
+                                                            style={{ flex: 1, padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-secondary)', fontSize: '0.75rem' }}
                                                         >
                                                             <option value="">Aggregation...</option>
                                                             {tables.find(t => t.id === value.split(':')[0])?.aggregations?.map(a => (
@@ -18281,7 +18312,7 @@ const AppBuilder = () => {
                                                         <select
                                                             value={value.split('.')[0] || ''}
                                                             onChange={(e) => updateCond({ [valueKey]: `${e.target.value}.` })}
-                                                            style={{ flex: 1, padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.75rem' }}
+                                                            style={{ flex: 1, padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-secondary)', fontSize: '0.75rem' }}
                                                         >
                                                             <option value="">Placeholder...</option>
                                                             {recordPlaceholders.map(rp => <option key={rp.id} value={rp.name}>{rp.name}</option>)}
@@ -18289,7 +18320,7 @@ const AppBuilder = () => {
                                                         <select
                                                             value={value.split('.').slice(1).join('.')}
                                                             onChange={(e) => updateCond({ [valueKey]: `${value.split('.')[0]}.${e.target.value}` })}
-                                                            style={{ flex: 1, padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.75rem' }}
+                                                            style={{ flex: 1, padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-secondary)', fontSize: '0.75rem' }}
                                                         >
                                                             <option value="">Field...</option>
                                                             {(tables.find(t => t.id === recordPlaceholders.find(rp => rp.name === value.split('.')[0])?.tableId)?.columns || []).map(f => (
@@ -18303,7 +18334,7 @@ const AppBuilder = () => {
                                                     <select
                                                         value={value}
                                                         onChange={(e) => updateCond({ [valueKey]: e.target.value })}
-                                                        style={{ flex: 1, padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                        style={{ flex: 1, padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                     >
                                                         <option value="">Select Info...</option>
                                                         <option value="APP_INFO.USER">Logged-in User</option>
@@ -18318,7 +18349,7 @@ const AppBuilder = () => {
                                                         value={value}
                                                         onChange={(e) => updateCond({ [valueKey]: e.target.value })}
                                                         placeholder="Value..."
-                                                        style={{ flex: 1, padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                        style={{ flex: 1, padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                     />
                                                 )}
 
@@ -18358,7 +18389,7 @@ const AppBuilder = () => {
                                                             <select
                                                                 value={act.payload.varPath}
                                                                 onChange={(e) => updatePayload({ varPath: e.target.value })}
-                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                             >
                                                                 <option value="">Select variable...</option>
                                                                 {appVariables.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
@@ -18370,7 +18401,7 @@ const AppBuilder = () => {
                                                                 <select
                                                                     value={act.payload.valueType || 'STATIC'}
                                                                     onChange={(e) => updatePayload({ valueType: e.target.value, value: '' })}
-                                                                    style={{ padding: '4px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.7rem', backgroundColor: 'var(--bg-accent-light)' }}
+                                                                    style={{ padding: '4px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.7rem', backgroundColor: 'var(--bg-accent-light)' }}
                                                                 >
                                                                     <option value="STATIC">Static Value</option>
                                                                     <option value="VARIABLE">Variable</option>
@@ -18389,7 +18420,7 @@ const AppBuilder = () => {
                                                                     <select
                                                                         value={act.payload.value}
                                                                         onChange={(e) => updatePayload({ value: e.target.value })}
-                                                                        style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                                        style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                                     >
                                                                         <option value="">Select variable...</option>
                                                                         {appVariables.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
@@ -18399,15 +18430,15 @@ const AppBuilder = () => {
                                                                         <select
                                                                             value={act.payload.value?.split(':')[0] || ''}
                                                                             onChange={(e) => updatePayload({ value: `${e.target.value}:` })}
-                                                                            style={{ flex: 1, padding: '4px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.75rem' }}
+                                                                            style={{ flex: 1, padding: '4px', borderRadius: '4px', border: '1px solid var(--border-secondary)', fontSize: '0.75rem' }}
                                                                         >
                                                                             <option value="">Table...</option>
-                                                                            {tables.filter(t => appTables.includes(t.id)).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                                                            {tables.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                                                         </select>
                                                                         <select
                                                                             value={act.payload.value?.split(':')[1] || ''}
                                                                             onChange={(e) => updatePayload({ value: `${act.payload.value.split(':')[0]}:${e.target.value}` })}
-                                                                            style={{ flex: 1, padding: '4px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.75rem' }}
+                                                                            style={{ flex: 1, padding: '4px', borderRadius: '4px', border: '1px solid var(--border-secondary)', fontSize: '0.75rem' }}
                                                                         >
                                                                             <option value="">Aggregation...</option>
                                                                             {tables.find(t => t.id === act.payload.value?.split(':')[0])?.aggregations?.map(a => (
@@ -18419,7 +18450,7 @@ const AppBuilder = () => {
                                                                     <input
                                                                         value={act.payload.value}
                                                                         onChange={(e) => updatePayload({ value: e.target.value })}
-                                                                        style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                                        style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                                     />
                                                                 )}
                                                             </div>
@@ -18434,7 +18465,7 @@ const AppBuilder = () => {
                                                             <input
                                                                 value={act.payload.message || ''}
                                                                 onChange={(e) => updatePayload({ message: e.target.value })}
-                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                                 placeholder="e.g. Operation Complete"
                                                             />
                                                         </div>
@@ -18443,7 +18474,7 @@ const AppBuilder = () => {
                                                             <select
                                                                 value={act.payload.msgType || 'info'}
                                                                 onChange={(e) => updatePayload({ msgType: e.target.value })}
-                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                             >
                                                                 <option value="info">Info (Blue)</option>
                                                                 <option value="success">Success (Green)</option>
@@ -18460,7 +18491,7 @@ const AppBuilder = () => {
                                                         <select
                                                             value={act.payload.stepId || ''}
                                                             onChange={(e) => updatePayload({ stepId: e.target.value })}
-                                                            style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                            style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                         >
                                                             <option value="">Select screen...</option>
                                                             {steps.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
@@ -18479,7 +18510,7 @@ const AppBuilder = () => {
                                                             <select
                                                                 value={act.payload.placeholderId || ''}
                                                                 onChange={(e) => updatePayload({ placeholderId: e.target.value })}
-                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                             >
                                                                 <option value="">Select placeholder...</option>
                                                                 {recordPlaceholders.map(rp => <option key={rp.id} value={rp.id}>{rp.name}</option>)}
@@ -18490,7 +18521,7 @@ const AppBuilder = () => {
                                                             <input
                                                                 value={act.payload.idValue || ''}
                                                                 onChange={(e) => updatePayload({ idValue: e.target.value })}
-                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                                 placeholder="Static ID or @Var"
                                                             />
                                                         </div>
@@ -18505,7 +18536,7 @@ const AppBuilder = () => {
                                                         <select
                                                             value={act.payload.placeholderId || ''}
                                                             onChange={(e) => updatePayload({ placeholderId: e.target.value })}
-                                                            style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                            style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                         >
                                                             <option value="">Select placeholder...</option>
                                                             {recordPlaceholders.map(rp => <option key={rp.id} value={rp.id}>{rp.name}</option>)}
@@ -18519,7 +18550,7 @@ const AppBuilder = () => {
                                                         <select
                                                             value={act.payload.varPath || ''}
                                                             onChange={(e) => updatePayload({ varPath: e.target.value })}
-                                                            style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                            style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                         >
                                                             <option value="">Select variable...</option>
                                                             {appVariables.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
@@ -18535,7 +18566,7 @@ const AppBuilder = () => {
                                                                 <select
                                                                     value={act.payload.promptType || 'STATIC'}
                                                                     onChange={(e) => updatePayload({ promptType: e.target.value })}
-                                                                    style={{ padding: '4px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.7rem', backgroundColor: 'var(--bg-accent-light)' }}
+                                                                    style={{ padding: '4px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.7rem', backgroundColor: 'var(--bg-accent-light)' }}
                                                                 >
                                                                     <option value="STATIC">Text</option>
                                                                     <option value="VARIABLE">Variable</option>
@@ -18544,7 +18575,7 @@ const AppBuilder = () => {
                                                                     <select
                                                                         value={act.payload.prompt || ''}
                                                                         onChange={(e) => updatePayload({ prompt: e.target.value })}
-                                                                        style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                                        style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                                     >
                                                                         <option value="">Select variable...</option>
                                                                         {appVariables.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
@@ -18553,7 +18584,7 @@ const AppBuilder = () => {
                                                                     <input
                                                                         value={act.payload.prompt || ''}
                                                                         onChange={(e) => updatePayload({ prompt: e.target.value })}
-                                                                        style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                                        style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                                         placeholder="e.g. Summarize this data"
                                                                     />
                                                                 )}
@@ -18564,7 +18595,7 @@ const AppBuilder = () => {
                                                             <select
                                                                 value={act.payload.inputVar || ''}
                                                                 onChange={(e) => updatePayload({ inputVar: e.target.value })}
-                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                             >
                                                                 <option value="">No input data</option>
                                                                 {appVariables.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
@@ -18575,7 +18606,7 @@ const AppBuilder = () => {
                                                             <select
                                                                 value={act.payload.resultVar || ''}
                                                                 onChange={(e) => updatePayload({ resultVar: e.target.value })}
-                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                             >
                                                                 <option value="">Do not save result</option>
                                                                 {appVariables.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
@@ -18591,7 +18622,7 @@ const AppBuilder = () => {
                                                             <input
                                                                 value={act.payload.description || ''}
                                                                 onChange={(e) => updatePayload({ description: e.target.value })}
-                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                                 placeholder="Briefly describe what this script does"
                                                             />
                                                         </div>
@@ -18602,7 +18633,7 @@ const AppBuilder = () => {
                                                                 onChange={(e) => updatePayload({ script: e.target.value })}
                                                                 style={{
                                                                     width: '100%', minHeight: '120px', padding: '12px', borderRadius: '8px',
-                                                                    border: '1px solid #cbd5e1', fontSize: '0.85rem', fontFamily: 'monospace',
+                                                                    border: '1px solid var(--border-secondary)', fontSize: '0.85rem', fontFamily: 'monospace',
                                                                     backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', resize: 'vertical'
                                                                 }}
                                                                 placeholder="// Example: return variables.myVar * 10;"
@@ -18613,7 +18644,7 @@ const AppBuilder = () => {
                                                             <select
                                                                 value={act.payload.resultVar || ''}
                                                                 onChange={(e) => updatePayload({ resultVar: e.target.value })}
-                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                             >
                                                                 <option value="">Do not save result</option>
                                                                 {appVariables.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
@@ -18647,7 +18678,7 @@ const AppBuilder = () => {
                                                             <select
                                                                 value={act.payload.resultVar || ''}
                                                                 onChange={(e) => updatePayload({ resultVar: e.target.value })}
-                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                             >
                                                                 <option value="">Do not save result</option>
                                                                 {appVariables.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
@@ -18662,7 +18693,7 @@ const AppBuilder = () => {
                                                         <input
                                                             value={act.payload.url || ''}
                                                             onChange={(e) => updatePayload({ url: e.target.value })}
-                                                            style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                            style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                             placeholder="https://example.com/sound.mp3"
                                                         />
                                                     </div>
@@ -18676,7 +18707,7 @@ const AppBuilder = () => {
                                                             <input
                                                                 value={act.payload.url || ''}
                                                                 onChange={(e) => updatePayload({ url: e.target.value })}
-                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                                 placeholder={`https://example.com/${act.type === 'SHOW_IMAGE' ? 'image.png' : 'video.mp4'}`}
                                                             />
                                                         </div>
@@ -18686,7 +18717,7 @@ const AppBuilder = () => {
                                                                 type="number"
                                                                 value={act.payload.duration || 5}
                                                                 onChange={(e) => updatePayload({ duration: parseInt(e.target.value) || 0 })}
-                                                                style={{ width: '80px', padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                                style={{ width: '80px', padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                             />
                                                             <span style={{ fontSize: '0.75rem', color: 'var(--text-quaternary)' }}>0 for manual close</span>
                                                         </div>
@@ -18700,7 +18731,7 @@ const AppBuilder = () => {
                                                             <select
                                                                 value={act.payload.connectorId || ''}
                                                                 onChange={(e) => updatePayload({ connectorId: e.target.value })}
-                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                             >
                                                                 <option value="">Select connector...</option>
                                                                 {connectors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -18711,7 +18742,7 @@ const AppBuilder = () => {
                                                             <select
                                                                 value={act.payload.resultVar || ''}
                                                                 onChange={(e) => updatePayload({ resultVar: e.target.value })}
-                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                             >
                                                                 <option value="">Do not save result</option>
                                                                 {appVariables.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
@@ -18723,7 +18754,7 @@ const AppBuilder = () => {
                                             case 'CANCEL_APP':
                                                 return <div style={{ fontSize: '0.85rem', color: 'var(--text-quaternary)', fontStyle: 'italic', padding: '8px' }}>No additional parameters required.</div>;
                                             default:
-                                                return <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>No parameters needed for this action.</div>;
+                                                return <div style={{ fontSize: '0.8rem', color: 'var(--text-quaternary)', fontStyle: 'italic' }}>No parameters needed for this action.</div>;
                                         }
                                     };
 
@@ -18736,7 +18767,7 @@ const AppBuilder = () => {
                                                     <select
                                                         value={triggerEditor.trigger.event || ''}
                                                         onChange={(e) => setTriggerEditor({ ...triggerEditor, trigger: { ...triggerEditor.trigger, event: e.target.value } })}
-                                                        style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                        style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                     >
                                                         {triggerEditor.sourceType === 'WIDGET' && (() => {
                                                             const compId = triggerEditor.sourceId;
@@ -18791,7 +18822,7 @@ const AppBuilder = () => {
                                                         <select
                                                             value={triggerEditor.trigger.deviceId || ''}
                                                             onChange={(e) => setTriggerEditor({ ...triggerEditor, trigger: { ...triggerEditor.trigger, deviceId: e.target.value } })}
-                                                            style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                            style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                         >
                                                             <option value="STATION_BARCODE">Barcode Scanner</option>
                                                         </select>
@@ -18799,7 +18830,7 @@ const AppBuilder = () => {
                                                         <select
                                                             value={triggerEditor.trigger.deviceEvent || 'BARCODE_SCANNED'}
                                                             onChange={(e) => setTriggerEditor({ ...triggerEditor, trigger: { ...triggerEditor.trigger, deviceEvent: e.target.value } })}
-                                                            style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                            style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                         >
                                                             <option value="BARCODE_SCANNED">this station</option>
                                                         </select>
@@ -18816,7 +18847,7 @@ const AppBuilder = () => {
                                                                 ...triggerEditor,
                                                                 trigger: { ...triggerEditor.trigger, timerInterval: parseInt(e.target.value) || 1 }
                                                             })}
-                                                            style={{ width: '60px', padding: '4px 8px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.85rem' }}
+                                                            style={{ width: '60px', padding: '4px 8px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.85rem' }}
                                                         />
                                                         <span style={{ fontSize: '0.85rem' }}>seconds</span>
                                                     </>
@@ -18825,11 +18856,11 @@ const AppBuilder = () => {
 
                                             {triggerEditor.trigger.event === 'ON_VARIABLE_CHANGE' && (
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
-                                                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a' }}>Variable</span>
+                                                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>Variable</span>
                                                     <select
                                                         value={triggerEditor.trigger.watchVar || ''}
                                                         onChange={(e) => setTriggerEditor({ ...triggerEditor, trigger: { ...triggerEditor.trigger, watchVar: e.target.value } })}
-                                                        style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', minWidth: '260px' }}
+                                                        style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem', minWidth: '260px' }}
                                                     >
                                                         <option value="">Any variable</option>
                                                         {appVariables.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
@@ -18840,7 +18871,7 @@ const AppBuilder = () => {
                                             {/* Error handling / Stop remaining triggers on error */}
                                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginTop: '12px' }}>
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a' }}>Stop remaining triggers on error</div>
+                                                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>Stop remaining triggers on error</div>
                                                     <div style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)' }}>
                                                         If an action errors, cancel subsequent triggers in this event.
                                                     </div>
@@ -18889,7 +18920,7 @@ const AppBuilder = () => {
                                                                     next[cIdx].match = e.target.value;
                                                                     setTriggerEditor({ ...triggerEditor, trigger: { ...triggerEditor.trigger, clauses: next } });
                                                                 }}
-                                                                style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                                style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                             >
                                                                 <option value="ALL">all</option>
                                                                 <option value="ANY">any</option>
@@ -18903,7 +18934,7 @@ const AppBuilder = () => {
                                                                         const next = triggerEditor.trigger.clauses.filter((_, i) => i !== cIdx);
                                                                         setTriggerEditor({ ...triggerEditor, trigger: { ...triggerEditor.trigger, clauses: next } });
                                                                     }}
-                                                                    style={{ padding: '4px 8px', background: 'none', border: '1px solid #cbd5e1', borderRadius: '4px', color: 'var(--text-quaternary)', cursor: 'pointer' }}
+                                                                    style={{ padding: '4px 8px', background: 'none', border: '1px solid var(--border-secondary)', borderRadius: '4px', color: 'var(--text-quaternary)', cursor: 'pointer' }}
                                                                 ><X size={14} /></button>
                                                             )}
                                                             <button
@@ -18915,9 +18946,9 @@ const AppBuilder = () => {
                                                                 style={{ padding: '4px 12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
                                                             >Add new condition</button>
                                                         </div>
-                                                        <div style={{ border: '1px solid #cbd5e1', borderRadius: '4px', overflow: 'hidden' }}>
+                                                        <div style={{ border: '1px solid var(--border-secondary)', borderRadius: '4px', overflow: 'hidden' }}>
                                                             {(clause.conditions || []).length === 0 ? (
-                                                                <div style={{ padding: '12px', backgroundColor: '#f9fafb', color: '#94a3b8', fontSize: '0.8rem', fontStyle: 'italic' }}>No conditions added.</div>
+                                                                <div style={{ padding: '12px', backgroundColor: '#f9fafb', color: 'var(--text-quaternary)', fontSize: '0.8rem', fontStyle: 'italic' }}>No conditions added.</div>
                                                             ) : (
                                                                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                                                                     {clause.conditions.map((cond, index) => (
@@ -18931,7 +18962,7 @@ const AppBuilder = () => {
                                                                                         next[cIdx].conditions[index].operator = e.target.value;
                                                                                         setTriggerEditor({ ...triggerEditor, trigger: { ...triggerEditor.trigger, clauses: next } });
                                                                                     }}
-                                                                                    style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem', width: '80px', fontWeight: 700, textAlign: 'center' }}
+                                                                                    style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem', width: '80px', fontWeight: 700, textAlign: 'center' }}
                                                                                 >
                                                                                     <option value="==">=</option>
                                                                                     <option value="!=">≠</option>
@@ -18977,14 +19008,14 @@ const AppBuilder = () => {
                                                         >Add new action</button>
                                                     </div>
 
-                                                    <div style={{ border: '1px solid #cbd5e1', borderRadius: '4px', overflow: 'hidden' }}>
+                                                    <div style={{ border: '1px solid var(--border-secondary)', borderRadius: '4px', overflow: 'hidden' }}>
                                                         {(clause.actions || []).length === 0 ? (
-                                                            <div style={{ padding: '12px', backgroundColor: '#f9fafb', color: '#94a3b8', fontSize: '0.8rem', fontStyle: 'italic' }}>No actions added.</div>
+                                                            <div style={{ padding: '12px', backgroundColor: '#f9fafb', color: 'var(--text-quaternary)', fontSize: '0.8rem', fontStyle: 'italic' }}>No actions added.</div>
                                                         ) : (
                                                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                                                                 {clause.actions.map((act, aIdx) => (
                                                                     <div key={aIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '12px', borderBottom: aIdx === clause.actions.length - 1 ? 'none' : '1px solid #e2e8f0', backgroundColor: 'var(--bg-panel)' }}>
-                                                                        <div style={{ color: '#94a3b8', marginTop: '8px' }}><GripVertical size={14} /></div>
+                                                                        <div style={{ color: 'var(--text-quaternary)', marginTop: '8px' }}><GripVertical size={14} /></div>
                                                                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                                                 <select
@@ -18994,7 +19025,7 @@ const AppBuilder = () => {
                                                                                         next[cIdx].actions[aIdx] = { type: e.target.value, payload: {} };
                                                                                         setTriggerEditor({ ...triggerEditor, trigger: { ...triggerEditor.trigger, clauses: next } });
                                                                                     }}
-                                                                                    style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                                                    style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                                                 >
                                                                                     <optgroup label="Variables">
                                                                                         <option value="SET_VARIABLE">Variable: Set</option>
@@ -19090,14 +19121,14 @@ const AppBuilder = () => {
                                                         style={{ padding: '4px 12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
                                                     >Add new action</button>
                                                 </div>
-                                                <div style={{ border: '1px solid #cbd5e1', borderRadius: '4px', overflow: 'hidden' }}>
+                                                <div style={{ border: '1px solid var(--border-secondary)', borderRadius: '4px', overflow: 'hidden' }}>
                                                     {(triggerEditor.trigger.elseActions || []).length === 0 ? (
-                                                        <div style={{ padding: '12px', backgroundColor: '#f9fafb', color: '#94a3b8', fontSize: '0.8rem', fontStyle: 'italic' }}>No actions added.</div>
+                                                        <div style={{ padding: '12px', backgroundColor: '#f9fafb', color: 'var(--text-quaternary)', fontSize: '0.8rem', fontStyle: 'italic' }}>No actions added.</div>
                                                     ) : (
                                                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                                                             {triggerEditor.trigger.elseActions.map((act, eIdx) => (
                                                                 <div key={eIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '12px', borderBottom: eIdx === triggerEditor.trigger.elseActions.length - 1 ? 'none' : '1px solid #e2e8f0', backgroundColor: 'var(--bg-panel)' }}>
-                                                                    <div style={{ color: '#94a3b8', marginTop: '8px' }}><GripVertical size={14} /></div>
+                                                                    <div style={{ color: 'var(--text-quaternary)', marginTop: '8px' }}><GripVertical size={14} /></div>
                                                                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                                             <select
@@ -19107,7 +19138,7 @@ const AppBuilder = () => {
                                                                                     next[eIdx] = { type: e.target.value, payload: {} };
                                                                                     setTriggerEditor({ ...triggerEditor, trigger: { ...triggerEditor.trigger, elseActions: next } });
                                                                                 }}
-                                                                                style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                                                style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                                             >
                                                                                 <optgroup label="Variables">
                                                                                     <option value="SET_VARIABLE">Variable: Set</option>
@@ -19266,7 +19297,7 @@ const AppBuilder = () => {
 
             {/* Expression Editor Modal */}
             {expressionEditor.isOpen && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, color: '#0f172a' }}>
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, color: 'var(--text-primary)' }}>
                     <div style={{ backgroundColor: 'var(--bg-panel)', padding: '30px', borderRadius: '12px', width: '700px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -19288,7 +19319,7 @@ const AppBuilder = () => {
                                     width: '100%',
                                     height: '150px',
                                     padding: '15px',
-                                    border: '2px solid #e2e8f0',
+                                    border: '2px solid var(--border-primary)',
                                     borderRadius: '8px',
                                     fontFamily: 'monospace',
                                     fontSize: '1rem',
@@ -19448,13 +19479,13 @@ const AppBuilder = () => {
                                                                 const nextVal = text.substring(0, start) + insert + text.substring(end);
                                                                 setExpressionEditor({ ...expressionEditor, initialValue: nextVal });
                                                             }}
-                                                            style={{ padding: '4px 8px', backgroundColor: 'var(--bg-panel)', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer', color: 'var(--text-primary)' }}
+                                                            style={{ padding: '4px 8px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-secondary)', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer', color: 'var(--text-primary)' }}
                                                         >{col}</button>
                                                     ))}
                                                 </div>
                                             );
                                         })}
-                                        {recordPlaceholders.length === 0 && <div style={{ fontSize: '0.8rem', color: '#94a3b8', textAlign: 'center', padding: '10px' }}>No record placeholders defined.</div>}
+                                        {recordPlaceholders.length === 0 && <div style={{ fontSize: '0.8rem', color: 'var(--text-quaternary)', textAlign: 'center', padding: '10px' }}>No record placeholders defined.</div>}
                                     </div>
                                 )}
                             </div>
@@ -19554,7 +19585,7 @@ const AppBuilder = () => {
                                             ))}
                                             {Object.keys(selectedCompletion.variables_snapshot || {}).length === 0 && (
                                                 <tr>
-                                                    <td colSpan="2" style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>No variables recorded.</td>
+                                                    <td colSpan="2" style={{ padding: '20px', textAlign: 'center', color: 'var(--text-quaternary)', fontSize: '0.85rem' }}>No variables recorded.</td>
                                                 </tr>
                                             )}
                                         </tbody>
@@ -19580,7 +19611,7 @@ const AppBuilder = () => {
                     }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                             <div style={{ fontSize: '0.9rem', color: 'var(--text-quaternary)', fontWeight: 500 }}>
-                                Functions <span style={{ margin: '0 8px', color: '#cbd5e1' }}>/</span>
+                                Functions <span style={{ margin: '0 8px', color: 'var(--border-secondary)' }}>/</span>
                                 <input
                                     value={functionEditor.function.name}
                                     onChange={(e) => {
@@ -19593,8 +19624,8 @@ const AppBuilder = () => {
                             </div>
                         </div>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            <button style={{ background: 'none', border: 'none', color: '#94a3b8', padding: '8px', cursor: 'pointer', borderRadius: '6px' }}><Undo size={18} /></button>
-                            <button style={{ background: 'none', border: 'none', color: '#94a3b8', padding: '8px', cursor: 'pointer', borderRadius: '6px' }}><Redo size={18} /></button>
+                            <button style={{ background: 'none', border: 'none', color: 'var(--text-quaternary)', padding: '8px', cursor: 'pointer', borderRadius: '6px' }}><Undo size={18} /></button>
+                            <button style={{ background: 'none', border: 'none', color: 'var(--text-quaternary)', padding: '8px', cursor: 'pointer', borderRadius: '6px' }}><Redo size={18} /></button>
                             <div style={{ width: '1px', height: '20px', backgroundColor: '#e2e8f0', margin: '0 8px' }}></div>
                             <button
                                 onClick={() => setFunctionEditor({ ...functionEditor, isOpen: false, selectedNodeIndex: null })}
@@ -19615,12 +19646,12 @@ const AppBuilder = () => {
                         <div style={{ width: '300px', backgroundColor: 'var(--bg-panel)', borderRight: '1px solid var(--border-primary)', display: 'flex', flexDirection: 'column' }}>
                             <div style={{ display: 'flex', borderBottom: '1px solid var(--border-primary)' }}>
                                 <div style={{ flex: 1, padding: '12px 0', textAlign: 'center', fontSize: '0.8rem', fontWeight: 700, color: '#3b82f6', borderBottom: '2px solid #3b82f6', cursor: 'pointer' }}>Inputs & outputs</div>
-                                <div style={{ flex: 1, padding: '12px 0', textAlign: 'center', fontSize: '0.8rem', fontWeight: 600, color: '#94a3b8', cursor: 'pointer' }}>Assets</div>
+                                <div style={{ flex: 1, padding: '12px 0', textAlign: 'center', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-quaternary)', cursor: 'pointer' }}>Assets</div>
                             </div>
                             <div style={{ padding: '16px' }}>
                                 {/* Search */}
                                 <div style={{ position: 'relative', marginBottom: '20px' }}>
-                                    <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: '#94a3b8' }} />
+                                    <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: 'var(--text-quaternary)' }} />
                                     <input placeholder="Search inputs & outputs" style={{ width: '100%', padding: '8px 10px 8px 30px', fontSize: '0.8rem', border: '1px solid var(--border-primary)', borderRadius: '6px', backgroundColor: 'var(--bg-secondary)', outline: 'none' }} />
                                 </div>
 
@@ -19639,7 +19670,7 @@ const AppBuilder = () => {
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
                                     {functionEditor.function.inputs.length === 0 ? (
-                                        <div style={{ fontSize: '0.75rem', color: '#94a3b8', padding: '8px 0' }}>No inputs</div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-quaternary)', padding: '8px 0' }}>No inputs</div>
                                     ) : (
                                         functionEditor.function.inputs.map((input, idx) => (
                                             <div key={idx} style={{ padding: '8px', backgroundColor: 'var(--bg-secondary)', borderRadius: '6px', border: '1px solid var(--border-primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -19671,7 +19702,7 @@ const AppBuilder = () => {
                                                             const newInputs = functionEditor.function.inputs.filter((_, i) => i !== idx);
                                                             setFunctionEditor({ ...functionEditor, function: { ...functionEditor.function, inputs: newInputs } });
                                                         }}
-                                                        style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                                                        style={{ background: 'none', border: 'none', color: 'var(--text-quaternary)', cursor: 'pointer' }}
                                                     ><X size={14} /></button>
                                                 )}
                                             </div>
@@ -19685,7 +19716,7 @@ const AppBuilder = () => {
                                     <button style={{ color: 'var(--text-quaternary)', background: 'none', border: 'none', cursor: 'pointer' }}><Plus size={16} /></button>
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', padding: '8px 0' }}>No outputs defined</div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-quaternary)', padding: '8px 0' }}>No outputs defined</div>
                                 </div>
                             </div>
                         </div>
@@ -19700,7 +19731,7 @@ const AppBuilder = () => {
                             onClick={() => setFunctionEditor({ ...functionEditor, selectedNodeIndex: null, nodeMenu: { ...functionEditor.nodeMenu, isOpen: false } })}
                         >
                             {/* SVG Connection Layer */}
-                            <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '2px', backgroundColor: '#cbd5e1', zIndex: 0 }}></div>
+                            <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '2px', backgroundcolor: 'var(--border-secondary)', zIndex: 0 }}></div>
 
                             {/* Nodes Rendering */}
                             <div style={{ zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '40px' }}>
@@ -19772,7 +19803,7 @@ const AppBuilder = () => {
                                                     e.preventDefault(); e.stopPropagation();
                                                     setFunctionEditor({ ...functionEditor, nodeMenu: { isOpen: true, x: e.clientX, y: e.clientY, insertIndex: idx + 1 } });
                                                 }}
-                                                style={{ zIndex: 2, padding: '8px', borderRadius: '50%', backgroundColor: 'var(--bg-panel)', border: '1px solid #cbd5e1', color: 'var(--text-quaternary)', cursor: 'pointer', transition: 'all 0.2s', ':hover': { borderColor: '#3b82f6', color: '#3b82f6' } }}
+                                                style={{ zIndex: 2, padding: '8px', borderRadius: '50%', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-secondary)', color: 'var(--text-quaternary)', cursor: 'pointer', transition: 'all 0.2s', ':hover': { borderColor: '#3b82f6', color: '#3b82f6' } }}
                                             ><Plus size={14} /></button>
                                         )}
                                     </React.Fragment>
@@ -19795,12 +19826,12 @@ const AppBuilder = () => {
                         <div style={{ width: '350px', backgroundColor: 'var(--bg-panel)', borderLeft: '1px solid var(--border-primary)', display: 'flex', flexDirection: 'column' }}>
                             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)' }}>Details pane</span>
-                                <Info size={16} color="#94a3b8" />
+                                <Info size={16} color="var(--text-quaternary)" />
                             </div>
 
                             <div style={{ padding: '20px', flex: 1, overflowY: 'auto' }}>
                                 {functionEditor.selectedNodeIndex === null ? (
-                                    <div style={{ textAlign: 'center', color: '#94a3b8', marginTop: '40px' }}>
+                                    <div style={{ textAlign: 'center', color: 'var(--text-quaternary)', marginTop: '40px' }}>
                                         <MousePointer2 size={32} style={{ margin: '0 auto 10px auto', opacity: 0.5 }} />
                                         <div style={{ fontSize: '0.85rem' }}>Select a node in the center canvas to view or edit its details.</div>
                                     </div>
@@ -19828,7 +19859,7 @@ const AppBuilder = () => {
                                                     newSteps[functionEditor.selectedNodeIndex].type = e.target.value;
                                                     setFunctionEditor({ ...functionEditor, function: { ...functionEditor.function, steps: newSteps } });
                                                 }}
-                                                style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.8rem', outline: 'none' }}
+                                                style={{ width: '100%', padding: '8px', border: '1px solid var(--border-secondary)', borderRadius: '6px', fontSize: '0.8rem', outline: 'none' }}
                                             >
                                                 <option value="SET">Set Variable</option>
                                                 <option value="RETURN">Return Result</option>
@@ -19849,7 +19880,7 @@ const AppBuilder = () => {
                                                             setFunctionEditor({ ...functionEditor, function: { ...functionEditor.function, steps: newSteps } });
                                                         }}
                                                         placeholder="e.g., result"
-                                                        style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.8rem', outline: 'none' }}
+                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-secondary)', borderRadius: '6px', fontSize: '0.8rem', outline: 'none' }}
                                                     />
                                                 </div>
                                                 <div style={{ marginBottom: '15px' }}>
@@ -19862,7 +19893,7 @@ const AppBuilder = () => {
                                                             setFunctionEditor({ ...functionEditor, function: { ...functionEditor.function, steps: newSteps } });
                                                         }}
                                                         placeholder="e.g., param1 + 10"
-                                                        style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem', outline: 'none', height: '100px', resize: 'vertical', fontFamily: 'monospace' }}
+                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-secondary)', borderRadius: '6px', fontSize: '0.85rem', outline: 'none', height: '100px', resize: 'vertical', fontFamily: 'monospace' }}
                                                     />
                                                 </div>
                                             </>
@@ -19879,13 +19910,13 @@ const AppBuilder = () => {
                                                         setFunctionEditor({ ...functionEditor, function: { ...functionEditor.function, steps: newSteps } });
                                                     }}
                                                     placeholder="e.g., result"
-                                                    style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem', outline: 'none', height: '100px', resize: 'vertical', fontFamily: 'monospace' }}
+                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-secondary)', borderRadius: '6px', fontSize: '0.85rem', outline: 'none', height: '100px', resize: 'vertical', fontFamily: 'monospace' }}
                                                 />
                                             </div>
                                         )}
 
                                         {functionEditor.function.steps[functionEditor.selectedNodeIndex].type !== 'SET' && functionEditor.function.steps[functionEditor.selectedNodeIndex].type !== 'RETURN' && (
-                                            <div style={{ fontSize: '0.8rem', color: 'var(--text-quaternary)', padding: '10px', backgroundColor: 'var(--bg-secondary)', borderRadius: '6px', border: '1px dashed #cbd5e1' }}>
+                                            <div style={{ fontSize: '0.8rem', color: 'var(--text-quaternary)', padding: '10px', backgroundColor: 'var(--bg-secondary)', borderRadius: '6px', border: '1px dashed var(--border-secondary)' }}>
                                                 Configuration for {functionEditor.function.steps[functionEditor.selectedNodeIndex].type} is coming soon!
                                             </div>
                                         )}
@@ -19968,19 +19999,19 @@ const AppBuilder = () => {
                         <div style={{ padding: '16px', display: 'grid', gap: '10px' }}>
                             <div>
                                 <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-tertiary)', fontWeight: 700, marginBottom: '4px' }}>USERNAME</label>
-                                <input value={eSignModal.username} onChange={(e) => setESignModal(prev => ({ ...prev, username: e.target.value }))} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
+                                <input value={eSignModal.username} onChange={(e) => setESignModal(prev => ({ ...prev, username: e.target.value }))} style={{ width: '100%', padding: '8px', border: '1px solid var(--border-secondary)', borderRadius: '6px' }} />
                             </div>
                             <div>
                                 <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-tertiary)', fontWeight: 700, marginBottom: '4px' }}>PASSWORD</label>
-                                <input type="password" value={eSignModal.password} onChange={(e) => setESignModal(prev => ({ ...prev, password: e.target.value }))} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
+                                <input type="password" value={eSignModal.password} onChange={(e) => setESignModal(prev => ({ ...prev, password: e.target.value }))} style={{ width: '100%', padding: '8px', border: '1px solid var(--border-secondary)', borderRadius: '6px' }} />
                             </div>
                             <div>
                                 <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-tertiary)', fontWeight: 700, marginBottom: '4px' }}>COMMENT</label>
-                                <textarea value={eSignModal.comment} onChange={(e) => setESignModal(prev => ({ ...prev, comment: e.target.value }))} rows={3} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
+                                <textarea value={eSignModal.comment} onChange={(e) => setESignModal(prev => ({ ...prev, comment: e.target.value }))} rows={3} style={{ width: '100%', padding: '8px', border: '1px solid var(--border-secondary)', borderRadius: '6px' }} />
                             </div>
                         </div>
                         <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border-primary)', display: 'flex', gap: '8px', justifyContent: 'flex-end', backgroundColor: 'var(--bg-secondary)' }}>
-                            <button onClick={() => setESignModal({ isOpen: false, compId: null, username: '', password: '', comment: '' })} style={{ padding: '8px 12px', border: '1px solid #cbd5e1', backgroundColor: 'var(--bg-panel)', borderRadius: '6px', fontWeight: 700, color: 'var(--text-tertiary)', cursor: 'pointer' }}>Cancel</button>
+                            <button onClick={() => setESignModal({ isOpen: false, compId: null, username: '', password: '', comment: '' })} style={{ padding: '8px 12px', border: '1px solid var(--border-secondary)', backgroundColor: 'var(--bg-panel)', borderRadius: '6px', fontWeight: 700, color: 'var(--text-tertiary)', cursor: 'pointer' }}>Cancel</button>
                             <button onClick={confirmElectronicSignature} style={{ padding: '8px 12px', border: 'none', backgroundColor: '#2563eb', borderRadius: '6px', fontWeight: 800, color: '#ffffff', cursor: 'pointer' }}>Sign</button>
                         </div>
                     </div>
@@ -20001,7 +20032,7 @@ const AppBuilder = () => {
                                     <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 600 }}>Action Required</p>
                                 </div>
                             </div>
-                            <button onClick={() => setProPrompt({ ...proPrompt, isOpen: false })} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={20} /></button>
+                            <button onClick={() => setProPrompt({ ...proPrompt, isOpen: false })} style={{ background: 'none', border: 'none', color: 'var(--text-quaternary)', cursor: 'pointer' }}><X size={20} /></button>
                         </div>
 
                         <div style={{ padding: '24px' }}>
@@ -20016,7 +20047,7 @@ const AppBuilder = () => {
                                         setProPrompt({ ...proPrompt, isOpen: false });
                                     }
                                 }}
-                                style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', border: '2px solid #e2e8f0', fontSize: '0.95rem', fontWeight: 500, outline: 'none', transition: 'all 0.2s', backgroundColor: 'var(--bg-secondary)' }}
+                                style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', border: '2px solid var(--border-primary)', fontSize: '0.95rem', fontWeight: 500, outline: 'none', transition: 'all 0.2s', backgroundColor: 'var(--bg-secondary)' }}
                                 placeholder={proPrompt.placeholder || "Enter value..."}
                             />
                         </div>
@@ -20073,7 +20104,7 @@ const AppBuilder = () => {
                             border: '1px solid var(--border-primary)',
                             marginBottom: '25px'
                         }}>
-                            <code style={{ flex: 1, fontSize: '0.85rem', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{publishModal.url}</code>
+                            <code style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{publishModal.url}</code>
                             <button
                                 onClick={handleCopyUrl}
                                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#007bff', fontWeight: 700, fontSize: '0.85rem' }}
@@ -20124,7 +20155,7 @@ const AppBuilder = () => {
                                 </div>
                                 <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>Companion Connect</h3>
                             </div>
-                            <button onClick={() => setCompanionModal({ ...companionModal, isOpen: false })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={24} /></button>
+                            <button onClick={() => setCompanionModal({ ...companionModal, isOpen: false })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-quaternary)' }}><X size={24} /></button>
                         </div>
 
                         <div style={{ marginBottom: '25px', display: 'flex', justifyContent: 'center' }}>
@@ -20199,7 +20230,7 @@ const AppBuilder = () => {
                                     value={variableEditor.variable?.name || ''}
                                     onChange={e => setVariableEditor({ ...variableEditor, variable: { ...variableEditor.variable, name: e.target.value.toUpperCase().replace(/\s+/g, '_') } })}
                                     placeholder="E.G. ITEM_COUNT"
-                                    style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', outline: 'none' }}
+                                    style={{ width: '100%', padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px', fontSize: '0.9rem', outline: 'none' }}
                                 />
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -20208,7 +20239,7 @@ const AppBuilder = () => {
                                     <select
                                         value={variableEditor.variable?.type || 'TEXT'}
                                         onChange={e => setVariableEditor({ ...variableEditor, variable: { ...variableEditor.variable, type: e.target.value } })}
-                                        style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem' }}
+                                        style={{ width: '100%', padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px', fontSize: '0.9rem' }}
                                     >
                                         <option value="TEXT">Text</option>
                                         <option value="NUMBER">Number</option>
@@ -20223,7 +20254,7 @@ const AppBuilder = () => {
                                         <select
                                             value={String(variableEditor.variable?.defaultValue)}
                                             onChange={e => setVariableEditor({ ...variableEditor, variable: { ...variableEditor.variable, defaultValue: e.target.value === 'true' } })}
-                                            style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem' }}
+                                            style={{ width: '100%', padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px', fontSize: '0.9rem' }}
                                         >
                                             <option value="false">False</option>
                                             <option value="true">True</option>
@@ -20234,7 +20265,7 @@ const AppBuilder = () => {
                                             value={variableEditor.variable?.defaultValue || ''}
                                             onChange={e => setVariableEditor({ ...variableEditor, variable: { ...variableEditor.variable, defaultValue: variableEditor.variable?.type === 'NUMBER' ? parseFloat(e.target.value) || 0 : e.target.value } })}
                                             placeholder="Optional"
-                                            style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem' }}
+                                            style={{ width: '100%', padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px', fontSize: '0.9rem' }}
                                         />
                                     )}
                                 </div>
@@ -20346,7 +20377,7 @@ const AppBuilder = () => {
                         {/* Header */}
                         <div style={{ padding: '24px 32px', borderBottom: '1px solid var(--border-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(to right, #f8fafc, #fff)' }}>
                             <div>
-                                <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '12px' }}>
                                     <FilePlus size={28} style={{ color: 'var(--accent-blue)' }} />
                                     {aiComposerState === 'IDLE' ? 'Create New Application' : 'AI Composer'}
                                 </h2>
@@ -20377,7 +20408,7 @@ const AppBuilder = () => {
                                             setIsCreateDrawerOpen(false);
                                         }}
                                         style={{
-                                            padding: '40px', borderRadius: '20px', border: '2px solid #e2e8f0', cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                            padding: '40px', borderRadius: '20px', border: '2px solid var(--border-primary)', cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                                             display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '20px',
                                             backgroundColor: '#fff'
                                         }}
@@ -20396,7 +20427,7 @@ const AppBuilder = () => {
                                             <Plus size={40} />
                                         </div>
                                         <div>
-                                            <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: '#0f172a' }}>Blank App</h3>
+                                            <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>Blank App</h3>
                                             <p style={{ marginTop: '8px', fontSize: '0.95rem', color: 'var(--text-quaternary)', lineHeight: 1.5 }}>Start from scratch and build your own custom workflow.</p>
                                         </div>
                                     </div>
@@ -20405,7 +20436,7 @@ const AppBuilder = () => {
                                     <div
                                         onClick={() => fileInputRef.current?.click()}
                                         style={{
-                                            padding: '40px', borderRadius: '20px', border: '2px solid #e2e8f0', cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                            padding: '40px', borderRadius: '20px', border: '2px solid var(--border-primary)', cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                                             display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '20px',
                                             background: 'linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%)', position: 'relative', overflow: 'hidden'
                                         }}
@@ -20425,7 +20456,7 @@ const AppBuilder = () => {
                                             <Sparkles size={40} />
                                         </div>
                                         <div>
-                                            <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: '#0f172a' }}>AI Composer</h3>
+                                            <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>AI Composer</h3>
                                             <p style={{ marginTop: '8px', fontSize: '0.95rem', color: 'var(--text-quaternary)', lineHeight: 1.5 }}>Upload an SOP or document and let AI generate the app structure for you.</p>
                                         </div>
                                         <div style={{ marginTop: '10px', padding: '6px 16px', borderRadius: '20px', backgroundColor: '#8b5cf6', color: '#fff', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -20437,7 +20468,7 @@ const AppBuilder = () => {
                                     <div
                                         onClick={handleCreateTemplateApp}
                                         style={{
-                                            padding: '40px', borderRadius: '20px', border: '2px solid #e2e8f0', cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                            padding: '40px', borderRadius: '20px', border: '2px solid var(--border-primary)', cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                                             display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '20px',
                                             background: 'linear-gradient(135deg, #ffffff 0%, #ecfdf5 100%)', position: 'relative', overflow: 'hidden'
                                         }}
@@ -20456,7 +20487,7 @@ const AppBuilder = () => {
                                             <Settings2 size={40} />
                                         </div>
                                         <div>
-                                            <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: '#0f172a' }}>Shopfloor Template</h3>
+                                            <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>Shopfloor Template</h3>
                                             <p style={{ marginTop: '8px', fontSize: '0.95rem', color: 'var(--text-quaternary)', lineHeight: 1.5 }}>Instantly deploy a 5-step Standard Work Application with built-in QA.</p>
                                         </div>
                                     </div>
@@ -20499,7 +20530,7 @@ const AppBuilder = () => {
                                     </div>
 
                                     <div style={{ textAlign: 'center', width: '100%', maxWidth: '400px' }}>
-                                        <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700, color: '#0f172a' }}>
+                                        <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                                             {aiComposerState === 'UPLOADING' && 'Uploading Document...'}
                                             {aiComposerState === 'ANALYZING' && 'AI Analyzing SOP...'}
                                             {aiComposerState === 'GENERATING' && 'Generating App Structure...'}
@@ -20520,7 +20551,7 @@ const AppBuilder = () => {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                                     <div style={{ padding: '20px', borderRadius: '16px', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-primary)' }}>
                                         <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-quaternary)', textTransform: 'uppercase' }}>Extracted App Structure</h4>
-                                        <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#0f172a' }}>{extractedAppData.name}</div>
+                                        <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>{extractedAppData.name}</div>
                                     </div>
 
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -20531,7 +20562,7 @@ const AppBuilder = () => {
                                                     {idx + 1}
                                                 </div>
                                                 <div style={{ flex: 1 }}>
-                                                    <div style={{ fontWeight: 600, color: '#0f172a' }}>{step.title}</div>
+                                                    <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{step.title}</div>
                                                     <div style={{ fontSize: '0.8rem', color: 'var(--text-quaternary)' }}>{step.components.length} widgets identified</div>
                                                 </div>
                                                 <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#10b981', padding: '4px 8px', borderRadius: '6px', backgroundColor: '#ecfdf5' }}>
@@ -20550,7 +20581,7 @@ const AppBuilder = () => {
                                         </button>
                                         <button
                                             onClick={() => setAiComposerState('IDLE')}
-                                            style={{ padding: '16px 24px', borderRadius: '12px', border: '2px solid #e2e8f0', backgroundColor: 'transparent', color: 'var(--text-quaternary)', fontWeight: 700, cursor: 'pointer' }}
+                                            style={{ padding: '16px 24px', borderRadius: '12px', border: '2px solid var(--border-primary)', backgroundColor: 'transparent', color: 'var(--text-quaternary)', fontWeight: 700, cursor: 'pointer' }}
                                         >
                                             Reset
                                         </button>
@@ -20561,7 +20592,7 @@ const AppBuilder = () => {
 
                         {/* Footer Info */}
                         <div style={{ padding: '16px 32px', borderTop: '1px solid var(--border-secondary)', backgroundColor: 'var(--bg-secondary)', display: 'flex', justifyContent: 'center' }}>
-                            <div style={{ fontSize: '0.8rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-quaternary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <ShieldCheck size={14} /> Powered by Mavi AI v2.4 • Enterprise Grade
                             </div>
                         </div>
@@ -20596,10 +20627,10 @@ const AppBuilder = () => {
                         overflow: 'hidden'
                     }}>
                         <div style={{ padding: '24px', borderBottom: '1px solid var(--border-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#0f172a' }}>{activeListPicker.title || 'Select Item'}</h3>
+                            <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)' }}>{activeListPicker.title || 'Select Item'}</h3>
                             <button
                                 onClick={() => setActiveListPicker(null)}
-                                style={{ border: 'none', backgroundColor: 'transparent', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
+                                style={{ border: 'none', backgroundColor: 'transparent', color: 'var(--text-quaternary)', cursor: 'pointer', padding: '4px' }}
                             >
                                 <X size={24} />
                             </button>
@@ -20608,7 +20639,7 @@ const AppBuilder = () => {
                         {activeListPicker.showFilterBar && (
                             <div style={{ padding: '16px 24px', backgroundColor: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-secondary)' }}>
                                 <div style={{ position: 'relative' }}>
-                                    <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                    <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-quaternary)' }} />
                                     <input
                                         autoFocus
                                         placeholder="Search elements..."
@@ -20694,7 +20725,7 @@ const AppBuilder = () => {
                             display: 'flex', flexDirection: 'column'
                         }}>
                             <div style={{ padding: '24px', borderBottom: '1px solid var(--border-secondary)' }}>
-                                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>{notifierState.title || 'Notification'}</h3>
+                                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>{notifierState.title || 'Notification'}</h3>
                             </div>
                             <div style={{ padding: '24px', fontSize: '1rem', color: 'var(--text-tertiary)', lineHeight: 1.6 }}>
                                 {notifierState.message}
@@ -20763,7 +20794,7 @@ const AppBuilder = () => {
                                 <div style={{ padding: '12px', textAlign: 'center', borderTop: '1px solid var(--border-secondary)' }}>
                                     <button
                                         onClick={() => setNotifierState({ ...notifierState, isOpen: false })}
-                                        style={{ background: 'none', border: 'none', fontSize: '0.7rem', color: '#94a3b8', cursor: 'pointer' }}
+                                        style={{ background: 'none', border: 'none', fontSize: '0.7rem', color: 'var(--text-quaternary)', cursor: 'pointer' }}
                                     >(Debug: Force Close Progress)</button>
                                 </div>
                             )}
@@ -20792,7 +20823,7 @@ const AppBuilder = () => {
                                 {proUiDialog.type === 'error' ? <AlertTriangle size={24} /> : (proUiDialog.type === 'success' ? <CheckCircle2 size={24} /> : <Info size={24} />)}
                             </div>
                             <div>
-                                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: '#0f172a' }}>
+                                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                                     {proUiDialog.type === 'error' ? 'Error' : (proUiDialog.type === 'success' ? 'Success' : 'Notification')}
                                 </h3>
                             </div>

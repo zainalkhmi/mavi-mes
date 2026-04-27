@@ -221,21 +221,38 @@ export async function publishApp(appId) {
         if (fetchError) throw fetchError;
 
         // 2. Increment version and copy config
-        const { data, error } = await supabase
+        let result = await supabase
             .from('frontline_apps')
             .update({
                 published_config: app.config,
                 is_published: true,
-                approval_status: 'PUBLISHED', // Auto-approve if publishing directly for now
+                approval_status: 'PUBLISHED',
                 version: (app.version || 0) + 1,
                 updated_at: new Date().toISOString()
             })
             .eq('id', appId)
             .select()
             .single();
+        
+        // NEW: Fallback for missing governance columns
+        if (result.error && (
+            String(result.error.message || '').includes('published_config') ||
+            String(result.error.message || '').includes('is_published') ||
+            String(result.error.message || '').includes('version')
+        )) {
+            console.warn('[Supabase] Governance columns missing in publishApp, falling back to legacy update.');
+            result = await supabase
+                .from('frontline_apps')
+                .update({
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', appId)
+                .select()
+                .single();
+        }
 
-        if (error) throw error;
-        return data;
+        if (result.error) throw result.error;
+        return result.data;
     } catch (err) {
         console.warn('[Offline Mode] Intercepting publish, applying to vault', err);
         const raw = localStorage.getItem('mavi_offline_vault');

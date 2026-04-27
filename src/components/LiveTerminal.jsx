@@ -68,6 +68,8 @@ import {
   PieChart,
   Sparkles
 } from 'lucide-react';
+import WebcamComp from 'react-webcam';
+import Tesseract from 'tesseract.js';
 import { listManualSummaries, getManualById, uploadManualImage } from '../utils/supabaseManualDB';
 import { saveLiveMeasurement } from '../utils/supabaseUtilityDB';
 import { getAllFrontlineApps, getProductionQueue } from '../utils/supabaseFrontlineDB';
@@ -263,6 +265,8 @@ const LiveTerminal = () => {
   const [stepTimers, setStepTimers] = useState({}); // { [stepId]: seconds }
   const [recordingState, setRecordingState] = useState({}); // { [compId]: boolean }
   const [mediaRecorderValues, setMediaRecorderValues] = useState({}); // { [compId]: dataUrl }
+  const [visionValues, setVisionValues] = useState({}); // { [compId]: string }
+  const [ocrProcessing, setOcrProcessing] = useState({}); // { [compId]: boolean }
   const stepTimerRef = useRef(null);
   // Defect modal
   const [showDefectModal, setShowDefectModal] = useState(false);
@@ -328,6 +332,7 @@ const LiveTerminal = () => {
   const mediaChunksRefs = useRef({});
   const mediaStreamRefs = useRef({});
   const cameraScannerVideoRefs = useRef({});
+  const visionWebcamRefs = useRef({});
   const cameraScannerStreams = useRef({});
   const cameraScannerIntervals = useRef({});
   const widgetContainerRefs = useRef({});
@@ -581,6 +586,46 @@ const LiveTerminal = () => {
       fireWidgetTriggers(comp, 'ON_CHANGE');
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleVisionOcr = async (comp, webcamRef) => {
+    if (!webcamRef.current) return;
+    
+    setOcrProcessing(prev => ({ ...prev, [comp.id]: true }));
+    const imageSrc = webcamRef.current.getScreenshot();
+    
+    try {
+      const { data: { text } } = await Tesseract.recognize(imageSrc, 'eng', {
+        // logger: m => console.log(m)
+      });
+      
+      // Extract numbers (including decimals) from the text
+      const matches = text.match(/[-+]?[0-9]*\.?[0-9]+/g);
+      if (matches && matches.length > 0) {
+        // Take the longest match or the first one that looks like a measurement
+        const value = matches[0];
+        setVisionValues(prev => ({ ...prev, [comp.id]: value }));
+        
+        // If targetVariable is set, update it
+        if (comp.props.targetVariable) {
+          const vDef = appVariables.find(v => v.name === comp.props.targetVariable);
+          setAppVariables(prev => prev.map(v => v.name === comp.props.targetVariable ? { ...v, value: value } : v));
+          if (vDef?.isPersistent) {
+            const { upsertGlobalVariable } = await import('../utils/supabaseGlobalVars');
+            await upsertGlobalVariable(comp.props.targetVariable, vDef.type || 'TEXT', value);
+          }
+        }
+        
+        fireWidgetTriggers(comp, 'ON_CHANGE');
+      } else {
+        alert("Could not detect any numbers. Please try again with better alignment.");
+      }
+    } catch (err) {
+      console.error("OCR failed:", err);
+      alert("Vision processing error. Please try manual entry.");
+    } finally {
+      setOcrProcessing(prev => ({ ...prev, [comp.id]: false }));
+    }
   };
 
   const ensureDrawCanvas = (key) => {
@@ -1605,6 +1650,8 @@ const LiveTerminal = () => {
         if (requiredCount > 0 && ck.size < requiredCount) return fail('Complete all checklist items');
         return pass();
       }
+      case 'VISION_MEASUREMENT':
+        return String(visionValues[comp.id] || '').trim() ? pass() : fail();
       default:
         return pass();
     }
@@ -2401,8 +2448,18 @@ const LiveTerminal = () => {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     {appComponents.filter(c => visibilityMap[c.id] !== false).map((comp, idx) => {
                       const renderWidget = () => {
-                        // Resolve IoT Binding if present
+                        // 1. Base Props
                         let resolvedProps = { ...comp.props };
+
+                        // 2. Resolve Data Bindings (@Variable, @Record.Field)
+                        const propsToResolve = ['text', 'label', 'defaultValue', 'value', 'placeholder', 'src', 'title', 'url', 'varSource'];
+                        propsToResolve.forEach(p => {
+                          if (typeof resolvedProps[p] === 'string' && resolvedProps[p].startsWith('@')) {
+                            resolvedProps[p] = resolveValue(resolvedProps[p]);
+                          }
+                        });
+
+                        // 3. Resolve IoT Binding if present
                         if (comp.props.iotTopicId && machineData[comp.props.iotTopicId] !== undefined) {
                           const iotVal = machineData[comp.props.iotTopicId];
                           if (comp.type === 'GAUGE' || comp.type === 'NUMBER_INPUT') {
@@ -2411,6 +2468,13 @@ const LiveTerminal = () => {
                             resolvedProps.text = String(iotVal);
                           }
                         }
+
+                        const syncVariable = (value) => {
+                          if (comp.props?.dataSourceType === 'VARIABLE' && comp.props?.varSource) {
+                            const varName = comp.props.varSource;
+                            setAppVariables(prev => prev.map(v => v.name === varName ? { ...v, value } : v));
+                          }
+                        };
 
                         switch (comp.type) {
                           case 'TEXT': return <div style={{ fontSize: (resolvedProps.fontSize || 16) + 'px', color: resolvedProps.color || '#0f172a', fontWeight: resolvedProps.fontWeight, fontStyle: resolvedProps.fontStyle, textDecoration: resolvedProps.textDecoration, textAlign: resolvedProps.textAlign }}>{resolvedProps.text}</div>;
@@ -2733,16 +2797,17 @@ const LiveTerminal = () => {
                           }
                           case 'TEXT_INPUT': return (
                             <div>
-                              <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{comp.props.label}{comp.props.required ? ' *' : ''}</div>
+                              <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}{comp.props.required ? ' *' : ''}</div>
                               <input
                                 type="text"
-                                value={textInputValues[comp.id] != null ? textInputValues[comp.id] : (comp.props.defaultValue || '')}
+                                value={textInputValues[comp.id] != null ? textInputValues[comp.id] : (resolvedProps.defaultValue || '')}
                                 onChange={async e => {
                                   const val = comp.props.mask ? applyInputMask(e.target.value, comp.props.mask) : e.target.value;
                                   setTextInputValues(prev => ({ ...prev, [comp.id]: val }));
+                                  syncVariable(val);
                                   fireWidgetTriggers(comp, 'ON_CHANGE');
                                 }}
-                                placeholder={comp.props.placeholder || 'Type here...'}
+                                placeholder={resolvedProps.placeholder || 'Type here...'}
                                 style={{
                                   width: '100%', padding: '12px',
                                   border: `2px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`,
@@ -2773,10 +2838,15 @@ const LiveTerminal = () => {
                           );
                           case 'DROPDOWN': return (
                             <div>
-                              <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{comp.props.label}{comp.props.required ? ' *' : ''}</div>
+                              <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}{comp.props.required ? ' *' : ''}</div>
                               <select
-                                value={dropdownValues[comp.id] != null ? dropdownValues[comp.id] : (comp.props.defaultValue || '')}
-                                onChange={e => { setDropdownValues(prev => ({ ...prev, [comp.id]: e.target.value })); fireWidgetTriggers(comp, 'ON_CHANGE'); }}
+                                value={dropdownValues[comp.id] != null ? dropdownValues[comp.id] : (resolvedProps.defaultValue || '')}
+                                onChange={e => { 
+                                  const val = e.target.value;
+                                  setDropdownValues(prev => ({ ...prev, [comp.id]: val })); 
+                                  syncVariable(val);
+                                  fireWidgetTriggers(comp, 'ON_CHANGE'); 
+                                }}
                                 style={{
                                   width: '100%', padding: '12px',
                                   border: `2px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`,
@@ -3005,8 +3075,8 @@ const LiveTerminal = () => {
                               {comp.props.url ? <iframe src={comp.props.url} style={{ width: '100%', height: '300px', border: 'none' }} title={comp.props.title} /> : <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>No PDF URL configured</div>}
                             </div>
                           );
-                          case 'BUTTON': return (<button onClick={() => handleButtonAction(comp.props, comp)} style={{ padding: '14px 28px', backgroundColor: comp.props.backgroundColor || '#007bff', color: comp.props.color || '#fff', border: 'none', borderRadius: '6px', fontSize: (comp.props.fontSize || 14) + 'px', fontWeight: comp.props.fontWeight || 700, cursor: 'pointer', width: '100%', textAlign: comp.props.textAlign || 'center' }}>{comp.props.label}</button>);
-                          case 'COMPLETE_BUTTON': return (<button onClick={() => handleButtonAction({ action: 'COMPLETE' }, comp)} style={{ padding: '16px', backgroundColor: comp.props.backgroundColor || '#10b981', color: comp.props.color || '#fff', border: 'none', borderRadius: '6px', fontSize: (comp.props.fontSize || 18) + 'px', fontWeight: 900, cursor: 'pointer', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}><CheckCircle2 size={22} />{comp.props.label || 'COMPLETE'}</button>);
+                          case 'BUTTON': return (<button onClick={() => handleButtonAction(comp.props, comp)} style={{ padding: '14px 28px', backgroundColor: comp.props.backgroundColor || '#007bff', color: comp.props.color || '#fff', border: 'none', borderRadius: '6px', fontSize: (comp.props.fontSize || 14) + 'px', fontWeight: comp.props.fontWeight || 700, cursor: 'pointer', width: '100%', textAlign: comp.props.textAlign || 'center' }}>{resolvedProps.label}</button>);
+                          case 'COMPLETE_BUTTON': return (<button onClick={() => handleButtonAction({ action: 'COMPLETE' }, comp)} style={{ padding: '16px', backgroundColor: comp.props.backgroundColor || '#10b981', color: comp.props.color || '#fff', border: 'none', borderRadius: '6px', fontSize: (comp.props.fontSize || 18) + 'px', fontWeight: 900, cursor: 'pointer', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}><CheckCircle2 size={22} />{resolvedProps.label || 'COMPLETE'}</button>);
                           case 'QUANTITY_LOGGER': {
                             const lg = quantityLog[comp.id] || { completed: 0, target: comp.props.targetQty || 100 };
                             const pct = Math.min(100, Math.round((lg.completed / lg.target) * 100));
@@ -3065,52 +3135,81 @@ const LiveTerminal = () => {
                           case 'IMAGE': return comp.props.src ? <img src={comp.props.src} alt={comp.props.alt || 'Image'} style={{ maxWidth: '100%', borderRadius: '4px', display: 'block' }} /> : <div style={{ padding: '30px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc', border: `1px dashed ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#cbd5e1'}`, borderRadius: '6px', textAlign: 'center', color: '#94a3b8' }}><ImageIcon size={32} /><div style={{ fontSize: '0.8rem', marginTop: '6px' }}>No image URL</div></div>;
                           case 'VARIABLE_TEXT': {
                             let vv = '';
+                            const varSource = resolvedProps.varSource || comp.props.varSource;
+                            
                             if (comp.props.iotTopicId && machineData[comp.props.iotTopicId] !== undefined) {
                               vv = String(machineData[comp.props.iotTopicId]);
                             } else if (comp.props.dataSourceType === 'TABLE_RECORD') {
                               vv = boundData[comp.id] || 'Loading...';
                             } else if (comp.props.dataSourceType === 'SELECTED_TABLE_ROW') {
-                              const parts = comp.props.varSource.split('.'); // e.g., TABLE_RECORD.tableId.columnName
+                              const parts = String(varSource || '').split('.'); // e.g., TABLE_RECORD.tableId.columnName
                               if (parts.length === 3) {
                                 const tableId = parts[1];
                                 const columnName = parts[2];
                                 const selected = selectedTableRow[tableId];
                                 vv = selected ? selected[columnName] : '';
                               }
+                            } else if (typeof varSource === 'string' && varSource.startsWith('@')) {
+                              vv = resolveValue(varSource);
                             } else {
-                              if (comp.props.varSource === 'APP_INFO.USER') vv = appContext.user;
-                              else if (comp.props.varSource === 'APP_INFO.STATION') vv = appContext.station;
-                              else if (comp.props.varSource === 'APP_INFO.STEP_NAME') vv = activeStep && activeStep.title || '';
-                              else if (comp.props.varSource === 'APP_INFO.APP_NAME') vv = selectedApp && selectedApp.name || '';
+                              if (varSource === 'APP_INFO.USER') vv = appContext.user;
+                              else if (varSource === 'APP_INFO.STATION') vv = appContext.station;
+                              else if (varSource === 'APP_INFO.STEP_NAME') vv = activeStep && activeStep.title || '';
+                              else if (varSource === 'APP_INFO.APP_NAME') vv = selectedApp && selectedApp.name || '';
                               else {
-                                const v = appVariables.find(av => av.name === comp.props.varSource);
-                                vv = v ? v.value : '{' + comp.props.varSource + '}';
+                                const v = appVariables.find(av => av.name === varSource);
+                                vv = v ? v.value : '{' + varSource + '}';
                               }
                             }
                             return <div style={{ fontSize: (comp.props.fontSize || 16) + 'px', color: comp.props.color || (selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a'), fontWeight: comp.props.fontWeight || 600, fontStyle: comp.props.fontStyle, textAlign: comp.props.textAlign }}>{vv}</div>;
                           }
                           case 'NUMBER_INPUT': return (
                             <div>
-                              <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>{comp.props.label}</div>
+                              <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}</div>
                               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                <button onClick={() => { setNumberInputValues(prev => ({ ...prev, [comp.id]: Math.max(comp.props.min != null ? comp.props.min : 0, (prev[comp.id] != null ? prev[comp.id] : comp.props.defaultValue || 0) - 1) })); fireWidgetTriggers(comp, 'ON_CHANGE'); }} style={{ width: '40px', height: '44px', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', color: '#475569', fontSize: '1.2rem', cursor: 'pointer' }}>-</button>
-                                <input type="number" value={numberInputValues[comp.id] != null ? numberInputValues[comp.id] : comp.props.defaultValue || 0} onChange={e => { setNumberInputValues(prev => ({ ...prev, [comp.id]: parseFloat(e.target.value) || 0 })); fireWidgetTriggers(comp, 'ON_CHANGE'); }} style={{ flex: 1, padding: '10px', border: '2px solid #e2e8f0', borderRadius: '6px', fontSize: '1.1rem', textAlign: 'center', outline: 'none' }} />
-                                <button onClick={() => { setNumberInputValues(prev => ({ ...prev, [comp.id]: Math.min(comp.props.max != null ? comp.props.max : 9999, (prev[comp.id] != null ? prev[comp.id] : comp.props.defaultValue || 0) + 1) })); fireWidgetTriggers(comp, 'ON_CHANGE'); }} style={{ width: '40px', height: '44px', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', color: '#475569', fontSize: '1.2rem', cursor: 'pointer' }}>+</button>
+                                <button onClick={() => { 
+                                  const newVal = Math.max(comp.props.min != null ? comp.props.min : 0, (numberInputValues[comp.id] != null ? numberInputValues[comp.id] : resolvedProps.defaultValue || 0) - 1);
+                                  setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal })); 
+                                  syncVariable(newVal);
+                                  fireWidgetTriggers(comp, 'ON_CHANGE'); 
+                                }} style={{ width: '40px', height: '44px', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', color: '#475569', fontSize: '1.2rem', cursor: 'pointer' }}>-</button>
+                                <input type="number" value={numberInputValues[comp.id] != null ? numberInputValues[comp.id] : resolvedProps.defaultValue || 0} onChange={e => { 
+                                  const newVal = parseFloat(e.target.value) || 0;
+                                  setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal })); 
+                                  syncVariable(newVal);
+                                  fireWidgetTriggers(comp, 'ON_CHANGE'); 
+                                }} style={{ flex: 1, padding: '10px', border: '2px solid #e2e8f0', borderRadius: '6px', fontSize: '1.1rem', textAlign: 'center', outline: 'none' }} />
+                                <button onClick={() => { 
+                                  const newVal = Math.min(comp.props.max != null ? comp.props.max : 9999, (numberInputValues[comp.id] != null ? numberInputValues[comp.id] : resolvedProps.defaultValue || 0) + 1);
+                                  setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal })); 
+                                  syncVariable(newVal);
+                                  fireWidgetTriggers(comp, 'ON_CHANGE'); 
+                                }} style={{ width: '40px', height: '44px', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', color: '#475569', fontSize: '1.2rem', cursor: 'pointer' }}>+</button>
                                 {comp.props.unit && <span style={{ fontSize: '0.9rem', color: '#475569', fontWeight: 600 }}>{comp.props.unit}</span>}
                               </div>
                             </div>
                           );
                           case 'DATE_PICKER': return (
                             <div>
-                              <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>{comp.props.label}</div>
-                              <input type="date" value={dateValues[comp.id] || ''} onChange={e => { setDateValues(prev => ({ ...prev, [comp.id]: e.target.value })); fireWidgetTriggers(comp, 'ON_CHANGE'); }} style={{ width: '100%', padding: '10px 14px', border: '2px solid #e2e8f0', borderRadius: '6px', fontSize: '1rem', outline: 'none', color: '#0f172a' }} />
+                              <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}</div>
+                              <input type="date" value={dateValues[comp.id] || ''} onChange={e => { 
+                                const val = e.target.value;
+                                setDateValues(prev => ({ ...prev, [comp.id]: val })); 
+                                syncVariable(val);
+                                fireWidgetTriggers(comp, 'ON_CHANGE'); 
+                              }} style={{ width: '100%', padding: '10px 14px', border: '2px solid #e2e8f0', borderRadius: '6px', fontSize: '1rem', outline: 'none', color: '#0f172a' }} />
                             </div>
                           );
                           case 'BOOLEAN_TOGGLE': {
                             const on = toggleState[comp.id] != null ? toggleState[comp.id] : comp.props.defaultValue || false;
                             return (
-                              <div onClick={() => { setToggleState(prev => ({ ...prev, [comp.id]: !on })); fireWidgetTriggers(comp, 'ON_CHANGE'); }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', backgroundColor: '#f8fafc', border: `2px solid ${on ? '#22c55e' : '#e2e8f0'}`, borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s' }}>
-                                <span style={{ fontSize: '0.9rem', color: '#0f172a', fontWeight: 600 }}>{comp.props.label}</span>
+                              <div onClick={() => { 
+                                const val = !on;
+                                setToggleState(prev => ({ ...prev, [comp.id]: val })); 
+                                syncVariable(val);
+                                fireWidgetTriggers(comp, 'ON_CHANGE'); 
+                              }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', backgroundColor: '#f8fafc', border: `2px solid ${on ? '#22c55e' : '#e2e8f0'}`, borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s' }}>
+                                <span style={{ fontSize: '0.9rem', color: '#0f172a', fontWeight: 600 }}>{resolvedProps.label}</span>
                                 <div style={{ width: '48px', height: '26px', backgroundColor: on ? '#22c55e' : '#cbd5e1', borderRadius: '13px', position: 'relative', transition: 'background-color 0.2s' }}>
                                   <div style={{ width: '20px', height: '20px', backgroundColor: 'white', borderRadius: '50%', position: 'absolute', top: '3px', left: on ? '25px' : '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.3)', transition: 'left 0.2s' }} />
                                 </div>
@@ -3122,7 +3221,7 @@ const LiveTerminal = () => {
                             return (
                               <div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>{comp.props.label}</span>
+                                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>{resolvedProps.label}</span>
                                   <span style={{ fontSize: '1rem', fontWeight: 900, color: comp.props.color || '#3b82f6' }}>{resolvedProps.value} {comp.props.unit}</span>
                                 </div>
                                 <div style={{ height: '14px', backgroundColor: '#e2e8f0', borderRadius: '7px', overflow: 'hidden' }}><div style={{ width: `${pg}%`, height: '100%', backgroundColor: comp.props.color || '#3b82f6', transition: 'width 0.3s', borderRadius: '7px' }} /></div>
@@ -3283,6 +3382,7 @@ const LiveTerminal = () => {
                               </div>
                             );
                           }
+                          case 'ADVANCED_TABLE':
                           case 'INTERACTIVE_TABLE': {
                             const data = tableData[comp.id] || [];
                             const cols = comp.props.columns?.length > 0 ? comp.props.columns : ['id', 'createdAt'];
@@ -3291,12 +3391,13 @@ const LiveTerminal = () => {
                             const totalPages = Math.max(1, Math.ceil(data.length / pageSize));
                             const paginatedData = data.slice((currentPage - 1) * pageSize, currentPage * pageSize);
                             const selected = selectedTableRow[comp.id];
+                            const linkedPlaceholderId = comp.props.linkedRecordPlaceholderId;
 
                             return (
                               <div style={{ backgroundColor: comp.props.backgroundColor || '#ffffff', border: comp.props.bordered !== false ? '1px solid #e2e8f0' : 'none', borderRadius: '8px', padding: '15px', display: 'flex', flexDirection: 'column' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' }}>
                                   <Table size={18} color={comp.props.color || '#3b82f6'} />
-                                  <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569' }}>Data View</span>
+                                  <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569' }}>{comp.props.title || 'Data View'}</span>
                                 </div>
                                 <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '4px' }}>
                                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
@@ -3309,11 +3410,27 @@ const LiveTerminal = () => {
                                     </thead>
                                     <tbody>
                                       {paginatedData.map((row, rIdx) => {
-                                        const isSelected = selected?.id === row.id;
+                                        const rowId = row?.id ?? row?._id ?? JSON.stringify(row);
+                                        const selectedId = selected?.id ?? selected?._id ?? (selected ? JSON.stringify(selected) : null);
+                                        const isSelected = selectedId === rowId;
                                         return (
                                           <tr
-                                            key={row.id || rIdx}
-                                            onClick={() => { setSelectedTableRow(prev => ({ ...prev, [comp.id]: isSelected ? null : row })); fireWidgetTriggers(comp, 'ON_CHANGE'); }}
+                                            key={rowId || rIdx}
+                                            onClick={() => { 
+                                              const newSelected = isSelected ? null : row;
+                                              setSelectedTableRow(prev => ({ ...prev, [comp.id]: newSelected })); 
+                                              
+                                              // Update record placeholder if linked
+                                              if (linkedPlaceholderId) {
+                                                setRecordPlaceholderData(prev => ({ 
+                                                  ...prev, 
+                                                  [linkedPlaceholderId]: newSelected 
+                                                }));
+                                              }
+                                              
+                                              fireWidgetTriggers(comp, 'ON_CHANGE'); 
+                                              fireWidgetTriggers(comp, 'RowSelected');
+                                            }}
                                             style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer', backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'white', transition: 'background-color 0.2s' }}
                                           >
                                             {cols.map(col => (
@@ -3613,6 +3730,71 @@ const LiveTerminal = () => {
                                     </div>
                                   )}
                                 </div>
+                              </div>
+                            );
+                          }
+                          case 'VISION_MEASUREMENT': {
+                            const isProcessing = ocrProcessing[comp.id];
+                            const currentValue = visionValues[comp.id] || '';
+                            const isDark = selectedApp?.config?.appThemeMode === 'DARK';
+
+                            return (
+                              <div key={comp.id} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600 }}>
+                                  {comp.props.label || 'Vision Measurement'}{comp.props.required ? ' *' : ''}
+                                </div>
+                                <div style={{ position: 'relative', borderRadius: '12px', overflow: 'hidden', backgroundColor: '#000', aspectRatio: '4/3', border: `2px solid ${isProcessing ? '#3b82f6' : (isDark ? '#334155' : '#e2e8f0')}`, transition: 'border-color 0.3s' }}>
+                                  <WebcamComp
+                                    audio={false}
+                                    ref={el => visionWebcamRefs.current[comp.id] = el}
+                                    screenshotFormat="image/jpeg"
+                                    videoConstraints={{ facingMode: "environment" }}
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                  />
+                                  {isProcessing && (
+                                    <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'white', gap: '12px', zIndex: 10 }}>
+                                      <div style={{ width: '32px', height: '32px', border: '3px solid rgba(255,255,255,0.3)', borderTopColor: '#3b82f6', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                                      <div style={{ fontSize: '0.85rem', fontWeight: 700, letterSpacing: '0.05em' }}>ANALYZING...</div>
+                                    </div>
+                                  )}
+                                  <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '60%', height: '30%', border: '2px dashed rgba(255,255,255,0.5)', borderRadius: '8px', pointerEvents: 'none' }}>
+                                    <div style={{ position: 'absolute', top: '-25px', left: '50%', transform: 'translateX(-50%)', backgroundColor: 'rgba(0,0,0,0.5)', color: 'white', fontSize: '0.65rem', padding: '2px 8px', borderRadius: '4px', whiteSpace: 'nowrap' }}>Align Caliper Screen Here</div>
+                                  </div>
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                  <div style={{ flex: 1, position: 'relative' }}>
+                                    <input 
+                                      type="text" 
+                                      value={currentValue} 
+                                      onChange={e => {
+                                        const val = e.target.value;
+                                        setVisionValues(prev => ({ ...prev, [comp.id]: val }));
+                                        if (comp.props.targetVariable) {
+                                          setAppVariables(prev => prev.map(v => v.name === comp.props.targetVariable ? { ...v, value: val } : v));
+                                        }
+                                        fireWidgetTriggers(comp, 'ON_CHANGE');
+                                      }}
+                                      placeholder="Read value..."
+                                      style={{ width: '100%', padding: '12px 40px 12px 12px', borderRadius: '8px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, backgroundColor: isDark ? '#1e293b' : 'white', color: isDark ? '#f8fafc' : '#0f172a', fontSize: '1.1rem', fontWeight: 700 }}
+                                    />
+                                    <div style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontWeight: 600, fontSize: '0.85rem' }}>
+                                      {comp.props.unit}
+                                    </div>
+                                  </div>
+                                  <button 
+                                    onClick={() => handleVisionOcr(comp, { current: visionWebcamRefs.current[comp.id] })}
+                                    disabled={isProcessing}
+                                    style={{ padding: '0 20px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: isProcessing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 6px rgba(59, 130, 246, 0.2)' }}
+                                  >
+                                    <Camera size={18} /> {isProcessing ? 'SCANNING' : 'SCAN'}
+                                  </button>
+                                </div>
+                                {comp.props.targetVariable && (
+                                  <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                                    Syncing to variable: @{comp.props.targetVariable}
+                                  </div>
+                                )}
                               </div>
                             );
                           }

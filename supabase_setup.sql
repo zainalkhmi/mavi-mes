@@ -54,8 +54,8 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
     work_order TEXT DEFAULT 'N/A',
     payload JSONB DEFAULT '{}',
     created_at TIMESTAMPTZ DEFAULT now()
-);
 
+);
 -- 5. Table: dynamic_translations
 CREATE TABLE IF NOT EXISTS public.dynamic_translations (
     key_string TEXT PRIMARY KEY,
