@@ -75,7 +75,7 @@ import { saveLiveMeasurement } from '../utils/supabaseUtilityDB';
 import { getAllFrontlineApps, getProductionQueue } from '../utils/supabaseFrontlineDB';
 import { getTableRecords, queryTableRecords, getTableById } from '../utils/supabaseTablesDB';
 import { saveCompletion } from '../utils/supabaseCompletionsDB';
-import { getMachines } from '../utils/database';
+import { getMachines, getStations } from '../utils/database';
 import { useLanguage } from '../contexts/LanguageContext';
 import iotConnector from '../utils/iotConnector';
 import webhookUtility from '../utils/webhookUtility';
@@ -308,6 +308,17 @@ const LiveTerminal = () => {
   const [advancedTableSort, setAdvancedTableSort] = useState({}); // { [compId]: { col, dir } }
   const [selectedTableRow, setSelectedTableRow] = useState({}); // { [compId]: record }
 
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [stations, setStations] = useState([]);
+  
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    getStations().then(res => setStations(res || [])).catch(console.error);
+  }, []);
   const applyInputMask = (value, mask) => {
     if (!mask) return value;
     let formatted = '';
@@ -2179,124 +2190,270 @@ const LiveTerminal = () => {
 
   // --- SELECTION VIEW ---
   if (!selectedManual && !selectedApp) {
+    // Determine the current station object
+    const currentStationObj = stations.find(s => s.id === appContext.station || s.name === appContext.station);
+    
+    // Filter apps based on assigned station
+    const filteredApps = frontlineApps.filter(app => {
+      if (!currentStationObj || !currentStationObj.assignedApps) return true; // fallback
+      return currentStationObj.assignedApps.includes(app.id);
+    });
+
+    // Group apps dynamically
+    const appGroups = {};
+    filteredApps.forEach(app => {
+      const category = app.category || 'Custom Apps';
+      if (!appGroups[category]) appGroups[category] = [];
+      appGroups[category].push(app);
+    });
+
+    // App Gradients
+    const appGradients = [
+      'linear-gradient(135deg, #001e3c 0%, #004282 100%)',
+      'linear-gradient(135deg, #0f172a 0%, #334155 100%)',
+      'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
+      'linear-gradient(135deg, #064e3b 0%, #10b981 100%)',
+      'linear-gradient(135deg, #7f1d1d 0%, #ef4444 100%)',
+      'linear-gradient(135deg, #4c1d95 0%, #8b5cf6 100%)'
+    ];
+    const getAppGradient = (name) => {
+      if (!name) return appGradients[0];
+      const sum = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+      return appGradients[sum % appGradients.length];
+    };
+    
     return (
-      <div style={{ height: '100%', backgroundColor: '#f1f5f9', padding: '40px', overflowY: 'auto', fontFamily: "'Inter', sans-serif" }}>
-        <h1 style={{ color: '#001e3c', fontSize: '2rem', fontWeight: 800, marginBottom: '10px' }}>Workstation Selection</h1>
-        <p style={{ color: '#64748b', marginBottom: '30px' }}>Select an SOP or Custom App to begin production tracking.</p>
-
-        <div style={{ marginBottom: '40px', maxWidth: '800px' }}>
-          <WorkOrderManager
-            currentWorkOrder={currentWorkOrder}
-            onSelect={(wo) => {
-              setCurrentWorkOrder(wo);
-              if (wo) {
-                logEvent({
-                  type: AUDIT_EVENTS.WORK_ORDER_BIND,
-                  workstation: 'WS-01',
-                  workOrder: wo
-                });
-              }
-            }}
-          />
-        </div>
-
-        {/* Section: Assigned Queue (New Phase 7) */}
-        {productionQueue.length > 0 && (
-          <div style={{ marginBottom: '50px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
-              <div style={{ padding: '8px 12px', backgroundColor: '#fff3cd', color: '#856404', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', border: '1px solid #ffeeba' }}>Assigned</div>
-              <h2 style={{ color: '#001e3c', fontSize: '1.4rem', fontWeight: 800, margin: 0 }}>Pending Job Queue</h2>
+      <div style={{ height: '100%', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', fontFamily: "'Inter', sans-serif" }}>
+        
+        {/* GLOBAL STATION HEADER */}
+        <div style={{ 
+          height: '64px', backgroundColor: '#0f172a', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 24px', flexShrink: 0, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' 
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ backgroundColor: '#3b82f6', padding: '8px', borderRadius: '8px' }}>
+                <Activity size={20} color="white" />
+              </div>
+              <div style={{ fontWeight: 800, fontSize: '1.2rem', letterSpacing: '0.05em' }}>STATION {appContext.station}</div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
-              {productionQueue.map(job => {
-                const app = frontlineApps.find(a => a.id === job.app_id);
-                return (
-                  <div
-                    key={job.id}
-                    onClick={async () => {
-                      if (app) {
-                        setCurrentWorkOrder(job.work_order);
-                        handleStartApp(app);
-                      }
-                    }}
-                    className="mavi-card"
-                    style={{
-                      padding: '25px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      borderLeft: job.priority === 'P1' ? '4px solid #d32f2f' : '1px solid #e2e8f0'
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#001e3c', marginBottom: '4px' }}>{job.work_order}</div>
-                      <div style={{ fontSize: '0.9rem', color: '#64748b' }}>{app?.name || 'Unknown App'}</div>
-                      <div style={{ marginTop: '12px', fontSize: '0.75rem', color: '#94a3b8' }}>Target: <b>{job.target_qty} units</b></div>
-                    </div>
-                    {job.priority === 'P1' && (
-                      <div style={{ color: '#d32f2f', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                        <AlertCircle size={24} />
-                        <span style={{ fontSize: '0.6rem', fontWeight: 800 }}>URGENT</span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Section: Custom Apps */}
-        {frontlineApps.length > 0 && (
-          <div style={{ marginBottom: '40px' }}>
-            <h2 style={{ color: '#475569', fontSize: '1.2rem', marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700 }}>Custom Apps</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
-              {frontlineApps.map(app => (
-                <div
-                  key={app.id}
-                  onClick={() => handleStartApp(app)}
-                  className="mavi-card"
-                  style={{ padding: '30px', cursor: 'pointer' }}
-                >
-                  <div style={{ color: '#007bff', marginBottom: '15px' }}><LayoutGrid size={32} /></div>
-                  <h3 style={{ color: '#001e3c', margin: '0 0 10px 0', fontWeight: 700 }}>{app.name}</h3>
-                  <p style={{ color: '#64748b', fontSize: '0.9rem', margin: 0 }}>
-                    Custom Workstation App
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Section: Standard Operating Procedures */}
-        <h2 style={{ color: '#475569', fontSize: '1.2rem', marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700 }}>SOPs & Manuals</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
-          {manuals.map(m => (
-            <div
-              key={m.id}
-              onClick={() => handleStartCycle(m.id)}
-              className="mavi-card"
-              style={{ padding: '30px', cursor: 'pointer' }}
-            >
-              <div style={{ color: '#2e7d32', marginBottom: '15px' }}><Activity size={32} /></div>
-              <h3 style={{ color: '#001e3c', margin: '0 0 10px 0', fontWeight: 700 }}>{m.title}</h3>
-              <p style={{ color: '#64748b', fontSize: '0.9rem', margin: 0 }}>
-                {m.documentNumber ? `ID: ${m.documentNumber}` : 'No Document ID'}
-              </p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '20px', color: '#94a3b8' }}>
-                <Clock size={16} /> <span>Est. {m.timeRequired || 'N/A'}</span>
+            <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, border: '1px solid #334155' }}>
+                {appContext.user.charAt(0)}
+              </div>
+              <div>
+                <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>OPERATOR</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>{appContext.user}</div>
               </div>
             </div>
-          ))}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+              <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>{currentTime.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 800, fontFamily: 'monospace' }}>{currentTime.toLocaleTimeString()}</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: 'rgba(34, 197, 94, 0.1)', padding: '6px 12px', borderRadius: '20px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#22c55e', boxShadow: '0 0 8px #22c55e' }} />
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#22c55e' }}>ONLINE</span>
+            </div>
+          </div>
         </div>
 
-        {manuals.length === 0 && frontlineApps.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '100px', color: '#94a3b8' }}>
-            No apps or SOPs available. Create them in App Builder or Manual Creation.
+        <div style={{ flex: 1, overflowY: 'auto', padding: '40px' }}>
+          
+          {/* TRACKING IDENTITY (Work Order) */}
+          <div style={{ marginBottom: '40px', maxWidth: '800px', backgroundColor: 'white', padding: '24px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', border: '1px solid #e2e8f0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <Barcode size={24} color="#64748b" />
+              <h2 style={{ margin: 0, color: '#0f172a', fontSize: '1.2rem', fontWeight: 800 }}>Tracking Identity</h2>
+            </div>
+            <WorkOrderManager
+              currentWorkOrder={currentWorkOrder}
+              onSelect={(wo) => {
+                setCurrentWorkOrder(wo);
+                if (wo) {
+                  logEvent({
+                    type: AUDIT_EVENTS.WORK_ORDER_BIND,
+                    workstation: appContext.station,
+                    workOrder: wo
+                  });
+                }
+              }}
+            />
           </div>
-        )}
+
+          {/* APPS GRID grouped by category */}
+          {Object.keys(appGroups).length > 0 ? (
+            Object.keys(appGroups).map(category => (
+              <div key={category} style={{ marginBottom: '40px' }}>
+                <h3 style={{ color: '#475569', fontSize: '1.1rem', marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <LayoutGrid size={20} /> {category}
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
+                  {appGroups[category].map(app => (
+                    <div
+                      key={app.id}
+                      onClick={() => handleStartApp(app)}
+                      style={{
+                        backgroundColor: 'white',
+                        borderRadius: '12px',
+                        overflow: 'hidden',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+                        border: '1px solid #e2e8f0',
+                        transition: 'transform 0.2s, boxShadow 0.2s',
+                        position: 'relative'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-4px)';
+                        e.currentTarget.style.boxShadow = '0 12px 20px -5px rgba(0, 0, 0, 0.1)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.05)';
+                      }}
+                    >
+                      {/* App Header (Gradient / Thumbnail) */}
+                      <div style={{
+                        height: '140px',
+                        background: app.config?.thumbnail ? `url(${app.config.thumbnail}) center/cover` : getAppGradient(app.name),
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        padding: '16px'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div style={{ backgroundColor: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(4px)', padding: '4px 8px', borderRadius: '4px', color: 'white', fontSize: '0.7rem', fontWeight: 700 }}>
+                            v{app.version || '1.0'}
+                          </div>
+                          {!app.is_published && (
+                            <div style={{ backgroundColor: '#fef08a', color: '#854d0e', padding: '4px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 800 }}>
+                              DRAFT
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* App Body */}
+                      <div style={{ padding: '20px' }}>
+                        <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>{app.name}</h4>
+                        <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                          {app.description || 'Custom Workstation App'}
+                        </p>
+                      </div>
+                      
+                      <div style={{ padding: '12px 20px', borderTop: '1px solid #f1f5f9', backgroundColor: '#f8fafc', display: 'flex', justifyContent: 'flex-end' }}>
+                        <div style={{ color: '#3b82f6', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          Launch App <ChevronRight size={16} />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div style={{ textAlign: 'center', padding: '100px 20px', backgroundColor: 'white', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
+              <div style={{ color: '#94a3b8', marginBottom: '16px' }}><Package size={48} /></div>
+              <h3 style={{ margin: '0 0 8px 0', color: '#0f172a', fontSize: '1.2rem', fontWeight: 700 }}>No Apps Assigned</h3>
+              <p style={{ margin: 0, color: '#64748b' }}>There are no applications assigned to <b>Station {appContext.station}</b>.</p>
+            </div>
+          )}
+
+          {/* SOPs & MANUALS */}
+          {manuals.length > 0 && (
+            <div style={{ marginBottom: '40px' }}>
+              <h3 style={{ color: '#475569', fontSize: '1.1rem', marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <FileText size={20} /> SOPs & Manuals
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
+                {manuals.map(m => (
+                  <div
+                    key={m.id}
+                    onClick={() => handleStartCycle(m.id)}
+                    style={{
+                      backgroundColor: 'white',
+                      borderRadius: '12px',
+                      overflow: 'hidden',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+                      border: '1px solid #e2e8f0',
+                      transition: 'transform 0.2s, boxShadow 0.2s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-4px)';
+                      e.currentTarget.style.boxShadow = '0 12px 20px -5px rgba(0, 0, 0, 0.1)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.05)';
+                    }}
+                  >
+                    <div style={{ padding: '20px' }}>
+                      <div style={{ color: '#2e7d32', marginBottom: '16px' }}><Activity size={28} /></div>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>{m.title}</h4>
+                      <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>
+                        {m.documentNumber ? `ID: ${m.documentNumber}` : 'No Document ID'}
+                      </p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '16px', color: '#94a3b8', fontSize: '0.8rem', fontWeight: 600 }}>
+                        <Clock size={14} /> <span>Est. {m.timeRequired || 'N/A'}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* PENDING JOB QUEUE */}
+          {productionQueue.length > 0 && (
+            <div style={{ marginTop: '20px', padding: '30px', backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
+                <div style={{ padding: '6px 10px', backgroundColor: '#fff3cd', color: '#856404', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Assigned</div>
+                <h3 style={{ color: '#0f172a', fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>Pending Job Queue</h3>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+                {productionQueue.map(job => {
+                  const app = frontlineApps.find(a => a.id === job.app_id);
+                  return (
+                    <div
+                      key={job.id}
+                      onClick={async () => {
+                        if (app) {
+                          setCurrentWorkOrder(job.work_order);
+                          handleStartApp(app);
+                        }
+                      }}
+                      style={{
+                        padding: '20px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        backgroundColor: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px',
+                        borderLeft: job.priority === 'P1' ? '4px solid #ef4444' : '4px solid #3b82f6'
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', marginBottom: '4px' }}>{job.work_order}</div>
+                        <div style={{ fontSize: '0.85rem', color: '#64748b' }}>{app?.name || 'Unknown App'}</div>
+                        <div style={{ marginTop: '8px', fontSize: '0.75rem', color: '#94a3b8' }}>Target: <b style={{ color: '#475569' }}>{job.target_qty} units</b></div>
+                      </div>
+                      {job.priority === 'P1' && (
+                        <div style={{ color: '#ef4444', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                          <AlertCircle size={20} />
+                          <span style={{ fontSize: '0.6rem', fontWeight: 800 }}>URGENT</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -2435,38 +2592,7 @@ const LiveTerminal = () => {
       {/* MAIN CONTENT AREA */}
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
 
-        {/* LEFT SIDEBAR: CURRENT ORDER */}
-        {!hasProductionOrderWidget && (
-          <div style={{ width: '280px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white', borderRight: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#475569', letterSpacing: '0.05em' }}>CURRENT ORDER</h4>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              {[
-                { label: 'Order ID', value: currentWorkOrder || 'LOT-' + new Date().getFullYear() + String(new Date().getMonth() + 1).padStart(2, '0') + String(new Date().getDate()).padStart(2, '0') },
-                { label: 'Item', value: selectedApp?.config?.materialId || '1008068-045' },
-                { label: 'Description', value: selectedApp ? selectedApp.name : selectedManual.title },
-                { label: 'QTY Required', value: Object.values(quantityLog).reduce((acc, l) => acc + l.target, 0) || '10' },
-                { label: 'Due Date', value: new Date().toLocaleDateString() + ' 17:00:00' }
-              ].map(row => (
-                <div key={row.label}>
-                  <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>{row.label}</div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 600, color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#1e293b' }}>{row.value}</div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ marginTop: 'auto', border: selectedApp?.config?.productImage ? 'none' : '1px solid #f1f5f9', borderRadius: '8px', padding: selectedApp?.config?.productImage ? '0' : '20px', textAlign: 'center', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-              {selectedApp?.config?.productImage ? (
-                <img src={selectedApp.config.productImage} alt="Product" style={{ width: '100%', height: '180px', objectFit: 'cover' }} />
-              ) : (
-                <>
-                  <Package size={48} color="#cbd5e1" />
-                  <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>PRODUCT IMAGE N/A</div>
-                </>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* CENTER PANEL: INSTRUCTIONS */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '20px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc', overflowY: 'auto' }}>
@@ -4014,110 +4140,7 @@ const LiveTerminal = () => {
           </div>
         </div>
 
-        {/* RIGHT SIDEBAR: DYNAMIC TOOLS */}
-        {!hasProductionProgressWidget && (
-          <div style={{ width: '300px', backgroundColor: 'white', borderLeft: '1px solid #e2e8f0', padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <h4 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 700, color: '#64748b' }}>ASSEMBLY PROGRESS</h4>
-            <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Lot: LOT-{new Date().getFullYear()}{String(new Date().getMonth() + 1).padStart(2, '0')}{String(new Date().getDate()).padStart(2, '0')}</div>
 
-              <div style={{ backgroundColor: '#2e7d32', color: 'white', padding: '12px', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold' }}>Completed units</div>
-
-              <div style={{ border: '1px solid #e2e8f0', padding: '20px', borderRadius: '4px', textAlign: 'center' }}>
-                <div style={{ fontSize: '2rem', fontWeight: 900 }}>
-                  {Object.values(quantityLog).reduce((acc, l) => acc + l.completed, 0)}
-                  <span style={{ fontSize: '0.9rem', fontWeight: 500, color: '#64748b', marginLeft: '10px' }}>
-                    of {Object.values(quantityLog).reduce((acc, l) => acc + l.target, 10)} Required
-                  </span>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <button
-                  onClick={handleCompleteUnit}
-                  className="btn btn-primary"
-                  style={{ width: '100%', padding: '15px', fontSize: '1rem', display: 'flex', justifyContent: 'center', gap: '10px', boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.5)' }}
-                >
-                  <CheckCircle size={20} /> COMPLETE UNIT
-                </button>
-
-                <button
-                  onClick={handleNextStep}
-                  className="btn"
-                  disabled={selectedApp && !currentStepRequiredOk}
-                  style={{ width: '100%', padding: '15px', fontSize: '1rem', backgroundColor: selectedApp && !currentStepRequiredOk ? '#f8fafc' : '#f1f5f9', border: '1px solid #e2e8f0', color: selectedApp && !currentStepRequiredOk ? '#94a3b8' : '#334155', cursor: selectedApp && !currentStepRequiredOk ? 'not-allowed' : 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}
-                >
-                  <ChevronRight size={20} /> NEXT STEP
-                </button>
-              </div>
-
-          {selectedApp && requiredStepChecks.length > 0 && (
-            <div>
-              <button
-                onClick={() => setShowValidationPanel(prev => !prev)}
-                style={{ width: '100%', marginBottom: '8px', padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#f8fafc', color: '#334155', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}
-              >
-                {showValidationPanel ? 'Hide' : 'Show'} Step Validation ({requiredDone}/{requiredStepChecks.length})
-              </button>
-
-              {showValidationPanel && (
-                <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
-                  <div style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '10px 12px' }}>
-                    <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      Step Validation
-                    </div>
-                    <div style={{ marginTop: '4px', fontSize: '0.8rem', color: '#0f172a', fontWeight: 700 }}>
-                      {requiredDone}/{requiredStepChecks.length} required complete
-                    </div>
-                  </div>
-                  <div style={{ maxHeight: '180px', overflowY: 'auto', padding: '8px 10px' }}>
-                    {requiredStepChecks.map((item) => (
-                      <div key={item.compId} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '6px 2px', borderBottom: '1px solid #f8fafc' }}>
-                        <div style={{ marginTop: '1px' }}>
-                          {item.ok ? <CheckCircle2 size={14} color="#16a34a" /> : <AlertCircle size={14} color="#dc2626" />}
-                        </div>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: '0.78rem', color: item.ok ? '#166534' : '#991b1b', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {item.label}
-                          </div>
-                          {!item.ok && (
-                            <div style={{ fontSize: '0.68rem', color: '#b91c1c' }}>{item.error}</div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div style={{ marginTop: 'auto', border: '1px solid #fee2e2', borderRadius: '8px', overflow: 'hidden' }}>
-            <div style={{ backgroundColor: '#d32f2f', color: 'white', padding: '8px', textAlign: 'center', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-              <AlertCircle size={16} /> Defects ({defectLog.length})
-            </div>
-            <div style={{ padding: '15px', textAlign: 'center', minHeight: '80px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              {defectLog.length > 0 ? (
-                <div style={{ textAlign: 'left', fontSize: '0.8rem' }}>
-                  {defectLog.slice(-2).map((d, i) => (
-                    <div key={i} style={{ borderBottom: i === 0 && defectLog.length > 1 ? '1px solid #f1f5f9' : 'none', padding: '4px 0' }}>
-                      <span style={{ fontWeight: 700, color: '#d32f2f' }}>{d.count}x</span> {d.type}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div style={{ fontSize: '2.5rem', fontWeight: 900, color: '#fee2e2' }}>0</div>
-              )}
-            </div>
-            <button
-              onClick={() => setShowDefectModal(true)}
-              className="btn btn-danger"
-              style={{ width: '100%', borderTopLeftRadius: 0, borderTopRightRadius: 0, padding: '12px', fontWeight: 700 }}
-            >
-              <Slash size={18} /> LOG DEFECT
-            </button>
-          </div>
-        </div>
-      )}
     </div>
 
       {/* DEFECT MODAL */}

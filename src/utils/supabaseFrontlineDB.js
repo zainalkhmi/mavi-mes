@@ -720,3 +720,50 @@ export async function deleteDashboard(id) {
     if (error) throw error;
     return true;
 }
+
+// ─── Player Session Logging ────────────────────────────────────────────────────
+
+/**
+ * Log a completed player session to Supabase.
+ * Gracefully falls back to localStorage if the table doesn't exist yet.
+ */
+export async function logPlayerSession(session) {
+    const payload = {
+        app_id: session.appId || null,
+        app_name: session.appName || '',
+        station_id: session.stationId || null,
+        station_name: session.stationName || '',
+        operator: session.operator || 'Unknown',
+        duration_seconds: session.durationSeconds || 0,
+        step_count: session.stepCount || 0,
+        dev_mode: session.devMode || false,
+        comments: session.comments || [],
+        started_at: session.startedAt || new Date().toISOString(),
+        ended_at: new Date().toISOString(),
+    };
+
+    // Always store locally as audit trail
+    try {
+        const key = 'mavi_player_sessions';
+        const raw = localStorage.getItem(key);
+        let sessions = [];
+        try { sessions = raw ? JSON.parse(raw) : []; } catch { sessions = []; }
+        if (!Array.isArray(sessions)) sessions = [];
+        sessions.unshift({ id: `sess_${Date.now()}`, ...payload });
+        // Keep last 100 sessions locally
+        localStorage.setItem(key, JSON.stringify(sessions.slice(0, 100)));
+    } catch { /* noop */ }
+
+    // Try to persist to Supabase
+    try {
+        const supabase = getSupabaseClient();
+        const { error } = await supabase.from('player_sessions').insert([payload]);
+        if (error && error.code !== '42P01') {
+            console.warn('[PlayerSession] Supabase insert failed:', error.message);
+        }
+    } catch (err) {
+        console.warn('[PlayerSession] Supabase unavailable, session saved locally only.');
+    }
+
+    return payload;
+}

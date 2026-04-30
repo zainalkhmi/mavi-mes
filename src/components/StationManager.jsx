@@ -19,6 +19,7 @@ import {
     Layers
 } from 'lucide-react';
 import { getStations, saveStation, deleteStation, getInterfaces } from '../utils/database';
+import { getAllFrontlineApps } from '../utils/supabaseFrontlineDB';
 
 const StationManager = () => {
     const [stations, setStations] = useState([]);
@@ -34,14 +35,24 @@ const StationManager = () => {
         status: 'READY'
     });
 
+    const [frontlineApps, setFrontlineApps] = useState([]);
+    
+    // Modal states
+    const [isEditAssignmentsOpen, setIsEditAssignmentsOpen] = useState(false);
+    const [tempAssignedApps, setTempAssignedApps] = useState([]);
+    
+    const [isManageDevicesOpen, setIsManageDevicesOpen] = useState(false);
+    const [tempInterfaceId, setTempInterfaceId] = useState('');
+
     useEffect(() => {
         loadData();
     }, []);
 
     const loadData = async () => {
-        const [s, i] = await Promise.all([getStations(), getInterfaces()]);
+        const [s, i, apps] = await Promise.all([getStations(), getInterfaces(), getAllFrontlineApps()]);
         setStations(s);
         setInterfaces(i);
+        setFrontlineApps(apps);
     };
 
     const handleCreateStation = async () => {
@@ -59,6 +70,24 @@ const StationManager = () => {
         await saveStation(station);
         setIsCreateModalOpen(false);
         setNewStationData({ name: '', description: '', group: 'Default Group', status: 'READY' });
+        loadData();
+    };
+
+    const handleSaveAssignments = async () => {
+        if (!selectedStation) return;
+        const updatedStation = { ...selectedStation, assignedApps: tempAssignedApps };
+        await saveStation(updatedStation);
+        setSelectedStation(updatedStation);
+        setIsEditAssignmentsOpen(false);
+        loadData();
+    };
+
+    const handleSaveDevice = async () => {
+        if (!selectedStation) return;
+        const updatedStation = { ...selectedStation, interfaceId: tempInterfaceId };
+        await saveStation(updatedStation);
+        setSelectedStation(updatedStation);
+        setIsManageDevicesOpen(false);
         loadData();
     };
 
@@ -213,19 +242,29 @@ const StationManager = () => {
                                 </h3>
                                 {selectedStation.assignedApps?.length > 0 ? (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                        {selectedStation.assignedApps.map((app, idx) => (
-                                            <div key={idx} style={{ padding: '12px', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between' }}>
-                                                <span style={{ fontWeight: 600 }}>{app.name}</span>
-                                                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>v{app.version}</span>
-                                            </div>
-                                        ))}
+                                        {selectedStation.assignedApps.map((appId, idx) => {
+                                            const app = frontlineApps.find(a => a.id === appId);
+                                            if (!app) return null;
+                                            return (
+                                                <div key={idx} style={{ padding: '12px', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between' }}>
+                                                    <span style={{ fontWeight: 600 }}>{app.name}</span>
+                                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>v{app.version || '1.0'}</span>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 ) : (
                                     <div style={{ textAlign: 'center', padding: '24px', color: '#94a3b8', fontSize: '0.85rem', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
                                         No apps assigned to this station.
                                     </div>
                                 )}
-                                <button style={{ width: '100%', marginTop: '20px', padding: '10px', backgroundColor: 'var(--bg-secondary)', border: '1px solid #3b82f6', color: '#3b82f6', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>
+                                <button 
+                                    onClick={() => {
+                                        setTempAssignedApps(selectedStation.assignedApps || []);
+                                        setIsEditAssignmentsOpen(true);
+                                    }}
+                                    style={{ width: '100%', marginTop: '20px', padding: '10px', backgroundColor: 'var(--bg-secondary)', border: '1px solid #3b82f6', color: '#3b82f6', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
+                                >
                                     Edit Assignments
                                 </button>
                             </div>
@@ -239,13 +278,18 @@ const StationManager = () => {
                                     <div style={{ padding: '16px', backgroundColor: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
                                         <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px' }}>Active Interface</div>
                                         {selectedStation.interfaceId ? (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                <Monitor size={20} color="#10b981" />
-                                                <div>
-                                                    <div style={{ fontWeight: 700 }}>MacBook Pro - Floor 1</div>
-                                                    <div style={{ fontSize: '0.75rem', color: '#10b981' }}>Online • Player v2.84</div>
-                                                </div>
-                                            </div>
+                                            (() => {
+                                                const ui = interfaces.find(i => i.id === selectedStation.interfaceId);
+                                                return (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                        <Monitor size={20} color="#10b981" />
+                                                        <div>
+                                                            <div style={{ fontWeight: 700 }}>{ui ? ui.name : 'Unknown Interface'}</div>
+                                                            <div style={{ fontSize: '0.75rem', color: '#10b981' }}>{ui ? (ui.status || 'Online') : 'Online'}</div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()
                                         ) : (
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--text-secondary)' }}>
                                                 <Monitor size={20} />
@@ -254,7 +298,13 @@ const StationManager = () => {
                                         )}
                                     </div>
                                 </div>
-                                <button style={{ width: '100%', marginTop: '20px', padding: '10px', backgroundColor: 'var(--bg-secondary)', border: '1px solid #3b82f6', color: '#3b82f6', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>
+                                <button 
+                                    onClick={() => {
+                                        setTempInterfaceId(selectedStation.interfaceId || '');
+                                        setIsManageDevicesOpen(true);
+                                    }}
+                                    style={{ width: '100%', marginTop: '20px', padding: '10px', backgroundColor: 'var(--bg-secondary)', border: '1px solid #3b82f6', color: '#3b82f6', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
+                                >
                                     Manage Devices
                                 </button>
                             </div>
@@ -351,6 +401,129 @@ const StationManager = () => {
                                 style={{ padding: '10px 24px', borderRadius: '8px', backgroundColor: '#3b82f6', color: 'white', border: 'none', fontWeight: 700, cursor: 'pointer' }}
                             >
                                 Create Station
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Assignments Modal */}
+            {isEditAssignmentsOpen && (
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+                    <div style={{ backgroundColor: 'var(--bg-secondary)', width: '600px', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+                        <div style={{ padding: '24px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>App Assignments</h2>
+                            <button onClick={() => setIsEditAssignmentsOpen(false)} style={{ border: 'none', background: 'none', cursor: 'pointer' }}><XCircle size={20} color="#94a3b8" /></button>
+                        </div>
+                        <div style={{ padding: '24px', flex: 1, overflowY: 'auto' }}>
+                            <p style={{ color: 'var(--text-secondary)', marginBottom: '20px', fontSize: '0.9rem' }}>
+                                Select the applications that operators can access and run on <b>{selectedStation?.name}</b>.
+                            </p>
+                            
+                            {frontlineApps.length > 0 ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    {frontlineApps.map(app => {
+                                        const isChecked = tempAssignedApps.includes(app.id);
+                                        return (
+                                            <div 
+                                                key={app.id} 
+                                                onClick={() => {
+                                                    if (isChecked) {
+                                                        setTempAssignedApps(tempAssignedApps.filter(id => id !== app.id));
+                                                    } else {
+                                                        setTempAssignedApps([...tempAssignedApps, app.id]);
+                                                    }
+                                                }}
+                                                style={{ 
+                                                    padding: '16px', 
+                                                    borderRadius: '8px', 
+                                                    border: `1px solid ${isChecked ? '#3b82f6' : 'var(--border-color)'}`, 
+                                                    backgroundColor: isChecked ? '#eff6ff' : 'var(--bg-primary)', 
+                                                    display: 'flex', 
+                                                    alignItems: 'center', 
+                                                    gap: '16px',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s'
+                                                }}
+                                            >
+                                                <div style={{ 
+                                                    width: '20px', height: '20px', borderRadius: '4px', border: `2px solid ${isChecked ? '#3b82f6' : '#cbd5e1'}`, 
+                                                    backgroundColor: isChecked ? '#3b82f6' : 'transparent',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                }}>
+                                                    {isChecked && <CheckCircle2 size={14} color="white" />}
+                                                </div>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontWeight: 700, color: '#1e293b' }}>{app.name}</div>
+                                                    <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{app.category || 'Custom App'} • v{app.version || '1.0'}</div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', border: '1px dashed #cbd5e1', borderRadius: '8px' }}>
+                                    No apps available. Create an app first in the App Builder.
+                                </div>
+                            )}
+                        </div>
+                        <div style={{ padding: '24px', backgroundColor: 'var(--bg-primary)', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                            <button 
+                                onClick={() => setIsEditAssignmentsOpen(false)}
+                                style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={handleSaveAssignments}
+                                style={{ padding: '10px 24px', borderRadius: '8px', backgroundColor: '#3b82f6', color: 'white', border: 'none', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                                Save Assignments
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Manage Devices Modal */}
+            {isManageDevicesOpen && (
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+                    <div style={{ backgroundColor: 'var(--bg-secondary)', width: '500px', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+                        <div style={{ padding: '24px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Manage Devices</h2>
+                            <button onClick={() => setIsManageDevicesOpen(false)} style={{ border: 'none', background: 'none', cursor: 'pointer' }}><XCircle size={20} color="#94a3b8" /></button>
+                        </div>
+                        <div style={{ padding: '24px' }}>
+                            <p style={{ color: 'var(--text-secondary)', marginBottom: '20px', fontSize: '0.9rem' }}>
+                                Bind a physical Display Interface to this station. The interface will automatically load the apps assigned to <b>{selectedStation?.name}</b>.
+                            </p>
+                            
+                            <div>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Primary Display Interface</label>
+                                <select 
+                                    style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)', fontWeight: 600 }}
+                                    value={tempInterfaceId}
+                                    onChange={(e) => setTempInterfaceId(e.target.value)}
+                                >
+                                    <option value="">-- No Interface Assigned --</option>
+                                    {interfaces.map(ui => (
+                                        <option key={ui.id} value={ui.id}>{ui.name} ({ui.ipAddress || 'Unknown IP'})</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                        <div style={{ padding: '24px', backgroundColor: 'var(--bg-primary)', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                            <button 
+                                onClick={() => setIsManageDevicesOpen(false)}
+                                style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={handleSaveDevice}
+                                style={{ padding: '10px 24px', borderRadius: '8px', backgroundColor: '#3b82f6', color: 'white', border: 'none', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                                Save Device
                             </button>
                         </div>
                     </div>

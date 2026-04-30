@@ -65,11 +65,13 @@ const App = () => {
   const [analyticsMenuOpen, setAnalyticsMenuOpen] = useState(false);
   const [logicMenuOpen, setLogicMenuOpen] = useState(false);
   const [consoleMenuOpen, setConsoleMenuOpen] = useState(false);
+  const [shopFloorMenuOpen, setShopFloorMenuOpen] = useState(false);
   const [systemMenuOpen, setSystemMenuOpen] = useState(false);
   const appsMenuRef = useRef(null);
   const analyticsMenuRef = useRef(null);
   const logicMenuRef = useRef(null);
   const consoleMenuRef = useRef(null);
+  const shopFloorMenuRef = useRef(null);
   const systemMenuRef = useRef(null);
 
   // Close menu when clicking outside
@@ -86,6 +88,9 @@ const App = () => {
       }
       if (consoleMenuRef.current && !consoleMenuRef.current.contains(event.target)) {
         setConsoleMenuOpen(false);
+      }
+      if (shopFloorMenuRef.current && !shopFloorMenuRef.current.contains(event.target)) {
+        setShopFloorMenuOpen(false);
       }
       if (systemMenuRef.current && !systemMenuRef.current.contains(event.target)) {
         setSystemMenuOpen(false);
@@ -252,6 +257,64 @@ const App = () => {
               </div>
             )}
           </div>
+          {/* SHOP FLOOR DROPDOWN */}
+          <div style={{ position: 'relative' }} ref={shopFloorMenuRef}>
+            <button
+              onClick={() => setShopFloorMenuOpen(!shopFloorMenuOpen)}
+              style={{
+                ...navLinkStyle('/stations'),
+                backgroundColor: ['/stations', '/display-devices', '/machines', '/edge-devices', '/vision'].includes(location.pathname) ? 'white' : 'transparent',
+                color: ['/stations', '/display-devices', '/machines', '/edge-devices', '/vision'].includes(location.pathname) ? '#001e3c' : 'rgba(255,255,255,0.7)',
+              }}
+            >
+              <MapPin size={16} /> SHOP FLOOR <ChevronDown size={14} style={{ transform: shopFloorMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
+            </button>
+
+            {shopFloorMenuOpen && (
+              <div style={{
+                position: 'absolute',
+                top: 'calc(100% + 5px)',
+                left: 0,
+                backgroundColor: 'white',
+                minWidth: '220px',
+                borderRadius: '8px',
+                boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+                padding: '8px 0',
+                display: 'flex',
+                flexDirection: 'column',
+                zIndex: 1001,
+                border: '1px solid #e2e8f0',
+                overflow: 'hidden'
+              }}>
+                <Link to="/stations" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/stations')}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/stations' ? '#f0f7ff' : 'transparent'}
+                >
+                  <MapPin size={16} /> Station Manager
+                </Link>
+                <Link to="/display-devices" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/display-devices')}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/display-devices' ? '#f0f7ff' : 'transparent'}
+                >
+                  <Tv size={16} /> Display Interfaces
+                </Link>
+                <Link to="/machines" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/machines')}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/machines' ? '#f0f7ff' : 'transparent'}
+                >
+                  <Cpu size={16} /> Machines & IoT
+                </Link>
+                <Link to="/edge-devices" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/edge-devices')}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/edge-devices' ? '#f0f7ff' : 'transparent'}
+                >
+                  <Activity size={16} /> Edge Devices
+                </Link>
+              </div>
+            )}
+          </div>
+          
+          <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.2)', margin: '0 10px' }}></div>
           
           {/* ANALYTICS DROPDOWN */}
           <div style={{ position: 'relative' }} ref={analyticsMenuRef}>
