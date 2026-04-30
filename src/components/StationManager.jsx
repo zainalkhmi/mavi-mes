@@ -29,7 +29,8 @@ const StationManager = () => {
     const [newStationData, setNewStationData] = useState({
         name: '',
         description: '',
-        group: 'Default Group',
+        site: 'Factory A',
+        area: 'Assembly Floor',
         status: 'READY'
     });
 
@@ -99,25 +100,28 @@ const StationManager = () => {
         );
     };
 
+    const sites = [...new Set(stations.map(s => s.site || 'Default Site'))];
+
     return (
-        <div style={{ height: '100%', display: 'flex', backgroundColor: 'var(--bg-primary)' }}>
+        <div style={{ height: '100%', display: 'flex', backgroundColor: '#f8fafc' }}>
             {/* Sidebar / List */}
             <div style={{ 
                 width: selectedStation ? '400px' : '100%', 
-                borderRight: '1px solid var(--border-color)', 
+                borderRight: '1px solid #e2e8f0', 
                 display: 'flex', 
                 flexDirection: 'column',
-                transition: 'width 0.3s ease'
+                transition: 'width 0.3s ease',
+                backgroundColor: 'white'
             }}>
-                <div style={{ padding: '24px', borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+                <div style={{ padding: '24px', borderBottom: '1px solid #e2e8f0' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                        <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, color: 'var(--text-primary)' }}>Stations</h2>
+                        <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>Shop Floor</h2>
                         <button 
                             onClick={() => setIsCreateModalOpen(true)}
                             style={{ 
                                 display: 'flex', alignItems: 'center', gap: '8px', 
-                                padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white', 
-                                border: 'none', borderRadius: '6px', fontWeight: 700, cursor: 'pointer' 
+                                padding: '8px 16px', backgroundColor: '#0ea5e9', color: 'white', 
+                                border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' 
                             }}
                         >
                             <Plus size={16} /> Create Station
@@ -127,49 +131,43 @@ const StationManager = () => {
                         <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} size={16} />
                         <input 
                             type="text" 
-                            placeholder="Search stations..." 
+                            placeholder="Search site, area, or station..." 
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             style={{ 
                                 width: '100%', padding: '10px 10px 10px 40px', 
-                                borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)' 
+                                borderRadius: '10px', border: '1px solid #e2e8f0' 
                             }} 
                         />
                     </div>
                 </div>
 
                 <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
-                    {filteredStations.map(station => (
-                        <div 
-                            key={station.id}
-                            onClick={() => setSelectedStation(station)}
-                            style={{ 
-                                padding: '16px', borderRadius: '12px', marginBottom: '12px', cursor: 'pointer',
-                                backgroundColor: selectedStation?.id === station.id ? '#eff6ff' : 'white',
-                                border: selectedStation?.id === station.id ? '2px solid #3b82f6' : '1px solid #e2e8f0',
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                <span style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{station.name}</span>
-                                {getStatusBadge(station.status)}
+                    {sites.map(site => (
+                        <div key={site} style={{ marginBottom: '20px' }}>
+                            <div style={{ padding: '8px 12px', fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Globe size={12} /> {site}
                             </div>
-                            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{station.group}</div>
-                            <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: '#94a3b8' }}>
-                                    <Monitor size={14} /> {station.interfaceId ? '1 Interface' : 'No Interface'}
+                            {stations.filter(s => (s.site || 'Default Site') === site).map(station => (
+                                <div 
+                                    key={station.id}
+                                    onClick={() => setSelectedStation(station)}
+                                    style={{ 
+                                        padding: '12px 16px', borderRadius: '12px', marginBottom: '8px', cursor: 'pointer',
+                                        backgroundColor: selectedStation?.id === station.id ? '#eff6ff' : 'transparent',
+                                        border: selectedStation?.id === station.id ? '1px solid #3b82f6' : '1px solid transparent',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                        <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' }}>{station.name}</span>
+                                        {getStatusBadge(station.status)}
+                                    </div>
+                                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{station.area || 'General Area'}</div>
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: '#94a3b8' }}>
-                                    <Layers size={14} /> {station.assignedApps?.length || 0} Apps
-                                </div>
-                            </div>
+                            ))}
                         </div>
                     ))}
-                    {filteredStations.length === 0 && (
-                        <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
-                            No stations found.
-                        </div>
-                    )}
                 </div>
             </div>
 
@@ -181,12 +179,12 @@ const StationManager = () => {
                             <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: '#f0f7ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <MapPin size={24} color="#3b82f6" />
                             </div>
-                            <div>
-                                <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 900, color: 'var(--text-primary)' }}>{selectedStation.name}</h1>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                                    <span>{selectedStation.group}</span>
+                             <div>
+                                <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 900, color: '#0f172a' }}>{selectedStation.name}</h1>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '0.85rem' }}>
+                                    <Globe size={14} /> <span>{selectedStation.site || 'Default Site'}</span>
                                     <span>•</span>
-                                    <span>Updated {new Date(selectedStation.updatedAt).toLocaleDateString()}</span>
+                                    <MapPin size={14} /> <span>{selectedStation.area || 'General Area'}</span>
                                 </div>
                             </div>
                         </div>

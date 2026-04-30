@@ -19,6 +19,7 @@ import {
     ChevronRight
 } from 'lucide-react';
 import { getAllFrontlineApps, getProductionQueue } from '../utils/supabaseFrontlineDB';
+import { getStations } from '../utils/database';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -172,9 +173,9 @@ function AppCard({ app, isActive, isFavorite, isRecent, onLaunch, onFavorite }) 
 }
 
 // Auth Gate Modal
-function AuthModal({ app, operatorDefault, stationDefault, onConfirm, onCancel }) {
+function AuthModal({ app, operatorDefault, stationDefault, stations = [], onConfirm, onCancel }) {
     const [opName, setOpName] = useState(operatorDefault || '');
-    const [stn, setStn] = useState(stationDefault || 'Station-01');
+    const [stn, setStn] = useState(stationDefault || (stations[0]?.id || ''));
     const hue = nameToHue(app?.name || '');
 
     return (
@@ -233,12 +234,14 @@ function AuthModal({ app, operatorDefault, stationDefault, onConfirm, onCancel }
                             <MapPin size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
                             Station
                         </label>
-                        <input
+                        <select
                             value={stn}
                             onChange={(e) => setStn(e.target.value)}
-                            placeholder="Station ID"
-                            style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.875rem', outline: 'none', boxSizing: 'border-box' }}
-                        />
+                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.875rem', outline: 'none', boxSizing: 'border-box', backgroundColor: 'white' }}
+                        >
+                            <option value="">Select a Station...</option>
+                            {stations.map(s => <option key={s.id} value={s.id}>{s.name} ({s.site})</option>)}
+                        </select>
                     </div>
 
                     <div style={{ display: 'flex', gap: '8px' }}>
@@ -270,11 +273,12 @@ function AuthModal({ app, operatorDefault, stationDefault, onConfirm, onCancel }
 
 const AppPlayer = () => {
     const [apps, setApps] = useState([]);
+    const [stations, setStations] = useState([]);
     const [queue, setQueue] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [search, setSearch] = useState('');
-    const [station, setStation] = useState('Station-01');
+    const [station, setStation] = useState('');
     const [operator, setOperator] = useState('');
     const [activeAppId, setActiveAppId] = useState('');
     const [sessionStartedAt, setSessionStartedAt] = useState(null);
@@ -315,12 +319,15 @@ const AppPlayer = () => {
         setLoading(true);
         setError('');
         try {
-            const [appRows, queueRows] = await Promise.all([
+            const [appRows, queueRows, stationRows] = await Promise.all([
                 getAllFrontlineApps(),
-                getProductionQueue().catch(() => [])
+                getProductionQueue().catch(() => []),
+                getStations().catch(() => [])
             ]);
             setApps(appRows || []);
             setQueue(queueRows || []);
+            setStations(stationRows || []);
+            if (stationRows.length > 0 && !station) setStation(stationRows[0].id);
         } catch (err) {
             setError(err?.message || 'Failed to load apps');
         } finally {
@@ -479,6 +486,7 @@ const AppPlayer = () => {
                     app={pendingApp}
                     operatorDefault={operator}
                     stationDefault={station}
+                    stations={stations}
                     onConfirm={confirmLaunch}
                     onCancel={cancelLaunch}
                 />

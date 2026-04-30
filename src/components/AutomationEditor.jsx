@@ -693,8 +693,9 @@ const AutomationEditor = () => {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {[
-                  { icon: Clock, label: 'When timer fires...', sub: 'Schedule recurring tasks' },
-                  { icon: Database, label: 'When field changes...', sub: 'React to table updates' },
+                  { icon: Clock, label: 'When timer fires...', sub: 'Schedule recurring tasks', triggerType: 'TIMER' },
+                  { icon: Database, label: 'When record is created...', sub: 'React to new rows', triggerType: 'TABLE_ROW_ADDED' },
+                  { icon: Database, label: 'When record is updated...', sub: 'React to field changes', triggerType: 'TABLE_ROW_UPDATED' },
                   { icon: Cpu, label: 'When machine outputs...', sub: 'Respond to IoT data', triggerType: 'MACHINE_TRIGGER' },
                   { icon: Link2, label: 'When connector finishes...', sub: 'Trigger on API callback', triggerType: 'CONNECTOR_TRIGGER' },
                   { icon: Car, label: 'When OBD2 engine data...', sub: 'React to vehicle sensors', triggerType: 'OBD2_TRIGGER' }
@@ -784,6 +785,23 @@ const AutomationEditor = () => {
                     style={{ width: '100%', padding: '10px', marginTop: '5px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
                   />
                 </div>
+
+                {selectedNode.type === 'event' && (selectedNode.data.triggerType === 'TABLE_ROW_ADDED' || selectedNode.data.triggerType === 'TABLE_ROW_UPDATED') && (
+                  <div>
+                    <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Source Table</label>
+                    <select
+                      value={selectedNode.data.tableId || ''}
+                      onChange={(e) => {
+                        const tableId = e.target.value;
+                        setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, tableId } } : n));
+                      }}
+                      style={{ width: '100%', padding: '10px', marginTop: '5px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white' }}
+                    >
+                      <option value="">Select a Table...</option>
+                      {tables.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                  </div>
+                )}
 
                 {selectedNode.type === 'decision' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

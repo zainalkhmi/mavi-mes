@@ -11,10 +11,12 @@ import {
     PieChart,
     ChevronRight,
     Search,
-    Grid3X3
+    Grid3X3,
+    Activity
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { saveDashboard, getAllDashboards, getAllSavedAnalyses } from '../utils/supabaseFrontlineDB';
+import AnalysisWidget from './AnalysisWidget';
 
 const DashboardEditor = () => {
     const { id } = useParams();
@@ -25,7 +27,12 @@ const DashboardEditor = () => {
     const [dashboard, setDashboard] = useState({
         name: 'New Dashboard',
         description: '',
-        layout: [] // Array of { analysisId, x, y, w, h }
+        layout: [] // Array of { id, analysisId, name, type, w, h }
+    });
+
+    const [globalFilters, setGlobalFilters] = useState({
+        dateRange: 'LAST_7_DAYS',
+        stationId: 'ALL'
     });
 
     useEffect(() => {
@@ -113,6 +120,40 @@ const DashboardEditor = () => {
                 </button>
             </div>
 
+            {/* Global Filters Bar */}
+            <div style={{ backgroundColor: '#f1f5f9', padding: '12px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Global Time:</span>
+                    <select 
+                        value={globalFilters.dateRange}
+                        onChange={e => setGlobalFilters({ ...globalFilters, dateRange: e.target.value })}
+                        style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                    >
+                        <option value="TODAY">Today</option>
+                        <option value="LAST_24_HOURS">Last 24 Hours</option>
+                        <option value="LAST_7_DAYS">Last 7 Days</option>
+                        <option value="LAST_30_DAYS">Last 30 Days</option>
+                    </select>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Station:</span>
+                    <select 
+                        value={globalFilters.stationId}
+                        onChange={e => setGlobalFilters({ ...globalFilters, stationId: e.target.value })}
+                        style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                    >
+                        <option value="ALL">All Stations</option>
+                        <option value="STATION_A">Assembly Line A</option>
+                        <option value="STATION_B">Assembly Line B</option>
+                        <option value="STATION_C">Packing Line</option>
+                    </select>
+                </div>
+                <div style={{ flex: 1 }}></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0ea5e9', fontSize: '0.85rem', fontWeight: 700 }}>
+                    <Activity size={16} /> Real-time Refresh ON
+                </div>
+            </div>
+
             <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
                 {/* Sidebar - Widget Selection */}
                 <div style={{ width: '320px', backgroundColor: 'white', borderRight: '1px solid #e2e8f0', overflowY: 'auto', padding: '24px' }}>
@@ -165,10 +206,18 @@ const DashboardEditor = () => {
                                 <p>Your dashboard is empty. Add analyses from the sidebar.</p>
                             </div>
                         ) : (
-                            dashboard.layout.map(widget => (
-                                <div key={widget.id} style={{ backgroundColor: 'white', borderRadius: '20px', padding: '24px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', position: 'relative', minHeight: '300px', display: 'flex', flexDirection: 'column' }}>
+                             dashboard.layout.map(widget => (
+                                <div key={widget.id} style={{ 
+                                    backgroundColor: 'white', borderRadius: '20px', padding: '24px', 
+                                    boxShadow: '0 10px 15px -3px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', 
+                                    position: 'relative', minHeight: '350px', display: 'flex', flexDirection: 'column',
+                                    transition: 'transform 0.2s'
+                                }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                                        <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#1e293b' }}>{widget.name}</h3>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#0ea5e9' }}></div>
+                                            <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#1e293b' }}>{widget.name}</h3>
+                                        </div>
                                         <button 
                                             onClick={() => removeWidget(widget.id)}
                                             style={{ padding: '6px', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', borderRadius: '6px' }}
@@ -178,9 +227,11 @@ const DashboardEditor = () => {
                                             <Trash2 size={16} />
                                         </button>
                                     </div>
-                                    <div style={{ flex: 1, backgroundColor: '#f8fafc', borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '1px solid #f1f5f9' }}>
-                                        {widget.type === 'BAR' ? <BarChart3 size={32} color="#cbd5e1" /> : widget.type === 'LINE' ? <TrendingUp size={32} color="#cbd5e1" /> : <PieChart size={32} color="#cbd5e1" />}
-                                        <span style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '10px' }}>Widget Preview</span>
+                                    <div style={{ flex: 1, position: 'relative' }}>
+                                        <AnalysisWidget 
+                                            analysisId={widget.analysisId} 
+                                            globalFilters={globalFilters} 
+                                        />
                                     </div>
                                 </div>
                             ))

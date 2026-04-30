@@ -15,6 +15,7 @@ class AutomationEngine {
     this.MAX_LOOP_ITERATIONS = 500;
     this.MAX_RECURSION_DEPTH = 25;
     this.lastExecutions = {}; // { triggerId_autoId: timestamp }
+    this.listeners = [];
     this.SYSTEM_VARIABLES = {
       SYS_USER: 'Operator-01',
       SYS_STATION: 'Station-A',

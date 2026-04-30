@@ -54,10 +54,14 @@ const DashboardManager = () => {
                 id: `analysis_throughput_${Date.now()}`,
                 name: 'Total Throughput (By App)',
                 description: 'Historical completion counts aggregated by Application',
-                tableId: 'SYSTEM:COMPLETIONS',
-                xAxis: 'appId',
-                yAxis: 'count', // count is a virtual field for SYSTEM:COMPLETIONS
-                chartType: 'DASHBOARD_CHART_BAR'
+                config: {
+                    type: 'BAR',
+                    tableId: 'SYSTEM:COMPLETIONS',
+                    xAxisColumn: 'app_id',
+                    yAxisColumn: 'id',
+                    aggregation: 'COUNT',
+                    color: '#0ea5e9'
+                }
             };
 
             // 2. Create Cycle Time Analysis
@@ -65,11 +69,14 @@ const DashboardManager = () => {
                 id: `analysis_cycletime_${Date.now()}`,
                 name: 'Avg Cycle Time (By Operator)',
                 description: 'Average duration of completed cycles per Operator',
-                tableId: 'SYSTEM:COMPLETIONS',
-                xAxis: 'operator',
-                yAxis: 'duration',
-                aggregation: 'avg',
-                chartType: 'DASHBOARD_CHART_LINE'
+                config: {
+                    type: 'LINE',
+                    tableId: 'SYSTEM:COMPLETIONS',
+                    xAxisColumn: 'operator_id',
+                    yAxisColumn: 'duration',
+                    aggregation: 'AVERAGE',
+                    color: '#8b5cf6'
+                }
             };
 
             await saveAnalysis(throughputAnalysis);
