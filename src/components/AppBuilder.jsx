@@ -118,6 +118,11 @@ import {
     Bluetooth,
     Music,
     Paperclip,
+    Fuel,
+    BatteryCharging,
+    ThermometerSun,
+    Car,
+    Bug,
     AlertTriangle,
     Settings,
     LogIn,
@@ -129,6 +134,7 @@ import {
     CloudRain,
     Compass,
     Droplets,
+    Wind,
     Sun,
     Nfc,
     Footprints,
@@ -228,6 +234,7 @@ import ShapePicker from './ShapePicker';
 import { createShopfloorTemplate } from '../utils/shopfloorTemplate';
 import automationEngine from '../utils/automationEngine';
 import hardwareService from '../utils/hardwareService';
+import obd2Service from '../utils/obd2Service';
 import { translations } from '../i18n/translations';
 import ProjectManager from './ProjectManager';
 import * as projectMgmt from '../utils/projectManagement';
@@ -1242,6 +1249,51 @@ const COMPONENT_TYPES = {
             rotation: 0
         }
     },
+    OBD2_SCANNER: {
+        id: 'OBD2_SCANNER',
+        label: 'OBD2 Scanner',
+        icon: Car,
+        defaultSize: { w: 260, h: 140 },
+        defaultProps: {
+            label: 'OBD2 Live Data',
+            transport: 'BLUETOOTH', // BLUETOOTH | SERIAL
+            protocol: 'AUTO',
+            pid: '010C', // Engine RPM
+            unit: 'rpm',
+            connected: false,
+            lastValue: '--',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    OBD2_RPM: { id: 'OBD2_RPM', label: 'Engine RPM', icon: Gauge, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: '010C', unit: 'rpm', value: '--', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_SPEED: { id: 'OBD2_SPEED', label: 'Vehicle Speed', icon: TrendingUp, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: '010D', unit: 'km/h', value: '--', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_COOLANT_TEMP: { id: 'OBD2_COOLANT_TEMP', label: 'Coolant Temp', icon: Thermometer, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: '0105', unit: '°C', value: '--', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_THROTTLE: { id: 'OBD2_THROTTLE', label: 'Throttle Position', icon: SlidersHorizontal, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: '0111', unit: '%', value: '--', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_ENGINE_LOAD: { id: 'OBD2_ENGINE_LOAD', label: 'Engine Load', icon: Activity, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: '0104', unit: '%', value: '--', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_MAF: { id: 'OBD2_MAF', label: 'MAF', icon: Wind, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: '0110', unit: 'g/s', value: '--', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_IAT: { id: 'OBD2_IAT', label: 'Intake Air Temp', icon: ThermometerSun, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: '010F', unit: '°C', value: '--', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_FUEL_LEVEL: { id: 'OBD2_FUEL_LEVEL', label: 'Fuel Level', icon: Fuel, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: '012F', unit: '%', value: '--', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_FUEL_PRESSURE: { id: 'OBD2_FUEL_PRESSURE', label: 'Fuel Pressure', icon: Gauge, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: '010A', unit: 'kPa', value: '--', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_STFT: { id: 'OBD2_STFT', label: 'STFT', icon: LineChart, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: '0106', unit: '%', value: '--', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_LTFT: { id: 'OBD2_LTFT', label: 'LTFT', icon: LineChart, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: '0107', unit: '%', value: '--', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_AFR: { id: 'OBD2_AFR', label: 'Air-Fuel Ratio', icon: Sigma, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: '0144', unit: 'AFR', value: '--', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_O2_SENSOR: { id: 'OBD2_O2_SENSOR', label: 'O2 Sensor', icon: Activity, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: '0114', unit: 'V', value: '--', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_IGNITION_TIMING: { id: 'OBD2_IGNITION_TIMING', label: 'Ignition Timing', icon: Zap, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: '010E', unit: '°', value: '--', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_KNOCK: { id: 'OBD2_KNOCK', label: 'Knock Sensor', icon: AlertTriangle, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: 'KNOCK', unit: '', value: '--', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_TORQUE_EST: { id: 'OBD2_TORQUE_EST', label: 'Torque (Est.)', icon: Wrench, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: 'TORQUE_EST', unit: 'Nm', value: '--', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_HP_EST: { id: 'OBD2_HP_EST', label: 'Horsepower (Est.)', icon: TrendingUp, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: 'HP_EST', unit: 'HP', value: '--', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_OIL_TEMP: { id: 'OBD2_OIL_TEMP', label: 'Oil Temperature', icon: Thermometer, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: '015C', unit: '°C', value: '--', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_MAP: { id: 'OBD2_MAP', label: 'MAP Pressure', icon: Cloud, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: '010B', unit: 'kPa', value: '--', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_BARO: { id: 'OBD2_BARO', label: 'Barometric Pressure', icon: CloudRain, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: '0133', unit: 'kPa', value: '--', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_BOOST: { id: 'OBD2_BOOST', label: 'Boost Pressure', icon: Gauge, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: 'BOOST_EST', unit: 'bar', value: '--', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_BATTERY_VOLTAGE: { id: 'OBD2_BATTERY_VOLTAGE', label: 'Battery Voltage', icon: BatteryCharging, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: '0142', unit: 'V', value: '--', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_DTC: { id: 'OBD2_DTC', label: 'DTC Codes', icon: Bug, defaultSize: { w: 260, h: 120 }, defaultProps: { pid: 'DTC', value: '[]', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_MIL_STATUS: { id: 'OBD2_MIL_STATUS', label: 'Check Engine (MIL)', icon: AlertTriangle, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: '0101', value: 'OFF', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_FREEZE_FRAME: { id: 'OBD2_FREEZE_FRAME', label: 'Freeze Frame', icon: FileText, defaultSize: { w: 260, h: 120 }, defaultProps: { pid: 'FREEZE_FRAME', value: '{}', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_CLEAR_DTC: { id: 'OBD2_CLEAR_DTC', label: 'Clear DTC', icon: Trash2, defaultSize: { w: 180, h: 50 }, defaultProps: { action: 'CLEAR_DTC', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
 
     // Additional & Chromeless Types (Defensive definitions to prevent crashes)
     IOT_CONNECTOR: { id: 'IOT_CONNECTOR', label: 'IoT Connector', icon: Cpu, defaultProps: { triggers: [], visibilityCondition: null, rotation: 0 } },
@@ -1321,7 +1373,13 @@ const CATEGORIZED_COMPONENTS = {
         color: '#0ea5e9',
         types: [
             'ACTIVITY_STARTER', 'BLUETOOTH_CLIENT', 'BLUETOOTH_SERVER', 'SERIAL', 'WEB',
-            'CONTACT_PICKER', 'EMAIL_PICKER', 'PHONE_CALL', 'PHONE_NUMBER_PICKER', 'SHARING', 'TEXTING'
+            'CONTACT_PICKER', 'EMAIL_PICKER', 'PHONE_CALL', 'PHONE_NUMBER_PICKER', 'SHARING', 'TEXTING',
+            // Mirror ENGINE widgets here so they are always visible in Builder palette
+            'OBD2_SCANNER', 'OBD2_RPM', 'OBD2_SPEED', 'OBD2_COOLANT_TEMP', 'OBD2_THROTTLE', 'OBD2_ENGINE_LOAD',
+            'OBD2_MAF', 'OBD2_IAT', 'OBD2_FUEL_LEVEL', 'OBD2_FUEL_PRESSURE', 'OBD2_STFT', 'OBD2_LTFT',
+            'OBD2_AFR', 'OBD2_O2_SENSOR', 'OBD2_IGNITION_TIMING', 'OBD2_KNOCK', 'OBD2_TORQUE_EST', 'OBD2_HP_EST',
+            'OBD2_OIL_TEMP', 'OBD2_MAP', 'OBD2_BARO', 'OBD2_BOOST', 'OBD2_BATTERY_VOLTAGE', 'OBD2_DTC',
+            'OBD2_MIL_STATUS', 'OBD2_FREEZE_FRAME', 'OBD2_CLEAR_DTC'
         ]
     },
     // 8. Embedded Widgets
@@ -1340,6 +1398,18 @@ const CATEGORIZED_COMPONENTS = {
         icon: Ruler,
         color: '#f43f5e',
         types: ['VISION_MEASUREMENT', 'MEASUREMENT_WIDGET', 'GAUGE', 'DIAL_GAUGE', 'GAUGE_CIRCULAR', 'OUTSIDE_MICROMETER', 'INSIDE_MICROMETER', 'DIAL_HEIGHT_GAUGE', 'DEPTH_GAUGE', 'ROUGHNESS_TESTER', 'TORQUE_WRENCH', 'WEIGHING_SCALE']
+    },
+    ENGINE: {
+        label: 'Engine',
+        icon: Car,
+        color: '#0ea5e9',
+        types: [
+            'OBD2_SCANNER', 'OBD2_RPM', 'OBD2_SPEED', 'OBD2_COOLANT_TEMP', 'OBD2_THROTTLE', 'OBD2_ENGINE_LOAD', 'OBD2_MAF', 'OBD2_IAT',
+            'OBD2_FUEL_LEVEL', 'OBD2_FUEL_PRESSURE', 'OBD2_STFT', 'OBD2_LTFT', 'OBD2_AFR', 'OBD2_O2_SENSOR',
+            'OBD2_IGNITION_TIMING', 'OBD2_KNOCK', 'OBD2_TORQUE_EST', 'OBD2_HP_EST',
+            'OBD2_OIL_TEMP', 'OBD2_MAP', 'OBD2_BARO', 'OBD2_BOOST',
+            'OBD2_BATTERY_VOLTAGE', 'OBD2_DTC', 'OBD2_MIL_STATUS', 'OBD2_FREEZE_FRAME', 'OBD2_CLEAR_DTC'
+        ]
     }
 };
 
@@ -1358,7 +1428,7 @@ const CHROMELESS_COMPONENT_TYPES = [
 ];
 const DEVICE_TRIGGER_COMPONENT_TYPES = [
     'BARCODE', 'CAMERA_SCANNER', 'VISION_DETECTOR', 'VISION_MEASUREMENT', 'CAMERA', 'CAMCORDER', 'FILE_UPLOAD', 'MEDIA_RECORDER',
-    'IOT_DEVICE', 'MACHINE_STATUS', 'ACCELEROMETER', 'LOCATION_SENSOR', 'BARCODE_SCANNER_NON_VISIBLE', 'CLOCK'
+    'IOT_DEVICE', 'MACHINE_STATUS', 'ACCELEROMETER', 'LOCATION_SENSOR', 'BARCODE_SCANNER_NON_VISIBLE', 'CLOCK', 'OBD2_SCANNER'
 ];
 const FORM_BINDABLE_COMPONENT_TYPES = [
     'TEXT_INPUT', 'TEXT_AREA', 'DROPDOWN', 'RADIO_GROUP', 'MULTI_SELECT', 'NUMBER_INPUT', 'DATE_PICKER',
@@ -4868,6 +4938,130 @@ const AppBuilder = () => {
                 if (comp?.type === 'BARCODE_SCANNER') {
                     if (methodId === 'DoScan') {
                         onWidgetInteraction(comp, 'AfterScan', { result: 'MOCK_SCANNED_12345' });
+                        return;
+                    }
+                }
+
+                if (comp?.type === 'OBD2_SCANNER') {
+                    // ── Connect ──────────────────────────────────────────────
+                    if (methodId === 'Connect') {
+                        const transport = (comp.props.transport || 'BLUETOOTH').toUpperCase();
+                        const connectFn = transport === 'SERIAL'
+                            ? () => obd2Service.connectSerial(Number(comp.props.baudRate) || 38400)
+                            : () => obd2Service.connectBluetooth();
+
+                        updateComponentProps(compId, { connected: false, lastValue: 'Connecting…' });
+                        connectFn()
+                            .then(() => {
+                                updateComponentProps(compId, { connected: true, lastValue: '--' });
+                                onWidgetInteraction(comp, 'Connected', { transport });
+                            })
+                            .catch((err) => {
+                                console.error('[OBD2] Connect error:', err);
+                                updateComponentProps(compId, { connected: false, lastValue: 'Error' });
+                                onWidgetInteraction(comp, 'ConnectionError', { transport, error: err.message });
+                            });
+                        return;
+                    }
+
+                    // ── Disconnect ───────────────────────────────────────────
+                    if (methodId === 'Disconnect') {
+                        obd2Service.stopAllStreams();
+                        obd2Service.disconnect().finally(() => {
+                            updateComponentProps(compId, { connected: false, lastValue: '--' });
+                            onWidgetInteraction(comp, 'Disconnected');
+                        });
+                        return;
+                    }
+
+                    // ── Read single PID ──────────────────────────────────────
+                    if (methodId === 'ReadPID') {
+                        const pid = comp.props.pid || '010C';
+                        if (!obd2Service.connected) {
+                            // In Builder/Preview mode without real connection → simulate
+                            const base  = pid === '010D' ? 65 : pid === '0105' ? 85 : 1500;
+                            const value = +(base + Math.random() * base * 0.15).toFixed(1);
+                            setPreviewFormValues(prev => ({ ...prev, [compId]: value }));
+                            updateComponentProps(compId, { lastValue: value });
+                            onWidgetInteraction(comp, 'DataReceived', { value, pid });
+                            onWidgetInteraction(comp, 'ON_CHANGE', { value, pid });
+                            return value;
+                        }
+                        obd2Service.queryPID(pid).then(result => {
+                            if (!result) return;
+                            setPreviewFormValues(prev => ({ ...prev, [compId]: result.value }));
+                            updateComponentProps(compId, { lastValue: result.value });
+                            onWidgetInteraction(comp, 'DataReceived', { value: result.value, unit: result.unit, pid });
+                            onWidgetInteraction(comp, 'ON_CHANGE',    { value: result.value, unit: result.unit, pid });
+                        }).catch(err => console.warn('[OBD2] ReadPID error:', err));
+                        return;
+                    }
+
+                    // ── Start live stream ─────────────────────────────────────
+                    if (methodId === 'StartLiveStream') {
+                        const pid        = comp.props.pid || '010C';
+                        const intervalMs = Number(args?.[0]) || 1000;
+
+                        if (!obd2Service.connected) {
+                            // Simulation fallback (builder/preview without device)
+                            let ticks = 0;
+                            const maxTicks = 30;
+                            const timer = setInterval(() => {
+                                ticks++;
+                                const base  = pid === '010D' ? 65 : pid === '0105' ? 85 : 1700;
+                                const value = +(base + Math.random() * base * 0.15).toFixed(1);
+                                setPreviewFormValues(prev => ({ ...prev, [compId]: value }));
+                                updateComponentProps(compId, { lastValue: value });
+                                onWidgetInteraction(comp, 'DataReceived', { value, pid });
+                                onWidgetInteraction(comp, 'ON_CHANGE',    { value, pid });
+                                if (ticks >= maxTicks) clearInterval(timer);
+                            }, Math.max(250, intervalMs));
+                            return;
+                        }
+
+                        obd2Service.startLiveStream(compId, pid, intervalMs, (result) => {
+                            if (!result) return;
+                            setPreviewFormValues(prev => ({ ...prev, [compId]: result.value }));
+                            updateComponentProps(compId, { lastValue: result.value });
+                            onWidgetInteraction(comp, 'DataReceived', { value: result.value, unit: result.unit, pid });
+                            onWidgetInteraction(comp, 'ON_CHANGE',    { value: result.value, unit: result.unit, pid });
+                        });
+                        return;
+                    }
+
+                    // ── Stop live stream ──────────────────────────────────────
+                    if (methodId === 'StopLiveStream') {
+                        obd2Service.stopLiveStream(compId);
+                        return;
+                    }
+
+                    // ── Read DTC codes ─────────────────────────────────────────
+                    if (methodId === 'ReadDTC') {
+                        if (!obd2Service.connected) return;
+                        obd2Service.readDTC().then(dtcs => {
+                            const value = JSON.stringify(dtcs);
+                            updateComponentProps(compId, { lastValue: value });
+                            onWidgetInteraction(comp, 'DataReceived', { value, dtcs, pid: 'DTC' });
+                        }).catch(err => console.warn('[OBD2] ReadDTC error:', err));
+                        return;
+                    }
+
+                    // ── Clear DTC codes ────────────────────────────────────────
+                    if (methodId === 'ClearDTC') {
+                        if (!obd2Service.connected) return;
+                        obd2Service.clearDTC().then(ok => {
+                            onWidgetInteraction(comp, ok ? 'DTCCleared' : 'ClearDTCFailed');
+                        }).catch(err => console.warn('[OBD2] ClearDTC error:', err));
+                        return;
+                    }
+
+                    // ── Send raw AT command ────────────────────────────────────
+                    if (methodId === 'SendAT') {
+                        const atCmd = args?.[0];
+                        if (!atCmd || !obd2Service.connected) return;
+                        obd2Service.sendAT(String(atCmd)).then(raw => {
+                            onWidgetInteraction(comp, 'ATResponse', { raw, cmd: atCmd });
+                        }).catch(err => console.warn('[OBD2] SendAT error:', err));
                         return;
                     }
                 }
@@ -8842,6 +9036,120 @@ const AppBuilder = () => {
                         <div style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', marginTop: '4px' }}>{comp.props.deviceType || 'Generic'} | {comp.props.ipAddress || '0.0.0.0'}</div>
                     </div>
                 );
+            case 'OBD2_SCANNER': {
+                const connected = !!comp.props.connected;
+                const transport = comp.props.transport || 'BLUETOOTH';
+                return (
+                    <div style={{ width: '100%', height: '100%', borderRadius: '12px', border: connected ? '2px solid #10b981' : '1px dashed var(--border-secondary)', backgroundColor: 'var(--bg-panel)', padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ padding: '12px', borderRadius: '50%', backgroundColor: connected ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg-tertiary)' }}>
+                            <Car size={32} color={connected ? '#10b981' : 'var(--text-quaternary)'} />
+                        </div>
+                        <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>{comp.props.label || COMPONENT_TYPES[comp.type]?.label || 'OBD2 Scanner'}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: connected ? '#10b981' : '#dc2626' }} />
+                            {connected ? `CONNECTED (${transport})` : `DISCONNECTED (${transport})`}
+                        </div>
+                    </div>
+                );
+            }
+            case 'OBD2_CLEAR_DTC': {
+                return (
+                    <button style={{ width: '100%', height: '100%', padding: '12px', backgroundColor: '#dc2626', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', boxShadow: '0 4px 6px rgba(220, 38, 38, 0.2)' }}>
+                        <Trash2 size={18} />
+                        {comp.props.label || COMPONENT_TYPES[comp.type]?.label || 'Clear DTC'}
+                    </button>
+                );
+            }
+            case 'OBD2_DTC': {
+                const val = previewFormValues[comp.id] ?? comp.props.lastValue ?? '[]';
+                let dtcArray = [];
+                try {
+                    dtcArray = typeof val === 'string' ? JSON.parse(val) : val;
+                    if (!Array.isArray(dtcArray)) dtcArray = [];
+                } catch (e) {
+                    dtcArray = [];
+                }
+                return (
+                    <div style={{ width: '100%', height: '100%', borderRadius: '10px', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-panel)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                        <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-secondary)', backgroundColor: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Bug size={16} color="#dc2626" />
+                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>{comp.props.label || COMPONENT_TYPES[comp.type]?.label || 'Diagnostic Trouble Codes'}</span>
+                            <span style={{ marginLeft: 'auto', fontSize: '0.7rem', padding: '2px 6px', borderRadius: '999px', backgroundColor: dtcArray.length > 0 ? '#fee2e2' : '#d1fae5', color: dtcArray.length > 0 ? '#dc2626' : '#16a34a', fontWeight: 600 }}>{dtcArray.length} Codes</span>
+                        </div>
+                        <div style={{ flex: 1, padding: '8px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {dtcArray.length === 0 ? (
+                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>No DTCs Found</div>
+                            ) : (
+                                dtcArray.map((code, idx) => (
+                                    <div key={idx} style={{ padding: '8px', borderRadius: '6px', backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#dc2626' }}>{code}</span>
+                                        <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)' }}>Engine Fault</span>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                );
+            }
+            case 'OBD2_MIL_STATUS': {
+                const val = previewFormValues[comp.id] ?? comp.props.lastValue ?? 'OFF';
+                const isMilOn = String(val).toUpperCase() === 'ON' || val === true;
+                return (
+                    <div style={{ width: '100%', height: '100%', borderRadius: '10px', border: `1px solid ${isMilOn ? '#f59e0b' : 'var(--border-primary)'}`, backgroundColor: isMilOn ? 'rgba(245, 158, 11, 0.05)' : 'var(--bg-panel)', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+                        <div style={{ padding: '10px', borderRadius: '50%', backgroundColor: isMilOn ? '#f59e0b' : 'var(--bg-tertiary)', color: isMilOn ? 'white' : 'var(--text-quaternary)' }}>
+                            <AlertTriangle size={24} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Check Engine</span>
+                            <span style={{ fontSize: '1.1rem', fontWeight: 800, color: isMilOn ? '#f59e0b' : 'var(--text-quaternary)' }}>{isMilOn ? 'MIL ON' : 'MIL OFF'}</span>
+                        </div>
+                    </div>
+                );
+            }
+            case 'OBD2_RPM':
+            case 'OBD2_SPEED':
+            case 'OBD2_COOLANT_TEMP':
+            case 'OBD2_THROTTLE':
+            case 'OBD2_ENGINE_LOAD':
+            case 'OBD2_MAF':
+            case 'OBD2_IAT':
+            case 'OBD2_FUEL_LEVEL':
+            case 'OBD2_FUEL_PRESSURE':
+            case 'OBD2_STFT':
+            case 'OBD2_LTFT':
+            case 'OBD2_AFR':
+            case 'OBD2_O2_SENSOR':
+            case 'OBD2_IGNITION_TIMING':
+            case 'OBD2_KNOCK':
+            case 'OBD2_TORQUE_EST':
+            case 'OBD2_HP_EST':
+            case 'OBD2_OIL_TEMP':
+            case 'OBD2_MAP':
+            case 'OBD2_BARO':
+            case 'OBD2_BOOST':
+            case 'OBD2_BATTERY_VOLTAGE':
+            case 'OBD2_FREEZE_FRAME': {
+                const val = previewFormValues[comp.id] ?? comp.props.lastValue ?? '--';
+                const connected = !!comp.props.connected;
+                const IconComponent = COMPONENT_TYPES[comp.type]?.icon || Car;
+                return (
+                    <div style={{ width: '100%', height: '100%', borderRadius: '10px', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-panel)', padding: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <IconComponent size={16} color="#0ea5e9" />
+                                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{comp.props.label || COMPONENT_TYPES[comp.type]?.label || 'OBD2 Live Data'}</span>
+                            </div>
+                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: connected ? '#16a34a' : '#dc2626' }}>{connected ? 'CONNECTED' : 'OFFLINE'}</span>
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-quaternary)' }}>
+                            PID: {comp.props.pid || 'Unknown'} 
+                        </div>
+                        <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                            {String(val)} <span style={{ fontSize: '0.8rem', color: 'var(--text-quaternary)' }}>{comp.props.unit || ''}</span>
+                        </div>
+                    </div>
+                );
+            }
             case 'COMPLETE_BUTTON':
                 return (
                     <button
@@ -9999,25 +10307,7 @@ const AppBuilder = () => {
                     >Publish</button>
 
                     <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
-                    <button
-                        onClick={() => setBuilderTheme(prev => prev === 'DARK' ? 'LIGHT' : 'DARK')}
-                        title={`Switch to ${builderTheme === 'DARK' ? 'Light' : 'Dark'} Mode`}
-                        style={{
-                            background: 'transparent',
-                            border: 'none',
-                            color: 'var(--header-text)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '6px',
-                            borderRadius: '50%',
-                            transition: 'all 0.2s',
-                            backgroundColor: 'rgba(255,255,255,0.1)'
-                        }}
-                    >
-                        {builderTheme === 'DARK' ? <Sun size={18} /> : <Moon size={18} />}
-                    </button>
+                    
                 </div>
             </div>
 
@@ -21225,3 +21515,11 @@ const AppBuilder = () => {
 };
 
 export default AppBuilder;
+
+
+
+
+
+
+
+

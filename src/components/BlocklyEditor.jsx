@@ -2757,6 +2757,16 @@ const BlocklyEditor = ({
         if (type === 'RECORD_DISPLAY') {
             return [{ id: 'RecordLoaded', label: 'Record Loaded' }];
         }
+        if (type === 'OBD2_SCANNER') {
+            return [
+                { id: 'DataReceived', label: 'DataReceived', args: ['pid', 'value', 'unit'] },
+                { id: 'Connected', label: 'Connected', args: ['transport'] },
+                { id: 'Disconnected', label: 'Disconnected', args: [] },
+                { id: 'ConnectionError', label: 'ConnectionError', args: ['transport', 'error'] },
+                { id: 'ATResponse', label: 'ATResponse', args: ['cmd', 'raw'] },
+                { id: 'DTCCleared', label: 'DTCCleared', args: [] }
+            ];
+        }
         return [{ id: 'ON_INTERACT', label: 'is Interacted with' }];
     };
     const getComponentProperties = (type) => {
@@ -3430,6 +3440,16 @@ const BlocklyEditor = ({
                 ['HeightPercent', 'heightPercent']
             ];
         }
+        if (type === 'OBD2_SCANNER') {
+            return [
+                ...baseProps,
+                ['Transport', 'transport'],
+                ['BaudRate', 'baudRate'],
+                ['PID', 'pid'],
+                ['Connected', 'connected', 'BOOLEAN'],
+                ['LastValue', 'lastValue']
+            ];
+        }
         return baseProps;
     };
 
@@ -3940,6 +3960,18 @@ const BlocklyEditor = ({
         if (type === 'RECORD_DISPLAY') {
             return [
                 { id: 'LoadRecord', label: 'LoadRecord', args: ['recordId'] }
+            ];
+        }
+        if (type === 'OBD2_SCANNER') {
+            return [
+                { id: 'Connect', label: 'Connect', args: [] },
+                { id: 'Disconnect', label: 'Disconnect', args: [] },
+                { id: 'ReadPID', label: 'ReadPID', args: [] },
+                { id: 'StartLiveStream', label: 'StartLiveStream', args: ['intervalMs'] },
+                { id: 'StopLiveStream', label: 'StopLiveStream', args: [] },
+                { id: 'ReadDTC', label: 'ReadDTC', args: [] },
+                { id: 'ClearDTC', label: 'ClearDTC', args: [] },
+                { id: 'SendAT', label: 'SendAT', args: ['cmd'] }
             ];
         }
         return [];

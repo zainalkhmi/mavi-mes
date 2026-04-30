@@ -45,10 +45,10 @@ const TOKENS = {
     success: '#10b981', // Emerald 500
     warning: '#f59e0b', // Amber 500
     danger: '#ef4444', // Red 500
-    sidebarBg: '#1e1b4b', // Indigo 950
-    sidebarText: '#e2e8f0',
+    sidebarBg: '#ffffff',
+    sidebarText: '#334155',
     sidebarTextMuted: '#94a3b8',
-    sidebarActive: '#312e81',
+    sidebarActive: '#eef2ff',
     bg: '#f8fafc', // Slate 50
     surface: '#ffffff',
     text: '#1e293b', // Slate 800
@@ -57,7 +57,7 @@ const TOKENS = {
     borderLight: '#f1f5f9', // Slate 100
     radius: '12px',
     radiusSm: '8px',
-    shadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+    shadow: '0 1px 2px 0 rgb(15 23 42 / 0.05)',
     shadowLg: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)'
 };
 
@@ -831,26 +831,34 @@ const TableManager = () => {
             {/* Sidebar: Navigation & Table List */}
             {isTableSidebarOpen && (
                 <div style={{
-                    width: '280px',
+                    width: '260px',
                     backgroundColor: TOKENS.sidebarBg,
                     display: 'flex',
                     flexDirection: 'column',
                     flexShrink: 0,
                     color: TOKENS.sidebarText,
-                    borderRight: `1px solid rgba(255,255,255,0.05)`
+                    borderRight: `1px solid ${TOKENS.border}`
                 }}>
                 {/* Logo */}
                 <div style={{ padding: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{ padding: '8px', backgroundColor: TOKENS.primary, borderRadius: '8px' }}>
                         <Layers size={20} color="white" />
                     </div>
-                    <span style={{ fontWeight: 800, fontSize: '1.2rem', letterSpacing: '1px' }}>MES CORE</span>
+                    <span style={{ fontWeight: 800, fontSize: '1.2rem', letterSpacing: '0.5px', color: '#0f172a' }}>MES CORE</span>
                 </div>
 
-                {/* Section Title */}
+                <div style={{ padding: '0 24px 12px' }}>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: TOKENS.sidebarTextMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Menu</span>
+                </div>
+                <div style={{ padding: '0 16px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '10px', color: TOKENS.sidebarText, fontWeight: 500 }}>
+                        <LayoutGrid size={16} color={TOKENS.sidebarTextMuted} />
+                        <span>Dashboard</span>
+                    </div>
+                </div>
+
                 <div style={{ padding: '0 24px 12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <LayoutGrid size={16} color={TOKENS.sidebarTextMuted} />
-                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: TOKENS.sidebarTextMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tables</span>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: TOKENS.sidebarTextMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Tables</span>
                 </div>
 
                 {/* Search */}
@@ -865,15 +873,15 @@ const TableManager = () => {
                             style={{
                                 width: '100%',
                                 padding: '10px 12px 10px 36px',
-                                backgroundColor: 'rgba(255,255,255,0.05)',
-                                border: '1px solid rgba(255,255,255,0.1)',
+                                backgroundColor: '#f8fafc',
+                                border: `1px solid ${TOKENS.border}`,
                                 borderRadius: '8px',
-                                color: 'white',
+                                color: TOKENS.text,
                                 fontSize: '0.85rem',
                                 outline: 'none'
                             }}
                         />
-                        <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.7rem', color: TOKENS.sidebarTextMuted, border: '1px solid rgba(255,255,255,0.2)', padding: '2px 4px', borderRadius: '4px' }}>⌘ K</span>
+                        <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.7rem', color: TOKENS.sidebarTextMuted, border: `1px solid ${TOKENS.border}`, padding: '2px 4px', borderRadius: '4px' }}>⌘ K</span>
                     </div>
                 </div>
 
@@ -902,7 +910,7 @@ const TableManager = () => {
                             boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
                         }}
                     >
-                        <Plus size={18} /> New Table
+                        <Plus size={18} /> Create
                     </button>
                 </div>
 
@@ -916,19 +924,19 @@ const TableManager = () => {
                                 padding: '10px 16px',
                                 borderRadius: '8px',
                                 backgroundColor: selectedTableId === table.id ? TOKENS.sidebarActive : 'transparent',
-                                color: selectedTableId === table.id ? 'white' : TOKENS.sidebarText,
+                                 color: selectedTableId === table.id ? TOKENS.primary : TOKENS.sidebarText,
                                 cursor: 'pointer',
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '12px',
                                 marginBottom: '2px',
                                 transition: 'all 0.2s',
-                                fontWeight: selectedTableId === table.id ? 600 : 500,
+                                 fontWeight: selectedTableId === table.id ? 700 : 500,
                                 fontSize: '0.9rem'
                             }}
                         >
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, overflow: 'hidden' }}>
-                                <Database size={16} color={selectedTableId === table.id ? 'white' : TOKENS.sidebarTextMuted} />
+                                <Database size={16} color={selectedTableId === table.id ? TOKENS.primary : TOKENS.sidebarTextMuted} />
                                 <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{table.name}</span>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -962,28 +970,28 @@ const TableManager = () => {
 
                 {/* Database Info Card */}
                 <div style={{ padding: '20px' }}>
-                    <div style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '16px', padding: '20px' }}>
-                        <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'white', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ backgroundColor: '#ffffff', border: `1px solid ${TOKENS.border}`, borderRadius: '16px', padding: '20px' }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 800, color: TOKENS.text, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Database size={14} color={TOKENS.primary} /> Database Status
                         </div>
                         
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
                                 <span style={{ color: TOKENS.sidebarTextMuted }}>Total Tables</span>
-                                <span style={{ fontWeight: 700, color: 'white' }}>{tables.length}</span>
+                                <span style={{ fontWeight: 700, color: TOKENS.text }}>{tables.length}</span>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
                                 <span style={{ color: TOKENS.sidebarTextMuted }}>Total Records</span>
-                                <span style={{ fontWeight: 700, color: 'white' }}>{tables.reduce((acc, t) => acc + (t.recordCount || 0), 0).toLocaleString()}</span>
+                                <span style={{ fontWeight: 700, color: TOKENS.text }}>{tables.reduce((acc, t) => acc + (t.recordCount || 0), 0).toLocaleString()}</span>
                             </div>
                         </div>
 
                         <div style={{ marginTop: '20px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '8px' }}>
                                 <span style={{ color: TOKENS.sidebarTextMuted }}>Storage Usage</span>
-                                <span style={{ fontWeight: 700, color: 'white' }}>{Math.min(100, (tables.length / 50) * 100).toFixed(1)}%</span>
+                                <span style={{ fontWeight: 700, color: TOKENS.text }}>{Math.min(100, (tables.length / 50) * 100).toFixed(1)}%</span>
                             </div>
-                            <div style={{ height: '6px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ height: '6px', backgroundColor: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
                                 <div style={{ width: `${Math.min(100, (tables.length / 50) * 100)}%`, height: '100%', background: `linear-gradient(90deg, ${TOKENS.primary}, ${TOKENS.secondary})` }}></div>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', marginTop: '6px', color: TOKENS.sidebarTextMuted }}>
@@ -1183,7 +1191,7 @@ const TableManager = () => {
                                         </div>
 
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                            <button
+                                                    <button
                                                 onClick={handleImportButtonClick}
                                                 disabled={csvImporting}
                                                 style={{
@@ -1200,7 +1208,7 @@ const TableManager = () => {
                                                     cursor: 'pointer'
                                                 }}
                                             >
-                                                <Upload size={16} /> Import CSV
+                                                <Upload size={16} /> Import
                                             </button>
                                             <button
                                                 onClick={() => {
@@ -1224,7 +1232,7 @@ const TableManager = () => {
                                                     boxShadow: '0 4px 6px -1px rgba(99, 102, 241, 0.4)'
                                                 }}
                                             >
-                                                <Plus size={18} /> New Record
+                                                <Plus size={18} /> Create
                                             </button>
                                         </div>
                                     </div>
@@ -2607,6 +2615,7 @@ const TableManager = () => {
                 ref={csvInputRef}
                 onChange={handleCsvFileImport}
                 accept=".csv"
+                style={{ display: 'none' }}
             />
         </div>
     );
