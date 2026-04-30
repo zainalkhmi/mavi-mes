@@ -124,45 +124,60 @@ const ConnectorNode = ({ data }) => (
   </div>
 );
 
-// Custom Node for Action (e.g. Table Update)
-const ActionNode = ({ data, selected }) => {
+// Custom Node for Actions with Success/Error branches
+const ActionNode = ({ data }) => {
   const isOBD = data.type?.startsWith('OBD2_');
-  const Icon = isOBD ? Car : Table;
-  const iconColor = isOBD ? '#f97316' : '#10b981';
-  const bgColor = isOBD ? '#fff7ed' : '#f0fdf4';
   
   return (
     <div style={{
-      padding: '12px',
+      padding: '15px',
       borderRadius: '12px',
       backgroundColor: 'white',
-      border: `2px solid ${selected ? '#3b82f6' : '#dcfce7'}`,
-      minWidth: '160px',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      gap: '8px',
-      boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)'
+      border: '1px solid #e2e8f0',
+      minWidth: '220px',
+      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+      position: 'relative'
     }}>
-      <Handle type="target" position={Position.Top} style={{ background: '#10b981' }} />
-      <div style={{ 
-        width: '40px', 
-        height: '40px', 
-        borderRadius: '8px', 
-        backgroundColor: bgColor, 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center' 
-      }}>
-        <Icon size={24} color={iconColor} />
-      </div>
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b' }}>{data.label || 'Action'}</div>
-        <div style={{ fontSize: '0.65rem', color: '#64748b' }}>
-          {data.subtext || (isOBD ? 'Vehicle Integration' : 'Create/update records')}
+      <Handle type="target" position={Position.Top} style={{ background: '#64748b' }} />
+      
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+        <div style={{ 
+          width: '32px', 
+          height: '32px', 
+          borderRadius: '8px', 
+          backgroundColor: isOBD ? '#eff6ff' : '#f0fdf4', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          color: isOBD ? '#3b82f6' : '#10b981' 
+        }}>
+          {isOBD ? <Car size={18} /> : (data.type === 'SET_VARIABLE' ? <Type size={18} /> : <Plus size={18} />)}
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: '0.65rem', fontWeight: 800, color: isOBD ? '#3b82f6' : '#10b981', textTransform: 'uppercase' }}>
+            {data.type?.replace(/_/g, ' ') || 'Action'}
+          </div>
+          <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b' }}>{data.label || 'Configure...'}</div>
         </div>
       </div>
-      <Handle type="source" position={Position.Bottom} style={{ background: '#10b981' }} />
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 10px', marginTop: '10px' }}>
+        <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 800 }}>OK</div>
+        <div style={{ fontSize: '0.6rem', color: '#ef4444', fontWeight: 800 }}>ERROR</div>
+      </div>
+
+      <Handle 
+        type="source" 
+        position={Position.Bottom} 
+        id="success" 
+        style={{ left: '25%', background: '#10b981' }} 
+      />
+      <Handle 
+        type="source" 
+        position={Position.Bottom} 
+        id="error" 
+        style={{ left: '75%', background: '#ef4444' }} 
+      />
     </div>
   );
 };
@@ -391,16 +406,70 @@ const FunctionsEditor = () => {
   const [variables, setVariables] = useState([]);
   const [activeLeftTab, setActiveLeftTab] = useState('IO'); // IO or ASSETS
   const [selectedNode, setSelectedNode] = useState(null);
+  const [activeRightTab, setActiveRightTab] = useState('LOGIC'); // LOGIC, CONTRACT
   const [editingIO, setEditingIO] = useState(null); // { type: 'input'|'output', id }
   const [showIOMenu, setShowIOMenu] = useState(null); // { type, id }
   const [activeEdgeForMenu, setActiveEdgeForMenu] = useState(null);
   const [isManagerOpen, setIsManagerOpen] = useState(false);
   const [savedFunctions, setSavedFunctions] = useState([]);
+  const [connectors, setConnectors] = useState([]);
+  const [isConnectorManagerOpen, setIsConnectorManagerOpen] = useState(false);
+  const [environment, setEnvironment] = useState('DEV'); // DEV, PROD
+  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
+  const [testInputs, setTestInputs] = useState({});
+  const [testResult, setTestResult] = useState(null);
+  const [isTesting, setIsTesting] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('mes_functions');
     if (saved) setSavedFunctions(JSON.parse(saved));
+    const savedConns = localStorage.getItem('mes_connectors');
+    if (savedConns) setConnectors(JSON.parse(savedConns));
   }, [isManagerOpen]);
+
+  const saveConnectors = (newConnectors) => {
+    setConnectors(newConnectors);
+    localStorage.setItem('mes_connectors', JSON.stringify(newConnectors));
+  };
+
+  const addInput = () => {
+    const id = Date.now();
+    setInputs([...inputs, { id, name: `Input ${inputs.length + 1}`, type: 'string' }]);
+  };
+
+  const addOutput = () => {
+    const id = Date.now();
+    setOutputs([...outputs, { id, name: `Output ${outputs.length + 1}`, type: 'string' }]);
+  };
+
+  const updateInput = (id, updates) => {
+    setInputs(inputs.map(i => i.id === id ? { ...i, ...updates } : i));
+  };
+
+  const updateOutput = (id, updates) => {
+    setOutputs(outputs.map(o => o.id === id ? { ...o, ...updates } : o));
+  };
+
+  const handleRunTest = async () => {
+    setIsTesting(true);
+    setTestResult(null);
+    try {
+      const graph = {
+        nodes,
+        edges,
+        inputs,
+        outputs
+      };
+      // Prepare event data from test inputs
+      const eventData = { ...testInputs, _environment: environment };
+      const result = await engine.executeGraph(graph, eventData);
+      setTestResult({ status: 'success', data: result });
+    } catch (err) {
+      setTestResult({ status: 'error', message: err.message });
+    } finally {
+      setIsTesting(false);
+    }
+  };
 
   useEffect(() => {
     // Inject the callback into initial edges if they don't have it
@@ -703,20 +772,46 @@ const FunctionsEditor = () => {
             />
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button style={{ p: '8px', background: 'none', border: 'none', color: '#94a3b8' }}><Undo2 size={18} /></button>
-          <button style={{ p: '8px', background: 'none', border: 'none', color: '#94a3b8' }}><Redo2 size={18} /></button>
-          <div style={{ width: '1px', height: '24px', backgroundColor: '#e2e8f0', margin: '0 8px' }}></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div style={{ display: 'flex', backgroundColor: '#f1f5f9', padding: '4px', borderRadius: '8px', gap: '4px' }}>
+            <button 
+              onClick={() => setEnvironment('DEV')}
+              style={{ padding: '6px 12px', border: 'none', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer', backgroundColor: environment === 'DEV' ? 'white' : 'transparent', color: environment === 'DEV' ? '#3b82f6' : '#64748b', boxShadow: environment === 'DEV' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}
+            >DEV</button>
+            <button 
+              onClick={() => setEnvironment('PROD')}
+              style={{ padding: '6px 12px', border: 'none', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer', backgroundColor: environment === 'PROD' ? '#1e293b' : 'transparent', color: environment === 'PROD' ? 'white' : '#64748b', boxShadow: environment === 'PROD' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}
+            >PROD</button>
+          </div>
           <button 
-            onClick={handleTest}
+            onClick={() => {
+              setTestInputs({});
+              setTestResult(null);
+              setIsTestModalOpen(true);
+            }}
             style={{
-              display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px',
-              backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '6px',
-              fontSize: '0.8rem', fontWeight: 600, color: '#64748b', cursor: 'pointer'
+              padding: '10px 20px', backgroundColor: '#f0fdf4', color: '#10b981',
+              border: '1px solid #dcfce7', borderRadius: '8px', fontWeight: 700,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'
             }}
           >
-            <PlayCircle size={16} /> Test
+            <PlayCircle size={16} /> Run Sandbox
           </button>
+          <div style={{ width: '1px', height: '24px', backgroundColor: '#e2e8f0' }}></div>
+          <button
+            onClick={() => setIsConnectorManagerOpen(true)}
+            style={{
+              background: 'none', border: 'none', color: '#64748b', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: '8px', borderRadius: '8px'
+            }}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+            title="Connectors"
+          >
+            <Link2 size={20} />
+          </button>
+          <div style={{ width: '1px', height: '24px', backgroundColor: '#e2e8f0' }}></div>
           <button 
             onClick={() => setIsManagerOpen(true)}
             style={{
@@ -824,315 +919,6 @@ const FunctionsEditor = () => {
       {/* Main Content Area */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         
-        {/* Left Panel: Inputs & Outputs */}
-        <div style={{ width: '300px', backgroundColor: 'white', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0' }}>
-            <button 
-              onClick={() => setActiveLeftTab('IO')}
-              style={{
-                flex: 1, padding: '12px', border: 'none', background: 'none',
-                fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
-                color: activeLeftTab === 'IO' ? '#3b82f6' : '#64748b',
-                borderBottom: activeLeftTab === 'IO' ? '2px solid #3b82f6' : 'none'
-              }}
-            >Inputs & outputs</button>
-            <button 
-              onClick={() => setActiveLeftTab('ASSETS')}
-              style={{
-                flex: 1, padding: '12px', border: 'none', background: 'none',
-                fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
-                color: activeLeftTab === 'ASSETS' ? '#3b82f6' : '#64748b',
-                borderBottom: activeLeftTab === 'ASSETS' ? '2px solid #3b82f6' : 'none'
-              }}
-            >Assets</button>
-          </div>
-
-          <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '20px', flex: 1, overflowY: 'auto' }}>
-            <div style={{ position: 'relative' }}>
-              <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-              <input 
-                placeholder={activeLeftTab === 'IO' ? "Search inputs & outputs" : "Search variables"}
-                style={{
-                  width: '100%', padding: '8px 10px 8px 32px', borderRadius: '6px',
-                  border: '1px solid #e2e8f0', fontSize: '0.75rem'
-                }}
-              />
-            </div>
-
-            {activeLeftTab === 'IO' ? (
-              <>
-                {/* Inputs Section */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#1e293b' }}>Inputs ({inputs.length})</div>
-                    <button onClick={() => handleAddIO('Input')} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}><Plus size={16} /></button>
-                  </div>
-                  {inputs.length === 0 ? (
-                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>No Inputs</div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      {inputs.map(input => {
-                        const isUsed = getUsageCount(input.id, 'input') > 0;
-                        const TypeIcon = DATA_TYPES[input.type]?.icon || Type;
-                        return (
-                          <div key={input.id} style={{ 
-                            padding: '8px 12px', 
-                            borderRadius: '6px', 
-                            backgroundColor: 'white', 
-                            fontSize: '0.8rem', 
-                            display: 'flex', 
-                            flexDirection: 'column',
-                            gap: '4px',
-                            border: '1px solid transparent',
-                            position: 'relative'
-                          }}
-                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
-                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <TypeIcon size={14} color="#64748b" />
-                              <span style={{ 
-                                flex: 1, 
-                                fontStyle: isUsed ? 'normal' : 'italic',
-                                color: isUsed ? '#1e293b' : '#64748b',
-                                fontWeight: isUsed ? 600 : 400
-                              }}>{input.name}</span>
-                              <button 
-                                onClick={() => setShowIOMenu({ type: 'input', id: input.id })}
-                                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
-                              >
-                                <MoreVertical size={14} />
-                              </button>
-
-                              {showIOMenu?.type === 'input' && showIOMenu.id === input.id && (
-                                <div style={{
-                                  position: 'absolute', top: '30px', right: '0', backgroundColor: 'white',
-                                  borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
-                                  border: '1px solid #e2e8f0', zIndex: 100, width: '120px', padding: '4px'
-                                }}>
-                                  <button onClick={() => { setEditingIO({ type: 'input', id: input.id }); setShowIOMenu(null); }} style={{ width: '100%', textAlign: 'left', padding: '6px 10px', fontSize: '0.75rem', border: 'none', background: 'none', cursor: 'pointer' }}>Edit</button>
-                                  <button onClick={() => handleDuplicateIO('input', input.id)} style={{ width: '100%', textAlign: 'left', padding: '6px 10px', fontSize: '0.75rem', border: 'none', background: 'none', cursor: 'pointer' }}>Duplicate</button>
-                                  <button onClick={() => handleDeleteIO('input', input.id)} style={{ width: '100%', textAlign: 'left', padding: '6px 10px', fontSize: '0.75rem', border: 'none', background: 'none', cursor: 'pointer', color: '#ef4444' }}>Delete</button>
-                                </div>
-                              )}
-                              {!isUsed && (
-                                <div style={{ position: 'absolute', left: '-2px', top: '50%', transform: 'translateY(-50%)', width: '2px', height: '12px', backgroundColor: '#e2e8f0', borderRadius: '2px' }}></div>
-                              )}
-                            </div>
-                            {isUsed && (
-                              <div style={{ padding: '4px 12px 8px 36px', width: '100%', borderTop: '1px solid #f8fafc' }}>
-                                <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  Where used <ChevronRight size={10} style={{ transform: 'rotate(90deg)' }} />
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
-                                  {getWhereUsed(input.id, 'input').map(use => (
-                                    <div key={use.id} onClick={() => setSelectedNode(nodes.find(n => n.id === use.id))} style={{ fontSize: '0.6rem', color: '#3b82f6', cursor: 'pointer', textDecoration: 'underline' }}>
-                                      {use.name}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                      
-                      {editingIO && editingIO.type === 'input' && (
-                        <div style={{ padding: '12px', border: '1px solid #3b82f6', borderRadius: '8px', backgroundColor: '#f0f9ff', marginTop: '8px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                            <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#1d4ed8' }}>Edit Input</span>
-                            <X size={12} onClick={() => setEditingIO(null)} style={{ cursor: 'pointer' }} />
-                          </div>
-                          <input 
-                            value={inputs.find(i => i.id === editingIO.id)?.name}
-                            onChange={(e) => setInputs(inputs.map(i => i.id === editingIO.id ? { ...i, name: e.target.value } : i))}
-                            style={{ width: '100%', padding: '6px', fontSize: '0.75rem', border: '1px solid #3b82f6', borderRadius: '4px', marginBottom: '8px' }}
-                          />
-                          <select 
-                            value={inputs.find(i => i.id === editingIO.id)?.type}
-                            onChange={(e) => setInputs(inputs.map(i => i.id === editingIO.id ? { ...i, type: e.target.value } : i))}
-                            style={{ width: '100%', padding: '6px', fontSize: '0.75rem', border: '1px solid #bfdbfe', borderRadius: '4px' }}
-                          >
-                            {Object.entries(DATA_TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                          </select>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Outputs Section */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#1e293b' }}>Outputs ({outputs.length})</div>
-                    <button onClick={() => handleAddIO('Output')} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}><Plus size={16} /></button>
-                  </div>
-                  {outputs.length === 0 ? (
-                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>No outputs</div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      {outputs.map(output => {
-                        const isUsed = getUsageCount(output.id, 'output') > 0;
-                        const TypeIcon = DATA_TYPES[output.type]?.icon || Type;
-                        return (
-                          <div key={output.id} style={{ 
-                            padding: '8px 12px', 
-                            borderRadius: '6px', 
-                            backgroundColor: 'white', 
-                            fontSize: '0.8rem', 
-                            display: 'flex', 
-                            flexDirection: 'column',
-                            gap: '4px',
-                            position: 'relative'
-                          }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <TypeIcon size={14} color="#64748b" />
-                              <span style={{ 
-                                flex: 1, 
-                                fontStyle: isUsed ? 'normal' : 'italic',
-                                color: isUsed ? '#1e293b' : '#64748b',
-                                fontWeight: isUsed ? 600 : 400
-                              }}>{output.name}</span>
-                              <button 
-                                onClick={() => setShowIOMenu({ type: 'output', id: output.id })}
-                                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
-                              >
-                                <MoreVertical size={14} />
-                              </button>
-
-                              {showIOMenu?.type === 'output' && showIOMenu.id === output.id && (
-                                <div style={{
-                                  position: 'absolute', top: '30px', right: '0', backgroundColor: 'white',
-                                  borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
-                                  border: '1px solid #e2e8f0', zIndex: 100, width: '120px', padding: '4px'
-                                }}>
-                                  <button onClick={() => { setEditingIO({ type: 'output', id: output.id }); setShowIOMenu(null); }} style={{ width: '100%', textAlign: 'left', padding: '6px 10px', fontSize: '0.75rem', border: 'none', background: 'none', cursor: 'pointer' }}>Edit</button>
-                                  <button onClick={() => handleDuplicateIO('output', output.id)} style={{ width: '100%', textAlign: 'left', padding: '6px 10px', fontSize: '0.75rem', border: 'none', background: 'none', cursor: 'pointer' }}>Duplicate</button>
-                                  <button onClick={() => handleDeleteIO('output', output.id)} style={{ width: '100%', textAlign: 'left', padding: '6px 10px', fontSize: '0.75rem', border: 'none', background: 'none', cursor: 'pointer', color: '#ef4444' }}>Delete</button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {editingIO && editingIO.type === 'output' && (
-                        <div style={{ padding: '12px', border: '1px solid #10b981', borderRadius: '8px', backgroundColor: '#f0fdf4', marginTop: '8px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                            <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#047857' }}>Edit Output</span>
-                            <X size={12} onClick={() => setEditingIO(null)} style={{ cursor: 'pointer' }} />
-                          </div>
-                          <input 
-                            value={outputs.find(o => o.id === editingIO.id)?.name}
-                            onChange={(e) => setOutputs(outputs.map(o => o.id === editingIO.id ? { ...o, name: e.target.value } : o))}
-                            style={{ width: '100%', padding: '6px', fontSize: '0.75rem', border: '1px solid #10b981', borderRadius: '4px', marginBottom: '8px' }}
-                          />
-                          <select 
-                            value={outputs.find(o => o.id === editingIO.id)?.type}
-                            onChange={(e) => setOutputs(outputs.map(o => o.id === editingIO.id ? { ...o, type: e.target.value } : o))}
-                            style={{ width: '100%', padding: '6px', fontSize: '0.75rem', border: '1px solid #d1fae5', borderRadius: '4px' }}
-                          >
-                            {Object.entries(DATA_TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                          </select>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : (
-              /* Assets View (Variables) */
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#1e293b' }}>Variables ({variables.length})</div>
-                  <button onClick={() => handleAddIO('Variable')} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}><Plus size={16} /></button>
-                </div>
-
-                {variables.length === 0 ? (
-                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>No variables defined</div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    {/* Unused Variables Section */}
-                    {variables.some(v => getUsageCount(v.id, 'variable') === 0) && (
-                      <div>
-                        <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px' }}>Unused variables</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          {variables.filter(v => getUsageCount(v.id, 'variable') === 0).map(v => {
-                            const TypeIcon = DATA_TYPES[v.type]?.icon || Type;
-                            return (
-                              <div key={v.id} style={{ padding: '8px 12px', borderRadius: '6px', backgroundColor: 'white', border: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '10px', position: 'relative' }}>
-                                <TypeIcon size={14} color="#94a3b8" />
-                                <span style={{ flex: 1, fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic' }}>{v.name}</span>
-                                <button onClick={() => setShowIOMenu({ type: 'variable', id: v.id })} style={{ background: 'none', border: 'none', color: '#94a3b8' }}><MoreVertical size={14} /></button>
-                                {showIOMenu?.type === 'variable' && showIOMenu.id === v.id && (
-                                  <div style={{ position: 'absolute', top: '30px', right: '0', backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', border: '1px solid #e2e8f0', zIndex: 100, width: '120px', padding: '4px' }}>
-                                    <button onClick={() => { setEditingIO({ type: 'variable', id: v.id }); setShowIOMenu(null); }} style={{ width: '100%', textAlign: 'left', padding: '6px 10px', fontSize: '0.75rem', border: 'none', background: 'none', cursor: 'pointer' }}>Edit</button>
-                                    <button onClick={() => handleDuplicateIO('variable', v.id)} style={{ width: '100%', textAlign: 'left', padding: '6px 10px', fontSize: '0.75rem', border: 'none', background: 'none', cursor: 'pointer' }}>Duplicate</button>
-                                    <button onClick={() => handleDeleteIO('variable', v.id)} style={{ width: '100%', textAlign: 'left', padding: '6px 10px', fontSize: '0.75rem', border: 'none', background: 'none', cursor: 'pointer', color: '#ef4444' }}>Delete</button>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Used Variables Section */}
-                    {variables.some(v => getUsageCount(v.id, 'variable') > 0) && (
-                      <div>
-                        <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px' }}>Used variables</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          {variables.filter(v => getUsageCount(v.id, 'variable') > 0).map(v => {
-                            const TypeIcon = DATA_TYPES[v.type]?.icon || Type;
-                            return (
-                              <div key={v.id} style={{ padding: '8px 12px', borderRadius: '6px', backgroundColor: 'white', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                  <TypeIcon size={14} color="#3b82f6" />
-                                  <span style={{ flex: 1, fontSize: '0.75rem', color: '#1e293b', fontWeight: 600 }}>{v.name}</span>
-                                  <button onClick={() => setShowIOMenu({ type: 'variable', id: v.id })} style={{ background: 'none', border: 'none', color: '#94a3b8' }}><MoreVertical size={14} /></button>
-                                </div>
-                                <div style={{ padding: '4px 0 0 24px' }}>
-                                  <div style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: 600 }}>Where used</div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '2px' }}>
-                                    {getWhereUsed(v.id, 'variable').map(use => (
-                                      <div key={use.id} onClick={() => setSelectedNode(nodes.find(n => n.id === use.id))} style={{ fontSize: '0.55rem', color: '#3b82f6', textDecoration: 'underline', cursor: 'pointer' }}>{use.name}</div>
-                                    ))}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {editingIO && editingIO.type === 'variable' && (
-                      <div style={{ padding: '12px', border: '1px solid #3b82f6', borderRadius: '8px', backgroundColor: '#f0f9ff', marginTop: '8px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                          <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#1d4ed8' }}>Edit Variable</span>
-                          <X size={12} onClick={() => setEditingIO(null)} style={{ cursor: 'pointer' }} />
-                        </div>
-                        <input 
-                          value={variables.find(v => v.id === editingIO.id)?.name}
-                          onChange={(e) => setVariables(variables.map(v => v.id === editingIO.id ? { ...v, name: e.target.value } : v))}
-                          style={{ width: '100%', padding: '6px', fontSize: '0.75rem', border: '1px solid #3b82f6', borderRadius: '4px', marginBottom: '8px' }}
-                        />
-                        <select 
-                          value={variables.find(v => v.id === editingIO.id)?.type}
-                          onChange={(e) => setVariables(variables.map(v => v.id === editingIO.id ? { ...v, type: e.target.value } : v))}
-                          style={{ width: '100%', padding: '6px', fontSize: '0.75rem', border: '1px solid #bfdbfe', borderRadius: '4px' }}
-                        >
-                          {Object.entries(DATA_TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                        </select>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
         {/* Center Canvas */}
         <div style={{ flex: 1, position: 'relative' }}>
           <ReactFlow
@@ -1315,147 +1101,146 @@ const FunctionsEditor = () => {
                       <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Execute an external logic block</div>
                     </div>
                   </button>
-                  {/* ... other buttons ... */}
                 </div>
               </div>
             )}
           </ReactFlow>
         </div>
 
-        {/* Right Panel: Details */}
-        <div style={{ width: '350px', backgroundColor: 'white', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800 }}>Function call details</h3>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <Info size={16} color="#94a3b8" />
-              <ChevronRight size={16} color="#94a3b8" />
-            </div>
+        <div style={{ width: '380px', backgroundColor: 'white', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0' }}>
+            <button onClick={() => setActiveRightTab('LOGIC')} style={{ flex: 1, padding: '15px', border: 'none', background: 'none', fontSize: '0.75rem', fontWeight: 800, color: activeRightTab === 'LOGIC' ? '#3b82f6' : '#64748b', borderBottom: activeRightTab === 'LOGIC' ? '2px solid #3b82f6' : 'none', cursor: 'pointer' }}>LOGIC EDITOR</button>
+            <button onClick={() => setActiveRightTab('CONTRACT')} style={{ flex: 1, padding: '15px', border: 'none', background: 'none', fontSize: '0.75rem', fontWeight: 800, color: activeRightTab === 'CONTRACT' ? '#3b82f6' : '#64748b', borderBottom: activeRightTab === 'CONTRACT' ? '2px solid #3b82f6' : 'none', cursor: 'pointer' }}>INPUT / OUTPUT</button>
           </div>
 
-          <div style={{ padding: '24px', flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <div>
-              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>This function requires the following inputs</div>
-              {inputs.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px 20px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px dashed #e2e8f0' }}>
-                  <div style={{ color: '#94a3b8', fontSize: '0.75rem', marginBottom: '12px' }}>No inputs defined</div>
-                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
-                    <div style={{ width: '40px', height: '40px', borderRadius: '8px', border: '2px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <LogOut size={20} color="#cbd5e1" style={{ transform: 'rotate(180deg)' }} />
-                    </div>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {activeRightTab === 'LOGIC' ? (
+              selectedNode ? (
+                <div style={{ padding: '24px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>Node Properties</h3>
+                    <button onClick={() => setSelectedNode(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={20} /></button>
                   </div>
-                  <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Create one or more inputs in the left panel.</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <div>
+                      <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Label</label>
+                      <input value={selectedNode.data.label || ''} onChange={(e) => updateNodeData(selectedNode.id, { label: e.target.value })} style={{ width: '100%', padding: '10px', marginTop: '5px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                    </div>
+                    {selectedNode.data.type?.startsWith('OBD2_') && (
+                      <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}><Car size={16} color="#3b82f6" /><span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b' }}>OBD2 Parameters</span></div>
+                        {selectedNode.data.type === 'OBD2_QUERY' && (
+                          <div>
+                            <label style={{ fontSize: '0.65rem', color: '#64748b' }}>PID (Hex)</label>
+                            <input placeholder="010C" value={selectedNode.data.pid || ''} onChange={(e) => updateNodeData(selectedNode.id, { pid: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.75rem' }} />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '20px', padding: '10px', backgroundColor: '#f8fafc', borderRadius: '6px' }}>Node ID: {selectedNode.id} | Type: {selectedNode.type}</div>
+                    <button onClick={() => deleteNode(selectedNode.id)} style={{ width: '100%', marginTop: '24px', padding: '10px', backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}><Trash2 size={16} /> Delete Node</button>
+                  </div>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {inputs.map(input => (
-                    <div key={input.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>{input.name}</label>
-                      <input 
-                        disabled 
-                        placeholder={`Value for ${input.name}`}
-                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc', fontSize: '0.75rem' }}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            
-            {selectedNode && (
-                <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '20px' }}>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', marginBottom: '16px' }}>Node Config: {selectedNode.data.label}</div>
-                  
-                  {selectedNode.type === 'action' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      <div>
-                        <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Action Type</label>
-                        <select 
-                          value={selectedNode.data.type || 'UPDATE_RECORD'}
-                          onChange={(e) => updateNodeData(selectedNode.id, { type: e.target.value, label: e.target.options[e.target.selectedIndex].text })}
-                          style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', marginTop: '4px' }}
-                        >
-                          <option value="UPDATE_RECORD">Update Table Record</option>
-                          <option value="CREATE_RECORD">Create Table Record</option>
-                          <option value="LOG_MESSAGE">Log Message</option>
-                          <option value="SEND_NOTIFICATION">Send Notification</option>
-                          <option disabled>──────────</option>
-                          <option value="OBD2_CONNECT">OBD2: Connect Device</option>
-                          <option value="OBD2_QUERY">OBD2: Read Engine Data</option>
-                          <option value="OBD2_DTC">OBD2: Read Error Codes</option>
-                          <option value="OBD2_CLEAR_DTC">OBD2: Clear Error Codes</option>
-                        </select>
-                      </div>
-
-                      {(selectedNode.data.type === 'OBD2_QUERY' || selectedNode.data.type === 'OBD2_CONNECT') && (
-                        <div style={{ padding: '12px', backgroundColor: '#fff7ed', borderRadius: '8px', border: '1px solid #ffedd5', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                          <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#c2410c', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <Car size={12} /> Vehicle Integration
-                          </div>
-                          
-                          {selectedNode.data.type === 'OBD2_QUERY' && (
-                            <div>
-                              <label style={{ fontSize: '0.6rem', color: '#9a3412' }}>PID (e.g. 010C)</label>
-                              <input 
-                                placeholder="010C"
-                                value={selectedNode.data.pid || ''}
-                                onChange={(e) => updateNodeData(selectedNode.id, { pid: e.target.value })}
-                                style={{ width: '100%', padding: '6px', fontSize: '0.75rem', border: '1px solid #fed7aa', borderRadius: '4px', marginTop: '4px', fontFamily: 'monospace' }}
-                              />
-                            </div>
-                          )}
-
-                          {selectedNode.data.type === 'OBD2_CONNECT' && (
-                            <div>
-                              <label style={{ fontSize: '0.6rem', color: '#9a3412' }}>Transport Type</label>
-                              <select 
-                                value={selectedNode.data.transport || 'BLUETOOTH'}
-                                onChange={(e) => updateNodeData(selectedNode.id, { transport: e.target.value })}
-                                style={{ width: '100%', padding: '6px', fontSize: '0.75rem', border: '1px solid #fed7aa', borderRadius: '4px', marginTop: '4px' }}
-                              >
-                                <option value="BLUETOOTH">Bluetooth (ELM327)</option>
-                                <option value="SERIAL">Serial / USB</option>
-                              </select>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Generic Action Fields (Table) */}
-                      {(selectedNode.data.type === 'UPDATE_RECORD' || selectedNode.data.type === 'CREATE_RECORD') && (
-                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <label style={{ fontSize: '0.6rem', color: '#64748b' }}>Target Table</label>
-                            <input 
-                              placeholder="Table Name"
-                              value={selectedNode.data.tableId || ''}
-                              onChange={(e) => updateNodeData(selectedNode.id, { tableId: e.target.value })}
-                              style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.75rem' }}
-                            />
-                         </div>
-                      )}
-                    </div>
-                  )}
-
-                  <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '20px', padding: '10px', backgroundColor: '#f8fafc', borderRadius: '6px' }}>
-                    Node ID: {selectedNode.id} | Type: {selectedNode.type}
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}><Settings2 size={40} style={{ opacity: 0.2, marginBottom: '16px' }} /><p style={{ fontSize: '0.85rem' }}>Select a node to configure its properties.</p></div>
+              )
+            ) : (
+              <div style={{ padding: '24px' }}>
+                <div style={{ marginBottom: '32px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>Input Parameters</h3>
+                    <button onClick={addInput} style={{ background: '#eff6ff', border: 'none', color: '#3b82f6', width: '28px', height: '28px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Plus size={16} /></button>
                   </div>
-
-                  <button 
-                    onClick={() => deleteNode(selectedNode.id)}
-                    style={{
-                      width: '100%', marginTop: '24px', padding: '10px',
-                      backgroundColor: '#fee2e2', color: '#dc2626', border: 'none',
-                      borderRadius: '8px', fontSize: '0.8rem', fontWeight: 700,
-                      cursor: 'pointer', display: 'flex', alignItems: 'center',
-                      justifyContent: 'center', gap: '8px'
-                    }}
-                  >
-                    <Trash2 size={16} /> Delete Node
-                  </button>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {inputs.map(input => (
+                      <div key={input.id} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <input value={input.name} onChange={(e) => updateInput(input.id, { name: e.target.value })} style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} />
+                        <select value={input.type} onChange={(e) => updateInput(input.id, { type: e.target.value })} style={{ width: '80px', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.75rem' }}><option value="string">Text</option><option value="number">Number</option><option value="boolean">Bool</option><option value="object">Object</option></select>
+                        <button onClick={() => setInputs(inputs.filter(i => i.id !== input.id))} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={16} /></button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>Output Results</h3>
+                    <button onClick={addOutput} style={{ background: '#f0fdf4', border: 'none', color: '#10b981', width: '28px', height: '28px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Plus size={16} /></button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {outputs.map(output => (
+                      <div key={output.id} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <input value={output.name} onChange={(e) => updateOutput(output.id, { name: e.target.value })} style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} />
+                        <select value={output.type} onChange={(e) => updateOutput(output.id, { type: e.target.value })} style={{ width: '80px', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.75rem' }}><option value="string">Text</option><option value="number">Number</option><option value="boolean">Bool</option><option value="object">Object</option></select>
+                        <button onClick={() => setOutputs(outputs.filter(o => o.id !== output.id))} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={16} /></button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>
       </div>
+
+      {isConnectorManagerOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+          <div style={{ width: '600px', backgroundColor: 'white', borderRadius: '20px', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', overflow: 'hidden' }}>
+            <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Connectors</h2>
+              <button onClick={() => setIsConnectorManagerOpen(false)} style={{ background: '#f1f5f9', border: 'none', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer' }}><X size={18} /></button>
+            </div>
+            <div style={{ flex: 1, padding: '24px', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                {connectors.map(conn => (
+                  <div key={conn.id} style={{ padding: '15px', border: '1px solid #e2e8f0', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontWeight: 700 }}>{conn.name}</div>
+                      <div style={{ fontSize: '0.7rem', color: '#64748b' }}>{conn.type} - {conn.baseUrl || conn.pid || 'Shared Config'}</div>
+                    </div>
+                    <button onClick={() => saveConnectors(connectors.filter(c => c.id !== conn.id))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}><Trash2 size={16} /></button>
+                  </div>
+                ))}
+                <button onClick={() => { const name = prompt('Connector Name:'); if (name) saveConnectors([...connectors, { id: Date.now(), name, type: 'HTTP' }]); }} style={{ padding: '12px', border: '1px dashed #cbd5e1', borderRadius: '12px', color: '#3b82f6', fontWeight: 700, cursor: 'pointer', background: 'none' }}>+ Add New Connector</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isTestModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+          <div style={{ width: '500px', backgroundColor: 'white', borderRadius: '20px', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', overflow: 'hidden' }}>
+            <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Test Sandbox</h2>
+              <button onClick={() => setIsTestModalOpen(false)} style={{ background: '#f1f5f9', border: 'none', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer' }}><X size={18} /></button>
+            </div>
+            <div style={{ flex: 1, padding: '24px', overflowY: 'auto' }}>
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '10px', display: 'block' }}>Provide Inputs</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {inputs.map(input => (
+                    <div key={input.id}>
+                      <label style={{ fontSize: '0.7rem', color: '#1e293b', display: 'block', marginBottom: '4px' }}>{input.name} ({input.type})</label>
+                      <input type={input.type === 'number' ? 'number' : 'text'} value={testInputs[input.name] || ''} onChange={(e) => setTestInputs({ ...testInputs, [input.name]: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                    </div>
+                  ))}
+                  {inputs.length === 0 && <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>This function has no inputs.</div>}
+                </div>
+              </div>
+              {testResult && (
+                <div style={{ padding: '15px', borderRadius: '12px', backgroundColor: testResult.status === 'success' ? '#f0fdf4' : '#fef2f2', border: `1px solid ${testResult.status === 'success' ? '#dcfce7' : '#fee2e2'}`, marginBottom: '20px' }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 800, color: testResult.status === 'success' ? '#10b981' : '#ef4444', textTransform: 'uppercase', marginBottom: '8px' }}>{testResult.status === 'success' ? 'Execution Complete' : 'Execution Failed'}</div>
+                  <pre style={{ margin: 0, fontSize: '0.75rem', fontFamily: 'monospace', overflowX: 'auto' }}>{JSON.stringify(testResult.data || testResult.message, null, 2)}</pre>
+                </div>
+              )}
+              <button onClick={handleRunTest} disabled={isTesting} style={{ width: '100%', padding: '15px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: isTesting ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                {isTesting ? <RotateCw size={18} className="animate-spin" /> : <PlayCircle size={18} />}
+                {isTesting ? 'Running...' : 'Run Test'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

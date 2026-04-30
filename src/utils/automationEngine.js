@@ -211,11 +211,12 @@ class AutomationEngine {
       
       if (currentNode.type === 'action') {
         try {
-          await this.runAction(currentNode.data, eventData);
-          currentNode = this.getNextNode(automation, currentNode.id);
+          const result = await this.runAction(currentNode.data, eventData);
+          currentNode = this.getNextNode(automation, currentNode.id, 'success');
         } catch (err) {
           console.error(`[AutomationEngine] Action failed:`, err);
-          break;
+          currentNode = this.getNextNode(automation, currentNode.id, 'error');
+          if (!currentNode) break; // Stop if no error path defined
         }
       } else if (currentNode.type === 'decision') {
         const result = this.evaluateCondition(currentNode.data.condition, eventData);
@@ -268,10 +269,11 @@ class AutomationEngine {
         if (innerNode.type === 'action') {
           try {
             await this.runAction(innerNode.data, iterationContext);
-            innerNode = this.getNextNode(automation, innerNode.id);
+            innerNode = this.getNextNode(automation, innerNode.id, 'success');
           } catch (err) {
             console.error(`[AutomationEngine] Inner action failed:`, err);
-            break;
+            innerNode = this.getNextNode(automation, innerNode.id, 'error');
+            if (!innerNode) break;
           }
         } else if (innerNode.type === 'decision') {
           const result = this.evaluateCondition(innerNode.data.condition, iterationContext);
@@ -414,7 +416,15 @@ class AutomationEngine {
         const targetFn = functions.find(f => f.name === action.functionName || f.id === action.functionId);
         if (targetFn) {
            console.log(`[AutomationEngine] Running function: ${targetFn.name}`);
-           return this.executeGraph(targetFn, eventData);
+           // Resolve input values for the function based on its contract
+           const inputValues = {};
+           if (action.inputs && targetFn.inputs) {
+             targetFn.inputs.forEach(contractInput => {
+               const value = this.resolveValue(action.inputs[contractInput.name], eventData);
+               inputValues[contractInput.name] = value;
+             });
+           }
+           return this.executeGraph(targetFn, { ...eventData, ...inputValues });
         } else {
            console.error(`[AutomationEngine] Function not found: ${action.functionName}`);
            return null;
