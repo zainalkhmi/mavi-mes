@@ -2768,6 +2768,53 @@ const AppBuilder = () => {
                     </>
                 )}
 
+                {act.type === 'RUN_FUNCTION' && (
+                    <div style={fieldRowStyle}>
+                        <span style={labelStyle}>Function</span>
+                        <select
+                            value={act.payload?.functionName || ''}
+                            onChange={(e) => updateAct({ functionName: e.target.value })}
+                            style={inputStyle}
+                        >
+                            <option value="">Select Function...</option>
+                            {(() => {
+                                try {
+                                    const functions = JSON.parse(localStorage.getItem('mes_functions') || '[]');
+                                    return functions.map(fn => (
+                                        <option key={fn.id} value={fn.name}>{fn.name}</option>
+                                    ));
+                                } catch (e) { return null; }
+                            })()}
+                        </select>
+                    </div>
+                )}
+
+                {act.type === 'OBD2_CONNECT' && (
+                    <div style={fieldRowStyle}>
+                        <span style={labelStyle}>Transport</span>
+                        <select
+                            value={act.payload?.transport || 'BLUETOOTH'}
+                            onChange={(e) => updateAct({ transport: e.target.value })}
+                            style={inputStyle}
+                        >
+                            <option value="BLUETOOTH">Bluetooth (ELM327)</option>
+                            <option value="SERIAL">Serial / USB</option>
+                        </select>
+                    </div>
+                )}
+
+                {act.type === 'OBD2_QUERY' && (
+                    <div style={fieldRowStyle}>
+                        <span style={labelStyle}>PID</span>
+                        <input
+                            placeholder="010C"
+                            value={act.payload?.pid || ''}
+                            onChange={(e) => updateAct({ pid: e.target.value })}
+                            style={inputStyle}
+                        />
+                    </div>
+                )}
+
                 {act.type === 'GO_TO_STEP' && (
                     <div style={fieldRowStyle}>
                         <span style={labelStyle}>Step</span>
@@ -4254,6 +4301,30 @@ const AppBuilder = () => {
                     const currentVar = appVariables.find(v => v.name === varPath);
                     const next = (Number(currentVar?.value) || 0) - (Number(amount) || 1);
                     setValidatedVariableValue(varPath, next, 'DECREMENT_VARIABLE');
+                    break;
+                }
+                case 'RUN_FUNCTION': {
+                    const { functionName } = action.payload;
+                    const functions = JSON.parse(localStorage.getItem('mes_functions') || '[]');
+                    const targetFn = functions.find(f => f.name === functionName);
+                    if (targetFn) {
+                        await automationEngine.executeGraph(targetFn, { timestamp: new Date().toISOString(), source: 'UI_TRIGGER' });
+                    }
+                    break;
+                }
+                case 'OBD2_CONNECT': {
+                    const { transport } = action.payload;
+                    if (transport === 'SERIAL') await obd2Service.connectSerial();
+                    else await obd2Service.connectBluetooth();
+                    break;
+                }
+                case 'OBD2_QUERY': {
+                    const { pid } = action.payload;
+                    await obd2Service.queryPID(pid || '010C');
+                    break;
+                }
+                case 'OBD2_CLEAR_DTC': {
+                    await obd2Service.clearDTC();
                     break;
                 }
                 case 'GO_TO_STEP':
@@ -19790,7 +19861,13 @@ const AppBuilder = () => {
                                                                                         <option value="CUSTOM_SCRIPT">Advanced: Execute Custom Script</option>
                                                                                         <option value="CALCULATE_FORMULA">Advanced: Calculate Formula</option>
                                                                                     </optgroup>
-                                                                                    <optgroup label="App & Navigation">
+                                                                                    <optgroup label="OBD2 & Engine Logic">
+                                                                                      <option value="RUN_FUNCTION">Logic: Execute Function</option>
+                                                                                      <option value="OBD2_CONNECT">OBD2: Connect Vehicle</option>
+                                                                                      <option value="OBD2_QUERY">OBD2: Read Engine PID</option>
+                                                                                      <option value="OBD2_CLEAR_DTC">OBD2: Clear Error Codes</option>
+                                                                                  </optgroup>
+                                                                                  <optgroup label="App & Navigation">
                                                                                         {(() => {
                                                                                             const isTransitionActionType = (t) => ['GO_TO_STEP', 'NEXT_STEP', 'PREV_STEP', 'COMPLETE_APP', 'CANCEL_APP'].includes(String(t || ''));
                                                                                             const actionsList = triggerEditor.trigger?.clauses?.[cIdx]?.actions || [];

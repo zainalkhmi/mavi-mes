@@ -409,6 +409,17 @@ class AutomationEngine {
         }
         return aiResult;
 
+      case 'RUN_FUNCTION':
+        const functions = JSON.parse(localStorage.getItem('mes_functions') || '[]');
+        const targetFn = functions.find(f => f.name === action.functionName || f.id === action.functionId);
+        if (targetFn) {
+           console.log(`[AutomationEngine] Running function: ${targetFn.name}`);
+           return this.executeGraph(targetFn, eventData);
+        } else {
+           console.error(`[AutomationEngine] Function not found: ${action.functionName}`);
+           return null;
+        }
+
       case 'OBD2_CONNECT':
         const transport = (action.transport || 'BLUETOOTH').toUpperCase();
         console.log(`[AutomationEngine] OBD2 Connect via ${transport}`);

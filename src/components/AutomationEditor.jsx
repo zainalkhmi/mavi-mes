@@ -9,7 +9,8 @@ import ReactFlow, {
   Handle,
   Position,
   useReactFlow,
-  ReactFlowProvider
+  ReactFlowProvider,
+  updateEdge
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import {
@@ -39,7 +40,9 @@ import {
   Layers,
   ClipboardPaste,
   Car,
-  Sparkles
+  Sparkles,
+  FolderOpen,
+  FilePlus
 } from 'lucide-react';
 
 // Custom Node for the Start Event (Trigger)
@@ -216,10 +219,21 @@ const AutomationEditor = () => {
   const [showEventPicker, setShowEventPicker] = useState(false);
   const [tables, setTables] = useState([]);
   const [currentAuto, setCurrentAuto] = useState(null);
+  const [automations, setAutomations] = useState([]);
+  const [isManagerOpen, setIsManagerOpen] = useState(false);
   const [menu, setMenu] = useState(null);
   const [clipboard, setClipboard] = useState(null);
+  const edgeUpdateSuccessful = useRef(true);
   const reactFlowWrapper = useRef(null);
-  const { project } = useReactFlow();
+  const { project, setViewport } = useReactFlow();
+
+  // Load automations list when manager opens
+  useEffect(() => {
+    if (isManagerOpen) {
+      const saved = localStorage.getItem('mes_automations');
+      if (saved) setAutomations(JSON.parse(saved));
+    }
+  }, [isManagerOpen]);
 
   useEffect(() => {
     import('../utils/database').then(db => {
@@ -318,6 +332,64 @@ const AutomationEditor = () => {
     setMenu(null);
   }, [clipboard, menu, project, setNodes]);
 
+  const handleNewAutomation = () => {
+    if (confirm('Create new automation? Current unsaved changes will be lost.')) {
+      setNodes(initialNodes);
+      setEdges(initialEdges);
+      setAutomationName('Untitled Automation');
+      setCurrentAuto(null);
+      setSelectedNode(null);
+    }
+  };
+
+  const loadAutomation = (auto) => {
+    setCurrentAuto(auto);
+    setAutomationName(auto.name);
+    const source = auto.development || auto.published || auto;
+    setNodes(source.nodes || initialNodes);
+    setEdges(source.edges || initialEdges);
+    setIsManagerOpen(false);
+    setSelectedNode(null);
+    
+    // Auto fit view
+    setTimeout(() => {
+      setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 800 });
+    }, 100);
+  };
+
+  const deleteAutomation = (id) => {
+    if (!confirm('Are you sure you want to delete this automation?')) return;
+    const saved = localStorage.getItem('mes_automations');
+    if (saved) {
+      const allAutos = JSON.parse(saved);
+      const filtered = allAutos.filter(a => a.id !== id);
+      localStorage.setItem('mes_automations', JSON.stringify(filtered));
+      setAutomations(filtered);
+      if (currentAuto?.id === id) {
+        handleNewAutomation();
+      }
+    }
+  };
+
+  // Keyboard listener for deletion
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        // Only if not typing in an input/textarea
+        if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+        
+        // Find selected nodes/edges from ReactFlow state if possible, 
+        // but here we can just use the selectedNode state for simplicity
+        if (selectedNode && selectedNode.id !== 'start-node') {
+          deleteNode(selectedNode.id);
+          setSelectedNode(null);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedNode, deleteNode]);
+
   const handleSave = () => {
     const saved = localStorage.getItem('mes_automations');
     const allAutos = saved ? JSON.parse(saved) : [];
@@ -354,6 +426,22 @@ const AutomationEditor = () => {
   };
 
   const onConnect = useCallback((params) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
+
+  const onEdgeUpdateStart = useCallback(() => {
+    edgeUpdateSuccessful.current = false;
+  }, []);
+
+  const onEdgeUpdate = useCallback((oldEdge, newConnection) => {
+    edgeUpdateSuccessful.current = true;
+    setEdges((els) => updateEdge(oldEdge, newConnection, els));
+  }, [setEdges]);
+
+  const onEdgeUpdateEnd = useCallback((_, edge) => {
+    if (!edgeUpdateSuccessful.current) {
+      setEdges((eds) => eds.filter((e) => e.id !== edge.id));
+    }
+    edgeUpdateSuccessful.current = true;
+  }, [setEdges]);
 
   const onNodeClick = (event, node) => {
     setSelectedNode(node);
@@ -445,30 +533,69 @@ const AutomationEditor = () => {
           padding: '0 24px',
           zIndex: 10
         }}>
-          <div>
-            <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              Automations / {automationName}
-              {isRecursiveLoop() && (
-                <span title="Potential Infinite Loop Detected" style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <AlertTriangle size={14} /> <span style={{ fontSize: '0.65rem', fontWeight: 800 }}>LOOPING WARNING</span>
-                </span>
-              )}
-            </div>
-            <input
-              value={automationName}
-              onChange={(e) => setAutomationName(e.target.value)}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <button
+              onClick={() => setIsManagerOpen(true)}
               style={{
-                fontSize: '1.25rem',
-                fontWeight: 800,
+                background: 'none',
                 border: 'none',
-                background: 'transparent',
-                outline: 'none',
-                color: '#1e293b',
-                width: '400px'
+                color: '#64748b',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '8px',
+                borderRadius: '8px'
               }}
-            />
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+              title="Open Automations"
+            >
+              <FolderOpen size={20} />
+            </button>
+            <div style={{ width: '1px', height: '24px', backgroundColor: '#e2e8f0' }}></div>
+            <div>
+              <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                Automations / {automationName}
+                {isRecursiveLoop() && (
+                  <span title="Potential Infinite Loop Detected" style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <AlertTriangle size={14} /> <span style={{ fontSize: '0.65rem', fontWeight: 800 }}>LOOPING WARNING</span>
+                  </span>
+                )}
+              </div>
+              <input
+                value={automationName}
+                onChange={(e) => setAutomationName(e.target.value)}
+                style={{
+                  fontSize: '1.25rem',
+                  fontWeight: 800,
+                  border: 'none',
+                  background: 'transparent',
+                  outline: 'none',
+                  color: '#1e293b',
+                  width: '400px'
+                }}
+              />
+            </div>
           </div>
           <div style={{ display: 'flex', gap: '12px' }}>
+            <button
+              onClick={handleNewAutomation}
+              style={{
+                padding: '10px 15px',
+                backgroundColor: 'white',
+                color: '#64748b',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              <FilePlus size={18} /> New
+            </button>
             <span style={{ fontSize: '0.75rem', color: '#94a3b8', alignSelf: 'center' }}>
               {currentAuto?.development?.updatedAt ? `Saved ${new Date(currentAuto.development.updatedAt).toLocaleTimeString()}` : 'Not saved yet'}
             </span>
@@ -508,6 +635,9 @@ const AutomationEditor = () => {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onEdgeUpdate={onEdgeUpdate}
+            onEdgeUpdateStart={onEdgeUpdateStart}
+            onEdgeUpdateEnd={onEdgeUpdateEnd}
             onNodeClick={onNodeClick}
             onNodeContextMenu={onNodeContextMenu}
             onPaneContextMenu={onPaneContextMenu}
@@ -1164,6 +1294,36 @@ const AutomationEditor = () => {
                   <RefreshCw size={16} /> Loop
                 </button>
               </div>
+
+              {selectedNode.id !== 'start-node' && (
+                <div style={{ marginTop: '20px', borderTop: '1px solid #f1f5f9', paddingTop: '20px' }}>
+                  <button
+                    onClick={() => {
+                      deleteNode(selectedNode.id);
+                      setSelectedNode(null);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      backgroundColor: 'white',
+                      color: '#ef4444',
+                      border: '1px solid #fecaca',
+                      borderRadius: '8px',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#fef2f2'}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'}
+                  >
+                    <Trash2 size={16} /> Delete this Node
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div style={{ textAlign: 'center', padding: '24px', color: '#94a3b8', fontSize: '0.8rem' }}>
@@ -1286,6 +1446,127 @@ const AutomationEditor = () => {
                 <ClipboardPaste size={14} /> Paste Node
               </button>
             )}
+          </div>
+        )}
+
+        {/* Automation Manager Modal */}
+        {isManagerOpen && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.5)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999
+          }}>
+            <div style={{
+              width: '800px',
+              maxWidth: '90vw',
+              height: '600px',
+              backgroundColor: 'white',
+              borderRadius: '20px',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              overflow: 'hidden'
+            }}>
+              <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>Automation Manager</h2>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#64748b' }}>Load, manage and organize your automation workflows</p>
+                </div>
+                <button
+                  onClick={() => setIsManagerOpen(false)}
+                  style={{ background: '#f1f5f9', border: 'none', color: '#64748b', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                ><X size={18} /></button>
+              </div>
+
+              <div style={{ flex: 1, padding: '24px', overflowY: 'auto', backgroundColor: '#f8fafc' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
+                  <div
+                    onClick={handleNewAutomation}
+                    style={{
+                      height: '140px',
+                      border: '2px dashed #cbd5e1',
+                      borderRadius: '16px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '12px',
+                      cursor: 'pointer',
+                      backgroundColor: 'white',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.borderColor = '#3b82f6';
+                      e.currentTarget.style.backgroundColor = '#eff6ff';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.borderColor = '#cbd5e1';
+                      e.currentTarget.style.backgroundColor = 'white';
+                    }}
+                  >
+                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#eff6ff', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Plus size={24} />
+                    </div>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#3b82f6' }}>Create New</span>
+                  </div>
+
+                  {automations.map(auto => (
+                    <div
+                      key={auto.id}
+                      style={{
+                        height: '140px',
+                        backgroundColor: 'white',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '16px',
+                        padding: '16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        position: 'relative'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}
+                      onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
+                      onClick={() => loadAutomation(auto)}
+                    >
+                      <div>
+                        <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1e293b', marginBottom: '4px' }}>{auto.name}</div>
+                        <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                          Last edited: {auto.development?.updatedAt ? new Date(auto.development.updatedAt).toLocaleDateString() : 'Never'}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          {auto.published ? (
+                            <span style={{ fontSize: '0.6rem', fontWeight: 800, backgroundColor: '#dcfce7', color: '#15803d', padding: '2px 6px', borderRadius: '4px' }}>v{auto.published.version}</span>
+                          ) : (
+                            <span style={{ fontSize: '0.6rem', fontWeight: 800, backgroundColor: '#f1f5f9', color: '#64748b', padding: '2px 6px', borderRadius: '4px' }}>DRAFT</span>
+                          )}
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteAutomation(auto.id);
+                          }}
+                          style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
+                          onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                          onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                        ><Trash2 size={14} /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
