@@ -14,7 +14,13 @@ class AutomationEngine {
     this.EXECUTION_TIMEOUT_MS = 60000; // 1 minute
     this.MAX_LOOP_ITERATIONS = 500;
     this.MAX_RECURSION_DEPTH = 25;
-    this.listeners = [];
+    this.lastExecutions = {}; // { triggerId_autoId: timestamp }
+    this.SYSTEM_VARIABLES = {
+      SYS_USER: 'Operator-01',
+      SYS_STATION: 'Station-A',
+      SYS_ENV: 'PROD',
+      SYS_SHIFT: 'Morning'
+    };
     this.startTimer();
   }
 
@@ -28,11 +34,11 @@ class AutomationEngine {
   }
 
   startTimer() {
-    console.log('[AutomationEngine] Starting background timer polling (1 min interval)');
-    // Check every minute
+    console.log('[AutomationEngine] Starting background timer polling (1s interval)');
+    // Check every second to support low-interval triggers
     this.timerInterval = setInterval(() => {
       this.checkScheduledAutomations();
-    }, 60000);
+    }, 1000);
   }
 
   refresh() {
@@ -42,52 +48,75 @@ class AutomationEngine {
 
   checkScheduledAutomations() {
     const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    const currentDay = now.getDay(); // 0 = Sunday
+    const timestamp = now.getTime();
 
-    console.log(`[AutomationEngine] Checking schedules at ${currentHour}:${currentMinute}`);
+    this.automations.forEach(auto => {
+      if (!auto.active && auto.type !== 'function') return;
 
-    const scheduledAutos = this.automations.filter(auto => 
-      auto.active && auto.trigger.type === 'TIMER' && auto.trigger.schedule
-    );
+      const triggerList = auto.triggers || (auto.trigger ? [auto.trigger] : []);
+      
+      triggerList.forEach(trigger => {
+        if (trigger.type !== 'TIMER') return;
 
-    scheduledAutos.forEach(auto => {
-      const { frequency, time } = auto.trigger.schedule;
-      // time format expected: "HH:MM"
-      const [schedHour, schedMinute] = (time || "00:00").split(':').map(Number);
+        let shouldRun = false;
+        const execKey = `${trigger.id}_${auto.id}`;
+        const lastRun = this.lastExecutions[execKey] || 0;
 
-      let shouldRun = false;
+        // 1. Check for Interval-based triggers (New format)
+        if (trigger.config && trigger.config.interval) {
+          let intervalMs = trigger.config.interval * 1000;
+          if (trigger.config.unit === 'minutes') intervalMs *= 60;
+          if (trigger.config.unit === 'hours') intervalMs *= 3600;
 
-      if (frequency === 'HOURLY') {
-        // Run every hour at the specified minute
-        if (currentMinute === schedMinute) shouldRun = true;
-      } else if (frequency === 'DAILY') {
-        // Run once a day at specified time
-        if (currentHour === schedHour && currentMinute === schedMinute) shouldRun = true;
-      } else if (frequency === 'WEEKLY') {
-        // Run on specified days at specified time
-        const days = auto.trigger.schedule.days || []; // [1, 3, 5] for Mon, Wed, Fri
-        if (days.includes(currentDay) && currentHour === schedHour && currentMinute === schedMinute) shouldRun = true;
-      }
+          if (timestamp - lastRun >= intervalMs) {
+            shouldRun = true;
+          }
+        } 
+        // 2. Check for Schedule-based triggers (Legacy format)
+        else if (trigger.schedule) {
+          const { frequency, time } = trigger.schedule;
+          const [schedHour, schedMinute] = (time || "00:00").split(':').map(Number);
+          const currentHour = now.getHours();
+          const currentMinute = now.getMinutes();
 
-      if (shouldRun) {
-        console.log(`[AutomationEngine] Running scheduled automation: ${auto.name}`);
-        this.execute(auto, { timestamp: now.toISOString(), source: 'TIMER' });
-      }
+          if (frequency === 'HOURLY') {
+            if (currentMinute === schedMinute && (timestamp - lastRun > 60000)) shouldRun = true;
+          } else if (frequency === 'DAILY') {
+            if (currentHour === schedHour && currentMinute === schedMinute && (timestamp - lastRun > 60000)) shouldRun = true;
+          }
+        }
+
+        if (shouldRun) {
+          console.log(`[AutomationEngine] Running triggered automation: ${auto.name} via ${trigger.type}`);
+          this.lastExecutions[execKey] = timestamp;
+          this.execute(auto, { timestamp: now.toISOString(), source: 'TIMER', triggerId: trigger.id });
+        }
+      });
     });
   }
 
   loadAutomations() {
     try {
-      const saved = localStorage.getItem('mes_automations');
-      const data = saved ? JSON.parse(saved) : [];
-      // Support both old flat array and new versioned objects
-      return data.map(auto => {
-        if (auto.published) return auto.published;
-        if (auto.nodes) return auto; // Old format
+      const savedAutos = localStorage.getItem('mes_automations');
+      const savedFunctions = localStorage.getItem('mes_functions');
+      
+      const autos = savedAutos ? JSON.parse(savedAutos) : [];
+      const fns = savedFunctions ? JSON.parse(savedFunctions) : [];
+      
+      // Map functions to common automation format
+      const mappedFns = fns.map(f => ({
+        ...f,
+        type: 'function',
+        active: true // Always treat functions as active for trigger matching
+      }));
+
+      const legacyAutos = autos.map(auto => {
+        if (auto.published) return { ...auto.published, type: 'legacy' };
+        if (auto.nodes) return { ...auto, type: 'legacy' };
         return null;
       }).filter(Boolean);
+
+      return [...legacyAutos, ...mappedFns];
     } catch (e) {
       console.error('Failed to load automations:', e);
       return [];
@@ -111,31 +140,54 @@ class AutomationEngine {
         console.error('[AutomationEngine] Listener error:', err);
       }
     });
-    const relevantAutomations = this.automations.filter(auto => {
-      if (!auto.active) return false;
-      if (auto.trigger.type !== eventType) return false;
-      
-      // Additional filtering for MACHINE_TRIGGER (MQTT)
-      if (eventType === 'MACHINE_TRIGGER') {
-        const { topic, condition } = auto.trigger;
-        if (topic && eventData.topic !== topic) return false;
-        if (condition && !this.evaluateCondition(condition, eventData.payload)) return false;
-      }
 
-      // Additional filtering for OBD2_TRIGGER (Vehicle Data)
-      if (eventType === 'OBD2_TRIGGER') {
-        const { pid, condition } = auto.trigger;
-        // If automation specifies a PID, ensure it matches
-        if (pid && eventData.pid !== pid) return false;
-        // If automation has a condition, evaluate it against the received value
-        if (condition) {
-          // We wrap value in an object so evaluateCondition's resolveValue can find it if field is 'value'
-          const result = this.evaluateCondition(condition, { value: eventData.value });
-          if (!result) return false;
-        }
-      }
+    const relevantAutomations = this.automations.filter(auto => {
+      if (!auto.active && auto.type !== 'function') return false; // Functions are active if they exist
       
-      return true;
+      const triggerList = auto.triggers || (auto.trigger ? [auto.trigger] : []);
+      
+      const hasMatchingTrigger = triggerList.some(t => {
+        if (t.type !== eventType) return false;
+
+        // Webhook check
+        if (eventType === 'WEBHOOK' && eventData.id === t.id) return true;
+
+        // Machine/Device check
+        if (eventType === 'MACHINE_TRIGGER' || eventType === 'DEVICE') {
+          const config = t.config || t;
+          if (config.topic && eventData.topic !== config.topic) return false;
+          if (config.pid && eventData.pid !== config.pid) return false;
+          if (config.condition) {
+            return this.evaluateCondition(config.condition, eventData);
+          }
+          return true;
+        }
+
+        // Relational check
+        if (eventType === 'ON_RECORD_LINK' || eventType === 'ON_RECORD_UNLINK') {
+          const config = t.config || t;
+          if (config.sourceTableId && eventData.sourceTableId !== config.sourceTableId) return false;
+          if (config.targetTableId && eventData.targetTableId !== config.targetTableId) return false;
+          return true;
+        }
+
+        // Table Record check
+        if (eventType === 'TABLE_ROW_ADDED' || eventType === 'TABLE_ROW_UPDATED') {
+          const config = t.config || t;
+          if (config.tableId && eventData.tableId !== config.tableId) return false;
+          // Support for filtering by record field values (e.g. stock < 10)
+          if (config.condition) {
+            // Merge event data with record data so condition can access both
+            const conditionContext = { ...eventData, ...(eventData.record || {}) };
+            return this.evaluateCondition(config.condition, conditionContext);
+          }
+          return true;
+        }
+
+        return true;
+      });
+
+      return hasMatchingTrigger;
     });
 
     relevantAutomations.forEach(auto => {
@@ -152,29 +204,58 @@ class AutomationEngine {
   }
 
   async execute(automation, eventData) {
-    if (this.activeRuns >= this.MAX_CONCURRENT_RUNS) {
-      console.warn(`[AutomationEngine] Limit reached! Skipping ${automation.name}. Status: limited`);
-      this.logToDatabase(`Limit reached: ${automation.name} skipped. Status: limited`);
-      return;
-    }
-
+    const runId = `run_${Date.now()}`;
+    const startTime = Date.now();
+    
     this.activeRuns++;
     console.log(`[AutomationEngine] Executing automation: ${automation.name} (Active: ${this.activeRuns})`);
     
+    let status = 'SUCCESS';
+    let errorMessage = null;
+    let result = null;
+
     try {
       // Use Promise.race to enforce timeout
-      await Promise.race([
+      result = await Promise.race([
         this.runLogic(automation, eventData),
         new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Execution Timeout')), this.EXECUTION_TIMEOUT_MS)
         )
       ]);
     } catch (err) {
+      status = 'FAILED';
+      errorMessage = err.message;
       console.error(`[AutomationEngine] Execution error in ${automation.name}:`, err.message);
       this.logToDatabase(`Error in ${automation.name}: ${err.message}`);
     } finally {
       this.activeRuns--;
+      const duration = Date.now() - startTime;
+      
+      // Save to Execution History
+      this.saveExecutionLog({
+        id: runId,
+        automationId: automation.id,
+        automationName: automation.name,
+        timestamp: new Date().toISOString(),
+        duration,
+        status,
+        errorMessage,
+        trigger: eventData.source || 'MANUAL',
+        inputs: eventData
+      });
+
       console.log(`[AutomationEngine] Finished: ${automation.name} (Active: ${this.activeRuns})`);
+    }
+  }
+
+  saveExecutionLog(log) {
+    try {
+      const history = JSON.parse(localStorage.getItem('mes_execution_history') || '[]');
+      history.unshift(log); // Add to beginning
+      // Keep only last 100 logs
+      localStorage.setItem('mes_execution_history', JSON.stringify(history.slice(0, 100)));
+    } catch (e) {
+      console.error('Failed to save execution log:', e);
     }
   }
 
@@ -217,6 +298,18 @@ class AutomationEngine {
           console.error(`[AutomationEngine] Action failed:`, err);
           currentNode = this.getNextNode(automation, currentNode.id, 'error');
           if (!currentNode) break; // Stop if no error path defined
+        }
+      } else if (currentNode.type === 'expression') {
+        try {
+          const result = this.evaluateExpression(currentNode.data.expression, eventData);
+          if (currentNode.data.outputVar) {
+             eventData[currentNode.data.outputVar] = result;
+          }
+          console.log(`[AutomationEngine] Expression result: ${result}`);
+          currentNode = this.getNextNode(automation, currentNode.id, 'success');
+        } catch (err) {
+          console.error(`[AutomationEngine] Expression failed:`, err);
+          currentNode = this.getNextNode(automation, currentNode.id, 'error');
         }
       } else if (currentNode.type === 'decision') {
         const result = this.evaluateCondition(currentNode.data.condition, eventData);
@@ -302,10 +395,11 @@ class AutomationEngine {
   evaluateCondition(condition, eventData) {
     if (!condition) return true; // Default to true if no condition
 
+    const context = { ...this.SYSTEM_VARIABLES, ...eventData, SYS_TIME: new Date().toLocaleTimeString() };
     const { field, operator, value } = condition;
     
     // Resolve value from eventData if it's a dynamic path (e.g., "record.quantity")
-    const actualValue = this.resolveValue(field, eventData);
+    const actualValue = this.resolveValue(field, context);
     const targetValue = value;
 
     console.log(`[AutomationEngine] Evaluating: ${actualValue} ${operator} ${targetValue}`);
@@ -319,6 +413,30 @@ class AutomationEngine {
       case '!=': return String(actualValue) !== String(targetValue);
       case 'contains': return String(actualValue).includes(String(targetValue));
       default: return false;
+    }
+  }
+
+  evaluateExpression(expression, eventData) {
+    if (!expression) return null;
+    
+    // Create a safe sandbox with inputs, variables, and system variables
+    const context = { 
+      ...this.SYSTEM_VARIABLES, 
+      ...eventData, 
+      SYS_TIME: new Date().toLocaleTimeString(),
+      Math: Math
+    };
+
+    try {
+      // Simple formula evaluator using Function constructor for basic expressions
+      // NOTE: In production, use a safer library like expr-eval or mathjs
+      const keys = Object.keys(context);
+      const values = Object.values(context);
+      const runner = new Function(...keys, `return ${expression};`);
+      return runner(...values);
+    } catch (err) {
+      console.error('[AutomationEngine] Expression Error:', err);
+      throw new Error(`Expression Error: ${err.message}`);
     }
   }
 
@@ -341,6 +459,24 @@ class AutomationEngine {
         const recordId = this.resolveValue(action.recordIdPath, eventData) || action.recordId;
         console.log(`[AutomationEngine] Updating record ${recordId} in ${targetTable}`, action.data);
         return updateTableRecord(targetTable, recordId, action.data);
+
+      case 'LINK_RECORD':
+      case 'UNLINK_RECORD': {
+        const { sourceTable, sourceRecordId: rawSourceId, sourceField, targetTable: targetTableId, targetRecordId: rawTargetId, targetField } = action;
+        const sId = this.resolveValue(action.sourceRecordIdPath, eventData) || rawSourceId;
+        const tId = this.resolveValue(action.targetRecordIdPath, eventData) || rawTargetId;
+        
+        console.log(`[AutomationEngine] ${action.type}: ${sId} <-> ${tId}`);
+        
+        // Import dynamically to avoid circular dependencies if any
+        return import('./supabaseTablesDB').then(db => {
+          if (action.type === 'LINK_RECORD') {
+            return db.linkRecords(sourceTable, sId, sourceField, targetTableId, tId, targetField);
+          } else {
+            return db.unlinkRecords(sourceTable, sId, sourceField, targetTableId, tId, targetField);
+          }
+        });
+      }
 
       case 'LOG_MESSAGE':
         console.log(`[AutomationEngine] Log: ${action.message}`);

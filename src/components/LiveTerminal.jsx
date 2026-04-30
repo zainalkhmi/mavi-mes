@@ -84,6 +84,7 @@ import { logEvent, AUDIT_EVENTS } from '../utils/auditLog';
 import { calculateOEE } from '../utils/oeeEngine';
 import FrontlineCopilot from './FrontlineCopilot';
 import { listGlobalVariables, upsertGlobalVariable, subscribeToGlobalVariables } from '../utils/supabaseGlobalVars';
+import { validateVariable } from '../utils/validationEngine';
 
 const STATUS_CONFIG = {
   READY: { label: 'System Ready', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.1)', border: 'rgba(34, 197, 94, 0.2)' },
@@ -283,6 +284,14 @@ const LiveTerminal = () => {
   const [andonDetail, setAndonDetail] = useState('');
 
   const [appVariables, setAppVariables] = useState([]);
+  
+  const syncVariableForComp = (comp, value) => {
+    if (!comp) return;
+    const varName = comp.props?.targetVariable || (comp.props?.dataSourceType === 'VARIABLE' ? comp.props?.varSource : null);
+    if (varName) {
+      setAppVariables(prev => prev.map(v => v.name === varName ? { ...v, value } : v));
+    }
+  };
   const [appFunctions, setAppFunctions] = useState([]);
   const [recordPlaceholders, setRecordPlaceholders] = useState([]);
   const [recordPlaceholderData, setRecordPlaceholderData] = useState({});
@@ -398,6 +407,8 @@ const LiveTerminal = () => {
       setSignatureImage(dataUrl);
     } else {
       setSignatureWidgetValues(prev => ({ ...prev, [key]: dataUrl }));
+      syncVariableForComp(comp, dataUrl);
+      setIsDrawingSignature(prev => ({ ...prev, [key]: false }));
       if (comp) fireWidgetTriggers(comp, 'ON_CHANGE');
     }
   };
@@ -449,6 +460,7 @@ const LiveTerminal = () => {
       return;
     }
     setCameraScannerValues(prev => ({ ...prev, [comp.id]: value }));
+    syncVariableForComp(comp, value);
     setCameraScannerStatus(prev => ({ ...prev, [comp.id]: source === 'camera' ? `Scanned: ${value}` : `Manual input: ${value}` }));
     if (comp?.props?.autoTrigger !== false) {
       fireWidgetTriggers(comp, 'ON_CHANGE');
@@ -564,8 +576,9 @@ const LiveTerminal = () => {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0);
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+    const dataUrl = canvas.toDataURL('image/png');
     setCameraValues(prev => ({ ...prev, [comp.id]: dataUrl }));
+    syncVariableForComp(comp, dataUrl);
     stopCameraScanner(comp.id);
     fireWidgetTriggers(comp, 'ON_CHANGE');
   };
@@ -670,8 +683,10 @@ const LiveTerminal = () => {
     drawActiveRefs.current[key] = false;
     const canvas = drawCanvasRefs.current[key];
     if (!canvas) return;
-    const dataUrl = canvas.toDataURL('image/png');
+    const dataUrl = canvas.toDataURL();
     setDrawValues(prev => ({ ...prev, [key]: dataUrl }));
+    syncVariableForComp(comp, dataUrl);
+    setIsDrawing(prev => ({ ...prev, [key]: false }));
     fireWidgetTriggers(comp, 'ON_CHANGE');
   };
 
@@ -1044,10 +1059,22 @@ const LiveTerminal = () => {
         const parts = value.split('.');
         if (parts.length >= 2) {
             const pName = parts[0];
-            const fName = parts.slice(1).join('.');
+            const fieldPath = parts.slice(1);
             const placeholder = recordPlaceholders.find(rp => rp.name === pName);
             const data = placeholder ? recordPlaceholderData[placeholder.id] : null;
-            return data ? data[fName] : defaultVal;
+            
+            if (!data) return defaultVal;
+            
+            // Deep traversal support
+            let current = data;
+            for (const part of fieldPath) {
+                if (current && typeof current === 'object') {
+                    current = current[part];
+                } else {
+                    return defaultVal;
+                }
+            }
+            return current ?? defaultVal;
         }
     }
     if (source === 'TABLE_AGGREGATION') {
@@ -1540,6 +1567,38 @@ const LiveTerminal = () => {
           } catch (err) {
             console.error(`[Connector] Execution failed:`, err);
           }
+        } else if (action.type === 'LINK_RECORD' || action.type === 'UNLINK_RECORD') {
+          const { 
+            sourceTableId, 
+            sourceRecordId: rawSourceId, 
+            sourceFieldName,
+            targetTableId, 
+            targetRecordId: rawTargetId,
+            targetFieldName
+          } = action.payload;
+          
+          const sourceRecordId = await resolveSourceValue(action.payload.sourceRecordIdType || 'STATIC', rawSourceId);
+          const targetRecordId = await resolveSourceValue(action.payload.targetRecordIdType || 'STATIC', rawTargetId);
+          
+          if (!sourceRecordId || !targetRecordId) {
+            console.warn(`[LinkedRecords] Missing record IDs for ${action.type}:`, { sourceRecordId, targetRecordId });
+            continue;
+          }
+
+          const { linkRecords, unlinkRecords } = await import('../utils/supabaseTablesDB');
+          try {
+            if (action.type === 'LINK_RECORD') {
+              await linkRecords(sourceTableId, sourceRecordId, sourceFieldName, targetTableId, targetRecordId, targetFieldName);
+              console.log(`[LinkedRecords] Linked ${sourceRecordId} to ${targetRecordId}`);
+            } else {
+              await unlinkRecords(sourceTableId, sourceRecordId, sourceFieldName, targetTableId, targetRecordId, targetFieldName);
+              console.log(`[LinkedRecords] Unlinked ${sourceRecordId} from ${targetRecordId}`);
+            }
+            // Refresh tables to show new relationships
+            fetchTableData(selectedApp);
+          } catch (err) {
+            console.error(`[LinkedRecords] Failed to ${action.type}:`, err);
+          }
         }
       } // End actions loop
     };
@@ -1592,69 +1651,73 @@ const LiveTerminal = () => {
   };
 
   const getRequiredCheckForComponent = (comp) => {
-    if (!comp?.props?.required) {
-      return { required: false, ok: true, label: comp?.props?.label || comp?.type || 'Field', error: '' };
-    }
-
-    const label = comp.props.label || comp.type;
+    const label = comp.props?.label || comp.type || 'Field';
     const fail = (msg = `${label} is required`) => ({ required: true, ok: false, label, error: msg });
     const pass = () => ({ required: true, ok: true, label, error: '' });
 
+    // 1. Resolve current value based on component type
+    let currentValue = null;
     switch (comp.type) {
-      case 'BARCODE':
-        return String(barcodeValues[comp.id] || '').trim() ? pass() : fail();
-      case 'CAMERA_SCANNER':
-        return String(cameraScannerValues[comp.id] || '').trim() ? pass() : fail();
-      case 'CAMERA_CAPTURE':
-        return cameraValues[comp.id] ? pass() : fail();
-      case 'FILE_UPLOAD':
-        return (uploadValues[comp.id]?.url || uploadValues[comp.id]?.name) ? pass() : fail();
-      case 'TEXT_INPUT':
-        return String(textInputValues[comp.id] ?? comp.props.defaultValue ?? '').trim() ? pass() : fail();
-      case 'TEXT_AREA':
-        return String(textAreaValues[comp.id] ?? comp.props.defaultValue ?? '').trim() ? pass() : fail();
-      case 'DROPDOWN':
-        return String(dropdownValues[comp.id] ?? comp.props.defaultValue ?? '').trim() ? pass() : fail();
-      case 'RADIO_GROUP':
-        return String(radioValues[comp.id] ?? comp.props.defaultValue ?? '').trim() ? pass() : fail();
-      case 'MULTI_SELECT': {
-        const arr = multiSelectValues[comp.id] || comp.props.defaultValues || [];
-        return Array.isArray(arr) && arr.length > 0 ? pass() : fail();
-      }
-      case 'NUMBER_INPUT': {
-        const num = numberInputValues[comp.id] ?? comp.props.defaultValue;
-        return (num === null || num === undefined || Number.isNaN(Number(num))) ? fail() : pass();
-      }
-      case 'DATE_PICKER':
-        return String(dateValues[comp.id] || '').trim() ? pass() : fail();
-      case 'DATETIME_PICKER':
-        return String(dateTimeValues[comp.id] || '').trim() ? pass() : fail();
-      case 'DRAW_CANVAS':
-        return drawValues[comp.id] ? pass() : fail();
-      case 'SIGNATURE':
-        return signatureWidgetValues[comp.id] ? pass() : fail('Signature is required');
-      case 'QUALITY_PASS_FAIL':
-        return qualityResult[comp.id] ? pass() : fail('Pass/Fail decision is required');
-      case 'QUALITY_TOLERANCE': {
-        const raw = toleranceValues[comp.id];
-        const val = parseFloat(raw);
-        if (raw === undefined || raw === '' || Number.isNaN(val)) return fail('Tolerance value is required');
-        if (comp.props.min != null && comp.props.max != null && (val < comp.props.min || val > comp.props.max)) {
-          return fail('Value out of tolerance range');
-        }
-        return pass();
-      }
+      case 'BARCODE': currentValue = barcodeValues[comp.id]; break;
+      case 'CAMERA_SCANNER': currentValue = cameraScannerValues[comp.id]; break;
+      case 'CAMERA_CAPTURE': currentValue = cameraValues[comp.id]; break;
+      case 'FILE_UPLOAD': currentValue = uploadValues[comp.id]?.url || uploadValues[comp.id]?.name; break;
+      case 'TEXT_INPUT': currentValue = textInputValues[comp.id] ?? comp.props.defaultValue; break;
+      case 'TEXT_AREA': currentValue = textAreaValues[comp.id] ?? comp.props.defaultValue; break;
+      case 'DROPDOWN': currentValue = dropdownValues[comp.id] ?? comp.props.defaultValue; break;
+      case 'RADIO_GROUP': currentValue = radioValues[comp.id] ?? comp.props.defaultValue; break;
+      case 'MULTI_SELECT': currentValue = multiSelectValues[comp.id] || comp.props.defaultValues; break;
+      case 'NUMBER_INPUT': currentValue = numberInputValues[comp.id] ?? comp.props.defaultValue; break;
+      case 'DATE_PICKER': currentValue = dateValues[comp.id]; break;
+      case 'DATETIME_PICKER': currentValue = dateTimeValues[comp.id]; break;
+      case 'DRAW_CANVAS': currentValue = drawValues[comp.id]; break;
+      case 'SIGNATURE': currentValue = signatureWidgetValues[comp.id]; break;
+      case 'QUALITY_PASS_FAIL': currentValue = qualityResult[comp.id]; break;
+      case 'QUALITY_TOLERANCE': currentValue = toleranceValues[comp.id]; break;
       case 'CHECKLIST': {
         const ck = checklistState[comp.id] || new Set();
         const requiredCount = (comp.props.items || []).length;
-        if (requiredCount > 0 && ck.size < requiredCount) return fail('Complete all checklist items');
-        return pass();
+        currentValue = (requiredCount > 0 && ck.size < requiredCount) ? null : 'DONE';
+        break;
       }
-      case 'VISION_MEASUREMENT':
-        return String(visionValues[comp.id] || '').trim() ? pass() : fail();
-      default:
-        return pass();
+      case 'VISION_MEASUREMENT': currentValue = visionValues[comp.id]; break;
+      default: currentValue = null;
     }
+
+    // 2. Perform Variable-Level Validation (Tulip Style)
+    // If a component is linked to a variable, we MUST validate against the variable's rules.
+    const targetVarName = comp.props?.targetVariable || (comp.props?.dataSourceType === 'VARIABLE' ? comp.props?.varSource : null);
+    if (targetVarName) {
+      const vDef = appVariables.find(v => v.name === targetVarName);
+      if (vDef) {
+        const result = validateVariable(vDef, currentValue);
+        if (!result.isValid) return fail(result.message);
+      }
+    }
+
+    // 3. Fallback to Component-Level "Required" Prop
+    if (!comp?.props?.required) {
+      return { required: false, ok: true, label, error: '' };
+    }
+
+    // Component-specific legacy checks
+    if (currentValue === null || currentValue === undefined || String(currentValue).trim() === '') {
+       if (comp.type === 'SIGNATURE') return fail('Signature is required');
+       if (comp.type === 'QUALITY_PASS_FAIL') return fail('Pass/Fail decision is required');
+       if (comp.type === 'CHECKLIST') return fail('Complete all checklist items');
+       return fail();
+    }
+
+    // Specialized Logic for Tolerance
+    if (comp.type === 'QUALITY_TOLERANCE') {
+        const val = parseFloat(currentValue);
+        if (isNaN(val)) return fail('Tolerance value is required');
+        if (comp.props.min != null && comp.props.max != null && (val < comp.props.min || val > comp.props.max)) {
+          return fail('Value out of tolerance range');
+        }
+    }
+
+    return pass();
   };
 
   const validateRequiredWidgetsForStep = (step) => {
@@ -2470,8 +2533,8 @@ const LiveTerminal = () => {
                         }
 
                         const syncVariable = (value) => {
-                          if (comp.props?.dataSourceType === 'VARIABLE' && comp.props?.varSource) {
-                            const varName = comp.props.varSource;
+                          const varName = comp.props?.targetVariable || (comp.props?.dataSourceType === 'VARIABLE' ? comp.props?.varSource : null);
+                          if (varName) {
                             setAppVariables(prev => prev.map(v => v.name === varName ? { ...v, value } : v));
                           }
                         };
@@ -2492,7 +2555,12 @@ const LiveTerminal = () => {
                                 <input
                                   autoFocus={comp.props.autoFocus}
                                   value={barcodeValues[comp.id] || ''}
-                                  onChange={e => { setBarcodeValues(prev => ({ ...prev, [comp.id]: e.target.value })); fireWidgetTriggers(comp, 'ON_CHANGE'); }}
+                                  onChange={e => { 
+                                    const val = e.target.value;
+                                    setBarcodeValues(prev => ({ ...prev, [comp.id]: val })); 
+                                    syncVariable(val);
+                                    fireWidgetTriggers(comp, 'ON_CHANGE'); 
+                                  }}
                                   placeholder={comp.props.placeholder}
                                   style={{
                                     flex: 1, padding: '12px',
@@ -2823,7 +2891,12 @@ const LiveTerminal = () => {
                               <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{comp.props.label}{comp.props.required ? ' *' : ''}</div>
                               <textarea
                                 value={textAreaValues[comp.id] != null ? textAreaValues[comp.id] : (comp.props.defaultValue || '')}
-                                onChange={e => { setTextAreaValues(prev => ({ ...prev, [comp.id]: e.target.value })); fireWidgetTriggers(comp, 'ON_CHANGE'); }}
+                                onChange={e => { 
+                                  const val = e.target.value;
+                                  setTextAreaValues(prev => ({ ...prev, [comp.id]: val })); 
+                                  syncVariable(val);
+                                  fireWidgetTriggers(comp, 'ON_CHANGE'); 
+                                }}
                                 placeholder={comp.props.placeholder || 'Type notes...'}
                                 rows={comp.props.rows || 4}
                                 style={{
@@ -2874,7 +2947,11 @@ const LiveTerminal = () => {
                                         type="radio"
                                         name={`radio_${comp.id}`}
                                         checked={selectedVal === opt}
-                                        onChange={() => { setRadioValues(prev => ({ ...prev, [comp.id]: opt })); fireWidgetTriggers(comp, 'ON_CHANGE'); }}
+                                        onChange={() => { 
+                                          setRadioValues(prev => ({ ...prev, [comp.id]: opt })); 
+                                          syncVariable(opt);
+                                          fireWidgetTriggers(comp, 'ON_CHANGE'); 
+                                        }}
                                       />
                                       {opt}
                                     </label>
@@ -2913,7 +2990,13 @@ const LiveTerminal = () => {
                                   const darkBorder = isChecked ? '#22c55e' : '#334155';
                                   const lightBorder = isChecked ? '#86efac' : '#e2e8f0';
                                   return (
-                                    <div key={i} onClick={() => { const n = new Set(ck); n.has(i) ? n.delete(i) : n.add(i); setChecklistState(prev => ({ ...prev, [comp.id]: n })); fireWidgetTriggers(comp, 'ON_CHANGE'); }} style={{ display: 'flex', gap: '12px', alignItems: 'center', padding: '10px 12px', marginBottom: '6px', borderRadius: '6px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? darkBg : lightBg, border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? darkBorder : lightBorder}`, cursor: 'pointer' }}>
+                                    <div key={i} onClick={() => { 
+                                      const n = new Set(ck); 
+                                      n.has(i) ? n.delete(i) : n.add(i); 
+                                      setChecklistState(prev => ({ ...prev, [comp.id]: n })); 
+                                      syncVariable(n.size === totalItems ? 'DONE' : null);
+                                      fireWidgetTriggers(comp, 'ON_CHANGE'); 
+                                    }} style={{ display: 'flex', gap: '12px', alignItems: 'center', padding: '10px 12px', marginBottom: '6px', borderRadius: '6px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? darkBg : lightBg, border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? darkBorder : lightBorder}`, cursor: 'pointer' }}>
                                       <div style={{ width: '20px', height: '20px', borderRadius: '4px', border: `2px solid ${isChecked ? '#22c55e' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#475569' : '#cbd5e1')}`, backgroundColor: isChecked ? '#22c55e' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : 'white'), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{isChecked && <span style={{ color: 'white', fontSize: '12px', fontWeight: 900 }}>{String.fromCharCode(10003)}</span>}</div>
                                       <span style={{ fontSize: '0.9rem', color: isChecked ? '#22c55e' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#475569'), textDecoration: isChecked ? 'line-through' : 'none' }}>{item}</span>
                                     </div>
@@ -2948,6 +3031,7 @@ const LiveTerminal = () => {
                                             const operator = localStorage.getItem('frontline_operator_name') || 'AUTHORIZED_OPERATOR';
                                             const sigData = `Electronically signed by ${operator} on ${now}`;
                                             setSignatureWidgetValues(prev => ({ ...prev, [comp.id]: sigData }));
+                                            syncVariable(sigData);
                                             fireWidgetTriggers(comp, 'ON_CHANGE');
                                           }}
                                           style={{ padding: '12px 24px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', margin: '0 auto' }}
@@ -3435,9 +3519,64 @@ const LiveTerminal = () => {
                                           >
                                             {cols.map(col => (
                                               <td key={col} style={{ padding: '10px', color: '#1e293b' }}>
-                                                {row[col] !== undefined && row[col] !== null
-                                                  ? (typeof row[col] === 'object' ? JSON.stringify(row[col]) : String(row[col]))
-                                                  : '-'}
+                                                {(() => {
+                                                  const val = row[col];
+                                                  if (val === undefined || val === null || val === '') return '-';
+                                                  
+                                                  // Linked Records (Array of IDs or Objects)
+                                                  if (Array.isArray(val)) {
+                                                    if (val.length === 0) return '-';
+                                                    return (
+                                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                                        {val.map((item, idx) => {
+                                                          const label = typeof item === 'object' ? (item.recordId || item.id || 'Record') : String(item);
+                                                          return (
+                                                            <span key={idx} style={{ 
+                                                              padding: '2px 8px', 
+                                                              backgroundColor: 'rgba(59, 130, 246, 0.1)', 
+                                                              color: '#3b82f6', 
+                                                              borderRadius: '4px', 
+                                                              fontSize: '0.65rem', 
+                                                              fontWeight: 800,
+                                                              border: '1px solid rgba(59, 130, 246, 0.2)',
+                                                              display: 'inline-flex',
+                                                              alignItems: 'center'
+                                                            }}>
+                                                              {label}
+                                                            </span>
+                                                          );
+                                                        })}
+                                                      </div>
+                                                    );
+                                                  }
+                                                  
+                                                  // Single Linked Record or Object
+                                                  if (typeof val === 'object' && val !== null) {
+                                                    const label = val.recordId || val.id || 'Record';
+                                                    return (
+                                                      <span style={{ 
+                                                        padding: '2px 8px', 
+                                                        backgroundColor: 'rgba(139, 92, 246, 0.1)', 
+                                                        color: '#8b5cf6', 
+                                                        borderRadius: '4px', 
+                                                        fontSize: '0.65rem', 
+                                                        fontWeight: 800,
+                                                        border: '1px solid rgba(139, 92, 246, 0.2)'
+                                                      }}>
+                                                        {label}
+                                                      </span>
+                                                    );
+                                                  }
+                                                  
+                                                  // Boolean handling
+                                                  if (typeof val === 'boolean') {
+                                                    return val ? 
+                                                      <span style={{ color: '#10b981', fontWeight: 800 }}>YES</span> : 
+                                                      <span style={{ color: '#ef4444', fontWeight: 800 }}>NO</span>;
+                                                  }
+
+                                                  return String(val);
+                                                })()}
                                               </td>
                                             ))}
                                           </tr>

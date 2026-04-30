@@ -1,4 +1,5 @@
 import { getSupabaseClient } from './supabaseManualDB.js';
+import automationEngine from './automationEngine.js';
 
 /**
  * supabaseTablesDB.js
@@ -310,7 +311,19 @@ export async function addTableRecord(tableId, recordData) {
         .single();
 
     if (error) throw error;
-    return rowToRecord(data);
+    const record = rowToRecord(data);
+    
+    // Fire automation trigger
+    if (automationEngine && typeof automationEngine.trigger === 'function') {
+        automationEngine.trigger('TABLE_ROW_ADDED', { 
+            tableId, 
+            recordId: record.recordId, 
+            record: record,
+            source: 'DATABASE'
+        });
+    }
+
+    return record;
 }
 
 export async function deleteTableRecord(recordInternalId) {
@@ -350,7 +363,21 @@ export async function updateTableRecord(recordInternalId, updateData) {
         .single();
 
     if (error) throw error;
-    return rowToRecord(data);
+    const record = rowToRecord(data);
+
+    // Fire automation trigger
+    if (automationEngine && typeof automationEngine.trigger === 'function') {
+        automationEngine.trigger('TABLE_ROW_UPDATED', { 
+            tableId: existing.table_id, 
+            recordId: existing.record_id, 
+            record: record,
+            previousRecord: rowToRecord(existing),
+            updatedFields: updateData,
+            source: 'DATABASE'
+        });
+    }
+
+    return record;
 }
 
 /**
@@ -384,6 +411,15 @@ export async function linkRecords(sourceTableId, sourceRecordId, sourceFieldName
         updateSide(sourceTableId, sourceRecordId, sourceFieldName, targetRecordId),
         updateSide(targetTableId, targetRecordId, targetFieldName, sourceRecordId)
     ]);
+
+    // Notify Automation Engine
+    if (automationEngine && typeof automationEngine.trigger === 'function') {
+        automationEngine.trigger('ON_RECORD_LINK', {
+            sourceTableId, sourceRecordId, sourceFieldName,
+            targetTableId, targetRecordId, targetFieldName
+        });
+    }
+
     return true;
 }
 
@@ -418,6 +454,15 @@ export async function unlinkRecords(sourceTableId, sourceRecordId, sourceFieldNa
         updateSide(sourceTableId, sourceRecordId, sourceFieldName, targetRecordId),
         updateSide(targetTableId, targetRecordId, targetFieldName, sourceRecordId)
     ]);
+
+    // Notify Automation Engine
+    if (automationEngine && typeof automationEngine.trigger === 'function') {
+        automationEngine.trigger('ON_RECORD_UNLINK', {
+            sourceTableId, sourceRecordId, sourceFieldName,
+            targetTableId, targetRecordId, targetFieldName
+        });
+    }
+
     return true;
 }
 

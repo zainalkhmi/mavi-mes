@@ -419,13 +419,21 @@ const FunctionsEditor = () => {
   const [testInputs, setTestInputs] = useState({});
   const [testResult, setTestResult] = useState(null);
   const [isTesting, setIsTesting] = useState(false);
+  const [triggers, setTriggers] = useState([]); // [{id, type, config}]
+  const [executionHistory, setExecutionHistory] = useState([]);
+  const [currentVersion, setCurrentVersion] = useState(0);
+  const [versionHistory, setVersionHistory] = useState([]);
 
   useEffect(() => {
     const saved = localStorage.getItem('mes_functions');
     if (saved) setSavedFunctions(JSON.parse(saved));
     const savedConns = localStorage.getItem('mes_connectors');
     if (savedConns) setConnectors(JSON.parse(savedConns));
-  }, [isManagerOpen]);
+    
+    // Load history
+    const history = localStorage.getItem('mes_execution_history');
+    if (history) setExecutionHistory(JSON.parse(history));
+  }, [isManagerOpen, activeRightTab]);
 
   const saveConnectors = (newConnectors) => {
     setConnectors(newConnectors);
@@ -447,7 +455,20 @@ const FunctionsEditor = () => {
   };
 
   const updateOutput = (id, updates) => {
-    setOutputs(outputs.map(o => o.id === id ? { ...o, ...updates } : o));
+    setOutputs(outputs.map(o => o.id === output.id ? { ...o, ...updates } : o));
+  };
+
+  const addTrigger = () => {
+    const id = Date.now();
+    setTriggers([...triggers, { id, type: 'TIMER', config: { interval: 60, unit: 'minutes' } }]);
+  };
+
+  const updateTrigger = (id, updates) => {
+    setTriggers(triggers.map(t => t.id === id ? { ...t, ...updates } : t));
+  };
+
+  const deleteTrigger = (id) => {
+    setTriggers(triggers.map(t => t.id === id ? null : t).filter(Boolean));
   };
 
   const handleRunTest = async () => {
@@ -672,38 +693,100 @@ const FunctionsEditor = () => {
 
   const handleSave = () => {
     const fnData = {
-      id: `fn_${Date.now()}`,
       name: functionName,
       description,
       inputs,
       outputs,
       variables,
+      triggers,
       nodes,
-      edges
+      edges,
+      updatedAt: new Date().toISOString()
     };
+
     const saved = localStorage.getItem('mes_functions');
     const all = saved ? JSON.parse(saved) : [];
     
-    // Check if updating existing
     const existingIndex = all.findIndex(f => f.name === functionName);
     if (existingIndex > -1) {
-       all[existingIndex] = fnData;
+       all[existingIndex] = {
+         ...all[existingIndex],
+         draft: fnData,
+         updatedAt: new Date().toISOString()
+       };
     } else {
-       all.push(fnData);
+       all.push({
+         id: `fn_${Date.now()}`,
+         name: functionName,
+         draft: fnData,
+         published: null,
+         history: [],
+         createdAt: new Date().toISOString()
+       });
     }
     
     localStorage.setItem('mes_functions', JSON.stringify(all));
     setSavedFunctions(all);
-    alert('Function Saved!');
+    alert('Draft Saved!');
+  };
+
+  const handlePublish = () => {
+    const saved = localStorage.getItem('mes_functions');
+    const all = saved ? JSON.parse(saved) : [];
+    const idx = all.findIndex(f => f.name === functionName);
+    
+    if (idx === -1) {
+      alert('Please save a draft first!');
+      return;
+    }
+
+    const func = all[idx];
+    const newVersion = (func.published?.version || 0) + 1;
+    
+    const newPublished = {
+      version: newVersion,
+      data: { ...func.draft },
+      publishedAt: new Date().toISOString()
+    };
+
+    const newHistory = func.published ? [func.published, ...(func.history || [])] : (func.history || []);
+
+    all[idx] = {
+      ...func,
+      published: newPublished,
+      history: newHistory.slice(0, 10) // Keep last 10 versions
+    };
+
+    localStorage.setItem('mes_functions', JSON.stringify(all));
+    setSavedFunctions(all);
+    setCurrentVersion(newVersion);
+    setVersionHistory(all[idx].history);
+    
+    // Refresh engine to use the NEW published version
+    engine.refresh();
+    
+    alert(`Version ${newVersion} Published Successfully!`);
   };
 
   const loadFunction = (fn) => {
-    setFunctionName(fn.name);
-    setDescription(fn.description || '');
-    setInputs(fn.inputs || []);
-    setOutputs(fn.outputs || []);
-    setVariables(fn.variables || []);
-    setNodes(fn.nodes || initialNodes);
+    // If it's a versioned function object, load the draft part
+    const data = fn.draft || fn;
+    
+    setFunctionName(data.name || 'Untitled');
+    setDescription(data.description || '');
+    setInputs(data.inputs || []);
+    setOutputs(data.outputs || []);
+    setVariables(data.variables || []);
+    setTriggers(data.triggers || []);
+    setNodes(data.nodes || initialNodes);
+    
+    if (fn.published) {
+      setCurrentVersion(fn.published.version);
+      setVersionHistory(fn.history || []);
+    } else {
+      setCurrentVersion(0);
+      setVersionHistory([]);
+    }
     
     // Re-inject the edge callbacks
     const loadedEdges = (fn.edges || initialEdges).map(edge => ({
@@ -825,10 +908,17 @@ const FunctionsEditor = () => {
           <button 
             onClick={handleSave}
             style={{
-              padding: '8px 24px', backgroundColor: '#3b82f6', color: 'white',
-              border: 'none', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer'
+              padding: '8px 16px', backgroundColor: 'white', color: '#64748b',
+              border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer'
             }}
-          >Save</button>
+          >Save Draft</button>
+          <button 
+            onClick={handlePublish}
+            style={{
+              padding: '8px 20px', backgroundColor: '#3b82f6', color: 'white',
+              border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer'
+            }}
+          >Publish {currentVersion > 0 ? `v${currentVersion}` : 'v1'}</button>
         </div>
       </header>
 
@@ -1078,6 +1168,33 @@ const FunctionsEditor = () => {
                   <div style={{ height: '1px', backgroundColor: '#f1f5f9', margin: '4px 0' }}></div>
 
                   <button 
+                    onClick={() => insertNodeOnEdge(activeEdgeForMenu, 'expression')}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '12px', padding: '12px',
+                      border: 'none', background: 'none', borderRadius: '10px', cursor: 'pointer',
+                      textAlign: 'left', transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#f8fafc';
+                      e.currentTarget.style.transform = 'translateX(4px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                      e.currentTarget.style.transform = 'translateX(0)';
+                    }}
+                  >
+                    <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: '#faf5ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Cpu size={20} color="#a855f7" />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b' }}>Expression (Formula)</div>
+                      <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Calculate values using formulas</div>
+                    </div>
+                  </button>
+
+                  <div style={{ height: '1px', backgroundColor: '#f1f5f9', margin: '4px 0' }}></div>
+
+                  <button 
                     onClick={() => insertNodeOnEdge(activeEdgeForMenu, 'connector')}
                     style={{
                       display: 'flex', alignItems: 'center', gap: '12px', padding: '12px',
@@ -1109,8 +1226,10 @@ const FunctionsEditor = () => {
 
         <div style={{ width: '380px', backgroundColor: 'white', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0' }}>
-            <button onClick={() => setActiveRightTab('LOGIC')} style={{ flex: 1, padding: '15px', border: 'none', background: 'none', fontSize: '0.75rem', fontWeight: 800, color: activeRightTab === 'LOGIC' ? '#3b82f6' : '#64748b', borderBottom: activeRightTab === 'LOGIC' ? '2px solid #3b82f6' : 'none', cursor: 'pointer' }}>LOGIC EDITOR</button>
-            <button onClick={() => setActiveRightTab('CONTRACT')} style={{ flex: 1, padding: '15px', border: 'none', background: 'none', fontSize: '0.75rem', fontWeight: 800, color: activeRightTab === 'CONTRACT' ? '#3b82f6' : '#64748b', borderBottom: activeRightTab === 'CONTRACT' ? '2px solid #3b82f6' : 'none', cursor: 'pointer' }}>INPUT / OUTPUT</button>
+            <button onClick={() => setActiveRightTab('LOGIC')} style={{ flex: 1, padding: '15px 5px', border: 'none', background: 'none', fontSize: '0.6rem', fontWeight: 800, color: activeRightTab === 'LOGIC' ? '#3b82f6' : '#64748b', borderBottom: activeRightTab === 'LOGIC' ? '2px solid #3b82f6' : 'none', cursor: 'pointer' }}>LOGIC</button>
+            <button onClick={() => setActiveRightTab('CONTRACT')} style={{ flex: 1, padding: '15px 5px', border: 'none', background: 'none', fontSize: '0.6rem', fontWeight: 800, color: activeRightTab === 'CONTRACT' ? '#3b82f6' : '#64748b', borderBottom: activeRightTab === 'CONTRACT' ? '2px solid #3b82f6' : 'none', cursor: 'pointer' }}>I/O</button>
+            <button onClick={() => setActiveRightTab('TRIGGERS')} style={{ flex: 1, padding: '15px 5px', border: 'none', background: 'none', fontSize: '0.6rem', fontWeight: 800, color: activeRightTab === 'TRIGGERS' ? '#3b82f6' : '#64748b', borderBottom: activeRightTab === 'TRIGGERS' ? '2px solid #3b82f6' : 'none', cursor: 'pointer' }}>TRIGGERS</button>
+            <button onClick={() => setActiveRightTab('HISTORY')} style={{ flex: 1, padding: '15px 5px', border: 'none', background: 'none', fontSize: '0.6rem', fontWeight: 800, color: (activeRightTab === 'HISTORY' || activeRightTab === 'VERSIONS') ? '#3b82f6' : '#64748b', borderBottom: (activeRightTab === 'HISTORY' || activeRightTab === 'VERSIONS') ? '2px solid #3b82f6' : 'none', cursor: 'pointer' }}>HISTORY</button>
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -1126,6 +1245,30 @@ const FunctionsEditor = () => {
                       <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Label</label>
                       <input value={selectedNode.data.label || ''} onChange={(e) => updateNodeData(selectedNode.id, { label: e.target.value })} style={{ width: '100%', padding: '10px', marginTop: '5px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
                     </div>
+                    {selectedNode.type === 'expression' && (
+                      <div style={{ backgroundColor: '#fdf4ff', padding: '15px', borderRadius: '12px', border: '1px solid #f5d0fe' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                          <Cpu size={16} color="#a855f7" />
+                          <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b' }}>Formula Expression</span>
+                        </div>
+                        <textarea 
+                          placeholder="e.g. (inputs.temp * 1.8) + 32"
+                          value={selectedNode.data.expression || ''}
+                          onChange={(e) => updateNodeData(selectedNode.id, { expression: e.target.value })}
+                          style={{ width: '100%', height: '80px', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.75rem', fontFamily: 'monospace' }}
+                        />
+                        <div style={{ marginTop: '12px' }}>
+                          <label style={{ fontSize: '0.65rem', color: '#64748b' }}>Save result to variable</label>
+                          <input 
+                            placeholder="result_var"
+                            value={selectedNode.data.outputVar || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { outputVar: e.target.value })}
+                            style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.75rem' }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
                     {selectedNode.data.type?.startsWith('OBD2_') && (
                       <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}><Car size={16} color="#3b82f6" /><span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b' }}>OBD2 Parameters</span></div>
@@ -1144,7 +1287,7 @@ const FunctionsEditor = () => {
               ) : (
                 <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}><Settings2 size={40} style={{ opacity: 0.2, marginBottom: '16px' }} /><p style={{ fontSize: '0.85rem' }}>Select a node to configure its properties.</p></div>
               )
-            ) : (
+            ) : activeRightTab === 'CONTRACT' ? (
               <div style={{ padding: '24px' }}>
                 <div style={{ marginBottom: '32px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
@@ -1161,6 +1304,7 @@ const FunctionsEditor = () => {
                     ))}
                   </div>
                 </div>
+
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                     <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>Output Results</h3>
@@ -1175,6 +1319,180 @@ const FunctionsEditor = () => {
                       </div>
                     ))}
                   </div>
+                </div>
+              </div>
+            ) : activeRightTab === 'TRIGGERS' ? (
+              <div style={{ padding: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                   <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>Events & Triggers</h3>
+                   <button 
+                    onClick={addTrigger}
+                    style={{ padding: '6px 12px', backgroundColor: '#eff6ff', color: '#3b82f6', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                   >+ Add Trigger</button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {triggers.map(trigger => (
+                    <div key={trigger.id} style={{ padding: '16px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                        <select 
+                          value={trigger.type}
+                          onChange={(e) => updateTrigger(trigger.id, { type: e.target.value })}
+                          style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '0.7rem', fontWeight: 700 }}
+                        >
+                          <option value="TIMER">TIMER (SCHEDULE)</option>
+                          <option value="WEBHOOK">WEBHOOK (EXTERNAL)</option>
+                          <option value="DEVICE">DEVICE EVENT (IoT)</option>
+                        </select>
+                        <button onClick={() => deleteTrigger(trigger.id)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><Trash2 size={14} /></button>
+                      </div>
+
+                      {trigger.type === 'TIMER' && (
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Every</span>
+                          <input 
+                            type="number"
+                            value={trigger.config.interval}
+                            onChange={(e) => updateTrigger(trigger.id, { config: { ...trigger.config, interval: parseInt(e.target.value) } })}
+                            style={{ width: '60px', padding: '6px', borderRadius: '4px', border: '1px solid #e2e8f0' }}
+                          />
+                          <select 
+                            value={trigger.config.unit}
+                            onChange={(e) => updateTrigger(trigger.id, { config: { ...trigger.config, unit: e.target.value } })}
+                            style={{ padding: '6px', borderRadius: '4px', border: '1px solid #e2e8f0' }}
+                          >
+                            <option value="seconds">Seconds</option>
+                            <option value="minutes">Minutes</option>
+                            <option value="hours">Hours</option>
+                          </select>
+                        </div>
+                      )}
+
+                      {trigger.type === 'WEBHOOK' && (
+                        <div>
+                          <div style={{ fontSize: '0.7rem', color: '#64748b', marginBottom: '4px' }}>Endpoint URL:</div>
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            <input 
+                              readOnly
+                              value={`https://api.mavi-mes.com/hooks/${trigger.id}`}
+                              style={{ flex: 1, padding: '8px', backgroundColor: '#f1f5f9', border: 'none', borderRadius: '4px', fontSize: '0.65rem', color: '#64748b' }}
+                            />
+                            <button 
+                              onClick={() => {
+                                engine.trigger('WEBHOOK', { id: trigger.id });
+                                alert('Webhook call simulated!');
+                              }}
+                              style={{ p: '8px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer' }}
+                            >SIMULATE</button>
+                            <button style={{ p: '8px', background: '#e2e8f0', border: 'none', borderRadius: '4px' }}><Copy size={14} /></button>
+                          </div>
+                        </div>
+                      )}
+
+                      {trigger.type === 'DEVICE' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <select style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.75rem' }}>
+                            <option>Select Device Parameter...</option>
+                            <option>OBD2: Engine Speed (RPM)</option>
+                            <option>OBD2: Vehicle Speed (Kph)</option>
+                            <option>Sensor: Temperature</option>
+                          </select>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                             <select style={{ padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.75rem' }}>
+                               <option>&gt;</option>
+                               <option>&lt;</option>
+                               <option>==</option>
+                             </select>
+                             <input placeholder="Value" style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.75rem' }} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {triggers.length === 0 && (
+                    <div style={{ textAlign: 'center', padding: '40px 20px', border: '2px dashed #f1f5f9', borderRadius: '16px', color: '#94a3b8' }}>
+                      <Sparkles size={32} style={{ opacity: 0.2, marginBottom: '12px' }} />
+                      <div style={{ fontSize: '0.8rem' }}>No active triggers.</div>
+                      <div style={{ fontSize: '0.65rem' }}>Automations will only run when called manually.</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div style={{ padding: '0', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+                  <button 
+                    onClick={() => setActiveRightTab('HISTORY')}
+                    style={{ flex: 1, padding: '12px', border: 'none', background: 'none', fontSize: '0.65rem', fontWeight: 800, color: activeRightTab === 'HISTORY' ? '#3b82f6' : '#64748b', borderBottom: activeRightTab === 'HISTORY' ? '2px solid #3b82f6' : 'none', cursor: 'pointer' }}
+                  >EXECUTION</button>
+                  <button 
+                    onClick={() => setActiveRightTab('VERSIONS')}
+                    style={{ flex: 1, padding: '12px', border: 'none', background: 'none', fontSize: '0.65rem', fontWeight: 800, color: activeRightTab === 'VERSIONS' ? '#3b82f6' : '#64748b', borderBottom: activeRightTab === 'VERSIONS' ? '2px solid #3b82f6' : 'none', cursor: 'pointer' }}
+                  >VERSIONS</button>
+                </div>
+
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                  {activeRightTab === 'HISTORY' ? (
+                    <div style={{ padding: '0' }}>
+                      {executionHistory.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '60px 20px', color: '#94a3b8' }}>
+                          <RotateCw size={40} style={{ opacity: 0.1, marginBottom: '16px' }} />
+                          <div style={{ fontSize: '0.8rem' }}>No execution history yet.</div>
+                        </div>
+                      ) : (
+                        executionHistory.map(log => (
+                          <div key={log.id} style={{ 
+                            padding: '16px', borderBottom: '1px solid #f1f5f9', 
+                            backgroundColor: log.status === 'FAILED' ? '#fff1f2' : 'white'
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                              <span style={{ fontSize: '0.6rem', fontWeight: 900, padding: '2px 6px', borderRadius: '4px', backgroundColor: log.status === 'FAILED' ? '#ef4444' : '#10b981', color: 'white' }}>{log.status}</span>
+                              <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>{new Date(log.timestamp).toLocaleTimeString()}</span>
+                            </div>
+                            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b' }}>{log.automationName}</div>
+                            <div style={{ display: 'flex', gap: '12px', marginTop: '6px', fontSize: '0.65rem', color: '#64748b' }}>
+                              <span>⏱️ {log.duration}ms</span>
+                              <span>🔗 {log.trigger}</span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                       {currentVersion > 0 && (
+                         <div style={{ padding: '16px', backgroundColor: '#eff6ff', borderBottom: '1px solid #3b82f6' }}>
+                            <div style={{ fontSize: '0.6rem', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase' }}>Current Published</div>
+                            <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#1e293b' }}>Version {currentVersion}</div>
+                            <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Active in Production</div>
+                         </div>
+                       )}
+                       {versionHistory.map((v, i) => (
+                         <div key={i} style={{ padding: '16px', borderBottom: '1px solid #f1f5f9' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                               <div>
+                                  <div style={{ fontSize: '0.8rem', fontWeight: 700 }}>Version {v.version}</div>
+                                  <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>{new Date(v.publishedAt).toLocaleString()}</div>
+                               </div>
+                               <button 
+                                onClick={() => {
+                                  if (confirm(`Restore to Version ${v.version}? Current draft will be overwritten.`)) {
+                                    loadFunction(v.data);
+                                  }
+                                }}
+                                style={{ padding: '4px 8px', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer' }}
+                               >Restore</button>
+                            </div>
+                         </div>
+                       ))}
+                       {versionHistory.length === 0 && !currentVersion && (
+                         <div style={{ textAlign: 'center', padding: '60px 20px', color: '#94a3b8' }}>
+                            <Layers size={40} style={{ opacity: 0.1, marginBottom: '16px' }} />
+                            <div style={{ fontSize: '0.8rem' }}>No published versions yet.</div>
+                         </div>
+                       )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
