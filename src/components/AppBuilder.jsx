@@ -4985,6 +4985,7 @@ const AppBuilder = () => {
                             updateComponentProps(compId, { lastValue: value });
                             onWidgetInteraction(comp, 'DataReceived', { value, pid });
                             onWidgetInteraction(comp, 'ON_CHANGE', { value, pid });
+                            automationEngine.trigger('OBD2_TRIGGER', { pid, value, unit: pid === '010C' ? 'rpm' : pid === '010D' ? 'km/h' : '' });
                             return value;
                         }
                         obd2Service.queryPID(pid).then(result => {
@@ -4993,6 +4994,7 @@ const AppBuilder = () => {
                             updateComponentProps(compId, { lastValue: result.value });
                             onWidgetInteraction(comp, 'DataReceived', { value: result.value, unit: result.unit, pid });
                             onWidgetInteraction(comp, 'ON_CHANGE',    { value: result.value, unit: result.unit, pid });
+                            automationEngine.trigger('OBD2_TRIGGER', { pid, value: result.value, unit: result.unit });
                         }).catch(err => console.warn('[OBD2] ReadPID error:', err));
                         return;
                     }
@@ -5014,6 +5016,7 @@ const AppBuilder = () => {
                                 updateComponentProps(compId, { lastValue: value });
                                 onWidgetInteraction(comp, 'DataReceived', { value, pid });
                                 onWidgetInteraction(comp, 'ON_CHANGE',    { value, pid });
+                                automationEngine.trigger('OBD2_TRIGGER', { pid, value, unit: pid === '010C' ? 'rpm' : pid === '010D' ? 'km/h' : '' });
                                 if (ticks >= maxTicks) clearInterval(timer);
                             }, Math.max(250, intervalMs));
                             return;
@@ -5025,6 +5028,7 @@ const AppBuilder = () => {
                             updateComponentProps(compId, { lastValue: result.value });
                             onWidgetInteraction(comp, 'DataReceived', { value: result.value, unit: result.unit, pid });
                             onWidgetInteraction(comp, 'ON_CHANGE',    { value: result.value, unit: result.unit, pid });
+                            automationEngine.trigger('OBD2_TRIGGER', { pid, value: result.value, unit: result.unit });
                         });
                         return;
                     }

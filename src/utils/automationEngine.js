@@ -1,4 +1,5 @@
 import { addTableRecord, updateTableRecord } from './database';
+import obd2Service from './obd2Service';
 
 /**
  * Automation Engine
@@ -119,6 +120,19 @@ class AutomationEngine {
         const { topic, condition } = auto.trigger;
         if (topic && eventData.topic !== topic) return false;
         if (condition && !this.evaluateCondition(condition, eventData.payload)) return false;
+      }
+
+      // Additional filtering for OBD2_TRIGGER (Vehicle Data)
+      if (eventType === 'OBD2_TRIGGER') {
+        const { pid, condition } = auto.trigger;
+        // If automation specifies a PID, ensure it matches
+        if (pid && eventData.pid !== pid) return false;
+        // If automation has a condition, evaluate it against the received value
+        if (condition) {
+          // We wrap value in an object so evaluateCondition's resolveValue can find it if field is 'value'
+          const result = this.evaluateCondition(condition, { value: eventData.value });
+          if (!result) return false;
+        }
       }
       
       return true;
@@ -394,6 +408,22 @@ class AutomationEngine {
           }
         }
         return aiResult;
+
+      case 'OBD2_CONNECT':
+        const transport = (action.transport || 'BLUETOOTH').toUpperCase();
+        console.log(`[AutomationEngine] OBD2 Connect via ${transport}`);
+        return transport === 'SERIAL' 
+          ? obd2Service.connectSerial(Number(action.baudRate) || 38400)
+          : obd2Service.connectBluetooth();
+
+      case 'OBD2_READ_PID':
+        const pid = action.pid || '010C';
+        console.log(`[AutomationEngine] OBD2 Read PID: ${pid}`);
+        return obd2Service.queryPID(pid);
+
+      case 'OBD2_CLEAR_DTC':
+        console.log(`[AutomationEngine] OBD2 Clear DTC`);
+        return obd2Service.clearDTC();
 
       default:
         console.warn(`[AutomationEngine] Unknown action type: ${action.type}`);

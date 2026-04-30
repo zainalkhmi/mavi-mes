@@ -37,7 +37,9 @@ import {
   Trash2,
   Clipboard,
   Layers,
-  ClipboardPaste
+  ClipboardPaste,
+  Car,
+  Sparkles
 } from 'lucide-react';
 
 // Custom Node for the Start Event (Trigger)
@@ -564,7 +566,8 @@ const AutomationEditor = () => {
                   { icon: Clock, label: 'When timer fires...', sub: 'Schedule recurring tasks' },
                   { icon: Database, label: 'When field changes...', sub: 'React to table updates' },
                   { icon: Cpu, label: 'When machine outputs...', sub: 'Respond to IoT data', triggerType: 'MACHINE_TRIGGER' },
-                  { icon: Link2, label: 'When connector finishes...', sub: 'Trigger on API callback', triggerType: 'CONNECTOR_TRIGGER' }
+                  { icon: Link2, label: 'When connector finishes...', sub: 'Trigger on API callback', triggerType: 'CONNECTOR_TRIGGER' },
+                  { icon: Car, label: 'When OBD2 engine data...', sub: 'React to vehicle sensors', triggerType: 'OBD2_TRIGGER' }
                 ].map((ev, i) => (
                   <div
                     key={i}
@@ -1044,6 +1047,52 @@ const AutomationEditor = () => {
                           <option value="<">&lt;</option>
                         </select>
                         <input
+                          placeholder="Value"
+                          value={selectedNode.data.condition?.value || ''}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, condition: { ...n.data.condition, value } } } : n));
+                          }}
+                          style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {selectedNode.data.triggerType === 'OBD2_TRIGGER' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                    <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>OBD2 Engine Config</label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <label style={{ fontSize: '0.65rem', color: '#64748b' }}>OBD2 PID (e.g. 010C)</label>
+                      <input
+                        placeholder="010C"
+                        value={selectedNode.data.pid || ''}
+                        onChange={(e) => {
+                          const pid = e.target.value;
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, pid } } : n));
+                        }}
+                        style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontFamily: 'monospace' }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <label style={{ fontSize: '0.65rem', color: '#64748b' }}>Filter Condition (Optional)</label>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <select
+                          value={selectedNode.data.condition?.operator || '>'}
+                          onChange={(e) => {
+                            const operator = e.target.value;
+                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, condition: { ...n.data.condition, operator } } } : n));
+                          }}
+                          style={{ padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}
+                        >
+                          <option value=">">&gt;</option>
+                          <option value="<">&lt;</option>
+                          <option value="==">==</option>
+                          <option value="!=">!=</option>
+                        </select>
+                        <input
+                          type="number"
                           placeholder="Value"
                           value={selectedNode.data.condition?.value || ''}
                           onChange={(e) => {

@@ -40,7 +40,11 @@ import {
   RotateCw,
   Table,
   Copy,
-  Trash2
+  Trash2,
+  Car,
+  Bell,
+  Sparkles,
+  FolderOpen
 } from 'lucide-react';
 import engine from '../utils/automationEngine';
 
@@ -121,30 +125,47 @@ const ConnectorNode = ({ data }) => (
 );
 
 // Custom Node for Action (e.g. Table Update)
-const ActionNode = ({ data, selected }) => (
-  <div style={{
-    padding: '12px',
-    borderRadius: '12px',
-    backgroundColor: 'white',
-    border: `2px solid ${selected ? '#3b82f6' : '#dcfce7'}`,
-    minWidth: '160px',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '8px',
-    boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)'
-  }}>
-    <Handle type="target" position={Position.Top} style={{ background: '#10b981' }} />
-    <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <Table size={24} color="#10b981" />
+const ActionNode = ({ data, selected }) => {
+  const isOBD = data.type?.startsWith('OBD2_');
+  const Icon = isOBD ? Car : Table;
+  const iconColor = isOBD ? '#f97316' : '#10b981';
+  const bgColor = isOBD ? '#fff7ed' : '#f0fdf4';
+  
+  return (
+    <div style={{
+      padding: '12px',
+      borderRadius: '12px',
+      backgroundColor: 'white',
+      border: `2px solid ${selected ? '#3b82f6' : '#dcfce7'}`,
+      minWidth: '160px',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '8px',
+      boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)'
+    }}>
+      <Handle type="target" position={Position.Top} style={{ background: '#10b981' }} />
+      <div style={{ 
+        width: '40px', 
+        height: '40px', 
+        borderRadius: '8px', 
+        backgroundColor: bgColor, 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center' 
+      }}>
+        <Icon size={24} color={iconColor} />
+      </div>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b' }}>{data.label || 'Action'}</div>
+        <div style={{ fontSize: '0.65rem', color: '#64748b' }}>
+          {data.subtext || (isOBD ? 'Vehicle Integration' : 'Create/update records')}
+        </div>
+      </div>
+      <Handle type="source" position={Position.Bottom} style={{ background: '#10b981' }} />
     </div>
-    <div style={{ textAlign: 'center' }}>
-      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b' }}>{data.label || 'Action'}</div>
-      {data.subtext && <div style={{ fontSize: '0.65rem', color: '#64748b' }}>{data.subtext}</div>}
-    </div>
-    <Handle type="source" position={Position.Bottom} style={{ background: '#10b981' }} />
-  </div>
-);
+  );
+};
 
 // Custom Node for Decision (Diamond)
 const DecisionNode = ({ data, selected }) => (
@@ -373,6 +394,13 @@ const FunctionsEditor = () => {
   const [editingIO, setEditingIO] = useState(null); // { type: 'input'|'output', id }
   const [showIOMenu, setShowIOMenu] = useState(null); // { type, id }
   const [activeEdgeForMenu, setActiveEdgeForMenu] = useState(null);
+  const [isManagerOpen, setIsManagerOpen] = useState(false);
+  const [savedFunctions, setSavedFunctions] = useState([]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('mes_functions');
+    if (saved) setSavedFunctions(JSON.parse(saved));
+  }, [isManagerOpen]);
 
   useEffect(() => {
     // Inject the callback into initial edges if they don't have it
@@ -395,7 +423,7 @@ const FunctionsEditor = () => {
 
   const onConnect = useCallback((params) => setEdges((eds) => addEdge({ ...params, type: 'addNode', data: { onAddNode: (id) => setActiveEdgeForMenu(id) } }, eds)), [setEdges]);
 
-  const insertNodeOnEdge = (edgeId, nodeType) => {
+  const insertNodeOnEdge = (edgeId, nodeType, customData = {}) => {
     const edge = edges.find(e => e.id === edgeId);
     if (!edge) return;
 
@@ -412,11 +440,12 @@ const FunctionsEditor = () => {
       id: newNodeId,
       type: nodeType,
       data: { 
-        label: nodeType === 'connector' ? 'Run connector function' : 
+        label: customData.label || (nodeType === 'connector' ? 'Run connector function' : 
                nodeType === 'action' ? 'Update Operator' :
                nodeType === 'decision' ? 'Operator' :
-               nodeType === 'loop' ? 'Loop' : 'Function call',
-        subtext: nodeType === 'action' ? 'Create/update records' : ''
+               nodeType === 'loop' ? 'Loop' : 'Function call'),
+        subtext: customData.subtext || (nodeType === 'action' ? 'Create/update records' : ''),
+        ...customData
       },
       position: { x: newX, y: newY }
     };
@@ -487,6 +516,18 @@ const FunctionsEditor = () => {
     setEdges(eds => eds.filter(e => e.source !== id && e.target !== id));
     setSelectedNode(null);
   };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNode) {
+        // Don't delete if user is typing in an input
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+        deleteNode(selectedNode.id);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedNode]);
 
   // Usage tracking logic
   const getUsageCount = (id, type) => {
@@ -573,8 +614,43 @@ const FunctionsEditor = () => {
     };
     const saved = localStorage.getItem('mes_functions');
     const all = saved ? JSON.parse(saved) : [];
-    localStorage.setItem('mes_functions', JSON.stringify([...all, fnData]));
+    
+    // Check if updating existing
+    const existingIndex = all.findIndex(f => f.name === functionName);
+    if (existingIndex > -1) {
+       all[existingIndex] = fnData;
+    } else {
+       all.push(fnData);
+    }
+    
+    localStorage.setItem('mes_functions', JSON.stringify(all));
+    setSavedFunctions(all);
     alert('Function Saved!');
+  };
+
+  const loadFunction = (fn) => {
+    setFunctionName(fn.name);
+    setDescription(fn.description || '');
+    setInputs(fn.inputs || []);
+    setOutputs(fn.outputs || []);
+    setVariables(fn.variables || []);
+    setNodes(fn.nodes || initialNodes);
+    
+    // Re-inject the edge callbacks
+    const loadedEdges = (fn.edges || initialEdges).map(edge => ({
+        ...edge,
+        type: 'addNode',
+        data: { ...edge.data, onAddNode: (id) => setActiveEdgeForMenu(id) }
+    }));
+    setEdges(loadedEdges);
+    
+    setIsManagerOpen(false);
+  };
+
+  const deleteSavedFunction = (id) => {
+    const filtered = savedFunctions.filter(f => f.id !== id);
+    localStorage.setItem('mes_functions', JSON.stringify(filtered));
+    setSavedFunctions(filtered);
   };
 
   const handleTest = async () => {
@@ -610,8 +686,14 @@ const FunctionsEditor = () => {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
-              Functions / <span style={{ fontWeight: 800, color: '#1e293b' }}>{functionName}</span>
+            <div style={{ fontSize: '0.85rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              Functions / 
+              <input 
+                value={functionName} 
+                onChange={(e) => setFunctionName(e.target.value)}
+                placeholder="Function Name"
+                style={{ fontWeight: 800, color: '#1e293b', border: 'none', background: 'transparent', outline: 'none', width: 'auto', minWidth: '150px' }}
+              />
             </div>
             <input 
               value={description} 
@@ -636,6 +718,16 @@ const FunctionsEditor = () => {
             <PlayCircle size={16} /> Test
           </button>
           <button 
+            onClick={() => setIsManagerOpen(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px',
+              backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '6px',
+              fontSize: '0.8rem', fontWeight: 600, color: '#64748b', cursor: 'pointer'
+            }}
+          >
+            <FolderOpen size={16} /> Open
+          </button>
+          <button 
             onClick={handleSave}
             style={{
               padding: '8px 24px', backgroundColor: '#3b82f6', color: 'white',
@@ -644,6 +736,90 @@ const FunctionsEditor = () => {
           >Save</button>
         </div>
       </header>
+
+      {/* Function Manager Modal */}
+      {isManagerOpen && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <div style={{
+            width: '600px', maxHeight: '80vh', backgroundColor: 'white',
+            borderRadius: '16px', display: 'flex', flexDirection: 'column',
+            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)'
+          }}>
+            <div style={{ padding: '24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>Saved Functions</h2>
+                <div style={{ fontSize: '0.85rem', color: '#64748b' }}>Manage and load your reusable logic blocks</div>
+              </div>
+              <button onClick={() => setIsManagerOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={24} /></button>
+            </div>
+            
+            <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {savedFunctions.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '48px', color: '#94a3b8' }}>
+                  <Cpu size={48} style={{ marginBottom: '16px', opacity: 0.2 }} />
+                  <div>No saved functions yet</div>
+                </div>
+              ) : (
+                savedFunctions.map(fn => (
+                  <div key={fn.id} style={{ 
+                    padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = '#3b82f6'}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = '#e2e8f0'}
+                  >
+                    <div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1e293b' }}>{fn.name}</div>
+                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{fn.description || 'No description'}</div>
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                        <span style={{ fontSize: '0.65rem', padding: '2px 6px', backgroundColor: '#f1f5f9', borderRadius: '4px', color: '#64748b' }}>{fn.nodes?.length || 0} nodes</span>
+                        <span style={{ fontSize: '0.65rem', padding: '2px 6px', backgroundColor: '#f1f5f9', borderRadius: '4px', color: '#64748b' }}>{fn.inputs?.length || 0} inputs</span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button 
+                        onClick={() => deleteSavedFunction(fn.id)}
+                        style={{ p: '8px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}
+                      ><Trash2 size={18} /></button>
+                      <button 
+                        onClick={() => loadFunction(fn)}
+                        style={{
+                          padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white',
+                          border: 'none', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer'
+                        }}
+                      >Load</button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            
+            <div style={{ padding: '24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
+               <button 
+                onClick={() => {
+                  setFunctionName('New Function');
+                  setDescription('');
+                  setNodes(initialNodes);
+                  setEdges(initialEdges);
+                  setInputs([]);
+                  setOutputs([]);
+                  setVariables([]);
+                  setIsManagerOpen(false);
+                }}
+                style={{
+                  padding: '10px 20px', backgroundColor: 'white', border: '1px solid #e2e8f0',
+                  borderRadius: '8px', fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', cursor: 'pointer'
+                }}
+               >+ Create New Function</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -1089,6 +1265,33 @@ const FunctionsEditor = () => {
                   <div style={{ height: '1px', backgroundColor: '#f1f5f9', margin: '4px 0' }}></div>
 
                   <button 
+                    onClick={() => insertNodeOnEdge(activeEdgeForMenu, 'action', { type: 'OBD2_QUERY', label: 'OBD2: Read Engine Data' })}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '12px', padding: '12px',
+                      border: 'none', background: 'none', borderRadius: '10px', cursor: 'pointer',
+                      textAlign: 'left', transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#f8fafc';
+                      e.currentTarget.style.transform = 'translateX(4px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                      e.currentTarget.style.transform = 'translateX(0)';
+                    }}
+                  >
+                    <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Car size={20} color="#f97316" />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b' }}>OBD2: Read Engine Data</div>
+                      <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Query PID from vehicle ECU</div>
+                    </div>
+                  </button>
+
+                  <div style={{ height: '1px', backgroundColor: '#f1f5f9', margin: '4px 0' }}></div>
+
+                  <button 
                     onClick={() => insertNodeOnEdge(activeEdgeForMenu, 'connector')}
                     style={{
                       display: 'flex', alignItems: 'center', gap: '12px', padding: '12px',
@@ -1159,14 +1362,96 @@ const FunctionsEditor = () => {
             </div>
             
             {selectedNode && (
-              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '20px' }}>
-                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', marginBottom: '12px' }}>Selected Node: {selectedNode.data.label}</div>
-                {/* Node-specific configuration could go here */}
-                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
-                  Node ID: {selectedNode.id}<br/>
-                  Type: {selectedNode.type}
+                <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '20px' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', marginBottom: '16px' }}>Node Config: {selectedNode.data.label}</div>
+                  
+                  {selectedNode.type === 'action' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <div>
+                        <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Action Type</label>
+                        <select 
+                          value={selectedNode.data.type || 'UPDATE_RECORD'}
+                          onChange={(e) => updateNodeData(selectedNode.id, { type: e.target.value, label: e.target.options[e.target.selectedIndex].text })}
+                          style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', marginTop: '4px' }}
+                        >
+                          <option value="UPDATE_RECORD">Update Table Record</option>
+                          <option value="CREATE_RECORD">Create Table Record</option>
+                          <option value="LOG_MESSAGE">Log Message</option>
+                          <option value="SEND_NOTIFICATION">Send Notification</option>
+                          <option disabled>──────────</option>
+                          <option value="OBD2_CONNECT">OBD2: Connect Device</option>
+                          <option value="OBD2_QUERY">OBD2: Read Engine Data</option>
+                          <option value="OBD2_DTC">OBD2: Read Error Codes</option>
+                          <option value="OBD2_CLEAR_DTC">OBD2: Clear Error Codes</option>
+                        </select>
+                      </div>
+
+                      {(selectedNode.data.type === 'OBD2_QUERY' || selectedNode.data.type === 'OBD2_CONNECT') && (
+                        <div style={{ padding: '12px', backgroundColor: '#fff7ed', borderRadius: '8px', border: '1px solid #ffedd5', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#c2410c', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Car size={12} /> Vehicle Integration
+                          </div>
+                          
+                          {selectedNode.data.type === 'OBD2_QUERY' && (
+                            <div>
+                              <label style={{ fontSize: '0.6rem', color: '#9a3412' }}>PID (e.g. 010C)</label>
+                              <input 
+                                placeholder="010C"
+                                value={selectedNode.data.pid || ''}
+                                onChange={(e) => updateNodeData(selectedNode.id, { pid: e.target.value })}
+                                style={{ width: '100%', padding: '6px', fontSize: '0.75rem', border: '1px solid #fed7aa', borderRadius: '4px', marginTop: '4px', fontFamily: 'monospace' }}
+                              />
+                            </div>
+                          )}
+
+                          {selectedNode.data.type === 'OBD2_CONNECT' && (
+                            <div>
+                              <label style={{ fontSize: '0.6rem', color: '#9a3412' }}>Transport Type</label>
+                              <select 
+                                value={selectedNode.data.transport || 'BLUETOOTH'}
+                                onChange={(e) => updateNodeData(selectedNode.id, { transport: e.target.value })}
+                                style={{ width: '100%', padding: '6px', fontSize: '0.75rem', border: '1px solid #fed7aa', borderRadius: '4px', marginTop: '4px' }}
+                              >
+                                <option value="BLUETOOTH">Bluetooth (ELM327)</option>
+                                <option value="SERIAL">Serial / USB</option>
+                              </select>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Generic Action Fields (Table) */}
+                      {(selectedNode.data.type === 'UPDATE_RECORD' || selectedNode.data.type === 'CREATE_RECORD') && (
+                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <label style={{ fontSize: '0.6rem', color: '#64748b' }}>Target Table</label>
+                            <input 
+                              placeholder="Table Name"
+                              value={selectedNode.data.tableId || ''}
+                              onChange={(e) => updateNodeData(selectedNode.id, { tableId: e.target.value })}
+                              style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.75rem' }}
+                            />
+                         </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '20px', padding: '10px', backgroundColor: '#f8fafc', borderRadius: '6px' }}>
+                    Node ID: {selectedNode.id} | Type: {selectedNode.type}
+                  </div>
+
+                  <button 
+                    onClick={() => deleteNode(selectedNode.id)}
+                    style={{
+                      width: '100%', marginTop: '24px', padding: '10px',
+                      backgroundColor: '#fee2e2', color: '#dc2626', border: 'none',
+                      borderRadius: '8px', fontSize: '0.8rem', fontWeight: 700,
+                      cursor: 'pointer', display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', gap: '8px'
+                    }}
+                  >
+                    <Trash2 size={16} /> Delete Node
+                  </button>
                 </div>
-              </div>
             )}
           </div>
         </div>
