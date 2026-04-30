@@ -17489,8 +17489,79 @@ const AppBuilder = () => {
                                                         </div>
                                                     </div>
                                                 )}
+                                                {selectedComp.type.startsWith('OBD2_') && (
+                                                    <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                                            <Car size={16} color="#0ea5e9" />
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase' }}>
+                                                                OBD2 Engine Property
+                                                            </label>
+                                                        </div>
+                                                        
+                                                        {/* Common Label property */}
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Custom Label</label>
+                                                            <input 
+                                                                value={selectedComp.props.label || ''} 
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })} 
+                                                                placeholder={COMPONENT_TYPES[selectedComp.type]?.label}
+                                                                style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }} 
+                                                            />
+                                                        </div>
 
-                                                {selectedComp.type === 'COMPLETE_BUTTON' && (
+                                                        {/* Specific to Scanner */}
+                                                        {selectedComp.type === 'OBD2_SCANNER' && (
+                                                            <>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Transport Type</label>
+                                                                    <select 
+                                                                        value={selectedComp.props.transport || 'BLUETOOTH'} 
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { transport: e.target.value })}
+                                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                                                                    >
+                                                                        <option value="BLUETOOTH">Bluetooth (Web Bluetooth)</option>
+                                                                        <option value="SERIAL">USB / Serial (Web Serial)</option>
+                                                                    </select>
+                                                                </div>
+                                                                {selectedComp.props.transport === 'SERIAL' && (
+                                                                    <div className="prop-group">
+                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Baud Rate</label>
+                                                                        <input 
+                                                                            type="number" 
+                                                                            value={selectedComp.props.baudRate || 38400} 
+                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { baudRate: parseInt(e.target.value) })}
+                                                                            style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                                                                        />
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        )}
+
+                                                        {/* Specific to Data widgets (RPM, Speed, etc) */}
+                                                        {!['OBD2_SCANNER', 'OBD2_CLEAR_DTC'].includes(selectedComp.type) && (
+                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>OBD2 PID</label>
+                                                                    <input 
+                                                                        value={selectedComp.props.pid || ''} 
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { pid: e.target.value })}
+                                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', fontFamily: 'monospace' }}
+                                                                    />
+                                                                </div>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Unit</label>
+                                                                    <input 
+                                                                        value={selectedComp.props.unit || ''} 
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { unit: e.target.value })}
+                                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                
                                                     <div className="prop-group">
                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BUTTON LABEL</label>
                                                         <input value={selectedComp.props.label} onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
