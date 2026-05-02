@@ -222,7 +222,9 @@ import {
     deleteIntegrationConnector,
     testIntegrationConnector,
     executeIntegrationAction,
-    getIntegrationLogs
+    getIntegrationLogs,
+    createTable as createLocalTable,
+    getTables as getLocalTables
 } from '../utils/database';
 import AppDiagram from './AppDiagram';
 import BlocklyEditor from './BlocklyEditor';
@@ -232,6 +234,7 @@ import { logEvent, AUDIT_EVENTS } from '../utils/auditLog';
 import ColorPicker from './ColorPicker';
 import ShapePicker from './ShapePicker';
 import { createShopfloorTemplate } from '../utils/shopfloorTemplate';
+import { createQCTemplate } from '../utils/qcTemplate';
 import automationEngine from '../utils/automationEngine';
 import hardwareService from '../utils/hardwareService';
 import obd2Service from '../utils/obd2Service';
@@ -5050,7 +5053,7 @@ const AppBuilder = () => {
                         const pid = comp.props.pid || '010C';
                         if (!obd2Service.connected) {
                             // In Builder/Preview mode without real connection → simulate
-                            const base  = pid === '010D' ? 65 : pid === '0105' ? 85 : 1500;
+                            const base = pid === '010D' ? 65 : pid === '0105' ? 85 : 1500;
                             const value = +(base + Math.random() * base * 0.15).toFixed(1);
                             setPreviewFormValues(prev => ({ ...prev, [compId]: value }));
                             updateComponentProps(compId, { lastValue: value });
@@ -5064,7 +5067,7 @@ const AppBuilder = () => {
                             setPreviewFormValues(prev => ({ ...prev, [compId]: result.value }));
                             updateComponentProps(compId, { lastValue: result.value });
                             onWidgetInteraction(comp, 'DataReceived', { value: result.value, unit: result.unit, pid });
-                            onWidgetInteraction(comp, 'ON_CHANGE',    { value: result.value, unit: result.unit, pid });
+                            onWidgetInteraction(comp, 'ON_CHANGE', { value: result.value, unit: result.unit, pid });
                             automationEngine.trigger('OBD2_TRIGGER', { pid, value: result.value, unit: result.unit });
                         }).catch(err => console.warn('[OBD2] ReadPID error:', err));
                         return;
@@ -5072,7 +5075,7 @@ const AppBuilder = () => {
 
                     // ── Start live stream ─────────────────────────────────────
                     if (methodId === 'StartLiveStream') {
-                        const pid        = comp.props.pid || '010C';
+                        const pid = comp.props.pid || '010C';
                         const intervalMs = Number(args?.[0]) || 1000;
 
                         if (!obd2Service.connected) {
@@ -5081,12 +5084,12 @@ const AppBuilder = () => {
                             const maxTicks = 30;
                             const timer = setInterval(() => {
                                 ticks++;
-                                const base  = pid === '010D' ? 65 : pid === '0105' ? 85 : 1700;
+                                const base = pid === '010D' ? 65 : pid === '0105' ? 85 : 1700;
                                 const value = +(base + Math.random() * base * 0.15).toFixed(1);
                                 setPreviewFormValues(prev => ({ ...prev, [compId]: value }));
                                 updateComponentProps(compId, { lastValue: value });
                                 onWidgetInteraction(comp, 'DataReceived', { value, pid });
-                                onWidgetInteraction(comp, 'ON_CHANGE',    { value, pid });
+                                onWidgetInteraction(comp, 'ON_CHANGE', { value, pid });
                                 automationEngine.trigger('OBD2_TRIGGER', { pid, value, unit: pid === '010C' ? 'rpm' : pid === '010D' ? 'km/h' : '' });
                                 if (ticks >= maxTicks) clearInterval(timer);
                             }, Math.max(250, intervalMs));
@@ -5098,7 +5101,7 @@ const AppBuilder = () => {
                             setPreviewFormValues(prev => ({ ...prev, [compId]: result.value }));
                             updateComponentProps(compId, { lastValue: result.value });
                             onWidgetInteraction(comp, 'DataReceived', { value: result.value, unit: result.unit, pid });
-                            onWidgetInteraction(comp, 'ON_CHANGE',    { value: result.value, unit: result.unit, pid });
+                            onWidgetInteraction(comp, 'ON_CHANGE', { value: result.value, unit: result.unit, pid });
                             automationEngine.trigger('OBD2_TRIGGER', { pid, value: result.value, unit: result.unit });
                         });
                         return;
@@ -6347,15 +6350,31 @@ const AppBuilder = () => {
 
     const updateComponentProps = (id, newProps) => {
         saveHistory();
+
+        const mergePropsWithRenameSync = (existingProps = {}, incomingProps = {}) => {
+            const merged = { ...existingProps, ...incomingProps };
+
+            // Keep label/text in sync so renaming works consistently across widgets
+            // (some render paths use text first, others use label first).
+            if (Object.prototype.hasOwnProperty.call(incomingProps, 'label') && !Object.prototype.hasOwnProperty.call(incomingProps, 'text') && Object.prototype.hasOwnProperty.call(existingProps, 'text')) {
+                merged.text = incomingProps.label;
+            }
+            if (Object.prototype.hasOwnProperty.call(incomingProps, 'text') && !Object.prototype.hasOwnProperty.call(incomingProps, 'label') && Object.prototype.hasOwnProperty.call(existingProps, 'label')) {
+                merged.label = incomingProps.text;
+            }
+
+            return merged;
+        };
+
         if (currentStepId === 'BASE') {
             setBaseComponents(baseComponents.map(c =>
-                c.id === id ? { ...c, props: { ...c.props, ...newProps } } : c
+                c.id === id ? { ...c, props: mergePropsWithRenameSync(c.props, newProps) } : c
             ));
         } else {
             setSteps(steps.map(s => ({
                 ...s,
                 components: (s.components || []).map(c =>
-                    c.id === id ? { ...c, props: { ...c.props, ...newProps } } : c
+                    c.id === id ? { ...c, props: mergePropsWithRenameSync(c.props, newProps) } : c
                 )
             })));
         }
@@ -6610,12 +6629,12 @@ const AppBuilder = () => {
     const handleDeleteApp = async (id, e) => {
         e.stopPropagation();
         e.preventDefault();
-        
+
         if (!id) {
             alert('Project ID tidak valid');
             return;
         }
-        
+
         if (confirm('Are you sure you want to delete this app? This action cannot be undone.')) {
             try {
                 await deleteFrontlineApp(id);
@@ -6706,6 +6725,43 @@ const AppBuilder = () => {
                     setIsSaving(false);
                 }
             }
+        });
+    };
+
+    const handleLoadQCTemplate = async () => {
+        if (!window.confirm('This will replace your current workspace with the QC Inspection template. Continue?')) return;
+        const qcData = createQCTemplate();
+
+        // Ensure table exists in local database
+        try {
+            const tables = await getLocalTables();
+            if (!tables.find(t => t.id === 'qvc')) {
+                await createLocalTable({
+                    id: 'qvc',
+                    name: 'QVC Inspection',
+                    fields: [
+                        { name: 'part_id', type: 'text' },
+                        { name: 'operator', type: 'text' },
+                        { name: 'status', type: 'text' },
+                        { name: 'measurement', type: 'number' },
+                        { name: 'timestamp', type: 'datetime' }
+                    ]
+                });
+            }
+            const updatedTables = await getLocalTables();
+            setTables(updatedTables);
+        } catch (err) {
+            console.error('Error initializing QC table:', err);
+        }
+
+        handleImportProject(qcData);
+        setStepPanelTab('RECORDS');
+        setActiveTab('APP');
+
+        // Show success dialog
+        setProUiDialog({
+            type: 'success',
+            message: 'QC Inspection Template Loaded!\n\n- Table "qvc" initialized.\n- Data triggers for "Submit Inspection" configured.\n- UI steps for Scan and Inspection generated.'
         });
     };
 
@@ -9217,7 +9273,7 @@ const AppBuilder = () => {
                             <span style={{ fontSize: '0.68rem', fontWeight: 700, color: connected ? '#16a34a' : '#dc2626' }}>{connected ? 'CONNECTED' : 'OFFLINE'}</span>
                         </div>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-quaternary)' }}>
-                            PID: {comp.props.pid || 'Unknown'} 
+                            PID: {comp.props.pid || 'Unknown'}
                         </div>
                         <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                             {String(val)} <span style={{ fontSize: '0.8rem', color: 'var(--text-quaternary)' }}>{comp.props.unit || ''}</span>
@@ -10382,7 +10438,7 @@ const AppBuilder = () => {
                     >Publish</button>
 
                     <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
-                    
+
                 </div>
             </div>
 
@@ -11575,8 +11631,25 @@ const AppBuilder = () => {
                                 </div>
 
                                 <div style={{ padding: '20px', borderTop: '1px solid var(--border-secondary)', flex: 1, overflowY: 'auto' }}>
-                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', marginBottom: '15px', textTransform: 'uppercase', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <FolderOpen size={12} /> MY FRONT-LINE APPS
+                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', marginBottom: '15px', textTransform: 'uppercase', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <FolderOpen size={12} /> MY FRONT-LINE APPS
+                                        </div>
+                                        <button
+                                            onClick={handleLoadQCTemplate}
+                                            style={{
+                                                fontSize: '0.6rem',
+                                                backgroundColor: 'var(--odoo-teal)',
+                                                color: 'white',
+                                                border: 'none',
+                                                padding: '2px 6px',
+                                                borderRadius: '4px',
+                                                cursor: 'pointer',
+                                                fontWeight: 800
+                                            }}
+                                        >
+                                            + QC TEMPLATE
+                                        </button>
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                         {appsList.length === 0 ? (
@@ -11599,12 +11672,12 @@ const AppBuilder = () => {
                                                         position: 'relative',
                                                         group: true
                                                     }}
-                                                    onMouseEnter={(e) => { 
+                                                    onMouseEnter={(e) => {
                                                         e.currentTarget.style.backgroundColor = 'var(--odoo-accent)';
                                                         const btn = e.currentTarget.querySelector('[data-delete-btn]');
                                                         if (btn) btn.style.opacity = '1';
                                                     }}
-                                                    onMouseLeave={(e) => { 
+                                                    onMouseLeave={(e) => {
                                                         if (currentAppId !== app.id) {
                                                             e.currentTarget.style.backgroundColor = 'transparent';
                                                         }
@@ -11620,12 +11693,12 @@ const AppBuilder = () => {
                                                         <button
                                                             onClick={(e) => handleDeleteApp(app.id, e)}
                                                             title="Delete App"
-                                                            style={{ 
-                                                                border: 'none', 
-                                                                backgroundColor: 'transparent', 
-                                                                color: '#ef4444', 
-                                                                padding: '6px 8px', 
-                                                                cursor: 'pointer', 
+                                                            style={{
+                                                                border: 'none',
+                                                                backgroundColor: 'transparent',
+                                                                color: '#ef4444',
+                                                                padding: '6px 8px',
+                                                                cursor: 'pointer',
                                                                 borderRadius: '4px',
                                                                 display: 'flex',
                                                                 alignItems: 'center',
@@ -11955,146 +12028,8 @@ const AppBuilder = () => {
                                         </>
                                     )}
 
-                                    {/* Base Components Layer */}
-                                    {baseComponents.filter(comp => !CHROMELESS_COMPONENT_TYPES.includes(comp.type) && !comp.parentId).map((comp, idx) => {
-                                        const isSelected = selectedCompIds.includes(comp.id) && currentStepId === 'BASE';
-                                        const isLocked = currentStepId !== 'BASE';
-                                        const isChromeless = CHROMELESS_COMPONENT_TYPES.includes(comp.type);
-                                        const baseZIndex = idx + 1;
-                                        return (
-                                            <div
-                                                key={comp.id}
-                                                className={comp.props.isBlinking ? 'animate-blink' : ''}
-                                                onContextMenu={(e) => {
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    if (isLocked || viewMode === 'PREVIEW') return;
-                                                    if (!selectedCompIds.includes(comp.id)) {
-                                                        setSelectedCompIds([comp.id]);
-                                                    }
-                                                    setContextMenu({ isOpen: true, x: e.clientX, y: e.clientY, compId: comp.id });
-                                                }}
-                                                onMouseDown={(e) => {
-                                                    if (isLocked || viewMode === 'PREVIEW') return;
-                                                    const handle = e.target.closest('.resize-handle');
-                                                    if (handle) return;
+                                    {/* Removed Base Layout Layer */}
 
-                                                    e.stopPropagation();
-                                                    if (e.shiftKey) {
-                                                        toggleSelection(comp.id, true);
-                                                    } else {
-                                                        if (!selectedCompIds.includes(comp.id)) {
-                                                            setSelectedCompIds([comp.id]);
-                                                        }
-                                                    }
-
-                                                    // Initiate drag for all selected matching the context (Base vs Step)
-                                                    if (!isCanvasLocked) {
-                                                        setTimeout(() => {
-                                                            // Use the latest selection for dragging
-                                                            const currentSelection = e.shiftKey ? (selectedCompIds.includes(comp.id) ? selectedCompIds.filter(i => i !== comp.id) : [...selectedCompIds, comp.id]) : (selectedCompIds.includes(comp.id) ? selectedCompIds : [comp.id]);
-
-                                                            const dragIds = currentSelection.filter(id => baseComponents.some(bc => bc.id === id));
-                                                            if (dragIds.length > 0) {
-                                                                setDragState({
-                                                                    ids: dragIds,
-                                                                    startX: e.clientX,
-                                                                    startY: e.clientY,
-                                                                    initialPositions: dragIds.reduce((acc, id) => {
-                                                                        const c = baseComponents.find(item => item.id === id);
-                                                                        if (c) acc[id] = { x: c.x, y: c.y };
-                                                                        return acc;
-                                                                    }, {})
-                                                                });
-                                                            }
-                                                        }, 0);
-                                                    }
-                                                }}
-                                                style={{
-                                                    position: 'absolute',
-                                                    left: comp.x + 'px',
-                                                    top: comp.y + 'px',
-                                                    width: comp.w + 'px',
-                                                    height: comp.h + 'px',
-                                                    padding: viewMode === 'PREVIEW' ? '0' : '0',
-                                                    backgroundColor: viewMode === 'PREVIEW' ? 'transparent' : (isChromeless ? 'transparent' : (isSelected ? 'rgba(59, 130, 246, 0.05)' : 'white')),
-                                                    borderRadius: isChromeless || viewMode === 'PREVIEW' ? '0' : '8px',
-                                                    border: viewMode === 'PREVIEW' ? 'none' : (isSelected ? '2px solid #3b82f6' : (isChromeless ? 'none' : '1px solid #e2e8f0')),
-                                                    boxSizing: 'border-box',
-                                                    cursor: isLocked ? 'default' : (isCanvasLocked ? 'default' : (dragState?.ids?.includes(comp.id) ? 'grabbing' : 'grab')),
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    justifyContent: 'center',
-                                                    boxShadow: isSelected && viewMode === 'DESIGN' ? '0 4px 12px rgba(0,0,0,0.1)' : 'none',
-                                                    // Keep z-order consistent with array order so Arrange controls are visible immediately.
-                                                    zIndex: baseZIndex,
-                                                    userSelect: 'none',
-                                                    transition: dragState ? 'none' : 'all 0.1s',
-                                                    opacity: isLocked && viewMode === 'DESIGN' ? 0.6 : 1,
-                                                    transform: `rotate(${comp.props.rotation || 0}deg)`,
-                                                    pointerEvents: viewMode === 'PREVIEW' ? 'auto' : (isLocked ? 'none' : 'auto')
-                                                }}
-                                            >
-                                                {shouldShowDatasourceWarning(comp) && viewMode === 'DESIGN' && (
-                                                    <div
-                                                        title="Datasource belum dipilih"
-                                                        style={{
-                                                            position: 'absolute',
-                                                            top: '4px',
-                                                            right: '4px',
-                                                            width: '18px',
-                                                            height: '18px',
-                                                            borderRadius: '50%',
-                                                            backgroundColor: '#fffbeb',
-                                                            border: '1px solid #fcd34d',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'center',
-                                                            zIndex: 12,
-                                                            pointerEvents: 'none'
-                                                        }}
-                                                    >
-                                                        <AlertTriangle size={11} color="#d97706" />
-                                                    </div>
-                                                )}
-                                                {isSelected && viewMode === 'DESIGN' && (
-                                                    <>
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); deleteComponent(comp.id); }}
-                                                            style={{ position: 'absolute', top: '-10px', right: '-10px', backgroundColor: '#ef4444', border: 'none', color: '#fff', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 11, cursor: 'pointer' }}
-                                                        >
-                                                            <Trash2 size={12} />
-                                                        </button>
-                                                        {!isCanvasLocked && (
-                                                            <div
-                                                                className="resize-handle"
-                                                                onMouseDown={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setResizeState({ id: comp.id, startX: e.clientX, startY: e.clientY, initialW: comp.w, initialH: comp.h });
-                                                                }}
-                                                                style={{
-                                                                    position: 'absolute',
-                                                                    bottom: '0',
-                                                                    right: '0',
-                                                                    width: '15px',
-                                                                    height: '15px',
-                                                                    cursor: 'nwse-resize',
-                                                                    backgroundColor: '#3b82f6',
-                                                                    borderRadius: '4px 0 6px 0',
-                                                                    zIndex: 11
-                                                                }}
-                                                            />
-                                                        )}
-                                                    </>
-                                                )}
-
-                                                {/* Component Rendering Logic */}
-                                                <div style={{ pointerEvents: viewMode === 'PREVIEW' ? 'auto' : 'none', height: '100%' }}>
-                                                    {renderComponent(comp)}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
 
                                     {/* Active Step Components Layer */}
                                     {currentStepId !== 'BASE' && currentStep?.components.filter(comp => !CHROMELESS_COMPONENT_TYPES.includes(comp.type) && !comp.parentId).map((comp, idx) => {
@@ -17572,15 +17507,15 @@ const AppBuilder = () => {
                                                                 OBD2 Engine Property
                                                             </label>
                                                         </div>
-                                                        
+
                                                         {/* Common Label property */}
                                                         <div className="prop-group">
                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Custom Label</label>
-                                                            <input 
-                                                                value={selectedComp.props.label || ''} 
-                                                                onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })} 
+                                                            <input
+                                                                value={selectedComp.props.label || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })}
                                                                 placeholder={COMPONENT_TYPES[selectedComp.type]?.label}
-                                                                style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }} 
+                                                                style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
                                                             />
                                                         </div>
 
@@ -17589,8 +17524,8 @@ const AppBuilder = () => {
                                                             <>
                                                                 <div className="prop-group">
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Transport Type</label>
-                                                                    <select 
-                                                                        value={selectedComp.props.transport || 'BLUETOOTH'} 
+                                                                    <select
+                                                                        value={selectedComp.props.transport || 'BLUETOOTH'}
                                                                         onChange={(e) => updateComponentProps(selectedComp.id, { transport: e.target.value })}
                                                                         style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
                                                                     >
@@ -17601,9 +17536,9 @@ const AppBuilder = () => {
                                                                 {selectedComp.props.transport === 'SERIAL' && (
                                                                     <div className="prop-group">
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Baud Rate</label>
-                                                                        <input 
-                                                                            type="number" 
-                                                                            value={selectedComp.props.baudRate || 38400} 
+                                                                        <input
+                                                                            type="number"
+                                                                            value={selectedComp.props.baudRate || 38400}
                                                                             onChange={(e) => updateComponentProps(selectedComp.id, { baudRate: parseInt(e.target.value) })}
                                                                             style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
                                                                         />
@@ -17617,16 +17552,16 @@ const AppBuilder = () => {
                                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                                                                 <div className="prop-group">
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>OBD2 PID</label>
-                                                                    <input 
-                                                                        value={selectedComp.props.pid || ''} 
+                                                                    <input
+                                                                        value={selectedComp.props.pid || ''}
                                                                         onChange={(e) => updateComponentProps(selectedComp.id, { pid: e.target.value })}
                                                                         style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', fontFamily: 'monospace' }}
                                                                     />
                                                                 </div>
                                                                 <div className="prop-group">
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Unit</label>
-                                                                    <input 
-                                                                        value={selectedComp.props.unit || ''} 
+                                                                    <input
+                                                                        value={selectedComp.props.unit || ''}
                                                                         onChange={(e) => updateComponentProps(selectedComp.id, { unit: e.target.value })}
                                                                         style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
                                                                     />
@@ -17636,42 +17571,46 @@ const AppBuilder = () => {
                                                     </div>
                                                 )}
 
-                                                
-                                                    <div className="prop-group">
-                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BUTTON LABEL</label>
-                                                        <input value={selectedComp.props.label} onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
-                                                        <button
-                                                            onClick={() => setViewMode('DIAGRAM')}
-                                                            style={{
-                                                                marginTop: '20px',
-                                                                width: '100%',
-                                                                padding: '12px',
-                                                                backgroundColor: '#3b82f6',
-                                                                color: 'white',
-                                                                border: 'none',
-                                                                borderRadius: '8px',
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                justifyContent: 'center',
-                                                                gap: '8px',
-                                                                fontSize: '0.85rem',
-                                                                fontWeight: 700,
-                                                                cursor: 'pointer',
-                                                                boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.2)',
-                                                                transition: 'all 0.2s'
-                                                            }}
-                                                            onMouseEnter={e => {
-                                                                e.currentTarget.style.backgroundColor = '#2563eb';
-                                                                e.currentTarget.style.transform = 'translateY(-1px)';
-                                                            }}
-                                                            onMouseLeave={e => {
-                                                                e.currentTarget.style.backgroundColor = '#3b82f6';
-                                                                e.currentTarget.style.transform = 'translateY(0)';
-                                                            }}
-                                                        >
-                                                            <Blocks size={16} /> Open Logic Editor
-                                                        </button>
-                                                    </div>
+
+                                                <div className="prop-group">
+                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BUTTON LABEL</label>
+                                                    <input
+                                                        value={selectedComp.props.text ?? selectedComp.props.label ?? ''}
+                                                        onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value, text: e.target.value })}
+                                                        style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                    />
+                                                    <button
+                                                        onClick={() => setViewMode('DIAGRAM')}
+                                                        style={{
+                                                            marginTop: '20px',
+                                                            width: '100%',
+                                                            padding: '12px',
+                                                            backgroundColor: '#3b82f6',
+                                                            color: 'white',
+                                                            border: 'none',
+                                                            borderRadius: '8px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            gap: '8px',
+                                                            fontSize: '0.85rem',
+                                                            fontWeight: 700,
+                                                            cursor: 'pointer',
+                                                            boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.2)',
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                        onMouseEnter={e => {
+                                                            e.currentTarget.style.backgroundColor = '#2563eb';
+                                                            e.currentTarget.style.transform = 'translateY(-1px)';
+                                                        }}
+                                                        onMouseLeave={e => {
+                                                            e.currentTarget.style.backgroundColor = '#3b82f6';
+                                                            e.currentTarget.style.transform = 'translateY(0)';
+                                                        }}
+                                                    >
+                                                        <Blocks size={16} /> Open Logic Editor
+                                                    </button>
+                                                </div>
                                                 )}
 
                                                 <div style={{ marginTop: '20px', borderTop: '1px solid var(--border-primary)', paddingTop: '20px' }}>
@@ -19862,12 +19801,12 @@ const AppBuilder = () => {
                                                                                         <option value="CALCULATE_FORMULA">Advanced: Calculate Formula</option>
                                                                                     </optgroup>
                                                                                     <optgroup label="OBD2 & Engine Logic">
-                                                                                      <option value="RUN_FUNCTION">Logic: Execute Function</option>
-                                                                                      <option value="OBD2_CONNECT">OBD2: Connect Vehicle</option>
-                                                                                      <option value="OBD2_QUERY">OBD2: Read Engine PID</option>
-                                                                                      <option value="OBD2_CLEAR_DTC">OBD2: Clear Error Codes</option>
-                                                                                  </optgroup>
-                                                                                  <optgroup label="App & Navigation">
+                                                                                        <option value="RUN_FUNCTION">Logic: Execute Function</option>
+                                                                                        <option value="OBD2_CONNECT">OBD2: Connect Vehicle</option>
+                                                                                        <option value="OBD2_QUERY">OBD2: Read Engine PID</option>
+                                                                                        <option value="OBD2_CLEAR_DTC">OBD2: Clear Error Codes</option>
+                                                                                    </optgroup>
+                                                                                    <optgroup label="App & Navigation">
                                                                                         {(() => {
                                                                                             const isTransitionActionType = (t) => ['GO_TO_STEP', 'NEXT_STEP', 'PREV_STEP', 'COMPLETE_APP', 'CANCEL_APP'].includes(String(t || ''));
                                                                                             const actionsList = triggerEditor.trigger?.clauses?.[cIdx]?.actions || [];
@@ -21667,6 +21606,8 @@ const AppBuilder = () => {
 };
 
 export default AppBuilder;
+
+
 
 
 

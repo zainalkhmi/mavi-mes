@@ -66,8 +66,19 @@ import {
   TrendingUp,
   LayoutDashboard,
   PieChart,
-  Sparkles
+  Sparkles,
+  Car,
+  Gauge,
+  Thermometer,
+  Wind,
+  ThermometerSun,
+  Fuel,
+  Sigma,
+  Bug,
+  AlertTriangle,
+  PlayCircle
 } from 'lucide-react';
+import obd2Service from '../utils/obd2Service';
 import WebcamComp from 'react-webcam';
 import Tesseract from 'tesseract.js';
 import { listManualSummaries, getManualById, uploadManualImage } from '../utils/supabaseManualDB';
@@ -92,6 +103,22 @@ const STATUS_CONFIG = {
   DOWN: { label: 'Workstation Down', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', border: 'rgba(239, 68, 68, 0.2)' },
   SETUP: { label: 'Changeover / Setup', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)', border: 'rgba(245, 158, 11, 0.2)' }
 };
+
+const OBD2_DEFAULT_PIDS = {
+  'OBD2_RPM': '010C',
+  'OBD2_SPEED': '010D',
+  'OBD2_COOLANT_TEMP': '0105',
+  'OBD2_ENGINE_LOAD': '0104',
+  'OBD2_THROTTLE': '0111',
+  'OBD2_FUEL_LEVEL': '012F',
+  'OBD2_BATTERY_VOLTAGE': '0142',
+  'OBD2_OIL_TEMP': '015C',
+  'OBD2_IAT': '010F',
+  'OBD2_MAF': '0110',
+  'OBD2_MAP': '010B',
+  'OBD2_BARO': '0133'
+};
+
 
 const WorkSequenceStrip = React.memo(function WorkSequenceStrip({ steps, currentStepIndex, onSelectStep, selectedApp, stepValidationSummaries }) {
   return (
@@ -227,6 +254,7 @@ const LiveTerminal = () => {
   }, []);
   const [signatureImage, setSignatureImage] = useState('');
   const [showSignaturePad, setShowSignaturePad] = useState(false);
+  const [signature, setSignature] = useState('');
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [status, setStatus] = useState('READY');
   const [timer, setTimer] = useState(0);
@@ -266,6 +294,8 @@ const LiveTerminal = () => {
   const [stepTimers, setStepTimers] = useState({}); // { [stepId]: seconds }
   const [recordingState, setRecordingState] = useState({}); // { [compId]: boolean }
   const [mediaRecorderValues, setMediaRecorderValues] = useState({}); // { [compId]: dataUrl }
+  const [obd2Values, setObd2Values] = useState({}); // { [pid]: { value, unit } }
+  const [obd2Status, setObd2Status] = useState('disconnected');
   const [visionValues, setVisionValues] = useState({}); // { [compId]: string }
   const [ocrProcessing, setOcrProcessing] = useState({}); // { [compId]: boolean }
   const stepTimerRef = useRef(null);
@@ -284,7 +314,65 @@ const LiveTerminal = () => {
   const [andonDetail, setAndonDetail] = useState('');
 
   const [appVariables, setAppVariables] = useState([]);
-  
+
+  // --- DERIVED STATE ---
+  const steps = selectedApp ? (selectedApp.config?.steps || []) : (selectedManual?.content?.steps || []);
+  const activeStep = steps[currentStepIndex];
+  const appComponents = activeStep?.components || [];
+
+  // --- OBD2 INTEGRATION ---
+  useEffect(() => {
+    const unsubStatus = obd2Service.subscribeStatus(s => setObd2Status(s));
+    const unsubData = obd2Service.onPIDData('*', (data) => {
+      if (data && data.pid) {
+        setObd2Values(prev => ({
+          ...prev,
+          [data.pid.toUpperCase()]: data
+        }));
+      }
+    });
+    return () => {
+      unsubStatus();
+      unsubData();
+      obd2Service.stopAllStreams();
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const poll = async () => {
+      if (!active || !selectedApp || obd2Status !== 'connected') {
+        if (active) setTimeout(poll, 1000);
+        return;
+      }
+
+      const obd2Comps = appComponents.filter(c => c.type.startsWith('OBD2_'));
+      if (obd2Comps.length > 0) {
+        // Poll sequentially to prevent hardware collisions
+        for (const comp of obd2Comps) {
+          if (!active) break;
+          const pid = comp.props.pid || OBD2_DEFAULT_PIDS[comp.type];
+          if (pid) {
+            try {
+              await obd2Service.queryPID(pid);
+              // Tiny delay between sensors for stability
+              await new Promise(r => setTimeout(r, 150));
+            } catch (err) {
+              console.warn('OBD2 Poll Error:', err);
+            }
+          }
+        }
+      }
+      if (active) setTimeout(poll, 1000);
+    };
+
+    poll();
+    return () => {
+      active = false;
+    };
+  }, [selectedApp, currentStepIndex, obd2Status, appComponents]);
+
+
   const syncVariableForComp = (comp, value) => {
     if (!comp) return;
     const varName = comp.props?.targetVariable || (comp.props?.dataSourceType === 'VARIABLE' ? comp.props?.varSource : null);
@@ -310,7 +398,7 @@ const LiveTerminal = () => {
 
   const [currentTime, setCurrentTime] = useState(new Date());
   const [stations, setStations] = useState([]);
-  
+
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -614,22 +702,22 @@ const LiveTerminal = () => {
 
   const handleVisionOcr = async (comp, webcamRef) => {
     if (!webcamRef.current) return;
-    
+
     setOcrProcessing(prev => ({ ...prev, [comp.id]: true }));
     const imageSrc = webcamRef.current.getScreenshot();
-    
+
     try {
       const { data: { text } } = await Tesseract.recognize(imageSrc, 'eng', {
         // logger: m => console.log(m)
       });
-      
+
       // Extract numbers (including decimals) from the text
       const matches = text.match(/[-+]?[0-9]*\.?[0-9]+/g);
       if (matches && matches.length > 0) {
         // Take the longest match or the first one that looks like a measurement
         const value = matches[0];
         setVisionValues(prev => ({ ...prev, [comp.id]: value }));
-        
+
         // If targetVariable is set, update it
         if (comp.props.targetVariable) {
           const vDef = appVariables.find(v => v.name === comp.props.targetVariable);
@@ -639,7 +727,7 @@ const LiveTerminal = () => {
             await upsertGlobalVariable(comp.props.targetVariable, vDef.type || 'TEXT', value);
           }
         }
-        
+
         fireWidgetTriggers(comp, 'ON_CHANGE');
       } else {
         alert("Could not detect any numbers. Please try again with better alignment.");
@@ -784,7 +872,9 @@ const LiveTerminal = () => {
     const evalVisibility = async () => {
       const activeSteps = selectedApp ? (selectedApp.config?.steps || []) : [];
       const currentStep = activeSteps[currentStepIndex];
-      const comps = currentStep?.components || [];
+      const baseComps = selectedApp?.config?.baseComponents || [];
+      const stepComps = currentStep?.components || [];
+      const comps = [...baseComps, ...stepComps];
       const newMap = {};
 
       for (const comp of comps) {
@@ -845,9 +935,9 @@ const LiveTerminal = () => {
           getAllFrontlineApps(),
           getProductionQueue()
         ]);
-        
+
         setManuals(manualData || []);
-        
+
         // --- UNIVERSAL DEEP SEARCH LOGIC ---
         let combinedApps = appData || [];
         try {
@@ -897,6 +987,10 @@ const LiveTerminal = () => {
     };
     loadData();
   }, [appId]);
+
+
+
+
 
   const handleStartCycle = async (manualId) => {
     setLoading(true);
@@ -1046,74 +1140,74 @@ const LiveTerminal = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-   const resolveSourceValue = async (source, value, defaultVal = '') => {
+  const resolveSourceValue = async (source, value, defaultVal = '') => {
     if (!source || source === 'STATIC') return value;
     if (source === 'VARIABLE') {
-        if (!value) return defaultVal;
-        if (value.startsWith('APP_INFO.')) {
-            if (value === 'APP_INFO.USER') return appContext.user;
-            if (value === 'APP_INFO.STATION') return appContext.station;
-            if (value === 'APP_INFO.STEP_NAME') return (selectedApp?.config?.steps || [])[currentStepIndex]?.title || '';
-            if (value === 'APP_INFO.APP_NAME') return selectedApp?.name || '';
-        }
-        const v = appVariables.find(av => av.name === value);
-        return v ? v.value : defaultVal;
-    }
-    if (source === 'APP_INFO') {
+      if (!value) return defaultVal;
+      if (value.startsWith('APP_INFO.')) {
         if (value === 'APP_INFO.USER') return appContext.user;
         if (value === 'APP_INFO.STATION') return appContext.station;
         if (value === 'APP_INFO.STEP_NAME') return (selectedApp?.config?.steps || [])[currentStepIndex]?.title || '';
         if (value === 'APP_INFO.APP_NAME') return selectedApp?.name || '';
-        return defaultVal;
+      }
+      const v = appVariables.find(av => av.name === value);
+      return v ? v.value : defaultVal;
+    }
+    if (source === 'APP_INFO') {
+      if (value === 'APP_INFO.USER') return appContext.user;
+      if (value === 'APP_INFO.STATION') return appContext.station;
+      if (value === 'APP_INFO.STEP_NAME') return (selectedApp?.config?.steps || [])[currentStepIndex]?.title || '';
+      if (value === 'APP_INFO.APP_NAME') return selectedApp?.name || '';
+      return defaultVal;
     }
     if (source === 'RECORD_FIELD') {
-        const parts = value.split('.');
-        if (parts.length >= 2) {
-            const pName = parts[0];
-            const fieldPath = parts.slice(1);
-            const placeholder = recordPlaceholders.find(rp => rp.name === pName);
-            const data = placeholder ? recordPlaceholderData[placeholder.id] : null;
-            
-            if (!data) return defaultVal;
-            
-            // Deep traversal support
-            let current = data;
-            for (const part of fieldPath) {
-                if (current && typeof current === 'object') {
-                    current = current[part];
-                } else {
-                    return defaultVal;
-                }
-            }
-            return current ?? defaultVal;
+      const parts = value.split('.');
+      if (parts.length >= 2) {
+        const pName = parts[0];
+        const fieldPath = parts.slice(1);
+        const placeholder = recordPlaceholders.find(rp => rp.name === pName);
+        const data = placeholder ? recordPlaceholderData[placeholder.id] : null;
+
+        if (!data) return defaultVal;
+
+        // Deep traversal support
+        let current = data;
+        for (const part of fieldPath) {
+          if (current && typeof current === 'object') {
+            current = current[part];
+          } else {
+            return defaultVal;
+          }
         }
+        return current ?? defaultVal;
+      }
     }
     if (source === 'TABLE_AGGREGATION') {
-        const [tableId, aggId] = value.split(':');
-        if (!tableId || !aggId) return defaultVal;
-        try {
-            const { getTableById, getTableRecords } = await import('../utils/database');
-            const table = await getTableById(tableId);
-            const aggDef = table?.aggregations?.find(a => a.id === aggId);
-            if (!aggDef) return defaultVal;
+      const [tableId, aggId] = value.split(':');
+      if (!tableId || !aggId) return defaultVal;
+      try {
+        const { getTableById, getTableRecords } = await import('../utils/database');
+        const table = await getTableById(tableId);
+        const aggDef = table?.aggregations?.find(a => a.id === aggId);
+        if (!aggDef) return defaultVal;
 
-            const records = await getTableRecords(tableId);
-            const values = records.map(r => Number(r[aggDef.field])).filter(n => !isNaN(n));
-            
-            if (aggDef.calculation === 'count') return records.length;
-            if (values.length === 0) return 0;
+        const records = await getTableRecords(tableId);
+        const values = records.map(r => Number(r[aggDef.field])).filter(n => !isNaN(n));
 
-            switch (aggDef.calculation) {
-                case 'sum': return values.reduce((s, v) => s + v, 0);
-                case 'avg': return (values.reduce((s, v) => s + v, 0) / values.length).toFixed(2);
-                case 'min': return Math.min(...values);
-                case 'max': return Math.max(...values);
-                default: return 0;
-            }
-        } catch (err) {
-            console.error("Aggregation resolution failed:", err);
-            return defaultVal;
+        if (aggDef.calculation === 'count') return records.length;
+        if (values.length === 0) return 0;
+
+        switch (aggDef.calculation) {
+          case 'sum': return values.reduce((s, v) => s + v, 0);
+          case 'avg': return (values.reduce((s, v) => s + v, 0) / values.length).toFixed(2);
+          case 'min': return Math.min(...values);
+          case 'max': return Math.max(...values);
+          default: return 0;
         }
+      } catch (err) {
+        console.error("Aggregation resolution failed:", err);
+        return defaultVal;
+      }
     }
     if (source === 'EXPRESSION') return evaluateExpression(value);
     return value || defaultVal;
@@ -1121,7 +1215,7 @@ const LiveTerminal = () => {
 
   const evaluateCondition = async (cond) => {
     if (!cond) return true;
-    
+
     // Support new multi-source structure
     const leftSource = cond.leftSource || 'VARIABLE';
     const leftValue = cond.leftValue || cond.variable;
@@ -1304,7 +1398,7 @@ const LiveTerminal = () => {
             const records = await getTableRecords(tableId);
             const values = records.map(r => Number(r[aggDef.field])).filter(n => !isNaN(n));
             let result = 0;
-            
+
             if (aggDef.calculation === 'count') {
               result = records.length;
             } else if (values.length > 0) {
@@ -1382,7 +1476,7 @@ const LiveTerminal = () => {
           const { getTableById } = await import('../utils/supabaseTablesDB');
           const table = await getTableById(comp.props.tableId);
           const queryDef = table?.queries?.find(q => q.id === comp.props.queryId);
-          
+
           if (queryDef) {
             data = await queryTableRecords(comp.props.tableId, {
               filters: queryDef.filters || [],
@@ -1579,18 +1673,18 @@ const LiveTerminal = () => {
             console.error(`[Connector] Execution failed:`, err);
           }
         } else if (action.type === 'LINK_RECORD' || action.type === 'UNLINK_RECORD') {
-          const { 
-            sourceTableId, 
-            sourceRecordId: rawSourceId, 
+          const {
+            sourceTableId,
+            sourceRecordId: rawSourceId,
             sourceFieldName,
-            targetTableId, 
+            targetTableId,
             targetRecordId: rawTargetId,
             targetFieldName
           } = action.payload;
-          
+
           const sourceRecordId = await resolveSourceValue(action.payload.sourceRecordIdType || 'STATIC', rawSourceId);
           const targetRecordId = await resolveSourceValue(action.payload.targetRecordIdType || 'STATIC', rawTargetId);
-          
+
           if (!sourceRecordId || !targetRecordId) {
             console.warn(`[LinkedRecords] Missing record IDs for ${action.type}:`, { sourceRecordId, targetRecordId });
             continue;
@@ -1634,7 +1728,7 @@ const LiveTerminal = () => {
       if (passed) {
         clauseMatched = true;
         await runActions(clause.actions);
-        break; 
+        break;
       }
     }
 
@@ -1713,19 +1807,19 @@ const LiveTerminal = () => {
 
     // Component-specific legacy checks
     if (currentValue === null || currentValue === undefined || String(currentValue).trim() === '') {
-       if (comp.type === 'SIGNATURE') return fail('Signature is required');
-       if (comp.type === 'QUALITY_PASS_FAIL') return fail('Pass/Fail decision is required');
-       if (comp.type === 'CHECKLIST') return fail('Complete all checklist items');
-       return fail();
+      if (comp.type === 'SIGNATURE') return fail('Signature is required');
+      if (comp.type === 'QUALITY_PASS_FAIL') return fail('Pass/Fail decision is required');
+      if (comp.type === 'CHECKLIST') return fail('Complete all checklist items');
+      return fail();
     }
 
     // Specialized Logic for Tolerance
     if (comp.type === 'QUALITY_TOLERANCE') {
-        const val = parseFloat(currentValue);
-        if (isNaN(val)) return fail('Tolerance value is required');
-        if (comp.props.min != null && comp.props.max != null && (val < comp.props.min || val > comp.props.max)) {
-          return fail('Value out of tolerance range');
-        }
+      const val = parseFloat(currentValue);
+      if (isNaN(val)) return fail('Tolerance value is required');
+      if (comp.props.min != null && comp.props.max != null && (val < comp.props.min || val > comp.props.max)) {
+        return fail('Value out of tolerance range');
+      }
     }
 
     return pass();
@@ -1812,18 +1906,25 @@ const LiveTerminal = () => {
         narration: `Live completion with sign-off by ${signature}`
       };
 
-      logEvent({
-        type: AUDIT_EVENTS.CYCLE_COMPLETE,
-        user: signature,
-        workstation: 'WS-01',
-        workOrder: currentWorkOrder,
-        details: { id: selectedManual?.id || selectedApp?.id, totalTime, quality: qualityData }
-      });
+      const eventData = {
+        event_type: AUDIT_EVENTS.CYCLE_COMPLETE,
+        operator_id: signature || 'anonymous',
+        station_id: 'WS-01' || 'N/A',
+        // work_order: currentWorkOrder || 'N/A', // Column missing in DB
+        payload: {
+          id: selectedManual?.id || selectedApp?.id,
+          totalTime,
+          quality: qualityData,
+          work_order: currentWorkOrder || 'N/A'
+        },
+        created_at: new Date().toISOString()
+      };
 
       await saveLiveMeasurement(savedData);
 
       // --- NATIVE ANALYTICS: LOG COMPLETION ---
       if (selectedApp) {
+        console.log('[App] Selected Application:', selectedApp);
         try {
           const { logCompletion } = await import('../utils/database');
           await logCompletion(selectedApp.id, {
@@ -2133,9 +2234,9 @@ const LiveTerminal = () => {
     return (
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' }}>
         <div style={{ padding: '40px', textAlign: 'center' }}>
-          <div style={{ 
-            width: '40px', height: '40px', border: '3px solid #e2e8f0', borderTop: '3px solid #3b82f6', 
-            borderRadius: '50%', animation: 'mavi-spin 1s linear infinite', margin: '0 auto 20px' 
+          <div style={{
+            width: '40px', height: '40px', border: '3px solid #e2e8f0', borderTop: '3px solid #3b82f6',
+            borderRadius: '50%', animation: 'mavi-spin 1s linear infinite', margin: '0 auto 20px'
           }}></div>
           <style>{`@keyframes mavi-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
           <p style={{ color: '#64748b', fontSize: '0.9rem', fontWeight: 600 }}>Launching App...</p>
@@ -2154,14 +2255,14 @@ const LiveTerminal = () => {
           <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '30px' }}>
             We found {frontlineApps.length} app(s) in your local memory. Please select the one you want to run:
           </p>
-          
+
           <div style={{ display: 'grid', gap: '12px', marginBottom: '30px' }}>
             {frontlineApps.map(a => (
-              <button 
+              <button
                 key={a.id}
                 onClick={() => handleStartApp(a)}
-                style={{ 
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 25px', 
+                style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 25px',
                   backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', cursor: 'pointer',
                   textAlign: 'left', transition: 'all 0.2s'
                 }}
@@ -2177,7 +2278,7 @@ const LiveTerminal = () => {
             ))}
           </div>
 
-          <button 
+          <button
             onClick={() => window.location.href = '/terminal'}
             style={{ padding: '10px 20px', backgroundColor: 'transparent', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
           >
@@ -2192,7 +2293,7 @@ const LiveTerminal = () => {
   if (!selectedManual && !selectedApp) {
     // Determine the current station object
     const currentStationObj = stations.find(s => s.id === appContext.station || s.name === appContext.station);
-    
+
     // Filter apps based on assigned station
     const filteredApps = frontlineApps.filter(app => {
       if (!currentStationObj || !currentStationObj.assignedApps) return true; // fallback
@@ -2221,13 +2322,13 @@ const LiveTerminal = () => {
       const sum = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
       return appGradients[sum % appGradients.length];
     };
-    
+
     return (
       <div style={{ height: '100%', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', fontFamily: "'Inter', sans-serif" }}>
-        
+
         {/* GLOBAL STATION HEADER */}
-        <div style={{ 
-          height: '64px', backgroundColor: '#0f172a', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 24px', flexShrink: 0, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' 
+        <div style={{
+          height: '64px', backgroundColor: '#0f172a', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 24px', flexShrink: 0, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -2260,7 +2361,7 @@ const LiveTerminal = () => {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '40px' }}>
-          
+
           {/* TRACKING IDENTITY (Work Order) */}
           <div style={{ marginBottom: '40px', maxWidth: '800px', backgroundColor: 'white', padding: '24px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', border: '1px solid #e2e8f0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
@@ -2333,7 +2434,7 @@ const LiveTerminal = () => {
                           )}
                         </div>
                       </div>
-                      
+
                       {/* App Body */}
                       <div style={{ padding: '20px' }}>
                         <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>{app.name}</h4>
@@ -2341,7 +2442,7 @@ const LiveTerminal = () => {
                           {app.description || 'Custom Workstation App'}
                         </p>
                       </div>
-                      
+
                       <div style={{ padding: '12px 20px', borderTop: '1px solid #f1f5f9', backgroundColor: '#f8fafc', display: 'flex', justifyContent: 'flex-end' }}>
                         <div style={{ color: '#3b82f6', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
                           Launch App <ChevronRight size={16} />
@@ -2458,11 +2559,6 @@ const LiveTerminal = () => {
     );
   }
 
-  // --- LIVE OPERATION VIEW ---
-  const currentStatus = STATUS_CONFIG[status];
-  const steps = selectedApp ? (selectedApp.config?.steps || []) : (selectedManual?.content?.steps || []);
-  const activeStep = steps[currentStepIndex];
-  const appComponents = selectedApp ? (activeStep?.components || []) : [];
   const hasProductionOrderWidget = appComponents.some(c => c.type === 'PRODUCTION_ORDER') || (selectedApp?.config?.leftSidebarEnabled === false);
   const hasProductionProgressWidget = appComponents.some(c => c.type === 'PRODUCTION_PROGRESS') || (selectedApp?.config?.rightSidebarEnabled === false);
   const requiredStepChecks = !selectedApp
@@ -2547,22 +2643,6 @@ const LiveTerminal = () => {
                 icon: <AlertCircle size={20} />,
                 label: 'Andon',
                 onClick: () => setShowAndonModal(true)
-              },
-              {
-                icon: <RotateCcw size={20} />,
-                label: 'Restart',
-                onClick: () => {
-                  if (window.confirm('Restart current cycle? All progress will be lost.')) {
-                    // reset state
-                    if (selectedApp) handleStartApp(selectedApp);
-                    else if (selectedManual) handleStartCycle(selectedManual.id);
-                  }
-                }
-              },
-              {
-                icon: <Menu size={20} />,
-                label: 'Menu',
-                onClick: handleAbort
               }
             ].map(item => (
               <div
@@ -2595,11 +2675,26 @@ const LiveTerminal = () => {
 
 
         {/* CENTER PANEL: INSTRUCTIONS */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '20px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc', overflowY: 'auto' }}>
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '20px',
+          backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc',
+          overflowY: 'auto'
+        }}>
           <div style={{
-            backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : (selectedApp?.config?.appBackgroundColor || 'white'),
+            backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || (selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white'),
+            backgroundImage: activeStep?.backgroundImage ? `url(${activeStep.backgroundImage})` : 'none',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
             border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`,
-            borderRadius: '4px', flex: 1, display: 'flex', flexDirection: 'column', position: 'relative'
+            borderRadius: '4px',
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            position: 'relative',
+            overflow: 'auto'
           }}>
             {selectedApp && !selectedApp.is_published && (
               <div style={{
@@ -2630,12 +2725,38 @@ const LiveTerminal = () => {
               </div>
             </div>
 
-            <div style={{ flex: 1, padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div id="terminal-canvas-wrapper" style={{
+              flex: 1,
+              padding: '0',
+              display: 'flex',
+              flexDirection: 'column',
+              position: 'relative',
+              overflow: 'auto',
+              backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || 'transparent'
+            }}>
               {/* App Components Render */}
-              <div style={{ width: '100%', maxWidth: '700px', flex: 1 }}>
+              <div id="terminal-canvas-content" style={{
+                width: '100%',
+                minHeight: '100%',
+                position: 'relative',
+                flex: 1
+              }}>
                 {appComponents.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <div style={{
+                    position: 'relative',
+                    width: '100%',
+                    height: '100%',
+                    minHeight: '800px' // Ensure a minimum height for the canvas
+                  }}>
+                    {/* Debug Overlay */}
+                    {!selectedApp?.is_published && (
+                      <div style={{ position: 'absolute', top: 5, left: 5, backgroundColor: 'rgba(0,0,0,0.7)', color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', zIndex: 10000, pointerEvents: 'none' }}>
+                        DEBUG: {appComponents.length} comps found | {appComponents.filter(c => visibilityMap[c.id] !== false).length} visible
+                      </div>
+                    )}
                     {appComponents.filter(c => visibilityMap[c.id] !== false).map((comp, idx) => {
+                      const isAbsolute = comp.x !== undefined && comp.y !== undefined;
+
                       const renderWidget = () => {
                         // 1. Base Props
                         let resolvedProps = { ...comp.props };
@@ -2681,11 +2802,11 @@ const LiveTerminal = () => {
                                 <input
                                   autoFocus={comp.props.autoFocus}
                                   value={barcodeValues[comp.id] || ''}
-                                  onChange={e => { 
+                                  onChange={e => {
                                     const val = e.target.value;
-                                    setBarcodeValues(prev => ({ ...prev, [comp.id]: val })); 
+                                    setBarcodeValues(prev => ({ ...prev, [comp.id]: val }));
                                     syncVariable(val);
-                                    fireWidgetTriggers(comp, 'ON_CHANGE'); 
+                                    fireWidgetTriggers(comp, 'ON_CHANGE');
                                   }}
                                   placeholder={comp.props.placeholder}
                                   style={{
@@ -2878,11 +2999,11 @@ const LiveTerminal = () => {
                             const hasUrl = ipUrl.trim().length > 0;
                             const isDark = selectedApp?.config?.appThemeMode === 'DARK';
                             const buildStreamUrl = () => {
-                                if (!hasUrl) return '';
-                                if (comp.props.username && comp.props.password) {
-                                    try { const u = new URL(ipUrl); u.username = comp.props.username; u.password = comp.props.password; return u.toString(); } catch { return ipUrl; }
-                                }
-                                return ipUrl;
+                              if (!hasUrl) return '';
+                              if (comp.props.username && comp.props.password) {
+                                try { const u = new URL(ipUrl); u.username = comp.props.username; u.password = comp.props.password; return u.toString(); } catch { return ipUrl; }
+                              }
+                              return ipUrl;
                             };
                             const finalUrl = buildStreamUrl();
                             return (
@@ -3017,11 +3138,11 @@ const LiveTerminal = () => {
                               <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{comp.props.label}{comp.props.required ? ' *' : ''}</div>
                               <textarea
                                 value={textAreaValues[comp.id] != null ? textAreaValues[comp.id] : (comp.props.defaultValue || '')}
-                                onChange={e => { 
+                                onChange={e => {
                                   const val = e.target.value;
-                                  setTextAreaValues(prev => ({ ...prev, [comp.id]: val })); 
+                                  setTextAreaValues(prev => ({ ...prev, [comp.id]: val }));
                                   syncVariable(val);
-                                  fireWidgetTriggers(comp, 'ON_CHANGE'); 
+                                  fireWidgetTriggers(comp, 'ON_CHANGE');
                                 }}
                                 placeholder={comp.props.placeholder || 'Type notes...'}
                                 rows={comp.props.rows || 4}
@@ -3040,11 +3161,11 @@ const LiveTerminal = () => {
                               <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}{comp.props.required ? ' *' : ''}</div>
                               <select
                                 value={dropdownValues[comp.id] != null ? dropdownValues[comp.id] : (resolvedProps.defaultValue || '')}
-                                onChange={e => { 
+                                onChange={e => {
                                   const val = e.target.value;
-                                  setDropdownValues(prev => ({ ...prev, [comp.id]: val })); 
+                                  setDropdownValues(prev => ({ ...prev, [comp.id]: val }));
                                   syncVariable(val);
-                                  fireWidgetTriggers(comp, 'ON_CHANGE'); 
+                                  fireWidgetTriggers(comp, 'ON_CHANGE');
                                 }}
                                 style={{
                                   width: '100%', padding: '12px',
@@ -3073,10 +3194,10 @@ const LiveTerminal = () => {
                                         type="radio"
                                         name={`radio_${comp.id}`}
                                         checked={selectedVal === opt}
-                                        onChange={() => { 
-                                          setRadioValues(prev => ({ ...prev, [comp.id]: opt })); 
+                                        onChange={() => {
+                                          setRadioValues(prev => ({ ...prev, [comp.id]: opt }));
                                           syncVariable(opt);
-                                          fireWidgetTriggers(comp, 'ON_CHANGE'); 
+                                          fireWidgetTriggers(comp, 'ON_CHANGE');
                                         }}
                                       />
                                       {opt}
@@ -3116,12 +3237,12 @@ const LiveTerminal = () => {
                                   const darkBorder = isChecked ? '#22c55e' : '#334155';
                                   const lightBorder = isChecked ? '#86efac' : '#e2e8f0';
                                   return (
-                                    <div key={i} onClick={() => { 
-                                      const n = new Set(ck); 
-                                      n.has(i) ? n.delete(i) : n.add(i); 
-                                      setChecklistState(prev => ({ ...prev, [comp.id]: n })); 
+                                    <div key={i} onClick={() => {
+                                      const n = new Set(ck);
+                                      n.has(i) ? n.delete(i) : n.add(i);
+                                      setChecklistState(prev => ({ ...prev, [comp.id]: n }));
                                       syncVariable(n.size === totalItems ? 'DONE' : null);
-                                      fireWidgetTriggers(comp, 'ON_CHANGE'); 
+                                      fireWidgetTriggers(comp, 'ON_CHANGE');
                                     }} style={{ display: 'flex', gap: '12px', alignItems: 'center', padding: '10px 12px', marginBottom: '6px', borderRadius: '6px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? darkBg : lightBg, border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? darkBorder : lightBorder}`, cursor: 'pointer' }}>
                                       <div style={{ width: '20px', height: '20px', borderRadius: '4px', border: `2px solid ${isChecked ? '#22c55e' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#475569' : '#cbd5e1')}`, backgroundColor: isChecked ? '#22c55e' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : 'white'), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{isChecked && <span style={{ color: 'white', fontSize: '12px', fontWeight: 900 }}>{String.fromCharCode(10003)}</span>}</div>
                                       <span style={{ fontSize: '0.9rem', color: isChecked ? '#22c55e' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#475569'), textDecoration: isChecked ? 'line-through' : 'none' }}>{item}</span>
@@ -3346,7 +3467,7 @@ const LiveTerminal = () => {
                           case 'VARIABLE_TEXT': {
                             let vv = '';
                             const varSource = resolvedProps.varSource || comp.props.varSource;
-                            
+
                             if (comp.props.iotTopicId && machineData[comp.props.iotTopicId] !== undefined) {
                               vv = String(machineData[comp.props.iotTopicId]);
                             } else if (comp.props.dataSourceType === 'TABLE_RECORD') {
@@ -3377,23 +3498,23 @@ const LiveTerminal = () => {
                             <div>
                               <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}</div>
                               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                <button onClick={() => { 
+                                <button onClick={() => {
                                   const newVal = Math.max(comp.props.min != null ? comp.props.min : 0, (numberInputValues[comp.id] != null ? numberInputValues[comp.id] : resolvedProps.defaultValue || 0) - 1);
-                                  setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal })); 
+                                  setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal }));
                                   syncVariable(newVal);
-                                  fireWidgetTriggers(comp, 'ON_CHANGE'); 
+                                  fireWidgetTriggers(comp, 'ON_CHANGE');
                                 }} style={{ width: '40px', height: '44px', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', color: '#475569', fontSize: '1.2rem', cursor: 'pointer' }}>-</button>
-                                <input type="number" value={numberInputValues[comp.id] != null ? numberInputValues[comp.id] : resolvedProps.defaultValue || 0} onChange={e => { 
+                                <input type="number" value={numberInputValues[comp.id] != null ? numberInputValues[comp.id] : resolvedProps.defaultValue || 0} onChange={e => {
                                   const newVal = parseFloat(e.target.value) || 0;
-                                  setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal })); 
+                                  setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal }));
                                   syncVariable(newVal);
-                                  fireWidgetTriggers(comp, 'ON_CHANGE'); 
+                                  fireWidgetTriggers(comp, 'ON_CHANGE');
                                 }} style={{ flex: 1, padding: '10px', border: '2px solid #e2e8f0', borderRadius: '6px', fontSize: '1.1rem', textAlign: 'center', outline: 'none' }} />
-                                <button onClick={() => { 
+                                <button onClick={() => {
                                   const newVal = Math.min(comp.props.max != null ? comp.props.max : 9999, (numberInputValues[comp.id] != null ? numberInputValues[comp.id] : resolvedProps.defaultValue || 0) + 1);
-                                  setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal })); 
+                                  setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal }));
                                   syncVariable(newVal);
-                                  fireWidgetTriggers(comp, 'ON_CHANGE'); 
+                                  fireWidgetTriggers(comp, 'ON_CHANGE');
                                 }} style={{ width: '40px', height: '44px', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', color: '#475569', fontSize: '1.2rem', cursor: 'pointer' }}>+</button>
                                 {comp.props.unit && <span style={{ fontSize: '0.9rem', color: '#475569', fontWeight: 600 }}>{comp.props.unit}</span>}
                               </div>
@@ -3402,22 +3523,22 @@ const LiveTerminal = () => {
                           case 'DATE_PICKER': return (
                             <div>
                               <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}</div>
-                              <input type="date" value={dateValues[comp.id] || ''} onChange={e => { 
+                              <input type="date" value={dateValues[comp.id] || ''} onChange={e => {
                                 const val = e.target.value;
-                                setDateValues(prev => ({ ...prev, [comp.id]: val })); 
+                                setDateValues(prev => ({ ...prev, [comp.id]: val }));
                                 syncVariable(val);
-                                fireWidgetTriggers(comp, 'ON_CHANGE'); 
+                                fireWidgetTriggers(comp, 'ON_CHANGE');
                               }} style={{ width: '100%', padding: '10px 14px', border: '2px solid #e2e8f0', borderRadius: '6px', fontSize: '1rem', outline: 'none', color: '#0f172a' }} />
                             </div>
                           );
                           case 'BOOLEAN_TOGGLE': {
                             const on = toggleState[comp.id] != null ? toggleState[comp.id] : comp.props.defaultValue || false;
                             return (
-                              <div onClick={() => { 
+                              <div onClick={() => {
                                 const val = !on;
-                                setToggleState(prev => ({ ...prev, [comp.id]: val })); 
+                                setToggleState(prev => ({ ...prev, [comp.id]: val }));
                                 syncVariable(val);
-                                fireWidgetTriggers(comp, 'ON_CHANGE'); 
+                                fireWidgetTriggers(comp, 'ON_CHANGE');
                               }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', backgroundColor: '#f8fafc', border: `2px solid ${on ? '#22c55e' : '#e2e8f0'}`, borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s' }}>
                                 <span style={{ fontSize: '0.9rem', color: '#0f172a', fontWeight: 600 }}>{resolvedProps.label}</span>
                                 <div style={{ width: '48px', height: '26px', backgroundColor: on ? '#22c55e' : '#cbd5e1', borderRadius: '13px', position: 'relative', transition: 'background-color 0.2s' }}>
@@ -3626,19 +3747,19 @@ const LiveTerminal = () => {
                                         return (
                                           <tr
                                             key={rowId || rIdx}
-                                            onClick={() => { 
+                                            onClick={() => {
                                               const newSelected = isSelected ? null : row;
-                                              setSelectedTableRow(prev => ({ ...prev, [comp.id]: newSelected })); 
-                                              
+                                              setSelectedTableRow(prev => ({ ...prev, [comp.id]: newSelected }));
+
                                               // Update record placeholder if linked
                                               if (linkedPlaceholderId) {
-                                                setRecordPlaceholderData(prev => ({ 
-                                                  ...prev, 
-                                                  [linkedPlaceholderId]: newSelected 
+                                                setRecordPlaceholderData(prev => ({
+                                                  ...prev,
+                                                  [linkedPlaceholderId]: newSelected
                                                 }));
                                               }
-                                              
-                                              fireWidgetTriggers(comp, 'ON_CHANGE'); 
+
+                                              fireWidgetTriggers(comp, 'ON_CHANGE');
                                               fireWidgetTriggers(comp, 'RowSelected');
                                             }}
                                             style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer', backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'white', transition: 'background-color 0.2s' }}
@@ -3648,7 +3769,7 @@ const LiveTerminal = () => {
                                                 {(() => {
                                                   const val = row[col];
                                                   if (val === undefined || val === null || val === '') return '-';
-                                                  
+
                                                   // Linked Records (Array of IDs or Objects)
                                                   if (Array.isArray(val)) {
                                                     if (val.length === 0) return '-';
@@ -3657,12 +3778,12 @@ const LiveTerminal = () => {
                                                         {val.map((item, idx) => {
                                                           const label = typeof item === 'object' ? (item.recordId || item.id || 'Record') : String(item);
                                                           return (
-                                                            <span key={idx} style={{ 
-                                                              padding: '2px 8px', 
-                                                              backgroundColor: 'rgba(59, 130, 246, 0.1)', 
-                                                              color: '#3b82f6', 
-                                                              borderRadius: '4px', 
-                                                              fontSize: '0.65rem', 
+                                                            <span key={idx} style={{
+                                                              padding: '2px 8px',
+                                                              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                                              color: '#3b82f6',
+                                                              borderRadius: '4px',
+                                                              fontSize: '0.65rem',
                                                               fontWeight: 800,
                                                               border: '1px solid rgba(59, 130, 246, 0.2)',
                                                               display: 'inline-flex',
@@ -3675,17 +3796,17 @@ const LiveTerminal = () => {
                                                       </div>
                                                     );
                                                   }
-                                                  
+
                                                   // Single Linked Record or Object
                                                   if (typeof val === 'object' && val !== null) {
                                                     const label = val.recordId || val.id || 'Record';
                                                     return (
-                                                      <span style={{ 
-                                                        padding: '2px 8px', 
-                                                        backgroundColor: 'rgba(139, 92, 246, 0.1)', 
-                                                        color: '#8b5cf6', 
-                                                        borderRadius: '4px', 
-                                                        fontSize: '0.65rem', 
+                                                      <span style={{
+                                                        padding: '2px 8px',
+                                                        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                                                        color: '#8b5cf6',
+                                                        borderRadius: '4px',
+                                                        fontSize: '0.65rem',
                                                         fontWeight: 800,
                                                         border: '1px solid rgba(139, 92, 246, 0.2)'
                                                       }}>
@@ -3693,11 +3814,11 @@ const LiveTerminal = () => {
                                                       </span>
                                                     );
                                                   }
-                                                  
+
                                                   // Boolean handling
                                                   if (typeof val === 'boolean') {
-                                                    return val ? 
-                                                      <span style={{ color: '#10b981', fontWeight: 800 }}>YES</span> : 
+                                                    return val ?
+                                                      <span style={{ color: '#10b981', fontWeight: 800 }}>YES</span> :
                                                       <span style={{ color: '#ef4444', fontWeight: 800 }}>NO</span>;
                                                   }
 
@@ -4029,9 +4150,9 @@ const LiveTerminal = () => {
 
                                 <div style={{ display: 'flex', gap: '8px' }}>
                                   <div style={{ flex: 1, position: 'relative' }}>
-                                    <input 
-                                      type="text" 
-                                      value={currentValue} 
+                                    <input
+                                      type="text"
+                                      value={currentValue}
                                       onChange={e => {
                                         const val = e.target.value;
                                         setVisionValues(prev => ({ ...prev, [comp.id]: val }));
@@ -4047,7 +4168,7 @@ const LiveTerminal = () => {
                                       {comp.props.unit}
                                     </div>
                                   </div>
-                                  <button 
+                                  <button
                                     onClick={() => handleVisionOcr(comp, { current: visionWebcamRefs.current[comp.id] })}
                                     disabled={isProcessing}
                                     style={{ padding: '0 20px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: isProcessing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 6px rgba(59, 130, 246, 0.2)' }}
@@ -4063,13 +4184,194 @@ const LiveTerminal = () => {
                               </div>
                             );
                           }
-                          default: return null;
+                          // --- OBD2 WIDGETS ---
+                          case 'OBD2_SCANNER': {
+                            const connected = obd2Status === 'connected';
+                            const transport = comp.props.transport || 'BLUETOOTH';
+                            return (
+                              <div
+                                onClick={async () => {
+                                  if (connected) {
+                                    await obd2Service.disconnect();
+                                  } else {
+                                    try {
+                                      if (transport === 'BLUETOOTH') await obd2Service.connectBluetooth();
+                                      else await obd2Service.connectSerial();
+                                    } catch (err) {
+                                      alert("OBD2 Connection Failed: " + err.message);
+                                    }
+                                  }
+                                }}
+                                style={{ width: '100%', height: '100%', borderRadius: '12px', border: connected ? '2px solid #10b981' : '2px dashed #64748b', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white', padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                              >
+                                <div style={{ padding: '12px', borderRadius: '50%', backgroundColor: connected ? 'rgba(16, 185, 129, 0.1)' : 'rgba(100, 116, 139, 0.1)' }}>
+                                  <Car size={32} color={connected ? '#10b981' : '#64748b'} />
+                                </div>
+                                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: selectedApp?.config?.appThemeMode === 'DARK' ? 'white' : '#1e293b' }}>{comp.props.label || 'OBD2 Scanner'}</div>
+                                <div style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: connected ? '#10b981' : '#dc2626' }} />
+                                  {connected ? `CONNECTED (${transport})` : `DISCONNECTED (${transport})`}
+                                </div>
+                              </div>
+                            );
+                          }
+                          case 'OBD2_CLEAR_DTC': {
+                            return (
+                              <button
+                                onClick={async () => {
+                                  if (obd2Status !== 'connected') return alert("Connect OBD2 first");
+                                  const ok = await obd2Service.clearDTC();
+                                  if (ok) alert("DTCs cleared successfully");
+                                  else alert("Failed to clear DTCs");
+                                }}
+                                style={{ width: '100%', height: '100%', padding: '12px', backgroundColor: '#dc2626', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}
+                              >
+                                <TrashIcon size={18} />
+                                {comp.props.label || 'Clear DTC'}
+                              </button>
+                            );
+                          }
+                          case 'OBD2_DTC': {
+                            const val = obd2Values['DTC']?.value || '[]';
+                            let dtcArray = [];
+                            try { dtcArray = typeof val === 'string' ? JSON.parse(val) : val; if (!Array.isArray(dtcArray)) dtcArray = []; } catch (e) { dtcArray = []; }
+                            return (
+                              <div style={{ width: '100%', height: '100%', borderRadius: '10px', border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                                <div style={{ padding: '10px 12px', borderBottom: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#f1f5f9'}`, backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <Bug size={16} color="#dc2626" />
+                                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: selectedApp?.config?.appThemeMode === 'DARK' ? 'white' : '#0f172a' }}>{comp.props.label || 'Diagnostic Trouble Codes'}</span>
+                                  <span style={{ marginLeft: 'auto', fontSize: '0.7rem', padding: '2px 6px', borderRadius: '999px', backgroundColor: dtcArray.length > 0 ? '#fee2e2' : '#d1fae5', color: dtcArray.length > 0 ? '#dc2626' : '#16a34a', fontWeight: 600 }}>{dtcArray.length} Codes</span>
+                                </div>
+                                <div style={{ flex: 1, padding: '8px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                  {dtcArray.length === 0 ? (
+                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>No DTCs Found</div>
+                                  ) : (
+                                    dtcArray.map((code, idx) => (
+                                      <div key={idx} style={{ padding: '8px', borderRadius: '6px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc', border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#dc2626' }}>{code}</span>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          }
+                          case 'OBD2_MIL_STATUS': {
+                            const val = obd2Values['0101']?.value || 'OFF';
+                            const isMilOn = String(val).toUpperCase() === 'ON';
+                            return (
+                              <div style={{ width: '100%', height: '100%', borderRadius: '10px', border: `1px solid ${isMilOn ? '#f59e0b' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0')}`, backgroundColor: isMilOn ? 'rgba(245, 158, 11, 0.05)' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white'), padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+                                <div style={{ padding: '10px', borderRadius: '50%', backgroundColor: isMilOn ? '#f59e0b' : 'rgba(100, 116, 139, 0.1)', color: isMilOn ? 'white' : '#64748b' }}>
+                                  <AlertTriangle size={24} />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Check Engine</span>
+                                  <span style={{ fontSize: '1.1rem', fontWeight: 800, color: isMilOn ? '#f59e0b' : '#64748b' }}>{isMilOn ? 'MIL ON' : 'MIL OFF'}</span>
+                                </div>
+                              </div>
+                            );
+                          }
+                          case 'OBD2_RPM':
+                          case 'OBD2_SPEED':
+                          case 'OBD2_COOLANT_TEMP':
+                          case 'OBD2_THROTTLE':
+                          case 'OBD2_ENGINE_LOAD':
+                          case 'OBD2_MAF':
+                          case 'OBD2_IAT':
+                          case 'OBD2_FUEL_LEVEL':
+                          case 'OBD2_FUEL_PRESSURE':
+                          case 'OBD2_STFT':
+                          case 'OBD2_LTFT':
+                          case 'OBD2_AFR':
+                          case 'OBD2_O2_SENSOR':
+                          case 'OBD2_IGNITION_TIMING':
+                          case 'OBD2_KNOCK':
+                          case 'OBD2_TORQUE_EST':
+                          case 'OBD2_HP_EST':
+                          case 'OBD2_OIL_TEMP':
+                          case 'OBD2_MAP':
+                          case 'OBD2_BARO':
+                          case 'OBD2_BOOST':
+                          case 'OBD2_BATTERY_VOLTAGE': {
+                            const defaultPid = OBD2_DEFAULT_PIDS[comp.type];
+                            const pid = comp.props.pid || defaultPid;
+                            const data = obd2Values[pid?.toUpperCase()] || { value: '--', unit: comp.props.unit || '' };
+                            const connected = obd2Status === 'connected';
+
+                            const IconMap = {
+                              'OBD2_RPM': Gauge,
+                              'OBD2_SPEED': TrendingUp,
+                              'OBD2_COOLANT_TEMP': Thermometer,
+                              'OBD2_OIL_TEMP': Thermometer,
+                              'OBD2_FUEL_LEVEL': Fuel,
+                              'OBD2_BATTERY_VOLTAGE': Activity
+                            };
+                            const IconComponent = IconMap[comp.type] || Activity;
+
+                            return (
+                              <div style={{ width: '100%', height: '100%', borderRadius: '10px', border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white', padding: '10px', display: 'flex', flexDirection: 'column' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <IconComponent size={14} color="#0ea5e9" />
+                                    <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{comp.props.label || comp.type.replace('OBD2_', '').replace(/_/g, ' ')}</span>
+                                  </div>
+                                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: connected ? '#10b981' : '#cbd5e1', flexShrink: 0 }} />
+                                </div>
+                                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px', maxWidth: '100%' }}>
+                                      <span style={{ 
+                                        fontSize: String(data.value).length > 4 ? '1.2rem' : '1.6rem', 
+                                        lineHeight: 1, 
+                                        fontWeight: 900, 
+                                        color: selectedApp?.config?.appThemeMode === 'DARK' ? 'white' : '#0f172a',
+                                        whiteSpace: 'nowrap'
+                                      }}>{data.value}</span>
+                                      <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>{data.unit}</span>
+                                    </div>
+                                  </div>
+                              </div>
+                            );
+
+                          }
+                          default: return (
+                            <div style={{ color: '#dc2626', backgroundColor: '#fee2e2', padding: '10px', borderRadius: '4px', fontSize: '0.75rem', border: '1px solid #fecaca' }}>
+                              Unknown Type: {comp.type}
+                            </div>
+                          );
                         }
                       };
+                      const containerStyle = isAbsolute ? {
+                        position: 'absolute',
+                        left: `${comp.x}px`,
+                        top: `${comp.y}px`,
+                        width: `${comp.w}px`,
+                        height: `${comp.h}px`,
+                        zIndex: comp.props.zIndex || 100,
+                        transform: `rotate(${comp.props.rotation || 0}deg)`,
+                        overflow: 'hidden'
+                      } : {
+                        width: '100%',
+                        transform: `rotate(${comp.props.rotation || 0}deg)`,
+                        marginBottom: '20px'
+                      };
+
                       const err = validationErrors[comp.id];
                       return (
-                        <div key={comp.id || idx} ref={(el) => { if (comp?.id) widgetContainerRefs.current[comp.id] = el; }} style={{ width: '100%', transform: `rotate(${comp.props.rotation || 0}deg)` }}>
-                          <div style={{ border: err ? '1px solid #fecaca' : 'none', borderRadius: '8px', padding: err ? '10px' : 0, backgroundColor: err ? '#fff1f2' : 'transparent' }}>
+                        <div key={comp.id || idx} ref={(el) => { if (comp?.id) widgetContainerRefs.current[comp.id] = el; }} style={containerStyle}>
+                          <div style={{
+                            border: err ? '2px solid #ef4444' : (selectedApp?.is_published ? 'none' : '3px dashed #3b82f6'),
+                            borderRadius: '8px',
+                            padding: err ? '10px' : 0,
+                            backgroundColor: err ? '#fee2e2' : 'rgba(59, 130, 246, 0.05)',
+                            height: isAbsolute ? '100%' : 'auto',
+                            position: 'relative',
+                            boxSizing: 'border-box'
+                          }}>
+                            {!selectedApp?.is_published && (
+                              <div style={{ position: 'absolute', top: -12, left: 4, fontSize: '10px', color: '#3b82f6', backgroundColor: 'white', padding: '0 4px', zIndex: 1000 }}>
+                                {comp.name} ({comp.type})
+                              </div>
+                            )}
                             {renderWidget()}
                           </div>
                           {err && (
@@ -4094,12 +4396,20 @@ const LiveTerminal = () => {
 
             {/* WORK SEQUENCE FOOTER (IN CENTER PANEL) */}
             {selectedApp?.config?.stepListEnabled !== false && (
-              <div style={{ padding: '15px 20px', backgroundColor: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', marginBottom: '10px' }}>WORK SEQUENCE <span style={{ fontWeight: 400, fontSize: '0.7rem', color: '#94a3b8', marginLeft: '5px' }}>Click to expand instruction</span></div>
+              <div style={{ padding: '15px 20px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : '#f8fafc', borderTop: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b' }}>
+                    WORK SEQUENCE <span style={{ fontWeight: 400, fontSize: '0.7rem', color: '#94a3b8', marginLeft: '5px' }}>Click to expand instruction</span>
+                  </div>
+                  <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600 }}>
+                    {appComponents.length} Widgets
+                  </div>
+                </div>
                 <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '5px' }}>
                   {steps.map((step, idx) => (
                     (() => {
                       const summary = selectedApp ? getStepRequiredSummary(step) : { total: 0, done: 0, ok: true };
+                      const stepComps = step.components || [];
                       return (
                         <div
                           key={idx}
@@ -4141,7 +4451,7 @@ const LiveTerminal = () => {
         </div>
 
 
-    </div>
+      </div>
 
       {/* DEFECT MODAL */}
       {showDefectModal && (

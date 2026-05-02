@@ -140,9 +140,11 @@ class OBD2Service {
 
         // Internal response promise
         this._buf          = '';
+        this._pendingTimer = null;
         this._pendingRes   = null;
         this._pendingRej   = null;
-        this._pendingTimer = null;
+
+
 
         // Listeners
         this._statusListeners = new Set();
@@ -184,21 +186,24 @@ class OBD2Service {
     // ── ELM327 Low-level Protocol ──────────────────────────────────────────────
     _handleChunk(chunk) {
         this._buf += chunk;
-        // ELM327 signals end of response with '>'
         if (this._buf.includes('>')) {
             const response = this._buf.replace(/>/g, '').trim();
             this._buf = '';
             if (this._pendingRes) {
-                clearTimeout(this._pendingTimer);
-                this._pendingRes(response);
+                const res = this._pendingRes;
                 this._pendingRes = null;
-                this._pendingRej = null;
+                clearTimeout(this._pendingTimer);
+                res(response);
             }
         }
     }
 
     _sendRaw(cmd, timeoutMs = 3000) {
         return new Promise((resolve, reject) => {
+            if (this._pendingRes) {
+                return reject(new Error('Device busy'));
+            }
+
             this._pendingRes = resolve;
             this._pendingRej = reject;
             this._pendingTimer = setTimeout(() => {
@@ -210,14 +215,27 @@ class OBD2Service {
             const data = new TextEncoder().encode(cmd + '\r');
 
             if (this.transport === 'BLUETOOTH' && this._btChar) {
-                this._btChar.writeValueWithoutResponse(data).catch(reject);
+                this._btChar.writeValueWithoutResponse(data).catch(err => {
+                    clearTimeout(this._pendingTimer);
+                    this._pendingRes = null;
+                    reject(err);
+                });
             } else if (this.transport === 'SERIAL' && this._serialWrite) {
-                this._serialWrite.write(data).catch(reject);
+                this._serialWrite.write(data).catch(err => {
+                    clearTimeout(this._pendingTimer);
+                    this._pendingRes = null;
+                    reject(err);
+                });
+            } else if (this.transport === 'WIFI' && this._wsPort && this._wsPort.readyState === 1) {
+                this._wsPort.send(cmd + '\r');
             } else {
+                clearTimeout(this._pendingTimer);
+                this._pendingRes = null;
                 reject(new Error('Not connected'));
             }
         });
     }
+
 
     /**
      * Send AT command to ELM327, returns raw response string.
@@ -345,6 +363,64 @@ class OBD2Service {
         }
     }
 
+    // ── WiFi Connect ───────────────────────────────────────────────────────────
+    async connectWiFi(ipAddress = '192.168.0.10', port = 35000) {
+        this._setStatus('connecting');
+        try {
+            // Note: Browsers cannot open raw TCP sockets directly.
+            // This implementation uses WebSockets. For native WiFi OBD2 dongles,
+            // you may need a local TCP-to-WebSocket proxy or run in an environment
+            // that polyfills WebSockets to raw TCP (like a native app wrapper).
+            const wsUrl = `ws://${ipAddress}:${port}`;
+            this._wsPort = new WebSocket(wsUrl);
+
+            await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    if (this._wsPort) this._wsPort.close();
+                    reject(new Error('WiFi connection timeout. Ensure proxy is running.'));
+                }, 5000);
+
+                this._wsPort.onopen = () => {
+                    clearTimeout(timeout);
+                    resolve();
+                };
+
+                this._wsPort.onerror = (err) => {
+                    clearTimeout(timeout);
+                    reject(new Error('WiFi connection failed. Ensure target is reachable.'));
+                };
+            });
+
+            this._wsPort.onmessage = (event) => {
+                if (event.data instanceof Blob) {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        this._handleChunk(reader.result);
+                    };
+                    reader.readAsText(event.data);
+                } else {
+                    this._handleChunk(event.data);
+                }
+            };
+
+            this._wsPort.onclose = () => {
+                if (this.transport === 'WIFI') {
+                    this.connected = false;
+                    this._setStatus('disconnected');
+                }
+            };
+
+            this.transport = 'WIFI';
+            await this._initELM327();
+            this.connected = true;
+            this._setStatus('connected');
+            return true;
+        } catch (err) {
+            this._setStatus('error');
+            throw err;
+        }
+    }
+
     // ── Query a single PID ─────────────────────────────────────────────────────
     /**
      * Query a standard OBD2 PID once.
@@ -353,16 +429,22 @@ class OBD2Service {
      */
     async queryPID(pid) {
         if (!this.connected) throw new Error('OBD2: Not connected');
-        if (DERIVED_PIDS.has(pid)) return null; // Use dedicated methods
+        if (DERIVED_PIDS.has(pid)) return null; 
 
         try {
             const raw = await this._sendRaw(pid, 3500);
-            return parseOBDResponse(raw, pid);
+            if (pid === '010C') console.log(`[OBD2 DEBUG] PID: ${pid}, Raw: "${raw}"`);
+            const result = parseOBDResponse(raw, pid);
+            if (result) {
+                this._emitPIDData(pid, { ...result, timestamp: Date.now() });
+            }
+            return result;
         } catch (err) {
             console.warn(`[OBD2] queryPID(${pid}) error:`, err.message);
             return null;
         }
     }
+
 
     // ── DTC Methods ────────────────────────────────────────────────────────────
     /**
@@ -462,6 +544,10 @@ class OBD2Service {
         }
         if (this._btDevice?.gatt?.connected) {
             try { this._btDevice.gatt.disconnect(); } catch {}
+        }
+        if (this._wsPort) {
+            try { this._wsPort.close(); } catch {}
+            this._wsPort = null;
         }
         this._btDevice  = null;
         this.connected  = false;

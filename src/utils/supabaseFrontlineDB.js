@@ -103,7 +103,7 @@ export async function getAllFrontlineApps() {
             .from('frontline_apps')
             .select('*')
             .order('name');
-        
+
         if (error) {
             cloudError = error;
             console.warn('[Supabase] Fetch failed, falling back to cache.', error);
@@ -236,13 +236,13 @@ export async function saveFrontlineApp(app) {
             try {
                 const raw = localStorage.getItem('offline_apps_cache');
                 let cached = [];
-                try { cached = raw ? JSON.parse(raw) : []; } catch(e) { cached = []; }
+                try { cached = raw ? JSON.parse(raw) : []; } catch (e) { cached = []; }
                 if (!Array.isArray(cached)) cached = [];
-                
+
                 const index = cached.findIndex(a => String(a.id) === String(result.data.id));
                 if (index > -1) cached[index] = result.data;
                 else cached.push(result.data);
-                
+
                 localStorage.setItem('offline_apps_cache', JSON.stringify(cached));
             } catch (e) {
                 console.warn('[Cache] Failed to sync save result', e);
@@ -254,11 +254,11 @@ export async function saveFrontlineApp(app) {
         console.warn('[Offline Mode] Intercepting save, applying to vault', err);
         const raw = localStorage.getItem('mavi_offline_vault');
         let cached = [];
-        try { cached = raw ? JSON.parse(raw) : []; } catch(e) { cached = []; }
+        try { cached = raw ? JSON.parse(raw) : []; } catch (e) { cached = []; }
         if (!Array.isArray(cached)) cached = [];
 
         let outputApp = { ...app, ...payload };
-        
+
         if (app.id) {
             const index = cached.findIndex(a => String(a.id) === String(app.id));
             if (index > -1) cached[index] = outputApp;
@@ -280,14 +280,14 @@ export async function saveFrontlineApp(app) {
 export async function publishApp(appId) {
     try {
         const supabase = getSupabaseClient();
-        
+
         // 1. Get current draft
         const { data: app, error: fetchError } = await supabase
             .from('frontline_apps')
             .select('*')
             .eq('id', appId)
             .single();
-        
+
         if (fetchError) throw fetchError;
 
         // 2. Increment version and copy config
@@ -303,7 +303,7 @@ export async function publishApp(appId) {
             .eq('id', appId)
             .select()
             .single();
-        
+
         // NEW: Fallback for missing governance columns
         if (result.error && (
             String(result.error.message || '').includes('published_config') ||
@@ -327,10 +327,10 @@ export async function publishApp(appId) {
         console.warn('[Offline Mode] Intercepting publish, applying to vault', err);
         const raw = localStorage.getItem('mavi_offline_vault');
         let cached = [];
-        try { cached = raw ? JSON.parse(raw) : []; } catch(e) { cached = []; }
+        try { cached = raw ? JSON.parse(raw) : []; } catch (e) { cached = []; }
 
         const index = cached.findIndex(a => String(a.id) === String(appId));
-        
+
         if (index > -1) {
             const appData = cached[index];
             const updatedApp = {
@@ -368,7 +368,7 @@ export async function requestApproval(appId) {
         console.warn('[Offline Mode] Intercepting request approval, applying to localStorage cache', err);
         const cached = JSON.parse(localStorage.getItem('offline_apps_cache') || '[]');
         const index = cached.findIndex(a => String(a.id) === String(appId));
-        
+
         if (index > -1) {
             const updatedApp = {
                 ...cached[index],
@@ -404,7 +404,7 @@ export async function approveApp(appId, operatorId) {
         console.warn('[Offline Mode] Intercepting approve, applying to localStorage cache', err);
         const cached = JSON.parse(localStorage.getItem('offline_apps_cache') || '[]');
         const index = cached.findIndex(a => String(a.id) === String(appId));
-        
+
         if (index > -1) {
             const updatedApp = {
                 ...cached[index],
@@ -543,6 +543,162 @@ export async function updateJobStatus(id, status) {
     return data;
 }
 
+const DEFAULT_WORKSTATIONS = [
+    { id: 'WS-01', name: 'Assembly Station A' },
+    { id: 'WS-02', name: 'Testing Station B' },
+    { id: 'WS-03', name: 'Packaging Station C' },
+    { id: 'WS-04', name: 'Inspection Station D' }
+];
+
+const statusFromQueue = (rawStatus) => {
+    const value = String(rawStatus || '').toUpperCase();
+    if (value === 'IN_PROGRESS' || value === 'RUNNING' || value === 'ACTIVE') return 'RUNNING';
+    if (value === 'DOWN') return 'DOWN';
+    return 'READY';
+};
+
+const safeNumber = (value, fallback = 0) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+};
+
+const buildActiveAndons = (auditRows = []) => {
+    const latestByStation = new Map();
+
+    auditRows.forEach((row) => {
+        const payload = row?.payload || {};
+        const action = String(payload?.action || '').toUpperCase();
+        if (action !== 'ANDON_TRIGGERED' && action !== 'ANDON_RESOLVED') return;
+
+        const workstation = String(row?.station_id || payload?.workstation || 'N/A');
+        const createdAtMs = new Date(row?.created_at || Date.now()).getTime();
+        const prev = latestByStation.get(workstation);
+
+        if (!prev || createdAtMs >= prev.createdAtMs) {
+            latestByStation.set(workstation, {
+                action,
+                createdAtMs,
+                workstation,
+                category: payload?.category || 'Andon Alert',
+                detail: payload?.detail || '',
+                startTime: action === 'ANDON_TRIGGERED' ? createdAtMs : (prev?.startTime || createdAtMs)
+            });
+        }
+    });
+
+    return Array.from(latestByStation.values())
+        .filter(item => item.action === 'ANDON_TRIGGERED')
+        .map(item => ({
+            id: `andon_${item.workstation}_${item.createdAtMs}`,
+            workstation: item.workstation,
+            category: item.category,
+            detail: item.detail,
+            startTime: item.startTime
+        }))
+        .sort((a, b) => b.startTime - a.startTime);
+};
+
+export async function getShopFloorRealtimeSnapshot() {
+    const supabase = getSupabaseClient();
+
+    const [queueRes, auditRes] = await Promise.all([
+        supabase
+            .from('production_queue')
+            .select('*')
+            .order('created_at', { ascending: false }),
+        supabase
+            .from('audit_logs')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(300)
+    ]);
+
+    if (queueRes.error) throw queueRes.error;
+    if (auditRes.error) throw auditRes.error;
+
+    const queueRows = queueRes.data || [];
+    const auditRows = auditRes.data || [];
+    const activeAndons = buildActiveAndons(auditRows);
+    const andonStationSet = new Set(activeAndons.map(a => a.workstation));
+
+    const stationMap = new Map(
+        DEFAULT_WORKSTATIONS.map(ws => [ws.id, {
+            ...ws,
+            status: 'READY',
+            currentJob: null,
+            expectedOutput: 0,
+            actualOutput: 0
+        }])
+    );
+
+    queueRows.forEach((job) => {
+        const payload = job?.payload || {};
+        const stationId = String(job?.station_id || payload?.station_id || payload?.workstation || '');
+        if (!stationId) return;
+
+        const base = stationMap.get(stationId) || {
+            id: stationId,
+            name: stationId,
+            status: 'READY',
+            currentJob: null,
+            expectedOutput: 0,
+            actualOutput: 0
+        };
+
+        if (!base.currentJob) {
+            base.currentJob = job?.work_order || null;
+            base.expectedOutput = safeNumber(job?.target_qty, 0);
+            base.actualOutput = safeNumber(payload?.actual_output, 0);
+            base.status = statusFromQueue(job?.status);
+        }
+
+        stationMap.set(stationId, base);
+    });
+
+    const workstations = Array.from(stationMap.values()).map((ws) => {
+        if (andonStationSet.has(ws.id)) {
+            return { ...ws, status: 'DOWN' };
+        }
+        return ws;
+    });
+
+    const totalExpected = workstations.reduce((acc, ws) => acc + safeNumber(ws.expectedOutput), 0);
+    const totalActual = workstations.reduce((acc, ws) => acc + safeNumber(ws.actualOutput), 0);
+    const oee = totalExpected > 0 ? ((totalActual / totalExpected) * 100) : 0;
+
+    return {
+        workstations,
+        activeAndons,
+        oee: Number(oee.toFixed(1))
+    };
+}
+
+export async function acknowledgeAndon({ workstation, category, detail, user = 'Supervisor' }) {
+    const supabase = getSupabaseClient();
+    const payload = {
+        action: 'ANDON_RESOLVED',
+        category: category || 'Andon Alert',
+        detail: detail || '',
+        resolved_by: user,
+        resolved_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+        .from('audit_logs')
+        .insert({
+            event_type: 'ANDON_EVENT',
+            operator_id: user,
+            station_id: workstation || 'N/A',
+            payload,
+            created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data;
+}
+
 // ─── App Variables ────────────────────────────────────────────────────────────
 
 export async function getAllVariables() {
@@ -624,7 +780,7 @@ export async function getAllSavedAnalyses() {
         .order('name');
     if (error) {
         // Fallback for missing table during initial dev
-        if (error.code === '42P01') return []; 
+        if (error.code === '42P01') return [];
         throw error;
     }
     return data || [];

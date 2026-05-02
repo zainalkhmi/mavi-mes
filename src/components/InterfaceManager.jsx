@@ -38,21 +38,38 @@ const InterfaceManager = () => {
         setStations(s);
     };
 
+    const [isSaving, setIsSaving] = useState(false);
+    const [error, setError] = useState(null);
+
     const handleCreateInterface = async () => {
-        if (!newInterfaceData.name) return;
+        if (!newInterfaceData.name.trim()) {
+            alert('Interface Name is required.');
+            return;
+        }
         
-        const iface = {
-            ...newInterfaceData,
-            status: 'ONLINE',
-            version: 'r284.1',
-            lastSeen: new Date().toISOString(),
-            ipAddress: '192.168.1.' + Math.floor(Math.random() * 254 + 1)
-        };
-        
-        await saveInterface(iface);
-        setIsCreateModalOpen(false);
-        setNewInterfaceData({ name: '', deviceType: 'Computer', stationId: '' });
-        loadData();
+        setIsSaving(true);
+        setError(null);
+
+        try {
+            const iface = {
+                ...newInterfaceData,
+                status: 'ONLINE',
+                version: 'r284.1',
+                lastSeen: new Date().toISOString(),
+                ipAddress: '192.168.1.' + Math.floor(Math.random() * 254 + 1)
+            };
+            
+            await saveInterface(iface);
+            setIsCreateModalOpen(false);
+            setNewInterfaceData({ name: '', deviceType: 'Computer', stationId: '' });
+            await loadData();
+        } catch (err) {
+            console.error('Failed to register interface:', err);
+            setError(err.message || 'Failed to register device. Please try again.');
+            alert('Error: ' + (err.message || 'Failed to register device.'));
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleDeleteInterface = async (id) => {
@@ -254,9 +271,15 @@ const InterfaceManager = () => {
                             </button>
                             <button 
                                 onClick={handleCreateInterface}
-                                style={{ padding: '10px 24px', borderRadius: '8px', backgroundColor: '#3b82f6', color: 'white', border: 'none', fontWeight: 700, cursor: 'pointer' }}
+                                disabled={isSaving}
+                                style={{ 
+                                    padding: '10px 24px', borderRadius: '8px', 
+                                    backgroundColor: isSaving ? '#94a3b8' : '#3b82f6', 
+                                    color: 'white', border: 'none', fontWeight: 700, 
+                                    cursor: isSaving ? 'not-allowed' : 'pointer' 
+                                }}
                             >
-                                Register Device
+                                {isSaving ? 'Registering...' : 'Register Device'}
                             </button>
                         </div>
                     </div>

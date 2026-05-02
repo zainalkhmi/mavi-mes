@@ -22,8 +22,8 @@ export async function logEvent({ type, user, workstation, workOrder, details }) 
         event_type: type,
         operator_id: user || 'anonymous',
         station_id: workstation || 'N/A',
-        work_order: workOrder || 'N/A',
-        payload: details || {},
+        // work_order: workOrder || 'N/A',
+        payload: { ...details, work_order: workOrder || 'N/A' },
         created_at: new Date().toISOString()
     };
 

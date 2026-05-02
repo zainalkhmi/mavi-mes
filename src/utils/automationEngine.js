@@ -570,9 +570,13 @@ class AutomationEngine {
       case 'OBD2_CONNECT':
         const transport = (action.transport || 'BLUETOOTH').toUpperCase();
         console.log(`[AutomationEngine] OBD2 Connect via ${transport}`);
-        return transport === 'SERIAL' 
-          ? obd2Service.connectSerial(Number(action.baudRate) || 38400)
-          : obd2Service.connectBluetooth();
+          if (transport === 'SERIAL') {
+            return obd2Service.connectSerial(Number(action.baudRate) || 38400);
+          } else if (transport === 'WIFI') {
+            return obd2Service.connectWiFi(action.ipAddress || '192.168.0.10', Number(action.port) || 35000);
+          } else {
+            return obd2Service.connectBluetooth();
+          }
 
       case 'OBD2_READ_PID':
         const pid = action.pid || '010C';

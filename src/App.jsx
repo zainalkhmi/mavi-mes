@@ -153,29 +153,183 @@ const App = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '0 20px',
+        padding: '0 24px',
         height: '56px',
-        backgroundColor: '#001e3c',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-        color: 'white',
+        backgroundColor: '#ffffff',
+        borderBottom: '1px solid #e2e8f0',
         zIndex: 1000
       }}>
-        {/* ... (Existing Navbar Content) ... */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ backgroundColor: '#007bff', padding: '6px', borderRadius: '4px', display: 'flex', alignItems: 'center' }}>
-            <Settings size={18} color="white" />
+        {/* LEFT SECTION */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
+          {/* LOGO */}
+          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
+            <div style={{ backgroundColor: '#2563eb', padding: '6px', borderRadius: '6px', display: 'flex', alignItems: 'center' }}>
+              <Settings size={18} color="white" />
+            </div>
+            <span style={{ fontWeight: 800, letterSpacing: '0.5px', fontSize: '1.1rem', color: '#0f172a' }}>MES CORE</span>
+          </Link>
+
+          {/* MAIN NAVIGATION */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            {/* APPS */}
+            <div style={{ position: 'relative' }} ref={appsMenuRef}>
+              <button
+                onClick={() => setAppsMenuOpen(!appsMenuOpen)}
+                style={{
+                  ...navLinkStyle('/builder'),
+                  backgroundColor: ['/builder', '/tables', '/connectors', '/variables'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
+                  color: ['/builder', '/tables', '/connectors', '/variables'].includes(location.pathname) ? '#2563eb' : '#475569',
+                  fontSize: '0.9rem', padding: '6px 12px', fontWeight: 600
+                }}
+                onMouseEnter={(e) => { if (!['/builder', '/tables', '/connectors', '/variables'].includes(location.pathname)) { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
+                onMouseLeave={(e) => { if (!['/builder', '/tables', '/connectors', '/variables'].includes(location.pathname)) { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
+              >
+                Apps <ChevronDown size={14} style={{ transform: appsMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', marginLeft: '4px' }} />
+              </button>
+              {appsMenuOpen && (
+                <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, backgroundColor: 'white', minWidth: '200px', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)', padding: '8px 0', display: 'flex', flexDirection: 'column', zIndex: 1001, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                  <Link to="/builder" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/builder')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/builder' ? '#f0f7ff' : 'transparent'}><Layout size={16} /> App Builder</Link>
+                  <Link to="/tables" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/tables')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/tables' ? '#f0f7ff' : 'transparent'}><Database size={16} /> Tables</Link>
+                  <Link to="/connectors" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/connectors')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/connectors' ? '#f0f7ff' : 'transparent'}><Link2 size={16} /> Connectors</Link>
+                  <Link to="/variables" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/variables')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/variables' ? '#f0f7ff' : 'transparent'}><Variable size={16} /> Variables</Link>
+                </div>
+              )}
+            </div>
+
+            {/* SHOP FLOOR */}
+            <div style={{ position: 'relative' }} ref={shopFloorMenuRef}>
+              <button
+                onClick={() => setShopFloorMenuOpen(!shopFloorMenuOpen)}
+                style={{
+                  ...navLinkStyle('/stations'),
+                  backgroundColor: ['/stations', '/display-devices', '/machines', '/edge-devices', '/vision'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
+                  color: ['/stations', '/display-devices', '/machines', '/edge-devices', '/vision'].includes(location.pathname) ? '#2563eb' : '#475569',
+                  fontSize: '0.9rem', padding: '6px 12px', fontWeight: 600
+                }}
+                onMouseEnter={(e) => { if (!['/stations', '/display-devices', '/machines', '/edge-devices', '/vision'].includes(location.pathname)) { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
+                onMouseLeave={(e) => { if (!['/stations', '/display-devices', '/machines', '/edge-devices', '/vision'].includes(location.pathname)) { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
+              >
+                Shop Floor <ChevronDown size={14} style={{ transform: shopFloorMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', marginLeft: '4px' }} />
+              </button>
+              {shopFloorMenuOpen && (
+                <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, backgroundColor: 'white', minWidth: '220px', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)', padding: '8px 0', display: 'flex', flexDirection: 'column', zIndex: 1001, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                  <Link to="/stations" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/stations')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/stations' ? '#f0f7ff' : 'transparent'}><MapPin size={16} /> Station Manager</Link>
+                  <Link to="/display-devices" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/display-devices')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/display-devices' ? '#f0f7ff' : 'transparent'}><Tv size={16} /> Display Interfaces</Link>
+                  <Link to="/machines" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/machines')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/machines' ? '#f0f7ff' : 'transparent'}><Cpu size={16} /> Machines & IoT</Link>
+                  <Link to="/edge-devices" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/edge-devices')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/edge-devices' ? '#f0f7ff' : 'transparent'}><Activity size={16} /> Edge Devices</Link>
+                </div>
+              )}
+            </div>
+
+            {/* ANALYTICS */}
+            <div style={{ position: 'relative' }} ref={analyticsMenuRef}>
+              <button
+                onClick={() => setAnalyticsMenuOpen(!analyticsMenuOpen)}
+                style={{
+                  ...navLinkStyle('/analytics'),
+                  backgroundColor: ['/analytics', '/dashboards'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
+                  color: ['/analytics', '/dashboards'].includes(location.pathname) ? '#2563eb' : '#475569',
+                  fontSize: '0.9rem', padding: '6px 12px', fontWeight: 600
+                }}
+                onMouseEnter={(e) => { if (!['/analytics', '/dashboards'].includes(location.pathname)) { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
+                onMouseLeave={(e) => { if (!['/analytics', '/dashboards'].includes(location.pathname)) { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
+              >
+                Analytics <ChevronDown size={14} style={{ transform: analyticsMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', marginLeft: '4px' }} />
+              </button>
+              {analyticsMenuOpen && (
+                <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, backgroundColor: 'white', minWidth: '200px', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)', padding: '8px 0', display: 'flex', flexDirection: 'column', zIndex: 1001, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                  <Link to="/analytics" onClick={() => setAnalyticsMenuOpen(false)} style={dropdownItemStyle('/analytics')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/analytics' ? '#f0f7ff' : 'transparent'}><BarChart3 size={16} /> Analysis Manager</Link>
+                  <Link to="/dashboards" onClick={() => setAnalyticsMenuOpen(false)} style={dropdownItemStyle('/dashboards')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/dashboards' ? '#f0f7ff' : 'transparent'}><Layout size={16} /> Dashboards</Link>
+                </div>
+              )}
+            </div>
+
+            {/* LOGIC */}
+            <div style={{ position: 'relative' }} ref={logicMenuRef}>
+              <button
+                onClick={() => setLogicMenuOpen(!logicMenuOpen)}
+                style={{
+                  ...navLinkStyle('/logic'),
+                  backgroundColor: ['/automations', '/functions'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
+                  color: ['/automations', '/functions'].includes(location.pathname) ? '#2563eb' : '#475569',
+                  fontSize: '0.9rem', padding: '6px 12px', fontWeight: 600
+                }}
+                onMouseEnter={(e) => { if (!['/automations', '/functions'].includes(location.pathname)) { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
+                onMouseLeave={(e) => { if (!['/automations', '/functions'].includes(location.pathname)) { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
+              >
+                Logic <ChevronDown size={14} style={{ transform: logicMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', marginLeft: '4px' }} />
+              </button>
+              {logicMenuOpen && (
+                <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, backgroundColor: 'white', minWidth: '200px', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)', padding: '8px 0', display: 'flex', flexDirection: 'column', zIndex: 1001, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                  <Link to="/automations" onClick={() => setLogicMenuOpen(false)} style={dropdownItemStyle('/automations')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/automations' ? '#f0f7ff' : 'transparent'}><Zap size={16} /> Automations</Link>
+                  <Link to="/functions" onClick={() => setLogicMenuOpen(false)} style={dropdownItemStyle('/functions')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/functions' ? '#f0f7ff' : 'transparent'}><Cpu size={16} /> Functions</Link>
+                </div>
+              )}
+            </div>
           </div>
-          <span style={{ fontWeight: 900, letterSpacing: '1px', fontSize: '1.1rem' }}>MES CORE</span>
         </div>
 
-        <div style={{ display: 'flex', gap: '5px' }}>
+        {/* RIGHT SECTION: Console, System, User */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          
+          {/* CONSOLE */}
+          <div style={{ position: 'relative' }} ref={consoleMenuRef}>
+            <button
+              onClick={() => setConsoleMenuOpen(!consoleMenuOpen)}
+              style={{
+                ...navLinkStyle('/console'),
+                backgroundColor: ['/terminal', '/player'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
+                color: ['/terminal', '/player'].includes(location.pathname) ? '#2563eb' : '#475569',
+                fontSize: '0.9rem', padding: '6px 12px', fontWeight: 600
+              }}
+              onMouseEnter={(e) => { if (!['/terminal', '/player'].includes(location.pathname)) { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
+              onMouseLeave={(e) => { if (!['/terminal', '/player'].includes(location.pathname)) { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
+            >
+              Console <ChevronDown size={14} style={{ transform: consoleMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', marginLeft: '4px' }} />
+            </button>
+            {consoleMenuOpen && (
+              <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, backgroundColor: 'white', minWidth: '200px', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)', padding: '8px 0', display: 'flex', flexDirection: 'column', zIndex: 1001, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                <Link to="/player" onClick={() => setConsoleMenuOpen(false)} style={dropdownItemStyle('/player')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/player' ? '#f0f7ff' : 'transparent'}><Play size={16} /> App Player</Link>
+                <Link to="/terminal" onClick={() => setConsoleMenuOpen(false)} style={dropdownItemStyle('/terminal')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/terminal' ? '#f0f7ff' : 'transparent'}><Monitor size={16} /> Live Terminal</Link>
+              </div>
+            )}
+          </div>
+
+          {/* SYSTEM */}
+          <div style={{ position: 'relative' }} ref={systemMenuRef}>
+            <button
+              onClick={() => setSystemMenuOpen(!systemMenuOpen)}
+              style={{
+                ...navLinkStyle('/system'),
+                backgroundColor: ['/users', '/ai-settings', '/supabase-settings'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
+                color: ['/users', '/ai-settings', '/supabase-settings'].includes(location.pathname) ? '#2563eb' : '#475569',
+                fontSize: '0.9rem', padding: '6px 12px', fontWeight: 600
+              }}
+              onMouseEnter={(e) => { if (!['/users', '/ai-settings', '/supabase-settings'].includes(location.pathname)) { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
+              onMouseLeave={(e) => { if (!['/users', '/ai-settings', '/supabase-settings'].includes(location.pathname)) { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
+            >
+              System <ChevronDown size={14} style={{ transform: systemMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', marginLeft: '4px' }} />
+            </button>
+            {systemMenuOpen && (
+              <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, backgroundColor: 'white', minWidth: '200px', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)', padding: '8px 0', display: 'flex', flexDirection: 'column', zIndex: 1001, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                <Link to="/users" onClick={() => setSystemMenuOpen(false)} style={dropdownItemStyle('/users')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/users' ? '#f0f7ff' : 'transparent'}><Users size={16} /> User Access Role</Link>
+                <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '4px 0' }}></div>
+                <Link to="/ai-settings" onClick={() => setSystemMenuOpen(false)} style={dropdownItemStyle('/ai-settings')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/ai-settings' ? '#f0f7ff' : 'transparent'}><BrainCircuit size={16} /> AI Settings</Link>
+                <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '4px 0' }}></div>
+                <Link to="/supabase-settings" onClick={() => setSystemMenuOpen(false)} style={dropdownItemStyle('/supabase-settings')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/supabase-settings' ? '#f0f7ff' : 'transparent'}><Database size={16} /> Database Settings</Link>
+              </div>
+            )}
+          </div>
+
+          <div style={{ width: '1px', height: '24px', backgroundColor: '#e2e8f0', margin: '0 8px' }}></div>
+
           {/* USER MENU & LOGOUT */}
-          <div style={{ display: 'flex', alignItems: 'center', marginRight: '16px', gap: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#cbd5e1', fontSize: '0.8rem', fontWeight: 600 }}>
-              <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', paddingLeft: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0f172a', fontSize: '0.85rem', fontWeight: 600 }}>
+              <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#2563eb', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700 }}>
                 {user?.name?.charAt(0) || 'U'}
               </div>
-              <span style={{ color: 'white' }}>{user?.name || 'User'}</span>
+              <span>{user?.name || 'User'}</span>
             </div>
             <button
               onClick={() => {
@@ -184,304 +338,22 @@ const App = () => {
               }}
               style={{
                 backgroundColor: 'transparent',
-                border: '1px solid rgba(255,255,255,0.2)',
-                color: 'white',
-                padding: '4px 10px',
-                borderRadius: '4px',
-                fontSize: '0.75rem',
+                border: '1px solid #cbd5e1',
+                color: '#64748b',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                fontSize: '0.8rem',
                 fontWeight: 600,
                 cursor: 'pointer',
                 transition: 'all 0.2s',
               }}
-              onMouseEnter={(e) => { e.target.style.backgroundColor = 'rgba(239, 68, 68, 0.2)'; e.target.style.borderColor = '#ef4444'; e.target.style.color = '#fca5a5'; }}
-              onMouseLeave={(e) => { e.target.style.backgroundColor = 'transparent'; e.target.style.borderColor = 'rgba(255,255,255,0.2)'; e.target.style.color = 'white'; }}
+              onMouseEnter={(e) => { e.target.style.backgroundColor = '#fee2e2'; e.target.style.borderColor = '#ef4444'; e.target.style.color = '#ef4444'; }}
+              onMouseLeave={(e) => { e.target.style.backgroundColor = 'transparent'; e.target.style.borderColor = '#cbd5e1'; e.target.style.color = '#64748b'; }}
             >
               Logout
             </button>
-            <div style={{ width: '1px', height: '20px', backgroundColor: 'rgba(255,255,255,0.2)', margin: '0 4px' }}></div>
           </div>
 
-          {/* APPS DROPDOWN */}
-          <div style={{ position: 'relative' }} ref={appsMenuRef}>
-            <button
-              onClick={() => setAppsMenuOpen(!appsMenuOpen)}
-              style={{
-                ...navLinkStyle('/builder'),
-                backgroundColor: ['/builder', '/tables', '/connectors', '/variables'].includes(location.pathname) ? 'white' : 'transparent',
-                color: ['/builder', '/tables', '/connectors', '/variables'].includes(location.pathname) ? '#001e3c' : 'rgba(255,255,255,0.7)',
-              }}
-            >
-              <Layout size={16} /> APPS <ChevronDown size={14} style={{ transform: appsMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
-            </button>
-
-            {appsMenuOpen && (
-              <div style={{
-                position: 'absolute',
-                top: 'calc(100% + 5px)',
-                left: 0,
-                backgroundColor: 'white',
-                minWidth: '200px',
-                borderRadius: '8px',
-                boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-                padding: '8px 0',
-                display: 'flex',
-                flexDirection: 'column',
-                zIndex: 1001,
-                border: '1px solid #e2e8f0',
-                overflow: 'hidden'
-              }}>
-                <Link to="/builder" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/builder')}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/builder' ? '#f0f7ff' : 'transparent'}
-                >
-                  <Layout size={16} /> App Builder
-                </Link>
-                <Link to="/tables" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/tables')}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/tables' ? '#f0f7ff' : 'transparent'}
-                >
-                  <Database size={16} /> Tables
-                </Link>
-                <Link to="/connectors" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/connectors')}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/connectors' ? '#f0f7ff' : 'transparent'}
-                >
-                  <Link2 size={16} /> Connectors
-                </Link>
-                <Link to="/variables" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/variables')}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/variables' ? '#f0f7ff' : 'transparent'}
-                >
-                  <Variable size={16} /> Variables
-                </Link>
-              </div>
-            )}
-          </div>
-          {/* SHOP FLOOR DROPDOWN */}
-          <div style={{ position: 'relative' }} ref={shopFloorMenuRef}>
-            <button
-              onClick={() => setShopFloorMenuOpen(!shopFloorMenuOpen)}
-              style={{
-                ...navLinkStyle('/stations'),
-                backgroundColor: ['/stations', '/display-devices', '/machines', '/edge-devices', '/vision'].includes(location.pathname) ? 'white' : 'transparent',
-                color: ['/stations', '/display-devices', '/machines', '/edge-devices', '/vision'].includes(location.pathname) ? '#001e3c' : 'rgba(255,255,255,0.7)',
-              }}
-            >
-              <MapPin size={16} /> SHOP FLOOR <ChevronDown size={14} style={{ transform: shopFloorMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
-            </button>
-
-            {shopFloorMenuOpen && (
-              <div style={{
-                position: 'absolute',
-                top: 'calc(100% + 5px)',
-                left: 0,
-                backgroundColor: 'white',
-                minWidth: '220px',
-                borderRadius: '8px',
-                boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-                padding: '8px 0',
-                display: 'flex',
-                flexDirection: 'column',
-                zIndex: 1001,
-                border: '1px solid #e2e8f0',
-                overflow: 'hidden'
-              }}>
-                <Link to="/stations" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/stations')}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/stations' ? '#f0f7ff' : 'transparent'}
-                >
-                  <MapPin size={16} /> Station Manager
-                </Link>
-                <Link to="/display-devices" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/display-devices')}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/display-devices' ? '#f0f7ff' : 'transparent'}
-                >
-                  <Tv size={16} /> Display Interfaces
-                </Link>
-                <Link to="/machines" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/machines')}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/machines' ? '#f0f7ff' : 'transparent'}
-                >
-                  <Cpu size={16} /> Machines & IoT
-                </Link>
-                <Link to="/edge-devices" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/edge-devices')}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/edge-devices' ? '#f0f7ff' : 'transparent'}
-                >
-                  <Activity size={16} /> Edge Devices
-                </Link>
-              </div>
-            )}
-          </div>
-          
-          <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.2)', margin: '0 10px' }}></div>
-          
-          {/* ANALYTICS DROPDOWN */}
-          <div style={{ position: 'relative' }} ref={analyticsMenuRef}>
-            <button
-              onClick={() => setAnalyticsMenuOpen(!analyticsMenuOpen)}
-              style={{
-                ...navLinkStyle('/analytics'),
-                backgroundColor: ['/analytics', '/dashboards'].includes(location.pathname) ? 'white' : 'transparent',
-                color: ['/analytics', '/dashboards'].includes(location.pathname) ? '#001e3c' : 'rgba(255,255,255,0.7)',
-              }}
-            >
-              <BarChart3 size={16} /> ANALYTICS <ChevronDown size={14} style={{ transform: analyticsMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
-            </button>
-
-            {analyticsMenuOpen && (
-              <div style={{
-                position: 'absolute',
-                top: 'calc(100% + 5px)',
-                left: 0,
-                backgroundColor: 'white',
-                minWidth: '200px',
-                borderRadius: '8px',
-                boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-                padding: '8px 0',
-                display: 'flex',
-                flexDirection: 'column',
-                zIndex: 1001,
-                border: '1px solid #e2e8f0',
-                overflow: 'hidden'
-              }}>
-                <Link to="/analytics" onClick={() => setAnalyticsMenuOpen(false)} style={dropdownItemStyle('/analytics')}>
-                  <BarChart3 size={16} /> Analysis Manager
-                </Link>
-                <Link to="/dashboards" onClick={() => setAnalyticsMenuOpen(false)} style={dropdownItemStyle('/dashboards')}>
-                  <Layout size={16} /> Dashboards
-                </Link>
-              </div>
-            )}
-          </div>
-          
-          <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.2)', margin: '0 10px' }}></div>
-
-          {/* LOGIC DROPDOWN */}
-          <div style={{ position: 'relative' }} ref={logicMenuRef}>
-            <button
-              onClick={() => setLogicMenuOpen(!logicMenuOpen)}
-              style={{
-                ...navLinkStyle('/logic'),
-                backgroundColor: ['/automations', '/functions'].includes(location.pathname) ? 'white' : 'transparent',
-                color: ['/automations', '/functions'].includes(location.pathname) ? '#001e3c' : 'rgba(255,255,255,0.7)',
-              }}
-            >
-              <Zap size={16} /> LOGIC <ChevronDown size={14} style={{ transform: logicMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
-            </button>
-
-            {logicMenuOpen && (
-              <div style={{
-                position: 'absolute',
-                top: 'calc(100% + 5px)',
-                left: 0,
-                backgroundColor: 'white',
-                minWidth: '200px',
-                borderRadius: '8px',
-                boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-                padding: '8px 0',
-                display: 'flex',
-                flexDirection: 'column',
-                zIndex: 1001,
-                border: '1px solid #e2e8f0',
-                overflow: 'hidden'
-              }}>
-                <Link to="/automations" onClick={() => setLogicMenuOpen(false)} style={dropdownItemStyle('/automations')}>
-                  <Zap size={16} /> Automations
-                </Link>
-                <Link to="/functions" onClick={() => setLogicMenuOpen(false)} style={dropdownItemStyle('/functions')}>
-                  <Cpu size={16} /> Functions
-                </Link>
-              </div>
-            )}
-          </div>
-
-          <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.2)', margin: '0 10px' }}></div>
-
-          {/* CONSOLE DROPDOWN */}
-          <div style={{ position: 'relative' }} ref={consoleMenuRef}>
-            <button
-              onClick={() => setConsoleMenuOpen(!consoleMenuOpen)}
-              style={{
-                ...navLinkStyle('/console'),
-                backgroundColor: ['/terminal', '/player'].includes(location.pathname) ? 'white' : 'transparent',
-                color: ['/terminal', '/player'].includes(location.pathname) ? '#001e3c' : 'rgba(255,255,255,0.7)',
-              }}
-            >
-              <Monitor size={16} /> CONSOLE <ChevronDown size={14} style={{ transform: consoleMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
-            </button>
-
-            {consoleMenuOpen && (
-              <div style={{
-                position: 'absolute',
-                top: 'calc(100% + 5px)',
-                right: 0,
-                backgroundColor: 'white',
-                minWidth: '200px',
-                borderRadius: '8px',
-                boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-                padding: '8px 0',
-                display: 'flex',
-                flexDirection: 'column',
-                zIndex: 1001,
-                border: '1px solid #e2e8f0',
-                overflow: 'hidden'
-              }}>
-                <Link to="/player" onClick={() => setConsoleMenuOpen(false)} style={dropdownItemStyle('/player')}>
-                  <Play size={16} /> App Player
-                </Link>
-                <Link to="/terminal" onClick={() => setConsoleMenuOpen(false)} style={dropdownItemStyle('/terminal')}>
-                  <Monitor size={16} /> Live Terminal
-                </Link>
-              </div>
-            )}
-          </div>
-
-          <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.2)', margin: '0 10px' }}></div>
-
-          {/* SYSTEM DROPDOWN */}
-          <div style={{ position: 'relative' }} ref={systemMenuRef}>
-            <button
-              onClick={() => setSystemMenuOpen(!systemMenuOpen)}
-              style={{
-                ...navLinkStyle('/system'),
-                backgroundColor: ['/users', '/ai-settings'].includes(location.pathname) ? 'white' : 'transparent',
-                color: ['/users', '/ai-settings'].includes(location.pathname) ? '#001e3c' : 'rgba(255,255,255,0.7)',
-              }}
-            >
-              <SlidersHorizontal size={16} /> SYSTEM <ChevronDown size={14} style={{ transform: systemMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
-            </button>
-
-            {systemMenuOpen && (
-              <div style={{
-                position: 'absolute',
-                top: 'calc(100% + 5px)',
-                right: 0,
-                backgroundColor: 'white',
-                minWidth: '200px',
-                borderRadius: '8px',
-                boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-                padding: '8px 0',
-                display: 'flex',
-                flexDirection: 'column',
-                zIndex: 1001,
-                border: '1px solid #e2e8f0',
-                overflow: 'hidden'
-              }}>
-                <Link to="/users" onClick={() => setSystemMenuOpen(false)} style={dropdownItemStyle('/users')}>
-                  <Users size={16} /> User Access Role
-                </Link>
-                <div style={{ height: '1px', backgroundColor: '#f1f5f9', margin: '4px 0' }}></div>
-                <Link to="/ai-settings" onClick={() => setSystemMenuOpen(false)} style={dropdownItemStyle('/ai-settings')}>
-                  <BrainCircuit size={16} /> AI Settings
-                </Link>
-                <div style={{ height: '1px', backgroundColor: '#f1f5f9', margin: '4px 0' }}></div>
-                <Link to="/supabase-settings" onClick={() => setSystemMenuOpen(false)} style={dropdownItemStyle('/supabase-settings')}>
-                  <Database size={16} /> Database Settings
-                </Link>
-              </div>
-            )}
-          </div>
         </div>
       </nav>}
 
