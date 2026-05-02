@@ -345,6 +345,45 @@ const TableManager = () => {
         [filteredAndSortedRecords, records, selectedRecordInternalId]
     );
 
+    const relationDiagramData = useMemo(() => {
+        if (!selectedTable) return { nodes: [], edges: [] };
+
+        const linkedFields = (selectedTable.fields || []).filter((f) => f.type === 'linked_record');
+        if (linkedFields.length === 0) return { nodes: [], edges: [] };
+
+        const nodeMap = new Map();
+        const edges = [];
+
+        const putNode = (id, label, group, tableName) => {
+            if (!nodeMap.has(id)) nodeMap.set(id, { id, label, group, tableName });
+        };
+
+        records.forEach((record) => {
+            const sourceId = `${selectedTable.id}:${record.recordId}`;
+            putNode(sourceId, record.recordId, 'source', selectedTable.name);
+
+            linkedFields.forEach((field) => {
+                const raw = record[field.name];
+                const linkedIds = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+                const targetTable = tables.find((t) => t.id === field.link_table_id);
+
+                linkedIds.forEach((linkedRecordId) => {
+                    const targetId = `${field.link_table_id}:${linkedRecordId}`;
+                    putNode(targetId, linkedRecordId, 'target', targetTable?.name || 'Linked Table');
+                    edges.push({
+                        id: `${sourceId}->${targetId}:${field.name}`,
+                        from: sourceId,
+                        to: targetId,
+                        fieldName: field.name,
+                        linkType: field.link_type || 'linked_record'
+                    });
+                });
+            });
+        });
+
+        return { nodes: Array.from(nodeMap.values()), edges };
+    }, [selectedTable, records, tables]);
+
     const updateRecordSort = (fieldName) => {
         if (recordSortField === fieldName) {
             setRecordSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
@@ -1072,7 +1111,8 @@ const TableManager = () => {
                             { id: 'records', label: 'Records', icon: Rows3 },
                             { id: 'fields', label: 'Fields', icon: Columns3 },
                             { id: 'queries', label: 'Queries', icon: Search },
-                            { id: 'aggregations', label: 'Aggregations', icon: ArrowUpDown }
+                            { id: 'aggregations', label: 'Aggregations', icon: ArrowUpDown },
+                            { id: 'relation_diagram', label: 'Relation Diagram', icon: Zap }
                         ].map(tab => (
                             <button
                                 key={tab.id}
@@ -1532,13 +1572,12 @@ const TableManager = () => {
                                     </div>
 
                                     {/* Summary Cards */}
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '20px', marginBottom: '32px' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '32px' }}>
                                         {[
                                             { label: 'Total Fields', value: activeFields.length + 1, icon: Layers, color: '#6366f1' },
                                             { label: 'Visible Fields', value: activeFields.length + 1, icon: Eye, color: '#10b981' },
                                             { label: 'Primary Key', value: 1, icon: Key, color: '#f59e0b' },
-                                            { label: 'Indexes', value: 3, icon: Database, color: '#8b5cf6' },
-                                            { label: 'Last Updated', value: '2m ago', icon: Clock, color: '#3b82f6' }
+                                            { label: 'Indexes', value: 3, icon: Database, color: '#8b5cf6' }
                                         ].map((card, i) => (
                                             <div key={i} style={{ backgroundColor: 'white', borderRadius: '16px', padding: '20px', border: `1px solid ${TOKENS.border}`, display: 'flex', alignItems: 'center', gap: '16px' }}>
                                                 <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: `${card.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: card.color }}>
@@ -1791,6 +1830,75 @@ const TableManager = () => {
                                                 </div>
                                             ))
                                         )}
+                                    </div>
+                                </div>
+                            ) : activePanel === 'relation_diagram' ? (
+                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '32px', overflow: 'hidden' }}>
+                                    <div style={{ marginBottom: '20px' }}>
+                                        <h2 style={{ fontSize: '1.8rem', fontWeight: 800, margin: 0, color: TOKENS.text, letterSpacing: '-0.02em' }}>Relation Diagram</h2>
+                                        <p style={{ fontSize: '1rem', color: TOKENS.textMuted, margin: '8px 0 0' }}>
+                                            Visualisasi linked record untuk tabel <strong>{selectedTable.name}</strong>.
+                                        </p>
+                                    </div>
+
+                                    <div style={{ flex: 1, backgroundColor: 'white', borderRadius: '16px', border: `1px solid ${TOKENS.border}`, boxShadow: TOKENS.shadow, padding: '24px', overflow: 'auto', position: 'relative' }}>
+                                        {relationDiagramData.nodes.length === 0 ? (
+                                            <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: TOKENS.textMuted, textAlign: 'center' }}>
+                                                <Database size={48} style={{ opacity: 0.2, marginBottom: '16px' }} />
+                                                <div style={{ fontWeight: 700, color: TOKENS.text, marginBottom: '8px' }}>Belum ada relasi linked record</div>
+                                                <div style={{ fontSize: '0.9rem' }}>Tambahkan field bertipe Linked Record dan isi data untuk melihat diagram relasi.</div>
+                                            </div>
+                                        ) : (() => {
+                                            const { nodes, edges } = relationDiagramData;
+                                            const width = 1200;
+                                            const height = Math.max(600, Math.ceil(nodes.length / 4) * 170);
+                                            const positionedNodes = nodes.map((node, index) => {
+                                                const col = index % 4;
+                                                const row = Math.floor(index / 4);
+                                                return { ...node, x: 120 + col * 280, y: 90 + row * 140 };
+                                            });
+                                            const positionMap = new Map(positionedNodes.map((n) => [n.id, n]));
+
+                                            return (
+                                                <div style={{ minWidth: `${width}px`, minHeight: `${height}px`, position: 'relative' }}>
+                                                    <svg width={width} height={height} style={{ position: 'absolute', inset: 0 }}>
+                                                        {edges.map((edge) => {
+                                                            const from = positionMap.get(edge.from);
+                                                            const to = positionMap.get(edge.to);
+                                                            if (!from || !to) return null;
+                                                            return (
+                                                                <g key={edge.id}>
+                                                                    <line x1={from.x + 70} y1={from.y + 24} x2={to.x - 70} y2={to.y + 24} stroke="#94a3b8" strokeWidth="1.8" />
+                                                                    <text x={(from.x + to.x) / 2} y={(from.y + to.y) / 2 - 4} fill="#64748b" fontSize="10" textAnchor="middle">
+                                                                        {edge.fieldName}
+                                                                    </text>
+                                                                </g>
+                                                            );
+                                                        })}
+                                                    </svg>
+
+                                                    {positionedNodes.map((node) => (
+                                                        <div
+                                                            key={node.id}
+                                                            style={{
+                                                                position: 'absolute',
+                                                                left: node.x - 70,
+                                                                top: node.y,
+                                                                width: '140px',
+                                                                padding: '10px',
+                                                                borderRadius: '10px',
+                                                                border: `1px solid ${node.group === 'source' ? '#c7d2fe' : '#e2e8f0'}`,
+                                                                backgroundColor: node.group === 'source' ? '#eef2ff' : '#f8fafc',
+                                                                boxShadow: TOKENS.shadow
+                                                            }}
+                                                        >
+                                                            <div style={{ fontSize: '0.68rem', color: TOKENS.textMuted, marginBottom: '4px', fontWeight: 700 }}>{node.tableName}</div>
+                                                            <div style={{ fontSize: '0.82rem', fontWeight: 800, color: TOKENS.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.label}</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             ) : (
