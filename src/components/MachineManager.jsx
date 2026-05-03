@@ -13,8 +13,8 @@ import {
     XCircle,
     Activity
 } from 'lucide-react';
-import { 
-    getMachines, saveMachine, deleteMachine, getStations, 
+import {
+    getMachines, saveMachine, deleteMachine, getStations,
     getIntegrationConnectors, saveIntegrationConnector, deleteIntegrationConnector,
     getEdgeDevices, saveEdgeDevice, deleteEdgeDevice
 } from '../utils/database';
@@ -39,15 +39,60 @@ const MachineManager = () => {
         dataSource: 'OPC UA',
         stationId: ''
     });
+    const [createStep, setCreateStep] = useState(1);
+    const [createErrors, setCreateErrors] = useState({});
+    const [dataSourceConfig, setDataSourceConfig] = useState({
+        endpoint: '',
+        port: '',
+        authType: 'No auth',
+        username: '',
+        password: '',
+        topicOrNode: ''
+    });
+    const [testConnectionState, setTestConnectionState] = useState({
+        loading: false,
+        success: false,
+        message: '',
+        details: '',
+        attemptCount: 0
+    });
 
     useEffect(() => {
         loadData();
     }, []);
 
+    useEffect(() => {
+        const interval = setInterval(async () => {
+            const allMachines = await getMachines();
+            if (!allMachines.length) return;
+
+            const now = new Date().toISOString();
+            await Promise.all(allMachines.map(async (machine) => {
+                if (!machine.connectionConfig?.endpoint) return;
+
+                const currentlyOnline = machine.connectionStatus !== 'OFFLINE';
+                const shouldFlip = Math.random() < 0.08;
+                const nextOnline = shouldFlip ? !currentlyOnline : currentlyOnline;
+
+                const updated = {
+                    ...machine,
+                    connectionStatus: nextOnline ? 'ONLINE' : 'OFFLINE',
+                    lastHeartbeat: nextOnline ? now : machine.lastHeartbeat,
+                    lastError: nextOnline ? '' : 'Heartbeat timeout (simulated polling)'
+                };
+                await saveMachine(updated);
+            }));
+
+            loadData();
+        }, 15000);
+
+        return () => clearInterval(interval);
+    }, []);
+
     const loadData = async () => {
         const [m, s, c, e] = await Promise.all([
-            getMachines(), 
-            getStations(), 
+            getMachines(),
+            getStations(),
             getIntegrationConnectors(),
             getEdgeDevices()
         ]);
@@ -93,12 +138,22 @@ const MachineManager = () => {
     };
 
     const handleCreateMachine = async () => {
-        if (!newMachineData.name) return;
+        const errs = validateStep(4);
+        if (Object.keys(errs).length > 0) {
+            setCreateErrors(errs);
+            return;
+        }
 
         const machine = {
             ...newMachineData,
             status: 'CONNECTED',
             lastData: new Date().toISOString(),
+            connectionConfig: {
+                ...dataSourceConfig
+            },
+            connectionStatus: testConnectionState.success ? 'ONLINE' : 'UNKNOWN',
+            lastHeartbeat: testConnectionState.success ? new Date().toISOString() : null,
+            lastError: testConnectionState.success ? '' : (testConnectionState.message || 'Connection has not been verified'),
             attributes: [
                 { name: 'Spindle Speed', value: '12000 RPM', status: 'OK' },
                 { name: 'Temperature', value: '45°C', status: 'WARNING' }
@@ -108,7 +163,115 @@ const MachineManager = () => {
         await saveMachine(machine);
         setIsCreateModalOpen(false);
         setNewMachineData({ name: '', type: 'CNC Mill', dataSource: 'OPC UA', stationId: '' });
+        setDataSourceConfig({ endpoint: '', port: '', authType: 'No auth', username: '', password: '', topicOrNode: '' });
+        setCreateErrors({});
+        setCreateStep(1);
+        setTestConnectionState({ loading: false, success: false, message: '', details: '', attemptCount: 0 });
         loadData();
+    };
+
+    const openCreateModal = () => {
+        setIsCreateModalOpen(true);
+        setCreateStep(1);
+        setCreateErrors({});
+        setTestConnectionState({ loading: false, success: false, message: '', details: '', attemptCount: 0 });
+    };
+
+    const closeCreateModal = () => {
+        setIsCreateModalOpen(false);
+        setCreateStep(1);
+        setCreateErrors({});
+        setTestConnectionState({ loading: false, success: false, message: '', details: '', attemptCount: 0 });
+    };
+
+    const formatLastHeartbeat = (isoString) => {
+        if (!isoString) return '—';
+        const dt = new Date(isoString);
+        if (Number.isNaN(dt.getTime())) return '—';
+        return `${dt.toLocaleDateString()} ${dt.toLocaleTimeString()}`;
+    };
+
+    const validateStep = (step) => {
+        const errors = {};
+
+        if (step >= 1) {
+            if (!newMachineData.name?.trim()) errors.name = 'Machine name is required.';
+            if (!newMachineData.type?.trim()) errors.type = 'Machine type is required.';
+        }
+
+        if (step >= 2) {
+            if (!newMachineData.dataSource?.trim()) errors.dataSource = 'Data source is required.';
+            if (!dataSourceConfig.endpoint?.trim()) errors.endpoint = 'Endpoint / broker address is required.';
+            if (!dataSourceConfig.topicOrNode?.trim()) {
+                errors.topicOrNode = newMachineData.dataSource === 'OPC UA'
+                    ? 'OPC UA node is required (e.g. ns=2;s=Speed).'
+                    : 'Topic/Tag is required.';
+            }
+            if (dataSourceConfig.authType !== 'No auth') {
+                if (!dataSourceConfig.username?.trim()) errors.username = 'Username is required for authenticated mode.';
+                if (!dataSourceConfig.password?.trim()) errors.password = 'Password is required for authenticated mode.';
+            }
+        }
+
+        if (step >= 3 && !testConnectionState.success) {
+            errors.testConnection = 'Please run Test Connection and make sure it succeeds.';
+        }
+
+        return errors;
+    };
+
+    const goToNextStep = () => {
+        const errs = validateStep(createStep);
+        if (Object.keys(errs).length > 0) {
+            setCreateErrors(errs);
+            return;
+        }
+        setCreateErrors({});
+        setCreateStep(prev => Math.min(prev + 1, 4));
+    };
+
+    const goToPrevStep = () => {
+        setCreateErrors({});
+        setCreateStep(prev => Math.max(prev - 1, 1));
+    };
+
+    const handleTestConnection = async () => {
+        const errs = validateStep(2);
+        if (Object.keys(errs).length > 0) {
+            setCreateErrors(errs);
+            return;
+        }
+
+        setCreateErrors({});
+        setTestConnectionState(prev => ({
+            ...prev,
+            loading: true,
+            success: false,
+            message: '',
+            details: '',
+            attemptCount: (prev.attemptCount || 0) + 1
+        }));
+
+        await new Promise(resolve => setTimeout(resolve, 900));
+
+        const success = Boolean(dataSourceConfig.endpoint && dataSourceConfig.topicOrNode);
+        if (success) {
+            setTestConnectionState((prev) => ({
+                loading: false,
+                success: true,
+                message: `Connection test passed for ${newMachineData.dataSource}.`,
+                details: `Endpoint reachable: ${dataSourceConfig.endpoint}${dataSourceConfig.port ? `:${dataSourceConfig.port}` : ''}; Subscription target verified: ${dataSourceConfig.topicOrNode}`,
+                attemptCount: prev.attemptCount || 1
+            }));
+        } else {
+            setTestConnectionState((prev) => ({
+                loading: false,
+                success: false,
+                message: 'Connection test failed. Please verify endpoint and tag/topic.',
+                details: 'Validation failed before transport handshake. Ensure endpoint format, port, and Topic/Node are correct.',
+                attemptCount: prev.attemptCount || 1
+            }));
+        }
     };
 
     const handleDeleteMachine = async (id) => {
@@ -117,6 +280,21 @@ const MachineManager = () => {
             if (selectedMachine?.id === id) setSelectedMachine(null);
             loadData();
         }
+    };
+
+    const handleRetestMachineConnection = async (machine) => {
+        const hasConfig = Boolean(machine?.connectionConfig?.endpoint && machine?.connectionConfig?.topicOrNode);
+        const success = hasConfig;
+
+        const updated = {
+            ...machine,
+            connectionStatus: success ? 'ONLINE' : 'OFFLINE',
+            lastHeartbeat: success ? new Date().toISOString() : machine.lastHeartbeat,
+            lastError: success ? '' : 'Re-test failed: endpoint/topic configuration incomplete'
+        };
+
+        await saveMachine(updated);
+        loadData();
     };
 
     const filteredMachines = machines.filter(m =>
@@ -132,7 +310,7 @@ const MachineManager = () => {
                     <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '0.9rem' }}>Connect and monitor physical equipment</p>
                 </div>
                 <button
-                    onClick={() => setIsCreateModalOpen(true)}
+                    onClick={openCreateModal}
                     style={{
                         display: 'flex', alignItems: 'center', gap: '8px',
                         padding: '10px 20px', backgroundColor: '#3b82f6', color: 'white',
@@ -212,9 +390,9 @@ const MachineManager = () => {
                                                         <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>{machine.type}</div>
                                                     </div>
                                                 </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 10px', borderRadius: '20px', backgroundColor: '#dcfce7', color: '#166534', fontSize: '0.7rem', fontWeight: 800 }}>
-                                                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#166534' }} />
-                                                    CONNECTED
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 10px', borderRadius: '20px', backgroundColor: machine.connectionStatus === 'ONLINE' ? '#dcfce7' : machine.connectionStatus === 'OFFLINE' ? '#fee2e2' : '#e2e8f0', color: machine.connectionStatus === 'ONLINE' ? '#166534' : machine.connectionStatus === 'OFFLINE' ? '#991b1b' : '#334155', fontSize: '0.7rem', fontWeight: 800 }}>
+                                                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: machine.connectionStatus === 'ONLINE' ? '#166534' : machine.connectionStatus === 'OFFLINE' ? '#991b1b' : '#64748b' }} />
+                                                    {machine.connectionStatus || 'CONNECTED'}
                                                 </div>
                                             </div>
                                             <div style={{ padding: '20px' }}>
@@ -243,12 +421,27 @@ const MachineManager = () => {
                                                     </div>
                                                 </div>
 
+                                                <div style={{ marginBottom: '16px', padding: '10px 12px', borderRadius: '8px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                                                    <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>Connection Health</div>
+                                                    <div style={{ fontSize: '0.8rem', color: '#334155', display: 'grid', gap: '6px' }}>
+                                                        <div><b>Status:</b> {machine.connectionStatus || 'UNKNOWN'}</div>
+                                                        <div><b>Last Heartbeat:</b> {formatLastHeartbeat(machine.lastHeartbeat)}</div>
+                                                        <div><b>Last Error:</b> {machine.lastError || 'None'}</div>
+                                                    </div>
+                                                </div>
+
                                                 <div style={{ display: 'flex', gap: '12px' }}>
-                                                    <button 
+                                                    <button
                                                         onClick={() => { setMappingMachine(machine); setIsTagMapperOpen(true); }}
                                                         style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#eff6ff', color: '#3b82f6', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}
                                                     >
                                                         Configure Tags
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleRetestMachineConnection(machine)}
+                                                        style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #bfdbfe', backgroundColor: 'white', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem', color: '#1d4ed8' }}
+                                                    >
+                                                        Re-test Connection
                                                     </button>
                                                     <button style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem', color: '#ef4444' }} onClick={() => handleDeleteMachine(machine.id)}>Disconnect</button>
                                                 </div>
@@ -264,7 +457,7 @@ const MachineManager = () => {
                                     <h3 style={{ margin: 0, color: '#1e293b' }}>No machines connected</h3>
                                     <p style={{ color: '#64748b', maxWidth: '300px', margin: '8px auto' }}>Connect to your CNCs, PLCs, or sensors to start capturing live data.</p>
                                     <button
-                                        onClick={() => setIsCreateModalOpen(true)}
+                                        onClick={openCreateModal}
                                         style={{ marginTop: '16px', padding: '10px 24px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
                                     >
                                         Establish Connection
@@ -281,7 +474,7 @@ const MachineManager = () => {
                                 </div>
                                 <button
                                     onClick={async () => {
-                                        await saveEdgeDevice({ name: `Edge IO-${Math.floor(Math.random()*10000)}`, status: 'ONLINE', version: '2.4.1' });
+                                        await saveEdgeDevice({ name: `Edge IO-${Math.floor(Math.random() * 10000)}`, status: 'ONLINE', version: '2.4.1' });
                                         loadData();
                                     }}
                                     style={{ padding: '10px 20px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
@@ -317,10 +510,10 @@ const MachineManager = () => {
                                             </div>
                                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                                 <span>IP Address</span>
-                                                <span style={{ fontWeight: 600 }}>192.168.1.{Math.floor(Math.random()*255)}</span>
+                                                <span style={{ fontWeight: 600 }}>192.168.1.{Math.floor(Math.random() * 255)}</span>
                                             </div>
                                         </div>
-                                        <button 
+                                        <button
                                             onClick={async () => { await deleteEdgeDevice(host.id); loadData(); }}
                                             style={{ width: '100%', padding: '8px', border: '1px solid #e2e8f0', borderRadius: '6px', background: 'white', color: '#ef4444', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
                                         >
@@ -388,75 +581,254 @@ const MachineManager = () => {
                     <div style={{ backgroundColor: 'white', width: '500px', borderRadius: '16px', overflow: 'hidden' }}>
                         <div style={{ padding: '24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Connect New Machine</h2>
-                            <button onClick={() => setIsCreateModalOpen(false)} style={{ border: 'none', background: 'none', cursor: 'pointer' }}><XCircle size={20} color="#94a3b8" /></button>
+                            <button onClick={closeCreateModal} style={{ border: 'none', background: 'none', cursor: 'pointer' }}><XCircle size={20} color="#94a3b8" /></button>
+                        </div>
+                        <div style={{ padding: '12px 24px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', display: 'flex', gap: '10px' }}>
+                            {[1, 2, 3, 4].map(step => (
+                                <div key={step} style={{
+                                    flex: 1,
+                                    height: '6px',
+                                    borderRadius: '999px',
+                                    backgroundColor: createStep >= step ? '#3b82f6' : '#e2e8f0'
+                                }} />
+                            ))}
                         </div>
                         <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                            <div>
-                                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Machine Name</label>
-                                <input
-                                    type="text"
-                                    style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
-                                    placeholder="e.g. Mill-01"
-                                    value={newMachineData.name}
-                                    onChange={(e) => setNewMachineData({ ...newMachineData, name: e.target.value })}
-                                />
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                                <div>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Machine Type</label>
-                                    <select
-                                        style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white' }}
-                                        value={newMachineData.type}
-                                        onChange={(e) => setNewMachineData({ ...newMachineData, type: e.target.value })}
+                            {createStep === 1 && (
+                                <>
+                                    <div>
+                                        <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Machine Name</label>
+                                        <input
+                                            type="text"
+                                            style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                                            placeholder="e.g. Mill-01"
+                                            value={newMachineData.name}
+                                            onChange={(e) => setNewMachineData({ ...newMachineData, name: e.target.value })}
+                                        />
+                                        {createErrors.name && <div style={{ color: '#dc2626', fontSize: '0.75rem', marginTop: '6px' }}>{createErrors.name}</div>}
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                                        <div>
+                                            <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Machine Type</label>
+                                            <select
+                                                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white' }}
+                                                value={newMachineData.type}
+                                                onChange={(e) => setNewMachineData({ ...newMachineData, type: e.target.value })}
+                                            >
+                                                <option>CNC Mill</option>
+                                                <option>Injection Mold</option>
+                                                <option>Assembly Robot</option>
+                                                <option>Conveyor Belt</option>
+                                                <option>Temperature Sensor</option>
+                                            </select>
+                                            {createErrors.type && <div style={{ color: '#dc2626', fontSize: '0.75rem', marginTop: '6px' }}>{createErrors.type}</div>}
+                                        </div>
+                                        <div>
+                                            <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Data Source</label>
+                                            <select
+                                                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white' }}
+                                                value={newMachineData.dataSource}
+                                                onChange={(e) => setNewMachineData({ ...newMachineData, dataSource: e.target.value })}
+                                            >
+                                                <option>OPC UA</option>
+                                                <option>MQTT</option>
+                                                <option>API / Webhook</option>
+                                                <option>Edge Device</option>
+                                            </select>
+                                            {createErrors.dataSource && <div style={{ color: '#dc2626', fontSize: '0.75rem', marginTop: '6px' }}>{createErrors.dataSource}</div>}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Assign to Station</label>
+                                        <select
+                                            style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white' }}
+                                            value={newMachineData.stationId}
+                                            onChange={(e) => setNewMachineData({ ...newMachineData, stationId: e.target.value })}
+                                        >
+                                            <option value="">Unassigned</option>
+                                            {stations.map(s => (
+                                                <option key={s.id} value={s.id}>{s.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </>
+                            )}
+
+                            {createStep === 2 && (
+                                <>
+                                    <div>
+                                        <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Endpoint / Broker Address</label>
+                                        <input
+                                            type="text"
+                                            style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                                            placeholder="e.g. opc.tcp://192.168.1.10 or mqtt://broker.local"
+                                            value={dataSourceConfig.endpoint}
+                                            onChange={(e) => setDataSourceConfig({ ...dataSourceConfig, endpoint: e.target.value })}
+                                        />
+                                        {createErrors.endpoint && <div style={{ color: '#dc2626', fontSize: '0.75rem', marginTop: '6px' }}>{createErrors.endpoint}</div>}
+                                    </div>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                                        <div>
+                                            <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Port (optional)</label>
+                                            <input
+                                                type="text"
+                                                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                                                placeholder="e.g. 4840"
+                                                value={dataSourceConfig.port}
+                                                onChange={(e) => setDataSourceConfig({ ...dataSourceConfig, port: e.target.value })}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Auth Type</label>
+                                            <select
+                                                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white' }}
+                                                value={dataSourceConfig.authType}
+                                                onChange={(e) => setDataSourceConfig({ ...dataSourceConfig, authType: e.target.value })}
+                                            >
+                                                <option>No auth</option>
+                                                <option>Username / Password</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {dataSourceConfig.authType !== 'No auth' && (
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                                            <div>
+                                                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Username</label>
+                                                <input
+                                                    type="text"
+                                                    style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                                                    value={dataSourceConfig.username}
+                                                    onChange={(e) => setDataSourceConfig({ ...dataSourceConfig, username: e.target.value })}
+                                                />
+                                                {createErrors.username && <div style={{ color: '#dc2626', fontSize: '0.75rem', marginTop: '6px' }}>{createErrors.username}</div>}
+                                            </div>
+                                            <div>
+                                                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Password</label>
+                                                <input
+                                                    type="password"
+                                                    style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                                                    value={dataSourceConfig.password}
+                                                    onChange={(e) => setDataSourceConfig({ ...dataSourceConfig, password: e.target.value })}
+                                                />
+                                                {createErrors.password && <div style={{ color: '#dc2626', fontSize: '0.75rem', marginTop: '6px' }}>{createErrors.password}</div>}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div>
+                                        <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>
+                                            {newMachineData.dataSource === 'OPC UA' ? 'OPC UA Node ID' : 'Topic / Tag'}
+                                        </label>
+                                        <input
+                                            type="text"
+                                            style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                                            placeholder={newMachineData.dataSource === 'OPC UA' ? 'ns=2;s=Speed' : 'factory/line1/machine01/temp'}
+                                            value={dataSourceConfig.topicOrNode}
+                                            onChange={(e) => setDataSourceConfig({ ...dataSourceConfig, topicOrNode: e.target.value })}
+                                        />
+                                        {createErrors.topicOrNode && <div style={{ color: '#dc2626', fontSize: '0.75rem', marginTop: '6px' }}>{createErrors.topicOrNode}</div>}
+                                    </div>
+                                </>
+                            )}
+
+                            {createStep === 3 && (
+                                <>
+                                    <div style={{ padding: '12px', borderRadius: '8px', border: '1px solid #dbeafe', backgroundColor: '#eff6ff', color: '#1e3a8a', fontSize: '0.85rem' }}>
+                                        Run a connection check before connecting this machine.
+                                    </div>
+                                    <button
+                                        onClick={handleTestConnection}
+                                        disabled={testConnectionState.loading}
+                                        style={{
+                                            width: 'fit-content',
+                                            padding: '10px 16px',
+                                            borderRadius: '8px',
+                                            border: '1px solid #93c5fd',
+                                            backgroundColor: 'white',
+                                            color: '#1d4ed8',
+                                            fontWeight: 700,
+                                            cursor: testConnectionState.loading ? 'not-allowed' : 'pointer'
+                                        }}
                                     >
-                                        <option>CNC Mill</option>
-                                        <option>Injection Mold</option>
-                                        <option>Assembly Robot</option>
-                                        <option>Conveyor Belt</option>
-                                        <option>Temperature Sensor</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Data Source</label>
-                                    <select
-                                        style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white' }}
-                                        value={newMachineData.dataSource}
-                                        onChange={(e) => setNewMachineData({ ...newMachineData, dataSource: e.target.value })}
-                                    >
-                                        <option>OPC UA</option>
-                                        <option>MQTT</option>
-                                        <option>API / Webhook</option>
-                                        <option>Edge Device</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div>
-                                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Assign to Station</label>
-                                <select
-                                    style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white' }}
-                                    value={newMachineData.stationId}
-                                    onChange={(e) => setNewMachineData({ ...newMachineData, stationId: e.target.value })}
-                                >
-                                    <option value="">Unassigned</option>
-                                    {stations.map(s => (
-                                        <option key={s.id} value={s.id}>{s.name}</option>
-                                    ))}
-                                </select>
-                            </div>
+                                        {testConnectionState.loading ? 'Testing...' : 'Test Connection'}
+                                    </button>
+                                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Attempt: {testConnectionState.attemptCount || 0}</div>
+                                    {createErrors.testConnection && <div style={{ color: '#dc2626', fontSize: '0.75rem' }}>{createErrors.testConnection}</div>}
+                                    {testConnectionState.message && (
+                                        <div style={{
+                                            padding: '10px 12px',
+                                            borderRadius: '8px',
+                                            fontSize: '0.82rem',
+                                            backgroundColor: testConnectionState.success ? '#dcfce7' : '#fee2e2',
+                                            color: testConnectionState.success ? '#166534' : '#991b1b',
+                                            border: `1px solid ${testConnectionState.success ? '#86efac' : '#fecaca'}`
+                                        }}>
+                                            {testConnectionState.message}
+                                        </div>
+                                    )}
+                                    {testConnectionState.details && (
+                                        <div style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', fontSize: '0.78rem', color: '#475569' }}>
+                                            <b>Details:</b> {testConnectionState.details}
+                                        </div>
+                                    )}
+                                    {!testConnectionState.loading && (
+                                        <button
+                                            onClick={handleTestConnection}
+                                            style={{
+                                                width: 'fit-content',
+                                                padding: '8px 14px',
+                                                borderRadius: '8px',
+                                                border: '1px solid #cbd5e1',
+                                                backgroundColor: '#f8fafc',
+                                                color: '#334155',
+                                                fontWeight: 700,
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            Retry Test
+                                        </button>
+                                    )}
+                                </>
+                            )}
+
+                            {createStep === 4 && (
+                                <>
+                                    <h3 style={{ margin: 0, fontSize: '1rem', color: '#0f172a' }}>Review & Confirm</h3>
+                                    <div style={{ display: 'grid', gap: '10px', fontSize: '0.85rem', color: '#334155' }}>
+                                        <div><b>Machine:</b> {newMachineData.name} ({newMachineData.type})</div>
+                                        <div><b>Data Source:</b> {newMachineData.dataSource}</div>
+                                        <div><b>Endpoint:</b> {dataSourceConfig.endpoint}{dataSourceConfig.port ? `:${dataSourceConfig.port}` : ''}</div>
+                                        <div><b>Topic/Node:</b> {dataSourceConfig.topicOrNode}</div>
+                                        <div><b>Station:</b> {stations.find(s => s.id === newMachineData.stationId)?.name || 'Unassigned'}</div>
+                                        <div><b>Connection Test:</b> {testConnectionState.success ? 'Passed' : 'Not passed'}</div>
+                                    </div>
+                                </>
+                            )}
                         </div>
                         <div style={{ padding: '24px', backgroundColor: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                             <button
-                                onClick={() => setIsCreateModalOpen(false)}
+                                onClick={createStep === 1 ? closeCreateModal : goToPrevStep}
                                 style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', fontWeight: 700, cursor: 'pointer' }}
                             >
-                                Cancel
+                                {createStep === 1 ? 'Cancel' : 'Back'}
                             </button>
-                            <button
-                                onClick={handleCreateMachine}
-                                style={{ padding: '10px 24px', borderRadius: '8px', backgroundColor: '#3b82f6', color: 'white', border: 'none', fontWeight: 700, cursor: 'pointer' }}
-                            >
-                                Connect
-                            </button>
+                            {createStep < 4 ? (
+                                <button
+                                    onClick={goToNextStep}
+                                    style={{ padding: '10px 24px', borderRadius: '8px', backgroundColor: '#3b82f6', color: 'white', border: 'none', fontWeight: 700, cursor: 'pointer' }}
+                                >
+                                    Next
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={handleCreateMachine}
+                                    style={{ padding: '10px 24px', borderRadius: '8px', backgroundColor: '#3b82f6', color: 'white', border: 'none', fontWeight: 700, cursor: 'pointer' }}
+                                >
+                                    Connect
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

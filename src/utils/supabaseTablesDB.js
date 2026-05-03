@@ -12,7 +12,7 @@ const TABLE_FIELD_LIMIT = 200;
 export const TABLE_FIELD_TYPES = [
     'text', 'number', 'boolean', 'integer', 'interval',
     'image', 'video', 'file', 'user', 'datetime', 'color',
-    'linked_record', 'machine', 'station'
+    'linked_record', 'machine', 'station', 'formula'
 ];
 
 export const LINK_TYPES = {
@@ -298,12 +298,15 @@ export async function addTableRecord(tableId, recordData) {
     delete payload.id;
     delete payload.recordId;
 
+    const table = await getTableById(tableId);
+    const calculatedPayload = applyExcelLikeFormulas(table, payload);
+
     const { data, error } = await supabase
         .from('app_table_records')
         .insert({
             table_id: tableId,
             record_id: recordId,
-            data: payload,
+            data: calculatedPayload,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
         })
@@ -312,12 +315,12 @@ export async function addTableRecord(tableId, recordData) {
 
     if (error) throw error;
     const record = rowToRecord(data);
-    
+
     // Fire automation trigger
     if (automationEngine && typeof automationEngine.trigger === 'function') {
-        automationEngine.trigger('TABLE_ROW_ADDED', { 
-            tableId, 
-            recordId: record.recordId, 
+        automationEngine.trigger('TABLE_ROW_ADDED', {
+            tableId,
+            recordId: record.recordId,
             record: record,
             source: 'DATABASE'
         });
@@ -347,7 +350,11 @@ export async function updateTableRecord(recordInternalId, updateData) {
         .single();
     if (fetchErr) throw fetchErr;
 
-    const newData = { ...(existing.data || {}), ...updateData };
+    const mergedData = { ...(existing.data || {}), ...updateData };
+
+    const table = await getTableById(existing.table_id);
+    const newData = applyExcelLikeFormulas(table, mergedData);
+
     delete newData.id;
     delete newData.recordId;
     delete newData.tableId;
@@ -367,9 +374,9 @@ export async function updateTableRecord(recordInternalId, updateData) {
 
     // Fire automation trigger
     if (automationEngine && typeof automationEngine.trigger === 'function') {
-        automationEngine.trigger('TABLE_ROW_UPDATED', { 
-            tableId: existing.table_id, 
-            recordId: existing.record_id, 
+        automationEngine.trigger('TABLE_ROW_UPDATED', {
+            tableId: existing.table_id,
+            recordId: existing.record_id,
             record: record,
             previousRecord: rowToRecord(existing),
             updatedFields: updateData,
@@ -480,6 +487,7 @@ function normalizeFields(fields) {
             link_table_id: f.type === 'linked_record' ? f.link_table_id : undefined,
             link_type: f.type === 'linked_record' ? f.link_type : undefined,
             reverse_link_name: f.type === 'linked_record' ? f.reverse_link_name : undefined,
+            formulaExpression: f.type === 'formula' ? String(f.formulaExpression || '').trim() : undefined,
             auto_created: Boolean(f.auto_created)
         }))
         .filter(f => {
@@ -487,6 +495,87 @@ function normalizeFields(fields) {
             seen.add(f.name);
             return true;
         });
+}
+
+function applyExcelLikeFormulas(table, record) {
+    if (!table || !Array.isArray(table.fields)) return record;
+    const result = { ...record };
+
+    // Evaluate user-entered cell formulas first (e.g. "=A+B")
+    Object.entries(result).forEach(([key, value]) => {
+        if (typeof value === 'string' && value.trim().startsWith('=')) {
+            result[key] = evalFormulaExpression(value.trim().slice(1), result);
+        }
+    });
+
+    // Evaluate formula-type fields from schema definition
+    table.fields.forEach((field) => {
+        if (field.type !== 'formula') return;
+        const expr = String(field.formulaExpression || '').trim();
+        if (!expr) {
+            result[field.name] = '';
+            return;
+        }
+        result[field.name] = evalFormulaExpression(expr.startsWith('=') ? expr.slice(1) : expr, result);
+    });
+
+    return result;
+}
+
+function evalFormulaExpression(expression, row = {}) {
+    try {
+        let expr = String(expression || '');
+
+        // Replace [Field Name] references first to support spaces
+        expr = expr.replace(/\[([^\]]+)\]/g, (_, fieldName) => {
+            const v = row[fieldName];
+            return Number.isFinite(Number(v)) ? String(Number(v)) : `"${String(v ?? '').replace(/"/g, '\\"')}"`;
+        });
+
+        // Replace simple identifier field references: qty * price
+        expr = expr.replace(/\b([A-Za-z_][A-Za-z0-9_]*)\b/g, (token) => {
+            const upper = token.toUpperCase();
+            if (['SUM', 'AVG', 'MIN', 'MAX', 'IF', 'ROUND', 'ABS', 'TRUE', 'FALSE'].includes(upper)) return token;
+            if (Object.prototype.hasOwnProperty.call(row, token)) {
+                const v = row[token];
+                return Number.isFinite(Number(v)) ? String(Number(v)) : `"${String(v ?? '').replace(/"/g, '\\"')}"`;
+            }
+            return token;
+        });
+
+        const fn = new Function(
+            'SUM', 'AVG', 'MIN', 'MAX', 'IF', 'ROUND', 'ABS',
+            `return (${expr});`
+        );
+
+        const SUM = (...args) => args.flat().reduce((s, v) => s + (Number(v) || 0), 0);
+        const AVG = (...args) => {
+            const arr = args.flat().map((v) => Number(v)).filter((v) => Number.isFinite(v));
+            return arr.length ? SUM(arr) / arr.length : 0;
+        };
+        const MIN = (...args) => {
+            const arr = args.flat().map((v) => Number(v)).filter((v) => Number.isFinite(v));
+            return arr.length ? Math.min(...arr) : 0;
+        };
+        const MAX = (...args) => {
+            const arr = args.flat().map((v) => Number(v)).filter((v) => Number.isFinite(v));
+            return arr.length ? Math.max(...arr) : 0;
+        };
+        const IF = (cond, a, b) => (cond ? a : b);
+        const ROUND = (v, p = 0) => {
+            const n = Number(v);
+            const m = Number(p);
+            if (!Number.isFinite(n) || !Number.isFinite(m)) return 0;
+            const f = 10 ** m;
+            return Math.round(n * f) / f;
+        };
+        const ABS = (v) => Math.abs(Number(v) || 0);
+
+        const out = fn(SUM, AVG, MIN, MAX, IF, ROUND, ABS);
+        return out ?? '';
+    } catch (err) {
+        return '#FORMULA_ERROR';
+    }
 }
 
 function rowToTable(row) {

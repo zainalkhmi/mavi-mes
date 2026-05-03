@@ -1,15 +1,15 @@
-import { 
-  Layout, 
-  Play, 
-  Settings, 
-  Zap, 
-  ClipboardList, 
-  Home as HomeIcon, 
-  Cpu, 
-  ChevronDown, 
-  Database, 
-  Link2, 
-  Variable, 
+import {
+  Layout,
+  Play,
+  Settings,
+  Zap,
+  ClipboardList,
+  Home as HomeIcon,
+  Cpu,
+  ChevronDown,
+  Database,
+  Link2,
+  Variable,
   BarChart3,
   Monitor,
   MapPin,
@@ -213,9 +213,9 @@ const App = () => {
               </button>
               {shopFloorMenuOpen && (
                 <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, backgroundColor: 'white', minWidth: '220px', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)', padding: '8px 0', display: 'flex', flexDirection: 'column', zIndex: 1001, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                  <Link to="/stations" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/stations')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/stations' ? '#f0f7ff' : 'transparent'}><MapPin size={16} /> Station Manager</Link>
-                  <Link to="/display-devices" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/display-devices')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/display-devices' ? '#f0f7ff' : 'transparent'}><Tv size={16} /> Display Interfaces</Link>
-                  <Link to="/machines" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/machines')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/machines' ? '#f0f7ff' : 'transparent'}><Cpu size={16} /> Machines & IoT</Link>
+                  <Link to="/stations" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/stations')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/stations' ? '#f0f7ff' : 'transparent'}><MapPin size={16} /> Stations</Link>
+                  <Link to="/display-devices" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/display-devices')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/display-devices' ? '#f0f7ff' : 'transparent'}><Tv size={16} /> Interfaces</Link>
+                  <Link to="/machines" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/machines')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/machines' ? '#f0f7ff' : 'transparent'}><Cpu size={16} /> Machines</Link>
                   <Link to="/edge-devices" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/edge-devices')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/edge-devices' ? '#f0f7ff' : 'transparent'}><Activity size={16} /> Edge Devices</Link>
                 </div>
               )}
@@ -271,7 +271,7 @@ const App = () => {
 
         {/* RIGHT SECTION: Console, System, User */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          
+
           {/* CONSOLE */}
           <div style={{ position: 'relative' }} ref={consoleMenuRef}>
             <button
@@ -362,7 +362,7 @@ const App = () => {
         <Routes>
           {isOperator ? (
             // OPERATOR ROUTES ONLY
-             <>
+            <>
               <Route path="/terminal" element={
                 <div style={{ position: 'relative', height: '100%' }}>
                   <button onClick={() => { logout(); setUser(null); }} style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 9999, padding: '8px 16px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>Logout</button>
@@ -382,7 +382,7 @@ const App = () => {
                 </div>
               } />
               <Route path="*" element={<Navigate to="/terminal" replace />} />
-             </>
+            </>
           ) : (
             // ADMIN / ENGINEER FULL ROUTES
             <>

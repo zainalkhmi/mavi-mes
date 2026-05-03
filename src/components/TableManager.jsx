@@ -33,6 +33,7 @@ const FIELD_TYPE_LABELS = {
     user: 'User',
     datetime: 'Datetime',
     color: 'Color',
+    formula: 'Formula',
     linked_record: 'Linked Record',
     machine: 'Machine',
     station: 'Station'
@@ -59,6 +60,120 @@ const TOKENS = {
     radiusSm: '8px',
     shadow: '0 1px 2px 0 rgb(15 23 42 / 0.05)',
     shadowLg: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)'
+};
+
+const DEFAULT_PIVOT = {
+    enabled: false,
+    rows: [],
+    columns: [],
+    values: [],
+    showGrandTotal: true
+};
+
+const formatPivotNumber = (value, format) => {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return String(value ?? '');
+    if (format === 'currency') return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 2 }).format(num);
+    if (format === 'percent') return `${(num * 100).toFixed(2)}%`;
+    if (format === 'integer') return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(num);
+    return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 3 }).format(num);
+};
+
+const normalizeVisualQuery = (query, selectedTableId) => ({
+    id: query?.id || Date.now().toString(),
+    name: query?.name || 'New Query',
+    mode: query?.mode || 'visual',
+    baseTableId: query?.baseTableId || selectedTableId || '',
+    joins: Array.isArray(query?.joins) ? query.joins : [],
+    select: Array.isArray(query?.select) ? query.select : [],
+    matchType: query?.matchType || 'all',
+    filters: Array.isArray(query?.filters) ? query.filters : [],
+    sort: Array.isArray(query?.sort) ? query.sort : [],
+    limit: Number.isFinite(Number(query?.limit)) ? Number(query.limit) : 1000,
+    pivot: { ...DEFAULT_PIVOT, ...(query?.pivot || {}) }
+});
+
+const buildPivotRows = (rows, pivot) => {
+    if (!pivot?.enabled || !pivot?.values?.length) return [];
+    const rowFields = pivot.rows || [];
+    const colFields = pivot.columns || [];
+    const valueDefs = pivot.values || [];
+    const map = new Map();
+
+    rows.forEach((r) => {
+        const rowKey = rowFields.map((f) => String(r[f.key] ?? '-')).join(' | ') || '(all)';
+        const colKey = colFields.map((f) => String(r[f.key] ?? '-')).join(' | ') || '(all)';
+        const k = `${rowKey}__${colKey}`;
+        if (!map.has(k)) map.set(k, { rowKey, colKey, __raw: [] });
+        map.get(k).__raw.push(r);
+    });
+
+    return Array.from(map.values()).map((g) => {
+        const out = { rowKey: g.rowKey, colKey: g.colKey };
+        valueDefs.forEach((v) => {
+            const nums = g.__raw.map((x) => Number(x[v.key])).filter((n) => !Number.isNaN(n));
+            let res = 0;
+            switch (v.aggregation) {
+                case 'count': res = g.__raw.length; break;
+                case 'avg': res = nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0; break;
+                case 'min': res = nums.length ? Math.min(...nums) : 0; break;
+                case 'max': res = nums.length ? Math.max(...nums) : 0; break;
+                default: res = nums.reduce((a, b) => a + b, 0); break;
+            }
+            out[`${v.key}:${v.aggregation}`] = Number.isFinite(res) ? Number(res.toFixed(3)) : res;
+        });
+        return out;
+    });
+};
+
+const buildPivotMatrix = (rows, pivot) => {
+    if (!pivot?.enabled || !pivot?.values?.length) return null;
+    const rowField = pivot.rows?.[0]?.key;
+    const colField = pivot.columns?.[0]?.key;
+    const valueDefs = (pivot.values || []).filter(v => v?.key);
+    if (!valueDefs.length) return null;
+
+    const rowKeys = Array.from(new Set(rows.map(r => String((rowField ? r[rowField] : '(all)') ?? '(blank)'))));
+    const colKeys = Array.from(new Set(rows.map(r => String((colField ? r[colField] : '(all)') ?? '(blank)'))));
+
+    const aggregate = (items, valueDef) => {
+        const nums = items.map(x => Number(x[valueDef.key])).filter(n => !Number.isNaN(n));
+        switch (valueDef.aggregation) {
+            case 'count': return items.length;
+            case 'avg': return nums.length ? Number((nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(3)) : 0;
+            case 'min': return nums.length ? Math.min(...nums) : 0;
+            case 'max': return nums.length ? Math.max(...nums) : 0;
+            default: return nums.reduce((a, b) => a + b, 0);
+        }
+    };
+
+    const cellKey = (valueDef, colKey) => `${colKey}__${valueDef.key}:${valueDef.aggregation}`;
+
+    const data = rowKeys.map((rk) => {
+        const rowObj = { __rowKey: rk };
+        colKeys.forEach((ck) => {
+            const items = rows.filter(r =>
+                String((rowField ? r[rowField] : '(all)') ?? '(blank)') === rk &&
+                String((colField ? r[colField] : '(all)') ?? '(blank)') === ck
+            );
+            valueDefs.forEach((vd) => {
+                rowObj[cellKey(vd, ck)] = aggregate(items, vd);
+            });
+        });
+        return rowObj;
+    });
+
+    const grandTotals = {};
+    if (pivot.showGrandTotal !== false) {
+        colKeys.forEach((ck) => {
+            const colItems = rows.filter(r => String((colField ? r[colField] : '(all)') ?? '(blank)') === ck);
+            valueDefs.forEach((vd) => {
+                grandTotals[cellKey(vd, ck)] = aggregate(colItems, vd);
+            });
+        });
+    }
+
+    return { rowKeys, colKeys, data, valueDefs, grandTotals, hasGrandTotal: pivot.showGrandTotal !== false, cellKey };
 };
 
 const LinkedRecordSelector = ({ field, value, onChange, tables }) => {
@@ -182,6 +297,7 @@ const TableManager = () => {
     const [newTableDescription, setNewTableDescription] = useState('');
     const [newFieldName, setNewFieldName] = useState('');
     const [newFieldType, setNewFieldType] = useState('text');
+    const [newFieldFormulaExpression, setNewFieldFormulaExpression] = useState('');
     const [newFieldReverseName, setNewFieldReverseName] = useState('');
     const [newFieldLinkType, setNewFieldLinkType] = useState('one_to_one');
     const [isEditingRecord, setIsEditingRecord] = useState(false);
@@ -212,10 +328,12 @@ const TableManager = () => {
     const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
     const [newType, setNewType] = useState('text');
     const [uploadingFields, setUploadingFields] = useState({}); // { fieldName: boolean }
+    const [visualJoinRecords, setVisualJoinRecords] = useState({});
 
     // Queries & Aggregations state
     const [isQueryEditorOpen, setIsQueryEditorOpen] = useState(false);
     const [editingQuery, setEditingQuery] = useState(null); // { id, name, matchType, filters: [], sort: [], limit }
+    const [visualPreviewTab, setVisualPreviewTab] = useState('results');
     const [isAggregationEditorOpen, setIsAggregationEditorOpen] = useState(false);
     const [editingAggregation, setEditingAggregation] = useState(null); // { id, name, calculation, field }
     const csvInputRef = useRef(null);
@@ -577,6 +695,7 @@ const TableManager = () => {
                 name: fieldName,
                 type: newFieldType,
                 archived: false,
+                formulaExpression: newFieldType === 'formula' ? newFieldFormulaExpression : undefined,
                 link_table_id: newFieldType === 'linked_record' ? targetTableId : undefined,
                 link_type: newFieldType === 'linked_record' ? newFieldLinkType : undefined,
                 reverse_link_name: newFieldType === 'linked_record' ? newFieldReverseName : undefined
@@ -587,6 +706,7 @@ const TableManager = () => {
             });
             setNewFieldName('');
             setNewFieldType('text');
+            setNewFieldFormulaExpression('');
             setTargetTableId('');
             setNewFieldReverseName('');
             setNewFieldLinkType('one_to_one');
@@ -854,6 +974,134 @@ const TableManager = () => {
         } catch (error) {
             alert(error.message || 'Failed to delete record');
         }
+    };
+
+    useEffect(() => {
+        const loadJoinTables = async () => {
+            const joins = editingQuery?.joins || [];
+            const neededTableIds = Array.from(new Set(joins.map(j => j.targetTableId).filter(Boolean)));
+            if (!neededTableIds.length) return;
+            const entries = await Promise.all(neededTableIds.map(async (tid) => {
+                try {
+                    const rows = await getTableRecords(tid);
+                    return [tid, rows];
+                } catch {
+                    return [tid, []];
+                }
+            }));
+            setVisualJoinRecords(prev => ({ ...prev, ...Object.fromEntries(entries) }));
+        };
+        if (editingQuery?.mode === 'visual') loadJoinTables();
+    }, [editingQuery?.mode, editingQuery?.joins]);
+
+    const queryPreviewRows = useMemo(() => {
+        const q = editingQuery;
+        if (!q || q.mode !== 'visual') return [];
+        let rows = [...records];
+
+        if (q.baseTableId && q.baseTableId !== selectedTableId) return [];
+
+        if (q.joins?.length) {
+            q.joins.forEach((join) => {
+                if (!join?.targetTableId || !join?.sourceField || !join?.targetField) return;
+                const targetRows = visualJoinRecords[join.targetTableId] || [];
+                const indexed = new Map(targetRows.map(tr => [String(tr[join.targetField]), tr]));
+                rows = rows.flatMap((r) => {
+                    const sourceVal = r[join.sourceField];
+                    const keys = Array.isArray(sourceVal) ? sourceVal : [sourceVal];
+                    const matched = keys
+                        .map((k) => indexed.get(String(k)))
+                        .filter(Boolean);
+                    if (!matched.length) return join.joinType === 'left' ? [r] : [];
+                    return matched.map((m) => {
+                        const pref = join.alias || (tables.find(t => t.id === join.targetTableId)?.name || 'joined');
+                        const merged = { ...r };
+                        Object.keys(m).forEach((k) => { merged[`${pref}.${k}`] = m[k]; });
+                        return merged;
+                    });
+                });
+            });
+        }
+
+        if (q.filters?.length) {
+            const matchAll = q.matchType !== 'any';
+            rows = rows.filter((record) => {
+                const tests = q.filters.map((filter) => {
+                    const fieldVal = record[filter.field];
+                    const targetVal = filter.value;
+                    switch (filter.operator) {
+                        case 'equals': return String(fieldVal || '').toLowerCase() === String(targetVal || '').toLowerCase();
+                        case 'contains': return String(fieldVal || '').toLowerCase().includes(String(targetVal || '').toLowerCase());
+                        case 'is_null': return fieldVal == null || fieldVal === '';
+                        case 'is_not_null': return fieldVal != null && fieldVal !== '';
+                        default: return true;
+                    }
+                });
+                return matchAll ? tests.every(Boolean) : tests.some(Boolean);
+            });
+        }
+
+        if (q.sort?.length) {
+            rows.sort((a, b) => {
+                for (const s of q.sort) {
+                    const av = s.field === 'recordId' ? a.recordId : a[s.field];
+                    const bv = s.field === 'recordId' ? b.recordId : b[s.field];
+                    const cmp = String(av ?? '').localeCompare(String(bv ?? ''));
+                    if (cmp !== 0) return s.direction === 'desc' ? -cmp : cmp;
+                }
+                return 0;
+            });
+        }
+
+        if (q.limit) rows = rows.slice(0, Number(q.limit));
+        return rows;
+    }, [editingQuery, records, selectedTableId, visualJoinRecords, tables]);
+
+    const pivotPreviewRows = useMemo(() => {
+        const q = editingQuery;
+        if (!q?.pivot?.enabled) return [];
+        return buildPivotRows(queryPreviewRows, q.pivot);
+    }, [editingQuery, queryPreviewRows]);
+
+    const pivotPreviewMatrix = useMemo(() => {
+        const q = editingQuery;
+        if (!q?.pivot?.enabled) return null;
+        return buildPivotMatrix(queryPreviewRows, q.pivot);
+    }, [editingQuery, queryPreviewRows]);
+
+    const handlePivotDrop = (zone, payload) => {
+        if (!payload) return;
+        const [kind, value] = String(payload).split(':');
+        setEditingQuery(prev => {
+            const pivot = { ...(prev?.pivot || DEFAULT_PIVOT) };
+            const select = Array.isArray(prev?.select) ? [...prev.select] : [];
+            if (zone === 'rows' && kind === 'field' && value) {
+                const exists = (pivot.rows || []).some(r => r.key === value);
+                if (!exists) pivot.rows = [...(pivot.rows || []), { key: value }];
+            }
+            if (zone === 'columns' && kind === 'field' && value) {
+                const exists = (pivot.columns || []).some(c => c.key === value);
+                if (!exists) pivot.columns = [...(pivot.columns || []), { key: value }];
+            }
+            if (zone === 'values' && kind === 'field' && value) {
+                const exists = (pivot.values || []).some(v => v.key === value);
+                if (!exists) pivot.values = [...(pivot.values || []), { key: value, aggregation: 'sum', numberFormat: 'decimal' }];
+            }
+            if (zone === 'select' && kind === 'field' && value) {
+                if (!select.includes(value)) select.push(value);
+            }
+            return { ...prev, pivot, select };
+        });
+    };
+
+    const removePivotChip = (zone, key) => {
+        setEditingQuery(prev => {
+            const pivot = { ...(prev?.pivot || DEFAULT_PIVOT) };
+            if (zone === 'rows') pivot.rows = (pivot.rows || []).filter(r => r.key !== key);
+            if (zone === 'columns') pivot.columns = (pivot.columns || []).filter(c => c.key !== key);
+            if (zone === 'values') pivot.values = (pivot.values || []).filter(v => v.key !== key);
+            return { ...prev, pivot };
+        });
     };
 
     const filteredTables = tables.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -1749,7 +1997,7 @@ const TableManager = () => {
                                         </div>
                                         <button
                                             onClick={() => {
-                                                setEditingQuery({ id: Date.now().toString(), name: 'New Query', matchType: 'all', filters: [], sort: [], limit: 1000 });
+                                                setEditingQuery(normalizeVisualQuery(null, selectedTableId));
                                                 setIsQueryEditorOpen(true);
                                             }}
                                             style={{
@@ -1791,7 +2039,7 @@ const TableManager = () => {
                                                         <div style={{ display: 'flex', gap: '4px' }}>
                                                             <button
                                                                 onClick={() => {
-                                                                    setEditingQuery(q);
+                                                                    setEditingQuery(normalizeVisualQuery(q, selectedTableId));
                                                                     setIsQueryEditorOpen(true);
                                                                 }}
                                                                 style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '8px', color: TOKENS.textMuted }}
@@ -2149,7 +2397,7 @@ const TableManager = () => {
                                                 <input
                                                     value={newRecordValues[field.name] ?? ''}
                                                     onChange={(e) => setNewRecordValues((prev) => ({ ...prev, [field.name]: e.target.value }))}
-                                                    placeholder={`Enter ${field.name}...`}
+                                                    placeholder={field.type === 'formula' ? `e.g. =qty*price or =SUM(qty,10)` : `Enter ${field.name}...`}
                                                     style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${TOKENS.border}`, fontSize: '1rem', outline: 'none' }}
                                                     onFocus={(e) => { e.target.style.borderColor = TOKENS.primary; e.target.style.boxShadow = `0 0 0 4px ${TOKENS.bg}`; }}
                                                     onBlur={(e) => { e.target.style.borderColor = TOKENS.border; e.target.style.boxShadow = 'none'; }}
@@ -2207,6 +2455,20 @@ const TableManager = () => {
                                     ))}
                                 </select>
                             </div>
+                            {newFieldType === 'formula' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '16px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                    <label style={{ display: 'block', fontSize: '0.8rem', color: TOKENS.text, fontWeight: 700 }}>Formula Expression</label>
+                                    <input
+                                        value={newFieldFormulaExpression}
+                                        onChange={(e) => setNewFieldFormulaExpression(e.target.value)}
+                                        placeholder="e.g. =qty*price or =IF(qty>10,1,0)"
+                                        style={{ width: '100%', padding: '12px', borderRadius: '10px', border: `1px solid ${TOKENS.border}`, fontSize: '0.9rem', outline: 'none', backgroundColor: 'white' }}
+                                    />
+                                    <div style={{ fontSize: '0.75rem', color: TOKENS.textMuted }}>
+                                        Referensi field: <b>qty</b> atau <b>[Unit Price]</b>. Fungsi dasar: SUM, AVG, MIN, MAX, IF, ROUND, ABS.
+                                    </div>
+                                </div>
+                            )}
                             {newFieldType === 'linked_record' && (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '24px', backgroundColor: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
                                     <div>
@@ -2399,13 +2661,13 @@ const TableManager = () => {
 
             {isQueryEditorOpen && (
                 <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 7000, backdropFilter: 'blur(12px)' }}>
-                    <div style={{ width: '700px', backgroundColor: 'white', borderRadius: '24px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', border: `1px solid ${TOKENS.border}`, overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+                    <div style={{ width: '1000px', backgroundColor: 'white', borderRadius: '24px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', border: `1px solid ${TOKENS.border}`, overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
                         <div style={{ padding: '32px 32px 24px', borderBottom: `1px solid ${TOKENS.borderLight}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ fontWeight: 900, fontSize: '1.4rem', color: TOKENS.text, letterSpacing: '-0.02em' }}>{editingQuery?.id ? 'Edit Query' : 'Create New Query'}</div>
                             <button onClick={() => setIsQueryEditorOpen(false)} style={{ border: 'none', background: 'none', color: TOKENS.textMuted, cursor: 'pointer', padding: '8px', borderRadius: '12px' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}><X size={24} /></button>
                         </div>
                         <div style={{ padding: '32px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '24px' }}>
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.85rem', color: TOKENS.text, marginBottom: '10px', fontWeight: 700 }}>Query Name</label>
                                     <input
@@ -2424,7 +2686,103 @@ const TableManager = () => {
                                         style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${TOKENS.border}`, fontSize: '1rem', outline: 'none' }}
                                     />
                                 </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.85rem', color: TOKENS.text, marginBottom: '10px', fontWeight: 700 }}>Mode</label>
+                                    <select
+                                        value={editingQuery?.mode || 'simple'}
+                                        onChange={(e) => setEditingQuery(prev => ({ ...prev, mode: e.target.value }))}
+                                        style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${TOKENS.border}`, fontSize: '1rem', outline: 'none', backgroundColor: 'white' }}
+                                    >
+                                        <option value="simple">Simple (single table)</option>
+                                        <option value="visual">Visual Join + Pivot</option>
+                                    </select>
+                                </div>
                             </div>
+
+                            {editingQuery?.mode === 'visual' && (
+                                <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: '12px', backgroundColor: '#f8fafc', overflow: 'hidden' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', minHeight: '500px' }}>
+                                        <div style={{ borderRight: `1px solid ${TOKENS.border}`, backgroundColor: 'white', padding: '12px' }}>
+                                            <div style={{ fontWeight: 800, fontSize: '0.85rem', marginBottom: '8px' }}>Data Model / Tables</div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '380px', overflowY: 'auto' }}>
+                                                {tables.map((t) => (
+                                                    <div key={`vm-${t.id}`} style={{ border: `1px solid ${TOKENS.border}`, borderRadius: '8px', padding: '8px' }}>
+                                                        <div style={{ fontSize: '0.8rem', fontWeight: 800, color: TOKENS.text }}>{t.name}</div>
+                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+                                                            {(t.fields || []).slice(0, 8).map((f) => (
+                                                                <span
+                                                                    key={`${t.id}-${f.name}`}
+                                                                    draggable
+                                                                    onDragStart={(e) => e.dataTransfer.setData('text/plain', `field:${f.name}`)}
+                                                                    style={{ padding: '4px 8px', borderRadius: '999px', backgroundColor: '#eef2ff', border: '1px solid #c7d2fe', color: '#3730a3', fontSize: '0.7rem', fontWeight: 700, cursor: 'grab' }}
+                                                                >
+                                                                    {f.name}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', padding: '12px', gap: '12px' }}>
+                                            <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: '10px', backgroundColor: 'white', padding: '10px' }}>
+                                                <div style={{ fontWeight: 800, fontSize: '0.82rem', marginBottom: '8px' }}>Design Query / Canvas</div>
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                                                    <div>
+                                                        <label style={{ fontSize: '0.75rem', fontWeight: 700 }}>Base Table</label>
+                                                        <select value={editingQuery?.baseTableId || selectedTableId} onChange={(e) => setEditingQuery(prev => ({ ...prev, baseTableId: e.target.value }))} style={{ width: '100%', marginTop: '4px', padding: '8px', borderRadius: '8px', border: `1px solid ${TOKENS.border}` }}>
+                                                            {tables.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label style={{ fontSize: '0.75rem', fontWeight: 700 }}>Pivot</label>
+                                                        <select value={editingQuery?.pivot?.enabled ? 'yes' : 'no'} onChange={(e) => setEditingQuery(prev => ({ ...prev, pivot: { ...DEFAULT_PIVOT, ...(prev.pivot || {}), enabled: e.target.value === 'yes' } }))} style={{ width: '100%', marginTop: '4px', padding: '8px', borderRadius: '8px', border: `1px solid ${TOKENS.border}` }}>
+                                                            <option value="no">Disabled</option><option value="yes">Enabled</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <button onClick={() => setEditingQuery(prev => ({ ...prev, joins: [...(prev.joins || []), { joinType: 'left', sourceField: '', targetTableId: '', targetField: 'recordId', alias: '' }] }))} style={{ border: 'none', backgroundColor: TOKENS.primaryLight, color: TOKENS.primary, padding: '8px 12px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>+ Add Join</button>
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
+                                                    {[
+                                                        { key: 'select', label: 'SELECT (drop fields)' },
+                                                        { key: 'rows', label: 'Pivot Rows' },
+                                                        { key: 'columns', label: 'Pivot Columns' },
+                                                        { key: 'values', label: 'Pivot Values' }
+                                                    ].map((zone) => (
+                                                        <div
+                                                            key={zone.key}
+                                                            onDragOver={(e) => e.preventDefault()}
+                                                            onDrop={(e) => {
+                                                                e.preventDefault();
+                                                                handlePivotDrop(zone.key, e.dataTransfer.getData('text/plain'));
+                                                            }}
+                                                            style={{ minHeight: '74px', border: `2px dashed ${TOKENS.border}`, borderRadius: '10px', backgroundColor: '#fafafa', padding: '8px' }}
+                                                        >
+                                                            <div style={{ fontSize: '0.72rem', fontWeight: 800, color: TOKENS.textMuted, marginBottom: '6px' }}>{zone.label}</div>
+                                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                                                {zone.key === 'select' && (editingQuery?.select || []).map((f) => <span key={`s-${f}`} style={{ padding: '3px 8px', borderRadius: '999px', backgroundColor: '#dbeafe', color: '#1e40af', fontSize: '0.7rem', fontWeight: 700 }}>{f}</span>)}
+                                                                {zone.key === 'rows' && (editingQuery?.pivot?.rows || []).map((f) => <span key={`r-${f.key}`} style={{ padding: '3px 8px', borderRadius: '999px', backgroundColor: '#dcfce7', color: '#166534', fontSize: '0.7rem', fontWeight: 700 }}>{f.key}</span>)}
+                                                                {zone.key === 'columns' && (editingQuery?.pivot?.columns || []).map((f) => <span key={`c-${f.key}`} style={{ padding: '3px 8px', borderRadius: '999px', backgroundColor: '#fef3c7', color: '#92400e', fontSize: '0.7rem', fontWeight: 700 }}>{f.key}</span>)}
+                                                                {zone.key === 'values' && (editingQuery?.pivot?.values || []).map((f) => <span key={`v-${f.key}`} style={{ padding: '3px 8px', borderRadius: '999px', backgroundColor: '#f3e8ff', color: '#6b21a8', fontSize: '0.7rem', fontWeight: 700 }}>{f.key}:{f.aggregation}</span>)}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: '10px', backgroundColor: 'white', overflow: 'hidden' }}>
+                                                <div style={{ display: 'flex', borderBottom: `1px solid ${TOKENS.border}` }}>
+                                                    {[{ id: 'results', label: 'Results' }, { id: 'sql', label: 'SQL' }, { id: 'data', label: 'Data' }].map(tab => (
+                                                        <button key={tab.id} onClick={() => setVisualPreviewTab(tab.id)} style={{ padding: '8px 12px', border: 'none', backgroundColor: visualPreviewTab === tab.id ? '#eef2ff' : 'white', color: visualPreviewTab === tab.id ? TOKENS.primary : TOKENS.textMuted, fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer' }}>{tab.label}</button>
+                                                    ))}
+                                                </div>
+                                                <div style={{ padding: '10px', fontSize: '0.78rem', color: TOKENS.textMuted }}>
+                                                    {visualPreviewTab === 'results' ? `Rows preview: ${queryPreviewRows.length}` : visualPreviewTab === 'sql' ? 'SELECT ... JOIN ... LIMIT ...' : `Pivot rows: ${pivotPreviewRows.length}`}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             <div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
@@ -2562,9 +2920,10 @@ const TableManager = () => {
                             <button
                                 onClick={async () => {
                                     const updatedQueries = selectedTable.queries ? [...selectedTable.queries] : [];
-                                    const index = updatedQueries.findIndex(q => q.id === editingQuery.id);
-                                    if (index >= 0) updatedQueries[index] = editingQuery;
-                                    else updatedQueries.push(editingQuery);
+                                    const normalized = normalizeVisualQuery(editingQuery, selectedTableId);
+                                    const index = updatedQueries.findIndex(q => q.id === normalized.id);
+                                    if (index >= 0) updatedQueries[index] = normalized;
+                                    else updatedQueries.push(normalized);
 
                                     await updateTable(selectedTableId, { queries: updatedQueries });
                                     await loadTables();

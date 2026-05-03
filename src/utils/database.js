@@ -31,7 +31,7 @@ export const checkDBStatus = async () => ({ isConfigured: true, isOnline: true, 
 const DB_NAME = 'FrontlineDataStorageDB';
 // Bump version to ensure onupgradeneeded runs for users with older local DB schemas
 // (some clients may have missing object stores from previous iterations).
-const DB_VERSION = 6;
+const DB_VERSION = 7;
 const TABLE_FIELD_LIMIT = 200;
 
 export const TABLE_FIELD_TYPES = [
@@ -106,6 +106,9 @@ const getDB = () => {
                 if (!db.objectStoreNames.contains('shop_floor_stations')) {
                     db.createObjectStore('shop_floor_stations', { keyPath: 'id' });
                 }
+                if (!db.objectStoreNames.contains('shop_floor_station_groups')) {
+                    db.createObjectStore('shop_floor_station_groups', { keyPath: 'id' });
+                }
                 if (!db.objectStoreNames.contains('shop_floor_interfaces')) {
                     db.createObjectStore('shop_floor_interfaces', { keyPath: 'id' });
                 }
@@ -119,6 +122,11 @@ const getDB = () => {
                     const activityStore = db.createObjectStore('machine_activity_logs', { keyPath: 'id' });
                     ensureIndex(activityStore, 'machineId', 'machineId', { unique: false });
                     ensureIndex(activityStore, 'timestamp', 'timestamp', { unique: false });
+                }
+                if (!db.objectStoreNames.contains('shop_floor_station_events')) {
+                    const stationEventStore = db.createObjectStore('shop_floor_station_events', { keyPath: 'id' });
+                    ensureIndex(stationEventStore, 'stationId', 'stationId', { unique: false });
+                    ensureIndex(stationEventStore, 'timestamp', 'timestamp', { unique: false });
                 }
             };
         });
@@ -768,8 +776,68 @@ const deleteItemById = async (storeName, id) => {
 };
 
 export const getStations = () => getAll('shop_floor_stations');
-export const saveStation = (station) => saveItem('shop_floor_stations', station);
+export const saveStation = async (station) => {
+    const previousStations = await getStations();
+    const previous = previousStations.find((s) => s.id === station.id) || null;
+
+    const saved = await saveItem('shop_floor_stations', station);
+
+    if (!previous) {
+        await logStationEvent(saved.id, 'STATION_CREATED', `Station "${saved.name}" created`);
+    } else {
+        if (previous.interfaceId !== saved.interfaceId) {
+            await logStationEvent(saved.id, 'INTERFACE_UPDATED', 'Primary interface assignment updated');
+        }
+        if (JSON.stringify(previous.assignedApps || []) !== JSON.stringify(saved.assignedApps || [])) {
+            await logStationEvent(saved.id, 'APP_ASSIGNMENTS_UPDATED', 'App assignments changed');
+        }
+        if (previous.group !== saved.group) {
+            await logStationEvent(saved.id, 'STATION_GROUP_UPDATED', `Group changed to "${saved.group || 'Ungrouped'}"`);
+        }
+        if (previous.status !== saved.status) {
+            await logStationEvent(saved.id, 'STATION_STATUS_UPDATED', `Status changed to ${saved.status}`);
+        }
+    }
+
+    return saved;
+};
 export const deleteStation = (id) => deleteItemById('shop_floor_stations', id);
+
+export const getStationGroups = () => getAll('shop_floor_station_groups');
+export const saveStationGroup = (group) => saveItem('shop_floor_station_groups', group);
+export const deleteStationGroup = (id) => deleteItemById('shop_floor_station_groups', id);
+
+export const logStationEvent = async (stationId, eventType, detail = '') => {
+    const db = await getDB();
+    const entry = {
+        id: `sev_${stationId}_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+        stationId,
+        eventType,
+        detail,
+        timestamp: new Date().toISOString()
+    };
+
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('shop_floor_station_events', 'readwrite');
+        tx.objectStore('shop_floor_station_events').put(entry);
+        tx.oncomplete = () => resolve(entry);
+        tx.onerror = () => reject(tx.error);
+    });
+};
+
+export const getStationEvents = async (stationId) => {
+    const db = await getDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('shop_floor_station_events', 'readonly');
+        const index = tx.objectStore('shop_floor_station_events').index('stationId');
+        const req = index.getAll(stationId);
+        req.onsuccess = () => {
+            const events = (req.result || []).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            resolve(events);
+        };
+        req.onerror = () => reject(req.error);
+    });
+};
 
 export const getInterfaces = () => getAll('shop_floor_interfaces');
 export const saveInterface = (iface) => saveItem('shop_floor_interfaces', iface);
