@@ -11029,28 +11029,31 @@ const AppBuilder = () => {
                             }}>
                                 {/* Developer Mode Header */}
                                 <div style={{
-                                    padding: '14px 16px 10px',
-                                    borderBottom: '1px solid var(--border-primary)',
-                                    background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)'
+                                    padding: '12px 16px',
+                                    borderBottom: '1px solid rgba(255,255,255,0.06)',
+                                    backgroundColor: '#1a1a2e',
+                                    borderLeft: '4px solid #22c55e',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '2px'
                                 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#22c55e', boxShadow: '0 0 6px #22c55e' }} />
-                                        <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#ffffff', letterSpacing: '0.02em' }}>Developer Mode</span>
-                                    </div>
-                                    <span style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', letterSpacing: '0.05em' }}>Test sessions are not saved</span>
+                                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f1f5f9', letterSpacing: '0.01em' }}>Developer Mode</span>
+                                    <span style={{ fontSize: '0.65rem', color: '#64748b', letterSpacing: '0.03em' }}>Test sessions are not saved</span>
                                 </div>
 
                                 {/* Session Parameters */}
-                                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-secondary)', overflowY: 'auto', flex: '0 0 auto' }}>
-                                    <div style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-quaternary)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '10px' }}>Session Parameters</div>
+                                <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-secondary)', overflowY: 'auto', flex: '0 0 auto' }}>
+                                    <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '12px' }}>Session Parameters</div>
 
                                     {/* Station */}
                                     <div style={{ marginBottom: '10px' }}>
-                                        <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '4px' }}>Station</label>
+                                        <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: '5px', letterSpacing: '0.04em' }}>Station</label>
                                         <select
                                             value={devModeStation}
                                             onChange={e => setDevModeStation(e.target.value)}
-                                            style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--border-primary)', borderRadius: '6px', fontSize: '0.8rem', color: 'var(--text-primary)', backgroundColor: 'var(--bg-secondary)', outline: 'none', cursor: 'pointer' }}
+                                            style={{ width: '100%', padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.8rem', color: '#334155', backgroundColor: '#f8fafc', outline: 'none', cursor: 'pointer', transition: 'border-color 0.15s', appearance: 'auto' }}
+                                            onFocus={e => e.target.style.borderColor = '#93c5fd'}
+                                            onBlur={e => e.target.style.borderColor = '#e2e8f0'}
                                         >
                                             {['Test Station 1', 'Test Station 2', 'Line A - Station 1', 'Line B - Station 1', 'Quality Control'].map(s => (
                                                 <option key={s} value={s}>{s}</option>
@@ -11060,21 +11063,23 @@ const AppBuilder = () => {
 
                                     {/* User */}
                                     <div style={{ marginBottom: '10px' }}>
-                                        <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '4px' }}>User</label>
+                                        <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: '5px', letterSpacing: '0.04em' }}>User</label>
                                         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                            <div style={{ width: '26px', height: '26px', borderRadius: '50%', backgroundColor: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '0.65rem', fontWeight: 700, flexShrink: 0 }}>
+                                            <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>
                                                 {devModeUser.charAt(0).toUpperCase()}
                                             </div>
                                             <select
                                                 value={devModeUser}
                                                 onChange={e => setDevModeUser(e.target.value)}
-                                                style={{ flex: 1, padding: '6px 8px', border: '1px solid var(--border-primary)', borderRadius: '6px', fontSize: '0.8rem', color: 'var(--text-primary)', backgroundColor: 'var(--bg-secondary)', outline: 'none', cursor: 'pointer' }}
+                                                style={{ flex: 1, padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.8rem', color: '#334155', backgroundColor: '#f8fafc', outline: 'none', cursor: 'pointer', transition: 'border-color 0.15s' }}
+                                                onFocus={e => e.target.style.borderColor = '#93c5fd'}
+                                                onBlur={e => e.target.style.borderColor = '#e2e8f0'}
                                             >
                                                 {['Operator', 'John Smith', 'Jane Doe', 'Supervisor', 'QC Inspector'].map(u => (
                                                     <option key={u} value={u}>{u}</option>
                                                 ))}
                                             </select>
-                                            <button title="Clear user" onClick={() => setDevModeUser('')} style={{ background: 'none', border: 'none', color: 'var(--text-quaternary)', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}>
+                                            <button title="Clear user" onClick={() => setDevModeUser('')} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', borderRadius: '4px', transition: 'color 0.15s' }} onMouseEnter={e => e.currentTarget.style.color = '#ef4444'} onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}>
                                                 <X size={14} />
                                             </button>
                                         </div>
@@ -11082,11 +11087,13 @@ const AppBuilder = () => {
 
                                     {/* Connector Environment */}
                                     <div style={{ marginBottom: '10px' }}>
-                                        <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '4px' }}>Connector Environment</label>
+                                        <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: '5px', letterSpacing: '0.04em' }}>Connector Environment</label>
                                         <select
                                             value={devModeConnEnv}
                                             onChange={e => setDevModeConnEnv(e.target.value)}
-                                            style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--border-primary)', borderRadius: '6px', fontSize: '0.8rem', color: 'var(--text-quaternary)', backgroundColor: 'var(--bg-secondary)', outline: 'none', cursor: 'pointer' }}
+                                            style={{ width: '100%', padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.8rem', color: '#64748b', backgroundColor: '#f8fafc', outline: 'none', cursor: 'pointer', transition: 'border-color 0.15s' }}
+                                            onFocus={e => e.target.style.borderColor = '#93c5fd'}
+                                            onBlur={e => e.target.style.borderColor = '#e2e8f0'}
                                         >
                                             <option value="development">development</option>
                                             <option value="production">production</option>
@@ -11095,12 +11102,14 @@ const AppBuilder = () => {
                                     </div>
 
                                     {/* Screen Navigation */}
-                                    <div style={{ marginTop: '10px' }}>
-                                        <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '4px' }}>Screen Navigation</label>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: '5px', letterSpacing: '0.04em' }}>Screen Navigation</label>
                                         <select
                                             value={currentStepId}
                                             onChange={e => setCurrentStepId(e.target.value)}
-                                            style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--border-primary)', borderRadius: '6px', fontSize: '0.8rem', color: 'var(--text-primary)', backgroundColor: 'var(--bg-secondary)', outline: 'none', cursor: 'pointer' }}
+                                            style={{ width: '100%', padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.8rem', color: '#334155', backgroundColor: '#f8fafc', outline: 'none', cursor: 'pointer', transition: 'border-color 0.15s' }}
+                                            onFocus={e => e.target.style.borderColor = '#93c5fd'}
+                                            onBlur={e => e.target.style.borderColor = '#e2e8f0'}
                                         >
                                             {steps.map(s => (
                                                 <option key={s.id} value={s.id}>{s.title}</option>
@@ -11110,18 +11119,20 @@ const AppBuilder = () => {
                                 </div>
 
                                 {/* Device Simulator */}
-                                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-secondary)', backgroundColor: 'var(--bg-secondary)' }}>
-                                    <div style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-quaternary)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-secondary)' }}>
+                                    <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                         <Layout size={12} /> Device Simulator
                                     </div>
 
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                         <div>
-                                            <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '4px' }}>Model</label>
+                                            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: '5px', letterSpacing: '0.04em' }}>Model</label>
                                             <select
                                                 value={previewDevice}
                                                 onChange={e => handleDeviceChange(e.target.value)}
-                                                style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--border-primary)', borderRadius: '6px', fontSize: '0.8rem', color: 'var(--text-primary)', backgroundColor: 'var(--bg-panel)', outline: 'none', cursor: 'pointer' }}
+                                                style={{ width: '100%', padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.8rem', color: '#334155', backgroundColor: '#f8fafc', outline: 'none', cursor: 'pointer', transition: 'border-color 0.15s' }}
+                                                onFocus={e => e.target.style.borderColor = '#93c5fd'}
+                                                onBlur={e => e.target.style.borderColor = '#e2e8f0'}
                                             >
                                                 {Object.entries(DEVICE_PRESETS).map(([key, preset]) => (
                                                     <option key={key} value={key}>{preset.label}{preset.width ? ` (${preset.width}x${preset.height})` : ''}</option>
@@ -11130,23 +11141,26 @@ const AppBuilder = () => {
                                         </div>
 
                                         {previewDevice !== 'RESPONSIVE' && (
-                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'var(--bg-accent-light)', padding: '6px 10px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#f0f7ff', padding: '8px 10px', borderRadius: '6px', border: '1px solid #dbeafe' }}>
                                                 <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#1e40af' }}>{previewOrientation}</span>
                                                 <button
                                                     onClick={handleOrientationToggle}
                                                     style={{
-                                                        background: '#3b82f6',
+                                                        background: '#2563eb',
                                                         border: 'none',
                                                         color: 'white',
                                                         borderRadius: '4px',
-                                                        padding: '4px 8px',
+                                                        padding: '5px 10px',
                                                         fontSize: '0.65rem',
-                                                        fontWeight: 700,
+                                                        fontWeight: 600,
                                                         cursor: 'pointer',
                                                         display: 'flex',
                                                         alignItems: 'center',
-                                                        gap: '4px'
+                                                        gap: '4px',
+                                                        transition: 'background 0.15s'
                                                     }}
+                                                    onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'}
+                                                    onMouseLeave={e => e.currentTarget.style.background = '#2563eb'}
                                                 >
                                                     <RotateCw size={12} /> Rotate
                                                 </button>
@@ -11158,23 +11172,26 @@ const AppBuilder = () => {
                                 {/* Live Data Panel */}
                                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                                     {/* Tabs */}
-                                    <div style={{ display: 'flex', borderBottom: '1px solid var(--border-primary)', backgroundColor: '#f9fafb' }}>
+                                    <div style={{ display: 'flex', borderBottom: '2px solid #e2e8f0', backgroundColor: '#ffffff' }}>
                                         {['Variables', 'Record Placeholders'].map(tab => (
                                             <button
                                                 key={tab}
                                                 onClick={() => setDevModeLiveTab(tab)}
                                                 style={{
-                                                    padding: '9px 10px',
-                                                    fontSize: '0.65rem',
-                                                    fontWeight: 700,
+                                                    padding: '10px 14px',
+                                                    fontSize: '0.72rem',
+                                                    fontWeight: devModeLiveTab === tab ? 700 : 500,
                                                     border: 'none',
-                                                    borderBottom: devModeLiveTab === tab ? '2px solid #3b82f6' : '2px solid transparent',
+                                                    borderBottom: devModeLiveTab === tab ? '2px solid #2563eb' : '2px solid transparent',
                                                     backgroundColor: 'transparent',
-                                                    color: devModeLiveTab === tab ? '#3b82f6' : '#64748b',
+                                                    color: devModeLiveTab === tab ? '#2563eb' : '#94a3b8',
                                                     cursor: 'pointer',
                                                     whiteSpace: 'nowrap',
-                                                    transition: 'all 0.15s'
+                                                    transition: 'all 0.15s',
+                                                    marginBottom: '-2px'
                                                 }}
+                                                onMouseEnter={e => { if (devModeLiveTab !== tab) e.currentTarget.style.color = '#64748b' }}
+                                                onMouseLeave={e => { if (devModeLiveTab !== tab) e.currentTarget.style.color = '#94a3b8' }}
                                             >
                                                 {tab}
                                             </button>
@@ -11183,34 +11200,39 @@ const AppBuilder = () => {
 
                                     {/* Variables Tab */}
                                     {devModeLiveTab === 'Variables' && (
-                                        <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
+                                        <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
                                             {/* Search */}
-                                            <div style={{ position: 'relative', marginBottom: '8px' }}>
-                                                <Search size={12} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-quaternary)' }} />
+                                            <div style={{ position: 'relative', marginBottom: '10px' }}>
+                                                <Search size={13} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
                                                 <input
                                                     placeholder="Search Variables"
-                                                    style={{ width: '100%', padding: '5px 8px 5px 26px', border: '1px solid var(--border-primary)', borderRadius: '6px', fontSize: '0.75rem', color: 'var(--text-primary)', backgroundColor: 'var(--bg-secondary)', outline: 'none', boxSizing: 'border-box' }}
+                                                    style={{ width: '100%', padding: '7px 10px 7px 30px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.78rem', color: '#334155', backgroundColor: '#f8fafc', outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.15s' }}
+                                                    onFocus={e => e.target.style.borderColor = '#93c5fd'}
+                                                    onBlur={e => e.target.style.borderColor = '#e2e8f0'}
                                                 />
                                             </div>
                                             {/* Variable Filter */}
-                                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '6px' }}>
-                                                <span style={{ fontSize: '0.6rem', color: 'var(--text-quaternary)', fontWeight: 600 }}>Type ({appVariables.length}/{appVariables.length})</span>
+                                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+                                                <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600 }}>Type ({appVariables.length}/{appVariables.length})</span>
                                             </div>
                                             {/* Variable list */}
                                             {appVariables.length === 0 ? (
-                                                <div style={{ textAlign: 'center', color: 'var(--text-quaternary)', fontSize: '0.75rem', padding: '20px 0' }}>No variables defined</div>
+                                                <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.78rem', padding: '24px 0' }}>No variables defined</div>
                                             ) : (
                                                 appVariables.map(v => (
-                                                    <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 6px', borderRadius: '5px', marginBottom: '2px', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-secondary)' }}>
-                                                        <div style={{ width: '20px', height: '20px', borderRadius: '4px', backgroundColor: '#e0e7ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                            {v.type === 'Number' ? <Hash size={11} color="#6366f1" /> :
-                                                                v.type === 'Boolean' ? <ToggleRight size={11} color="#6366f1" /> :
-                                                                    v.type === 'Date' ? <Calendar size={11} color="#6366f1" /> :
-                                                                        <Type size={11} color="#6366f1" />}
+                                                    <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 8px', borderRadius: '6px', marginBottom: '3px', backgroundColor: '#f8fafc', border: '1px solid #f1f5f9', transition: 'all 0.12s' }}
+                                                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#eef2ff'; e.currentTarget.style.borderColor = '#e0e7ff' }}
+                                                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.borderColor = '#f1f5f9' }}
+                                                    >
+                                                        <div style={{ width: '24px', height: '24px', borderRadius: '5px', backgroundColor: '#eef2ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                            {v.type === 'Number' ? <Hash size={12} color="#6366f1" /> :
+                                                                v.type === 'Boolean' ? <ToggleRight size={12} color="#6366f1" /> :
+                                                                    v.type === 'Date' ? <Calendar size={12} color="#6366f1" /> :
+                                                                        <Type size={12} color="#6366f1" />}
                                                         </div>
                                                         <div style={{ flex: 1, minWidth: 0 }}>
-                                                            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.name}</div>
-                                                            <div style={{ fontSize: '0.6rem', color: 'var(--text-quaternary)' }}>{v.type}</div>
+                                                            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.name}</div>
+                                                            <div style={{ fontSize: '0.62rem', color: '#94a3b8' }}>{v.type}</div>
                                                         </div>
                                                     </div>
                                                 ))
@@ -11220,19 +11242,22 @@ const AppBuilder = () => {
 
                                     {/* Record Placeholders Tab */}
                                     {devModeLiveTab === 'Record Placeholders' && (
-                                        <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
+                                        <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
                                             {recordPlaceholders.length === 0 ? (
-                                                <div style={{ textAlign: 'center', color: 'var(--text-quaternary)', fontSize: '0.75rem', padding: '20px 0' }}>No record placeholders defined</div>
+                                                <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.78rem', padding: '24px 0' }}>No record placeholders defined</div>
                                             ) : (
                                                 recordPlaceholders.map(rp => {
                                                     const tbl = tables.find(t => t.id === rp.tableId);
                                                     return (
-                                                        <div key={rp.id} style={{ padding: '8px 10px', borderRadius: '6px', marginBottom: '4px', backgroundColor: '#f0fdf4', border: '1px solid #dcfce7' }}>
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-                                                                <Database size={11} color="#16a34a" />
-                                                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#166534' }}>{rp.name}</span>
+                                                        <div key={rp.id} style={{ padding: '10px 12px', borderRadius: '6px', marginBottom: '4px', backgroundColor: '#f0fdf4', border: '1px solid #dcfce7', transition: 'all 0.12s' }}
+                                                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#ecfdf5'; e.currentTarget.style.borderColor = '#bbf7d0' }}
+                                                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f0fdf4'; e.currentTarget.style.borderColor = '#dcfce7' }}
+                                                        >
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                                                                <Database size={12} color="#16a34a" />
+                                                                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#166534' }}>{rp.name}</span>
                                                             </div>
-                                                            <span style={{ fontSize: '0.6rem', color: '#4ade80' }}>{tbl ? tbl.name : rp.tableId}</span>
+                                                            <span style={{ fontSize: '0.62rem', color: '#22c55e', paddingLeft: '20px' }}>{tbl ? tbl.name : rp.tableId}</span>
                                                         </div>
                                                     );
                                                 })
@@ -12222,39 +12247,40 @@ const AppBuilder = () => {
                             {viewMode === 'PREVIEW' && (
                                 <div style={{
                                     flexShrink: 0,
-                                    height: isCompletionsPanelExpanded ? '220px' : '36px',
-                                    backgroundColor: 'var(--bg-secondary)',
-                                    borderTop: '1px solid var(--border-primary)',
+                                    height: isCompletionsPanelExpanded ? '220px' : '38px',
+                                    backgroundColor: '#ffffff',
+                                    borderTop: '2px solid #e2e8f0',
                                     display: 'flex',
                                     flexDirection: 'column',
                                     zIndex: 10,
-                                    transition: 'height 0.3s ease'
+                                    transition: 'height 0.25s ease'
                                 }}>
                                     {/* Completions Tabs / Header */}
                                     <div style={{
                                         display: 'flex',
                                         justifyContent: 'space-between',
                                         alignItems: 'center',
-                                        borderBottom: isCompletionsPanelExpanded ? '1px solid #e2e8f0' : 'none',
-                                        backgroundColor: 'var(--bg-tertiary)',
+                                        borderBottom: isCompletionsPanelExpanded ? '2px solid #e2e8f0' : 'none',
+                                        backgroundColor: '#f8fafc',
                                         padding: '0 16px',
-                                        height: '36px'
+                                        height: '38px',
+                                        flexShrink: 0
                                     }}>
                                         <div style={{ display: 'flex' }}>
                                             <button
                                                 onClick={() => setDevModeCompletionsTab('Completions')}
                                                 style={{
-                                                    padding: '8px 16px',
-                                                    fontSize: '0.7rem',
-                                                    fontWeight: 800,
+                                                    padding: '9px 16px',
+                                                    fontSize: '0.72rem',
+                                                    fontWeight: 700,
                                                     border: 'none',
-                                                    borderBottom: devModeCompletionsTab === 'Completions' && isCompletionsPanelExpanded ? '2px solid #3b82f6' : '2px solid transparent',
+                                                    borderBottom: devModeCompletionsTab === 'Completions' && isCompletionsPanelExpanded ? '2px solid #2563eb' : '2px solid transparent',
                                                     backgroundColor: 'transparent',
-                                                    color: devModeCompletionsTab === 'Completions' ? '#3b82f6' : '#64748b',
+                                                    color: devModeCompletionsTab === 'Completions' ? '#2563eb' : '#94a3b8',
                                                     cursor: 'pointer',
-                                                    marginBottom: '-1px',
+                                                    marginBottom: '-2px',
                                                     textTransform: 'uppercase',
-                                                    letterSpacing: '0.025em'
+                                                    letterSpacing: '0.03em'
                                                 }}
                                             >
                                                 Completions
@@ -12265,38 +12291,44 @@ const AppBuilder = () => {
                                             style={{
                                                 background: 'none',
                                                 border: 'none',
-                                                color: 'var(--text-quaternary)',
+                                                color: '#94a3b8',
                                                 cursor: 'pointer',
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 padding: '4px',
-                                                borderRadius: '4px'
+                                                borderRadius: '4px',
+                                                transition: 'color 0.15s'
                                             }}
                                             title={isCompletionsPanelExpanded ? "Hide Panel" : "Show Panel"}
+                                            onMouseEnter={e => e.currentTarget.style.color = '#64748b'}
+                                            onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
                                         >
                                             {isCompletionsPanelExpanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
                                         </button>
                                     </div>
                                     {/* Completions Content */}
                                     {isCompletionsPanelExpanded && (
-                                        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: appCompletions.length === 0 ? 'center' : 'flex-start', padding: appCompletions.length === 0 ? '20px' : '12px 16px', gap: '6px' }}>
+                                        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: appCompletions.length === 0 ? 'center' : 'flex-start', padding: appCompletions.length === 0 ? '24px' : '12px 16px', gap: '6px' }}>
                                             {appCompletions.length === 0 ? (
                                                 <>
-                                                    <div style={{ backgroundColor: '#e2e8f0', padding: '12px', borderRadius: '12px', marginBottom: '8px', opacity: 0.5 }}>
-                                                        <FileText size={24} color="var(--text-quaternary)" />
+                                                    <div style={{ backgroundColor: '#f1f5f9', padding: '14px', borderRadius: '12px', marginBottom: '10px' }}>
+                                                        <FileText size={24} color="#94a3b8" />
                                                     </div>
-                                                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-quaternary)', textAlign: 'center' }}>No data available for the time range selected</div>
-                                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', textAlign: 'center' }}>Try selecting a longer time range to see data.</div>
+                                                    <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#64748b', textAlign: 'center' }}>No data available for the time range selected</div>
+                                                    <div style={{ fontSize: '0.68rem', color: '#94a3b8', textAlign: 'center' }}>Try selecting a longer time range to see data.</div>
                                                 </>
                                             ) : (
                                                 appCompletions.slice(0, 20).map((comp, i) => (
-                                                    <div key={i} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 12px', backgroundColor: 'var(--bg-panel)', borderRadius: '6px', border: '1px solid var(--border-primary)' }}>
-                                                        <CheckCircle2 size={14} color="#10b981" />
+                                                    <div key={i} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', backgroundColor: '#f8fafc', borderRadius: '6px', border: '1px solid #f1f5f9', transition: 'all 0.12s' }}
+                                                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f0fdf4'; e.currentTarget.style.borderColor = '#dcfce7' }}
+                                                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.borderColor = '#f1f5f9' }}
+                                                    >
+                                                        <CheckCircle2 size={15} color="#10b981" />
                                                         <div style={{ flex: 1, minWidth: 0 }}>
-                                                            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>Completion #{i + 1}</div>
-                                                            <div style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)' }}>{new Date(comp.created_at || Date.now()).toLocaleString()}</div>
+                                                            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>Completion #{i + 1}</div>
+                                                            <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>{new Date(comp.created_at || Date.now()).toLocaleString()}</div>
                                                         </div>
-                                                        <span style={{ fontSize: '0.65rem', backgroundColor: '#d1fae5', color: '#065f46', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>COMPLETE</span>
+                                                        <span style={{ fontSize: '0.65rem', backgroundColor: '#d1fae5', color: '#065f46', padding: '3px 10px', borderRadius: '12px', fontWeight: 700 }}>COMPLETE</span>
                                                     </div>
                                                 ))
                                             )}
@@ -17611,8 +17643,6 @@ const AppBuilder = () => {
                                                         <Blocks size={16} /> Open Logic Editor
                                                     </button>
                                                 </div>
-                                                )}
-
                                                 <div style={{ marginTop: '20px', borderTop: '1px solid var(--border-primary)', paddingTop: '20px' }}>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                                                         <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', fontWeight: 800 }}>Widget Triggers</span>
@@ -21606,6 +21636,7 @@ const AppBuilder = () => {
 };
 
 export default AppBuilder;
+
 
 
 
