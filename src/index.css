@@ -69,6 +69,8 @@ body {
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent; /* Remove mobile tap blue highlight */
+  touch-action: manipulation;
 }
 
 /* Mavi Panel Classes */
@@ -224,5 +226,36 @@ body {
     box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
     transform: scale(1);
     background-color: #ffffff;
+  }
+}
+
+/* Mobile Specific Utils */
+.fade-in {
+  animation: fadeInMobile 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes fadeInMobile {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Touch hit areas for mobile */
+@media (max-width: 768px) {
+  button, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  input, select, textarea {
+    font-size: 16px !important; /* Prevent iOS auto-zoom */
   }
 }

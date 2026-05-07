@@ -100,6 +100,8 @@ import { logEvent, AUDIT_EVENTS } from '../utils/auditLog';
 import { calculateOEE } from '../utils/oeeEngine';
 import FrontlineCopilot from './FrontlineCopilot';
 import ChatWidget from './ChatWidget';
+import UnifiedScanner from './UnifiedScanner';
+import MobileBottomNav from './MobileBottomNav';
 import { listGlobalVariables, upsertGlobalVariable, subscribeToGlobalVariables } from '../utils/supabaseGlobalVars';
 import { validateVariable } from '../utils/validationEngine';
 
@@ -215,6 +217,17 @@ const LiveTerminal = () => {
   const [showChat, setShowChat] = useState(false);
   const [devMode, setDevMode] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [activeMobileTab, setActiveMobileTab] = useState('apps');
+  const [showGlobalScanner, setShowGlobalScanner] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -2365,12 +2378,93 @@ const LiveTerminal = () => {
       'linear-gradient(135deg, #064e3b 0%, #10b981 100%)',
       'linear-gradient(135deg, #7f1d1d 0%, #ef4444 100%)',
       'linear-gradient(135deg, #4c1d95 0%, #8b5cf6 100%)'
-    ];
     const getAppGradient = (name) => {
       if (!name) return appGradients[0];
       const sum = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
       return appGradients[sum % appGradients.length];
     };
+
+    if (isMobile) {
+      return (
+        <div style={{ height: '100dvh', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', fontFamily: "'Inter', sans-serif", overflow: 'hidden' }}>
+          {/* Mobile Header */}
+          <div style={{ padding: '16px 20px', backgroundColor: '#0f172a', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+            <div style={{ fontWeight: 800, fontSize: '1rem' }}>STATION {appContext.station}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: 'rgba(34, 197, 94, 0.15)', padding: '4px 10px', borderRadius: '12px' }}>
+              <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#22c55e' }} />
+              <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#22c55e' }}>ONLINE</span>
+            </div>
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 90px 20px' }}>
+            {activeMobileTab === 'apps' && (
+              <div className="fade-in">
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', marginBottom: '20px' }}>Production Apps</h3>
+                {filteredApps.map(app => (
+                  <div
+                    key={app.id}
+                    onClick={() => handleStartApp(app)}
+                    style={{
+                      backgroundColor: 'white', borderRadius: '16px', padding: '16px', marginBottom: '16px',
+                      display: 'flex', alignItems: 'center', gap: '16px', border: '1px solid #e2e8f0',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.02)', position: 'relative'
+                    }}
+                  >
+                    <div style={{ 
+                      width: '50px', height: '50px', borderRadius: '12px', 
+                      background: getAppGradient(app.name), display: 'flex', 
+                      alignItems: 'center', justifyContent: 'center', color: 'white' 
+                    }}>
+                      <LayoutGrid size={24} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#0f172a' }}>{app.name}</div>
+                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>v{app.version || '1.0'} • {app.category || 'App'}</div>
+                    </div>
+                    <ChevronRight size={20} color="#cbd5e1" />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {activeMobileTab === 'stats' && (
+              <div className="fade-in">
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', marginBottom: '20px' }}>Station Metrics</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+                  {Object.entries(oeeData[currentStationObj?.id] || {}).map(([key, val]) => (
+                    <div key={key} style={{ backgroundColor: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>{key}</div>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#0f172a' }}>{typeof val === 'number' ? `${val.toFixed(1)}%` : val}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <MobileBottomNav 
+            activeTab={activeMobileTab} 
+            onTabChange={(tab) => {
+              if (tab === 'scan') setShowGlobalScanner(true);
+              else if (tab === 'chat') setShowChat(true);
+              else setActiveMobileTab(tab);
+            }} 
+          />
+
+          {showGlobalScanner && (
+            <UnifiedScanner 
+              label="Global Quick Scan"
+              onScan={(val) => {
+                setShowGlobalScanner(false);
+                toast.success(`Scanned: ${val}`);
+                // Future: Add logic to handle global scans (e.g. searching for work orders)
+              }}
+              onClose={() => setShowGlobalScanner(false)}
+            />
+          )}
+        </div>
+      );
+    }
 
     return (
       <div style={{ height: '100%', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', fontFamily: "'Inter', sans-serif" }}>
@@ -2620,6 +2714,121 @@ const LiveTerminal = () => {
   const stepValidationSummaries = (steps || []).map((step) => (
     selectedApp ? getStepRequiredSummary(step) : { total: 0, done: 0, ok: true }
   ));
+
+  if (isMobile) {
+    return (
+      <div style={{ height: '100dvh', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc', display: 'flex', flexDirection: 'column', fontFamily: "'Inter', sans-serif", overflow: 'hidden' }}>
+        {/* Mobile App Header */}
+        <div style={{ 
+          padding: '12px 16px', backgroundColor: activeAndon ? '#dc2626' : '#001e3c', color: 'white', 
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)' 
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button onClick={() => { setSelectedApp(null); setSelectedManual(null); }} style={{ background: 'none', border: 'none', color: 'white', padding: '4px' }}><ArrowLeft size={20} /></button>
+            <div style={{ fontWeight: 800, fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '180px' }}>
+              {selectedApp ? selectedApp.name : selectedManual.title}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <div onClick={() => setShowChat(true)} style={{ position: 'relative' }}><MessageSquare size={18} /></div>
+            <div onClick={() => setShowAndonModal(true)}><AlertCircle size={18} color={activeAndon ? 'white' : '#fca5a5'} /></div>
+          </div>
+        </div>
+
+        {/* Mobile Step Indicator - Compact */}
+        <div style={{ 
+          padding: '10px 16px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white', 
+          borderBottom: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`,
+          display: 'flex', overflowX: 'auto', gap: '8px', scrollbarWidth: 'none'
+        }}>
+          {steps.map((step, idx) => (
+            <div 
+              key={idx}
+              onClick={() => setCurrentStepIndex(idx)}
+              style={{
+                padding: '6px 12px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 700,
+                backgroundColor: idx === currentStepIndex ? '#3b82f6' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f1f5f9'),
+                color: idx === currentStepIndex ? 'white' : '#64748b',
+                whiteSpace: 'nowrap', border: `1px solid ${idx === currentStepIndex ? '#3b82f6' : 'transparent'}`
+              }}
+            >
+              Step {idx + 1}
+            </div>
+          ))}
+        </div>
+
+        {/* Mobile Component Container */}
+        <div style={{ 
+          flex: 1, overflowY: 'auto', padding: '16px', 
+          display: 'flex', flexDirection: 'column', gap: '20px',
+          backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc')
+        }}>
+          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: '0 0 10px 0', color: selectedApp?.config?.appThemeMode === 'DARK' ? 'white' : '#0f172a' }}>{activeStep?.title}</h2>
+          
+          {appComponents.filter(c => !c.step_id || c.step_id === activeStep?.id).map((comp) => (
+            <div key={comp.id} style={{ width: '100%' }}>
+              {/* This will use the existing component switch logic, just in a mobile-optimized container */}
+              {renderComponent(comp)}
+            </div>
+          ))}
+          
+          {/* Padding for bottom buttons */}
+          <div style={{ height: '80px' }} />
+        </div>
+
+        {/* Mobile Footer Controls */}
+        <div style={{ 
+          position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px',
+          backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white',
+          borderTop: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`,
+          display: 'flex', gap: '12px', zIndex: 100
+        }}>
+          <button 
+            disabled={currentStepIndex === 0}
+            onClick={() => setCurrentStepIndex(prev => Math.max(0, prev - 1))}
+            style={{ 
+              flex: 1, padding: '14px', borderRadius: '10px', 
+              backgroundColor: '#f1f5f9', color: '#475569', 
+              border: 'none', fontWeight: 700, fontSize: '0.9rem',
+              opacity: currentStepIndex === 0 ? 0.5 : 1
+            }}
+          >
+            Previous
+          </button>
+          
+          {currentStepIndex === steps.length - 1 ? (
+            <button 
+              onClick={() => setShowSignaturePad(true)}
+              style={{ 
+                flex: 2, padding: '14px', borderRadius: '10px', 
+                backgroundColor: '#10b981', color: 'white', 
+                border: 'none', fontWeight: 800, fontSize: '0.95rem',
+                boxShadow: '0 4px 10px rgba(16, 185, 129, 0.3)'
+              }}
+            >
+              Sign Off Order
+            </button>
+          ) : (
+            <button 
+              disabled={!currentStepRequiredOk}
+              onClick={() => setCurrentStepIndex(prev => Math.min(steps.length - 1, prev + 1))}
+              style={{ 
+                flex: 2, padding: '14px', borderRadius: '10px', 
+                backgroundColor: currentStepRequiredOk ? '#3b82f6' : '#94a3b8', 
+                color: 'white', border: 'none', fontWeight: 800, fontSize: '0.95rem',
+                boxShadow: currentStepRequiredOk ? '0 4px 10px rgba(59, 130, 246, 0.3)' : 'none'
+              }}
+            >
+              Next Step
+            </button>
+          )}
+        </div>
+
+        {/* DEFECT/ANDON Modals will render here via standard portals/overlays */}
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -2914,60 +3123,58 @@ const LiveTerminal = () => {
                             </div>
                           );
                           case 'CAMERA_SCANNER': return (
-                            <div>
+                            <div key={comp.id}>
                               <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>
                                 {comp.props.label || 'Scan Barcode / QR'}{comp.props.required ? ' *' : ''}
                               </div>
-                              <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#f8fafc' }}>
-                                <div style={{ position: 'relative', width: '100%', height: '200px', backgroundColor: '#0f172a' }}>
-                                  <video
-                                    ref={(el) => { cameraScannerVideoRefs.current[comp.id] = el; }}
-                                    muted
-                                    playsInline
-                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              <div style={{ 
+                                border: '1.5px solid #e2e8f0', borderRadius: '12px', padding: '16px', 
+                                backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '12px'
+                              }}>
+                                <button
+                                  onClick={() => setCameraScannerActive(prev => ({ ...prev, [comp.id]: true }))}
+                                  style={{ 
+                                    padding: '14px', backgroundColor: '#3b82f6', color: 'white', 
+                                    border: 'none', borderRadius: '10px', fontWeight: 700, 
+                                    cursor: 'pointer', display: 'flex', alignItems: 'center', 
+                                    justifyContent: 'center', gap: '10px', fontSize: '0.95rem' 
+                                  }}
+                                >
+                                  <Barcode size={20} /> OPEN SCANNER
+                                </button>
+                                
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                  <input
+                                    value={cameraScannerValues[comp.id] || ''}
+                                    onChange={(e) => setCameraScannerValues(prev => ({ ...prev, [comp.id]: e.target.value }))}
+                                    placeholder={comp.props.placeholder || 'Manual input...'}
+                                    style={{ flex: 1, padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.9rem' }}
                                   />
-                                  {!cameraScannerActive[comp.id] && (
-                                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '0.85rem', background: 'rgba(15,23,42,0.35)' }}>
-                                      Camera idle
-                                    </div>
-                                  )}
+                                  <button
+                                    onClick={() => applyCameraScannerValue(comp, cameraScannerValues[comp.id], 'manual')}
+                                    style={{ padding: '12px 16px', backgroundColor: '#fff', color: '#3b82f6', border: '1px solid #3b82f6', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
+                                  >
+                                    Apply
+                                  </button>
                                 </div>
-                                <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                  <div style={{ display: 'flex', gap: '8px' }}>
-                                    <button
-                                      onClick={() => startCameraScanner(comp)}
-                                      style={{ flex: 1, padding: '10px', border: '1px solid #3b82f6', borderRadius: '6px', backgroundColor: '#eff6ff', color: '#1d4ed8', fontWeight: 700, cursor: 'pointer' }}
-                                    >
-                                      Start Scan
-                                    </button>
-                                    <button
-                                      onClick={() => stopCameraScanner(comp.id)}
-                                      style={{ flex: 1, padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
-                                    >
-                                      Stop
-                                    </button>
+                                
+                                {cameraScannerStatus[comp.id] && (
+                                  <div style={{ fontSize: '0.75rem', color: '#15803d', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <CheckCircle2 size={14} /> {cameraScannerStatus[comp.id]}
                                   </div>
-                                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                    <input
-                                      value={cameraScannerValues[comp.id] || ''}
-                                      onChange={(e) => setCameraScannerValues(prev => ({ ...prev, [comp.id]: e.target.value }))}
-                                      placeholder={comp.props.placeholder || 'Manual input fallback...'}
-                                      style={{ flex: 1, padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.9rem' }}
-                                    />
-                                    <button
-                                      onClick={() => applyCameraScannerValue(comp, cameraScannerValues[comp.id], 'manual')}
-                                      style={{ padding: '10px 12px', border: '1px solid #22c55e', borderRadius: '6px', backgroundColor: '#f0fdf4', color: '#15803d', fontWeight: 700, cursor: 'pointer' }}
-                                    >
-                                      Apply
-                                    </button>
-                                  </div>
-                                  {cameraScannerStatus[comp.id] && (
-                                    <div style={{ fontSize: '0.75rem', color: '#475569', backgroundColor: '#f8fafc', marginTop: '8px' }}>
-                                      {cameraScannerStatus[comp.id]}
-                                    </div>
-                                  )}
-                                </div>
+                                )}
                               </div>
+                              
+                              {cameraScannerActive[comp.id] && (
+                                <UnifiedScanner 
+                                  label={comp.props.label}
+                                  onScan={(val) => {
+                                    applyCameraScannerValue(comp, val, 'camera');
+                                    setCameraScannerActive(prev => ({ ...prev, [comp.id]: false }));
+                                  }}
+                                  onClose={() => setCameraScannerActive(prev => ({ ...prev, [comp.id]: false }))}
+                                />
+                              )}
                             </div>
                           );
                           case 'VISION_DETECTOR': return (
