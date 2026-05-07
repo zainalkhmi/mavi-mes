@@ -48,6 +48,8 @@ import DashboardManager from './components/DashboardManager';
 import DashboardEditor from './components/DashboardEditor';
 import AiSettings from './components/AiSettings';
 import SupabaseSettings from './components/SupabaseSettings';
+import { startSyncProcess } from './utils/syncManager';
+import { Toaster } from 'react-hot-toast';
 
 const Placeholder = ({ title }) => (
   <div style={{ padding: '40px', textAlign: 'center' }}>
@@ -98,6 +100,10 @@ const App = () => {
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    startSyncProcess();
   }, []);
 
   const navLinkStyle = (path) => ({
@@ -321,6 +327,7 @@ const App = () => {
             )}
           </div>
 
+          <Toaster position="top-right" />
           <div style={{ width: '1px', height: '24px', backgroundColor: '#e2e8f0', margin: '0 8px' }}></div>
 
           {/* USER MENU & LOGOUT */}

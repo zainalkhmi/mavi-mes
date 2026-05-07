@@ -76,6 +76,7 @@ const ActionNode = ({ data }) => {
       case 'CREATE_RECORD': return <Plus size={18} />;
       case 'AI_SUMMARIZE':
       case 'AI_EXTRACT':
+      case 'AI_ANOMALY_DETECTION':
       case 'AI_TRANSLATE': return <Sparkles size={18} />;
       default: return <Play size={18} />;
     }
@@ -91,6 +92,7 @@ const ActionNode = ({ data }) => {
       case 'SEND_NOTIFICATION': return 'Notification';
       case 'AI_SUMMARIZE': return 'AI: Summarize';
       case 'AI_EXTRACT': return 'AI: Extract Data';
+      case 'AI_ANOMALY_DETECTION': return 'AI: Detect Anomaly';
       case 'AI_TRANSLATE': return 'AI: Translate';
       default: return 'Action';
     }
@@ -862,6 +864,7 @@ const AutomationEditor = () => {
                       <option disabled>──────────</option>
                       <option value="AI_SUMMARIZE">AI: Summarize Text</option>
                       <option value="AI_EXTRACT">AI: Extract Data from Text</option>
+                      <option value="AI_ANOMALY_DETECTION">AI: Detect Anomaly</option>
                       <option value="AI_TRANSLATE">AI: Translate Text</option>
                     </select>
 
@@ -1005,7 +1008,7 @@ const AutomationEditor = () => {
                       </div>
                     )}
 
-                    {(selectedNode.data.type === 'AI_SUMMARIZE' || selectedNode.data.type === 'AI_TRANSLATE' || selectedNode.data.type === 'AI_EXTRACT') && (
+                    {(selectedNode.data.type === 'AI_SUMMARIZE' || selectedNode.data.type === 'AI_TRANSLATE' || selectedNode.data.type === 'AI_EXTRACT' || selectedNode.data.type === 'AI_ANOMALY_DETECTION') && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         <div>
                           <label style={{ fontSize: '0.65rem', color: '#64748b' }}>Input Text (Variable/Path)</label>

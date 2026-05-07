@@ -1,5 +1,6 @@
 import { getSupabaseClient } from './supabaseManualDB.js';
 import automationEngine from './automationEngine.js';
+import * as offlineDb from './offlineDb';
 
 /**
  * supabaseTablesDB.js
@@ -32,9 +33,18 @@ export async function getTables() {
             .select('*')
             .order('created_at', { ascending: true });
         if (error) throw error;
-        return (data || []).map(rowToTable);
+        const tables = (data || []).map(rowToTable);
+        
+        // Cache them for offline use
+        for (const t of tables) {
+            await offlineDb.cacheApp(t);
+        }
+        
+        return tables;
     } catch (e) {
-        console.warn('[Offline Mode] Could not load tables, returning empty array.', e);
+        console.warn('[Offline Mode] Could not load tables from network, trying cache.', e);
+        const cached = await offlineDb.db.apps.toArray();
+        if (cached && cached.length > 0) return cached;
         return [];
     }
 }
@@ -200,10 +210,15 @@ export async function getTableRecords(tableId) {
             .eq('table_id', tableId)
             .order('created_at', { ascending: true });
         if (error) throw error;
-        return (data || []).map(rowToRecord);
+        const records = (data || []).map(rowToRecord);
+        
+        // Cache records
+        await offlineDb.cacheTableRecords(tableId, records);
+        
+        return records;
     } catch (e) {
-        console.warn(`[Offline Mode] Could not load records for table ${tableId}, returning empty array.`, e);
-        return [];
+        console.warn(`[Offline Mode] Network failed for table ${tableId}, loading from cache.`, e);
+        return await offlineDb.getCachedTableRecords(tableId);
     }
 }
 
@@ -301,32 +316,57 @@ export async function addTableRecord(tableId, recordData) {
     const table = await getTableById(tableId);
     const calculatedPayload = applyExcelLikeFormulas(table, payload);
 
-    const { data, error } = await supabase
-        .from('app_table_records')
-        .insert({
-            table_id: tableId,
-            record_id: recordId,
-            data: calculatedPayload,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-        })
-        .select()
-        .single();
+    try {
+        const { data, error } = await supabase
+            .from('app_table_records')
+            .insert({
+                table_id: tableId,
+                record_id: recordId,
+                data: calculatedPayload,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            })
+            .select()
+            .single();
 
-    if (error) throw error;
-    const record = rowToRecord(data);
+        if (error) throw error;
+        const record = rowToRecord(data);
+        
+        // Update cache immediately
+        const cached = await offlineDb.getCachedTableRecords(tableId);
+        await offlineDb.cacheTableRecords(tableId, [...cached, record]);
 
-    // Fire automation trigger
-    if (automationEngine && typeof automationEngine.trigger === 'function') {
-        automationEngine.trigger('TABLE_ROW_ADDED', {
+        // Fire automation trigger
+        if (automationEngine && typeof automationEngine.trigger === 'function') {
+            automationEngine.trigger('TABLE_ROW_ADDED', {
+                tableId,
+                recordId: record.recordId,
+                record: record,
+                source: 'DATABASE'
+            });
+        }
+
+        return record;
+    } catch (err) {
+        console.warn('[Offline Mode] Network failed to add record, adding to sync queue.', err);
+        const tempId = `temp_${Date.now()}`;
+        const offlineRecord = {
+            id: tempId,
             tableId,
-            recordId: record.recordId,
-            record: record,
-            source: 'DATABASE'
-        });
+            recordId,
+            ...calculatedPayload,
+            createdAt: new Date().toISOString(),
+            isOffline: true
+        };
+        
+        await offlineDb.addToSyncQueue('ADD_RECORD', { tableId, recordId, data: calculatedPayload });
+        
+        // Add to local cache so user sees it immediately
+        const cached = await offlineDb.getCachedTableRecords(tableId);
+        await offlineDb.cacheTableRecords(tableId, [...cached, offlineRecord]);
+        
+        return offlineRecord;
     }
-
-    return record;
 }
 
 export async function deleteTableRecord(recordInternalId) {

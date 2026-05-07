@@ -19,9 +19,11 @@ import {
     Target,
     Play,
     Info,
-    ChevronRight
+    ChevronRight,
+    Sparkles
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
+import AiAnalysisInsight from './AiAnalysisInsight';
 import { saveAnalysis, getAllSavedAnalyses, getTables } from '../utils/supabaseFrontlineDB';
 import { getTableRecords } from '../utils/supabaseTablesDB';
 // Note: We would ideally use the same chart component as AppBuilder, 
@@ -57,6 +59,7 @@ const AnalysisEditor = () => {
     
     const [previewData, setPreviewData] = useState({ labels: [], values: [] });
     const [fetchingPreview, setFetchingPreview] = useState(false);
+    const [isAiInsightOpen, setIsAiInsightOpen] = useState(false);
 
     useEffect(() => {
         loadInitialData();
@@ -579,8 +582,31 @@ const AnalysisEditor = () => {
                                 <h2 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#1e293b', margin: 0 }}>Analysis Preview</h2>
                                 <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Real-time visualization of your configuration.</p>
                             </div>
-                            <div style={{ backgroundColor: '#f1f5f9', padding: '8px 16px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <Activity size={14} /> LIVE PREVIEW
+                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                <button 
+                                    onClick={() => setIsAiInsightOpen(true)}
+                                    disabled={!analysis.config.tableId || previewData.labels.length === 0}
+                                    style={{ 
+                                        backgroundColor: '#4f46e5', 
+                                        color: 'white', 
+                                        padding: '8px 16px', 
+                                        borderRadius: '20px', 
+                                        fontSize: '0.75rem', 
+                                        fontWeight: 800, 
+                                        border: 'none', 
+                                        cursor: 'pointer',
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        gap: '8px',
+                                        boxShadow: '0 4px 10px rgba(79, 70, 229, 0.2)',
+                                        opacity: (!analysis.config.tableId || previewData.labels.length === 0) ? 0.5 : 1
+                                    }}
+                                >
+                                    <Sparkles size={14} /> GET AI INSIGHT
+                                </button>
+                                <div style={{ backgroundColor: '#f1f5f9', padding: '8px 16px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <Activity size={14} /> LIVE PREVIEW
+                                </div>
                             </div>
                         </div>
 
@@ -717,6 +743,14 @@ const AnalysisEditor = () => {
                     </div>
                 </div>
             </div>
+
+            {/* AI Insight Modal */}
+            <AiAnalysisInsight 
+                isOpen={isAiInsightOpen}
+                onClose={() => setIsAiInsightOpen(false)}
+                data={previewData}
+                config={analysis.config}
+            />
         </div>
     );
 };

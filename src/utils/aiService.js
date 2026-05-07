@@ -294,3 +294,34 @@ Be concise and helpful. Respond in the user's language (default to Indonesian if
 
     return await getChatCompletion(messages, connector);
 };
+
+/**
+ * AI Insight for Analytics 
+ */
+export const getAnalysisInsight = async (analysisData, config, connector) => {
+    const systemPrompt = `You are an Industrial Data Analyst. Analyze the provided manufacturing data and provide insights.
+    
+    ANALYSIS CONFIG:
+    - Type: ${config.type}
+    - Table: ${config.tableId}
+    - Metric: ${config.aggregation} of ${config.yAxisColumn}
+    - Dimension: ${config.xAxisColumn}
+    
+    DATASET:
+    ${JSON.stringify(analysisData)}
+
+    Your response MUST be formatted in Markdown and include:
+    1. **Summary**: A brief overview of the data.
+    2. **Anomalies**: Any significant outliers or strange patterns.
+    3. **Trends**: Upward/downward trends or stability.
+    4. **Actionable Tips**: 3 specific things the manager should do based on this data.
+
+    Be professional, data-driven, and concise. Respond in the user's language (default to Indonesian if they speak Indonesian).`;
+
+    const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: 'Analyze this data and give me insights.' }
+    ];
+
+    return await getChatCompletion(messages, connector);
+};

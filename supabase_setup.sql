@@ -246,3 +246,62 @@ ON public.app_table_records
 FOR DELETE
 TO anon, authenticated
 USING (true);
+-- 11. Table: chat_messages (Real-time collaboration between operators)
+CREATE TABLE IF NOT EXISTS public.chat_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sender_id TEXT NOT NULL,
+    sender_name TEXT NOT NULL,
+    station_id TEXT NOT NULL,
+    target_station_id TEXT, -- NULL means broadcast to everyone
+    content TEXT NOT NULL,
+    type TEXT DEFAULT 'TEXT', -- TEXT, ALERT, IMAGE
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Grants & Policies for chat_messages
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.chat_messages TO anon, authenticated;
+ALTER TABLE public.chat_messages ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow read chat_messages" ON public.chat_messages;
+CREATE POLICY "Allow read chat_messages"
+ON public.chat_messages
+FOR SELECT
+TO anon, authenticated
+USING (true);
+
+DROP POLICY IF EXISTS "Allow insert chat_messages" ON public.chat_messages;
+CREATE POLICY "Allow insert chat_messages"
+ON public.chat_messages
+FOR INSERT
+TO anon, authenticated
+WITH CHECK (true);
+
+-- 12. Policies for manuals (Fix 400 errors)
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.manuals TO anon, authenticated;
+ALTER TABLE public.manuals ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow read manuals" ON public.manuals;
+CREATE POLICY "Allow read manuals" ON public.manuals FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Allow insert manuals" ON public.manuals;
+CREATE POLICY "Allow insert manuals" ON public.manuals FOR INSERT TO anon, authenticated WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow update manuals" ON public.manuals;
+CREATE POLICY "Allow update manuals" ON public.manuals FOR UPDATE TO anon, authenticated USING (true);
+
+-- 13. Policies for audit_logs (Fix 401 errors)
+GRANT SELECT, INSERT ON TABLE public.audit_logs TO anon, authenticated;
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow read audit_logs" ON public.audit_logs;
+CREATE POLICY "Allow read audit_logs" ON public.audit_logs FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Allow insert audit_logs" ON public.audit_logs;
+CREATE POLICY "Allow insert audit_logs" ON public.audit_logs FOR INSERT TO anon, authenticated WITH CHECK (true);
+
+-- 14. Fix missing columns in manuals table
+ALTER TABLE public.manuals ADD COLUMN IF NOT EXISTS difficulty TEXT DEFAULT 'Moderate';
+ALTER TABLE public.manuals ADD COLUMN IF NOT EXISTS time_required TEXT;
+ALTER TABLE public.manuals ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'Work Instruction';
+ALTER TABLE public.manuals ADD COLUMN IF NOT EXISTS industry TEXT;
+ALTER TABLE public.manuals ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'manual';

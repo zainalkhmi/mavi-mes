@@ -1,4 +1,5 @@
 import { getSupabaseClient } from './supabaseManualDB.js';
+import * as offlineDb from './offlineDb';
 
 const LOCAL_APP_CACHE_KEYS = ['offline_apps_cache', 'mavi_offline_vault', 'draft_frontline_apps'];
 
@@ -123,8 +124,8 @@ export async function getAllFrontlineApps() {
             });
 
             // Save successfully fetched apps to offline cache
-            if (typeof window !== 'undefined' && cloudApps.length > 0) {
-                localStorage.setItem('offline_apps_cache', JSON.stringify(cloudApps));
+            for (const app of cloudApps) {
+                await offlineDb.cacheApp(app);
             }
         }
     } catch (err) {
@@ -135,32 +136,32 @@ export async function getAllFrontlineApps() {
     // --- UNIVERSAL MERGE LOGIC ---
     let combined = [...cloudApps];
 
-    if (typeof window !== 'undefined') {
-        const keys = ['mavi_offline_vault', 'offline_apps_cache', 'draft_frontline_apps'];
-        keys.forEach(key => {
-            try {
-                const raw = localStorage.getItem(key);
-                if (raw) {
-                    const local = JSON.parse(raw);
-                    if (Array.isArray(local)) {
-                        local.forEach(la => {
-                            const exists = combined.find(a => String(a.id) === String(la.id));
-                            if (!exists) {
-                                combined.push(la);
-                            } else {
-                                // If local version is newer, prefer it (optional, but let's stick to cloud for now unless it's a draft)
-                                if (new Date(la.updated_at) > new Date(exists.updated_at)) {
-                                    const idx = combined.indexOf(exists);
-                                    combined[idx] = la;
-                                }
-                            }
-                        });
-                    }
-                }
-            } catch (e) {
-                console.error(`[Cache] Failed to parse ${key}`, e);
+    // Load from IndexedDB
+    const cached = await offlineDb.db.apps.toArray();
+    cached.forEach(la => {
+        const exists = combined.find(a => String(a.id) === String(la.id));
+        if (!exists) {
+            combined.push(la);
+        } else {
+            if (new Date(la.updated_at) > new Date(exists.updated_at)) {
+                const idx = combined.indexOf(exists);
+                combined[idx] = la;
             }
-        });
+        }
+    });
+
+    // Support legacy localStorage vault if still exists
+    if (typeof window !== 'undefined') {
+        try {
+            const rawVault = localStorage.getItem('mavi_offline_vault');
+            if (rawVault) {
+                const vault = JSON.parse(rawVault);
+                vault.forEach(va => {
+                    const exists = combined.find(a => String(a.id) === String(va.id));
+                    if (!exists) combined.push(va);
+                });
+            }
+        } catch (e) { /* ignore */ }
     }
 
     // Final Sort
@@ -232,43 +233,18 @@ export async function saveFrontlineApp(app) {
         }
 
         // On success, sync to local cache immediately
-        if (typeof window !== 'undefined') {
-            try {
-                const raw = localStorage.getItem('offline_apps_cache');
-                let cached = [];
-                try { cached = raw ? JSON.parse(raw) : []; } catch (e) { cached = []; }
-                if (!Array.isArray(cached)) cached = [];
-
-                const index = cached.findIndex(a => String(a.id) === String(result.data.id));
-                if (index > -1) cached[index] = result.data;
-                else cached.push(result.data);
-
-                localStorage.setItem('offline_apps_cache', JSON.stringify(cached));
-            } catch (e) {
-                console.warn('[Cache] Failed to sync save result', e);
-            }
-        }
+        await offlineDb.cacheApp(result.data);
 
         return result.data;
     } catch (err) {
-        console.warn('[Offline Mode] Intercepting save, applying to vault', err);
-        const raw = localStorage.getItem('mavi_offline_vault');
-        let cached = [];
-        try { cached = raw ? JSON.parse(raw) : []; } catch (e) { cached = []; }
-        if (!Array.isArray(cached)) cached = [];
-
+        console.warn('[Offline Mode] Intercepting save, applying to IndexedDB', err);
         let outputApp = { ...app, ...payload };
 
-        if (app.id) {
-            const index = cached.findIndex(a => String(a.id) === String(app.id));
-            if (index > -1) cached[index] = outputApp;
-            else cached.push(outputApp);
-        } else {
-            const newId = `app_${Date.now()}`;
-            outputApp.id = newId;
-            cached.push(outputApp);
+        if (!outputApp.id) {
+            outputApp.id = `app_${Date.now()}`;
         }
-        localStorage.setItem('mavi_offline_vault', JSON.stringify(cached));
+        
+        await offlineDb.cacheApp(outputApp);
         return outputApp;
     }
 }

@@ -76,8 +76,13 @@ import {
   Sigma,
   Bug,
   AlertTriangle,
-  PlayCircle
+  PlayCircle,
+  Database,
+  Layers,
+  MessageSquare
 } from 'lucide-react';
+import * as offlineDb from '../utils/offlineDb';
+import { toast } from 'react-hot-toast';
 import obd2Service from '../utils/obd2Service';
 import WebcamComp from 'react-webcam';
 import Tesseract from 'tesseract.js';
@@ -94,6 +99,7 @@ import WorkOrderManager from './WorkOrderManager';
 import { logEvent, AUDIT_EVENTS } from '../utils/auditLog';
 import { calculateOEE } from '../utils/oeeEngine';
 import FrontlineCopilot from './FrontlineCopilot';
+import ChatWidget from './ChatWidget';
 import { listGlobalVariables, upsertGlobalVariable, subscribeToGlobalVariables } from '../utils/supabaseGlobalVars';
 import { validateVariable } from '../utils/validationEngine';
 
@@ -206,6 +212,19 @@ const StepValidationPanel = React.memo(function StepValidationPanel({ showValida
 });
 
 const LiveTerminal = () => {
+  const [showChat, setShowChat] = useState(false);
+  const [devMode, setDevMode] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
   const { t } = useLanguage();
   const { appId } = useParams();
   const location = useLocation();
@@ -698,6 +717,36 @@ const LiveTerminal = () => {
       fireWidgetTriggers(comp, 'ON_CHANGE');
     };
     reader.readAsDataURL(file);
+  };
+
+  const runStressTest = async () => {
+    const count = 500;
+    const toastId = toast.loading(`Queueing ${count} stress test items...`);
+    
+    try {
+      for (let i = 0; i < count; i++) {
+        await offlineDb.addToSyncQueue('ADD_RECORD', {
+          tableId: 'STRESS_TEST_TABLE',
+          recordId: `STRESS_${Date.now()}_${i}`,
+          data: {
+            timestamp: new Date().toISOString(),
+            index: i,
+            note: 'Stress test record for performance verification'
+          }
+        });
+      }
+      toast.success(`${count} items added to sync queue. Go online to trigger sync.`, { id: toastId });
+    } catch (err) {
+      toast.error("Stress test failed to queue.");
+      toast.dismiss(toastId);
+    }
+  };
+
+  const clearSyncQueue = async () => {
+    if (window.confirm('Clear all pending sync items?')) {
+      await offlineDb.db.syncQueue.clear();
+      toast.success('Sync queue cleared');
+    }
   };
 
   const handleVisionOcr = async (comp, webcamRef) => {
@@ -2625,6 +2674,17 @@ const LiveTerminal = () => {
         </div>
 
         <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+          {/* Connectivity Badge */}
+          <div style={{ 
+              display: 'flex', alignItems: 'center', gap: '6px', 
+              padding: '4px 12px', borderRadius: '20px', 
+              backgroundColor: isOnline ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+              color: 'white',
+              fontSize: '0.7rem', fontWeight: 800,
+              border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`
+          }}>
+            <Wifi size={12} /> {isOnline ? 'ONLINE' : 'OFFLINE MODE'}
+          </div>
           {activeAndon ? (
             <button
               onClick={handleResolveAndon}
@@ -2634,6 +2694,11 @@ const LiveTerminal = () => {
             </button>
           ) : (
             [
+              {
+                icon: <MessageSquare size={20} />,
+                label: 'Chat',
+                onClick: () => setShowChat(!showChat)
+              },
               {
                 icon: <HelpCircle size={20} />,
                 label: 'Help',
@@ -2741,6 +2806,33 @@ const LiveTerminal = () => {
                 position: 'relative',
                 flex: 1
               }}>
+                {/* App Components Render */}
+                <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 10000 }}>
+                    {devMode && (
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                              onClick={runStressTest}
+                              title="Stress Test (Queue 500 items)"
+                              style={{ padding: '7px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#fef2f2', color: '#dc2626', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                          >
+                              <Database size={14} /> <span style={{fontSize: '0.7rem', fontWeight: 700}}>STRESS TEST</span>
+                          </button>
+                          <button
+                              onClick={clearSyncQueue}
+                              title="Clear Sync Queue"
+                              style={{ padding: '7px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#f8fafc', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                          >
+                              <Layers size={14} /> <span style={{fontSize: '0.7rem', fontWeight: 700}}>CLEAR QUEUE</span>
+                          </button>
+                        </div>
+                    )}
+                    <button
+                        onClick={() => setDevMode(!devMode)}
+                        style={{ marginTop: '10px', padding: '6px 12px', fontSize: '0.7rem', cursor: 'pointer' }}
+                    >
+                        {devMode ? 'Hide Dev Tools' : 'Show Dev Tools'}
+                    </button>
+                </div>
                 {appComponents.length > 0 ? (
                   <div style={{
                     position: 'relative',
@@ -3651,7 +3743,7 @@ const LiveTerminal = () => {
                                     <ComposedChart data={paretoData}>
                                       <XAxis dataKey="name" fontSize={10} axisLine={false} tickLine={false} />
                                       <YAxis yAxisId="left" fontSize={10} axisLine={false} tickLine={false} />
-                                      <YAxis yAxisId="right" orientation="right" domain={[0, 100]} fontSize={10} axisLine={false} tickLine={false} />
+                                      <YAxis yAxisId="right" orientation="right" domain={[0, 100]} fontSize={10} axisLine={false} tickLine={false} unit="%" />
                                       <RechartsTooltip />
                                       <Bar yAxisId="left" dataKey="value" fill={color} radius={[4, 4, 0, 0]} barSize={40} />
                                       <Line yAxisId="right" type="monotone" dataKey="cumulative" stroke="#f59e0b" strokeWidth={3} dot={{ stroke: '#f59e0b', strokeWidth: 2, r: 4, fill: '#fff' }} />
@@ -4724,7 +4816,6 @@ const LiveTerminal = () => {
           </div>
         </div>
       )}
-      {/* Media Action Overlay (Image/Video) */}
       {activeMedia && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -4750,6 +4841,14 @@ const LiveTerminal = () => {
             )}
           </div>
         </div>
+      )}
+
+      {showChat && (
+        <ChatWidget 
+          currentStation={launchStation || 'WS-Unknown'} 
+          currentUser={launchOperator || 'Anonymous'} 
+          onClose={() => setShowChat(false)} 
+        />
       )}
     </div>
   );

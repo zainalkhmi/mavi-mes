@@ -1,5 +1,6 @@
-import { addTableRecord, updateTableRecord } from './database';
+import { addTableRecord, updateTableRecord, getPrimaryAiConnector } from './database';
 import obd2Service from './obd2Service';
+import * as aiService from './aiService';
 
 /**
  * Automation Engine
@@ -521,19 +522,32 @@ class AutomationEngine {
       case 'AI_SUMMARIZE':
       case 'AI_EXTRACT':
       case 'AI_TRANSLATE':
-        const inputText = this.resolveValue(action.inputPath, eventData) || 'No input text found.';
+      case 'AI_ANOMALY_DETECTION':
+        const inputText = this.resolveValue(action.inputPath, eventData) || JSON.stringify(eventData.record || eventData);
         console.log(`[AutomationEngine] Executing AI Action (${action.type}) on: ${inputText}`);
         
-        // Simulation of AI processing
         let aiResult = "";
-        await new Promise(r => setTimeout(r, 1000)); // Simulate latency
+        try {
+          const connector = await getPrimaryAiConnector();
+          if (!connector) throw new Error('No AI connector configured');
 
-        if (action.type === 'AI_SUMMARIZE') {
-          aiResult = "SUMMARY: " + (inputText.slice(0, 50) + (inputText.length > 50 ? "..." : ""));
-        } else if (action.type === 'AI_TRANSLATE') {
-          aiResult = `[Translated to ${action.targetLanguage || 'English'}]: ${inputText}`;
-        } else if (action.type === 'AI_EXTRACT') {
-          aiResult = JSON.stringify({ extracted_data: "Simulated extraction for " + inputText.slice(0, 20) });
+          let prompt = "";
+          if (action.type === 'AI_SUMMARIZE') {
+            prompt = `Summarize the following text concisely:\n\n${inputText}`;
+          } else if (action.type === 'AI_TRANSLATE') {
+            prompt = `Translate the following text to ${action.targetLanguage || 'English'}:\n\n${inputText}`;
+          } else if (action.type === 'AI_EXTRACT') {
+            prompt = `Extract data from the following text based on this JSON schema: ${action.extractionSchema || '{}'}. Return ONLY a JSON object.\n\nText: ${inputText}`;
+          } else if (action.type === 'AI_ANOMALY_DETECTION') {
+            prompt = `Analyze this manufacturing data/record for anomalies or quality issues. If found, describe the anomaly. If normal, return "NORMAL".\n\nData: ${inputText}`;
+          }
+
+          const messages = [{ role: 'user', content: prompt }];
+          aiResult = await aiService.getChatCompletion(messages, connector);
+          console.log(`[AutomationEngine] AI response:`, aiResult);
+        } catch (err) {
+          console.error(`[AutomationEngine] AI action failed:`, err);
+          aiResult = `AI Error: ${err.message}`;
         }
 
         if (action.outputPath) {

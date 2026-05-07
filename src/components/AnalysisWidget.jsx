@@ -3,7 +3,8 @@ import {
     BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, 
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
-import { Activity, TrendingUp, Zap, Info, Clock } from 'lucide-react';
+import { Activity, TrendingUp, Zap, Info, Clock, Sparkles } from 'lucide-react';
+import AiAnalysisInsight from './AiAnalysisInsight';
 import { getAllSavedAnalyses } from '../utils/supabaseFrontlineDB';
 import { getTableRecords } from '../utils/supabaseTablesDB';
 
@@ -12,6 +13,7 @@ const AnalysisWidget = ({ analysisId, globalFilters = {} }) => {
     const [data, setData] = useState({ labels: [], values: [] });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [isAiInsightOpen, setIsAiInsightOpen] = useState(false);
 
     useEffect(() => {
         const loadAnalysis = async () => {
@@ -151,7 +153,31 @@ const AnalysisWidget = ({ analysisId, globalFilters = {} }) => {
     const COLORS = ['#0ea5e9', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981'];
 
     return (
-        <div style={{ height: '100%', width: '100%', padding: '10px' }}>
+        <div style={{ height: '100%', width: '100%', padding: '10px', position: 'relative' }}>
+            {/* AI Insight Trigger */}
+            <button 
+                onClick={() => setIsAiInsightOpen(true)}
+                style={{
+                    position: 'absolute',
+                    top: '5px',
+                    right: '5px',
+                    zIndex: 10,
+                    background: 'white',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    padding: '6px',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#4f46e5'
+                }}
+                title="Get AI Insight"
+            >
+                <Sparkles size={14} />
+            </button>
+
             <ResponsiveContainer width="100%" height="100%">
                 {config.type === 'PIE' ? (
                     <PieChart>
@@ -187,6 +213,14 @@ const AnalysisWidget = ({ analysisId, globalFilters = {} }) => {
                     </BarChart>
                 )}
             </ResponsiveContainer>
+
+            {/* AI Insight Modal */}
+            <AiAnalysisInsight 
+                isOpen={isAiInsightOpen}
+                onClose={() => setIsAiInsightOpen(false)}
+                data={data}
+                config={config}
+            />
         </div>
     );
 };
