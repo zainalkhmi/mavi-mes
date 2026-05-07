@@ -176,7 +176,7 @@ const BlocklyEditor = ({
         validationRunningRef.current = true;
         try {
             const ws = workspace.current;
-            const valueInputType = Blockly.inputTypes?.VALUE ?? 1;
+            const valueInputType = (Blockly.inputs?.inputTypes?.VALUE) ?? 1;
             const allBlocks = ws.getAllBlocks(false).filter(b => !b.isShadow?.());
             const nextWarnings = [];
             const nextErrors = [];

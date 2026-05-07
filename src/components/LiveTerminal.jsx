@@ -2378,6 +2378,8 @@ const LiveTerminal = () => {
       'linear-gradient(135deg, #064e3b 0%, #10b981 100%)',
       'linear-gradient(135deg, #7f1d1d 0%, #ef4444 100%)',
       'linear-gradient(135deg, #4c1d95 0%, #8b5cf6 100%)'
+    ];
+
     const getAppGradient = (name) => {
       if (!name) return appGradients[0];
       const sum = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
