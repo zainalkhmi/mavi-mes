@@ -75,9 +75,10 @@ const StationManager = () => {
             getStationGroups()
         ]);
 
-        const normalizedGroups = groups.length > 0
+        const ungrouped = { id: 'default_group_ungrouped', name: 'Ungrouped', color: '#94a3b8' };
+        const normalizedGroups = groups.some(g => g.name === 'Ungrouped')
             ? groups
-            : [{ id: 'default_group_ungrouped', name: 'Ungrouped', color: '#94a3b8' }];
+            : [ungrouped, ...groups];
 
         setStations(s);
         setInterfaces(i);
