@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Activity, AlertCircle, CheckCircle2, Clock, Map, TrendingUp, Users, Zap, MessageSquare } from 'lucide-react';
-import { getSupabaseClient } from '../utils/supabaseManualDB.js';
+import { getSupabaseClient, isSupabaseReady } from '../utils/supabaseManualDB.js';
 import { acknowledgeAndon, getShopFloorRealtimeSnapshot } from '../utils/supabaseFrontlineDB.js';
 import ChatWidget from './ChatWidget';
 import { getCurrentUser } from '../utils/auth';
@@ -13,7 +13,13 @@ const Home = () => {
   const [error, setError] = useState('');
   const [showChat, setShowChat] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const showChatRef = React.useRef(showChat);
   const currentUser = getCurrentUser()?.name || 'Manager';
+
+  useEffect(() => {
+    showChatRef.current = showChat;
+    if (showChat) setUnreadCount(0);
+  }, [showChat]);
 
   const refreshSnapshot = async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -42,6 +48,15 @@ const Home = () => {
     };
 
     initial();
+
+    if (!isSupabaseReady()) {
+      console.warn('[Home] Supabase is not configured. Realtime features (Chat, Notifications) will be disabled.');
+      pollingInterval = setInterval(() => refreshSnapshot({ silent: true }), 10000);
+      return () => {
+        isMounted = false;
+        if (pollingInterval) clearInterval(pollingInterval);
+      };
+    }
 
     const supabase = getSupabaseClient();
 
@@ -79,7 +94,7 @@ const Home = () => {
       }, (payload) => {
         const msg = payload.new;
         // If chat is closed, increment unread count
-        if (!showChat) {
+        if (!showChatRef.current) {
           setUnreadCount(prev => prev + 1);
           // Play a subtle notification sound
           try {
@@ -134,7 +149,14 @@ const Home = () => {
   };
 
   return (
-    <div style={{ padding: '30px', backgroundColor: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ 
+      padding: '30px', 
+      backgroundColor: '#f8fafc', 
+      minHeight: '100vh', 
+      fontFamily: "'Inter', sans-serif",
+      width: '100%',
+      boxSizing: 'border-box'
+    }}>
 
       {/* HEADER */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
@@ -210,7 +232,6 @@ const Home = () => {
         </div>
       )}
 
-      {/* WORKSTATION GRID */}
       {/* WORKSTATION GRID */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>Live Stations</h2>
@@ -320,45 +341,43 @@ const Home = () => {
       </div>
 
       {/* CHAT WIDGET */}
-      <div style={{ position: 'fixed', bottom: '30px', right: '30px', zIndex: 1000 }}>
-        {!showChat ? (
-          <div style={{ position: 'relative' }}>
-            {unreadCount > 0 && (
-              <div style={{ 
-                position: 'absolute', top: '-5px', right: '-5px', 
-                backgroundColor: '#ef4444', color: 'white', 
-                borderRadius: '50%', width: '22px', height: '22px', 
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '0.7rem', fontWeight: 900, border: '2px solid white',
-                zIndex: 1001
-              }}>
-                {unreadCount}
-              </div>
-            )}
-            <button 
-              onClick={() => {
-                setShowChat(true);
-                setUnreadCount(0);
-              }}
-              style={{ 
-                width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#001e3c', color: 'white',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none',
-                boxShadow: '0 10px 25px -5px rgba(0,0,0,0.3)', cursor: 'pointer', transition: 'transform 0.2s'
-              }}
-              onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
-              onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-            >
-              <MessageSquare size={24} />
-            </button>
-          </div>
-        ) : (
-          <ChatWidget 
-            currentStation="SUPERVISOR"
-            currentUser={currentUser}
-            onClose={() => setShowChat(false)}
-          />
-        )}
-      </div>
+      {!showChat ? (
+        <div style={{ position: 'fixed', bottom: '30px', right: '30px', zIndex: 1000 }}>
+          {unreadCount > 0 && (
+            <div style={{ 
+              position: 'absolute', top: '-5px', right: '-5px', 
+              backgroundColor: '#ef4444', color: 'white', 
+              borderRadius: '50%', width: '22px', height: '22px', 
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '0.7rem', fontWeight: 900, border: '2px solid white',
+              zIndex: 1001
+            }}>
+              {unreadCount}
+            </div>
+          )}
+          <button 
+            onClick={() => {
+              setShowChat(true);
+              setUnreadCount(0);
+            }}
+            style={{ 
+              width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#001e3c', color: 'white',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none',
+              boxShadow: '0 10px 25px -5px rgba(0,0,0,0.3)', cursor: 'pointer', transition: 'transform 0.2s'
+            }}
+            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
+            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+          >
+            <MessageSquare size={24} />
+          </button>
+        </div>
+      ) : (
+        <ChatWidget 
+          currentStation="SUPERVISOR"
+          currentUser={currentUser}
+          onClose={() => setShowChat(false)}
+        />
+      )}
 
     </div>
   );
