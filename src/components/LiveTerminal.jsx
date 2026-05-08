@@ -413,6 +413,15 @@ const LiveTerminal = () => {
       setAppVariables(prev => prev.map(v => v.name === varName ? { ...v, value } : v));
     }
   };
+  useEffect(() => {
+    if (appVariables.length > 0) {
+      window.parent.postMessage({
+        type: 'VARIABLES_SYNC',
+        variables: appVariables.map(v => ({ name: v.name, value: v.value, type: v.type }))
+      }, '*');
+    }
+  }, [appVariables]);
+
   const [appFunctions, setAppFunctions] = useState([]);
   const [recordPlaceholders, setRecordPlaceholders] = useState([]);
   const [recordPlaceholderData, setRecordPlaceholderData] = useState({});
@@ -1805,6 +1814,14 @@ const LiveTerminal = () => {
     if (!comp || !comp.props?.triggers) return;
     const trigList = comp.props.triggers.filter(t => t.event === eventId || (!t.event && (['BUTTON', 'COMPLETE_BUTTON'].includes(comp.type) ? eventId === 'ON_CLICK' : eventId === 'ON_CHANGE')));
     for (const trig of trigList) {
+      // Log trigger execution for App Player Dev Mode
+      window.parent.postMessage({
+        type: 'TRIGGER_FIRED',
+        triggerName: trig.name || 'Unnamed Trigger',
+        eventId: eventId,
+        source: comp.props?.label || comp.type,
+        timestamp: new Date().toISOString()
+      }, '*');
       await executeTrigger(trig);
     }
   };
@@ -1814,6 +1831,13 @@ const LiveTerminal = () => {
     if (!step || !step.triggers) return;
     const trigList = step.triggers.filter(t => t.event === eventId);
     for (const trig of trigList) {
+      window.parent.postMessage({
+        type: 'TRIGGER_FIRED',
+        triggerName: trig.name || 'Unnamed Trigger',
+        eventId: eventId,
+        source: step.title || 'Step',
+        timestamp: new Date().toISOString()
+      }, '*');
       await executeTrigger(trig);
     }
   };

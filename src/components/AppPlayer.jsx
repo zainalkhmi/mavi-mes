@@ -2,10 +2,14 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Search, Play, Square, RefreshCw, ExternalLink, User, MapPin,
     Rocket, Clock3, Package, Maximize2, Minimize2, Star,
-    AlertTriangle, RotateCcw, X, ChevronRight, Pause, MessageSquare, Info, Code, Play as PlayIcon
+    AlertTriangle, RotateCcw, X, ChevronRight, Pause, MessageSquare, Info, Code, Play as PlayIcon,
+    Wifi, Cpu, HardDrive, CheckCircle2, XCircle, AlertCircle, Signal, Bug,
+    Languages, Camera, PenTool, Globe
 } from 'lucide-react';
 import { getAllFrontlineApps, getProductionQueue, logPlayerSession } from '../utils/supabaseFrontlineDB';
-import { getStations } from '../utils/database';
+import { getStations, getEdgeDevices } from '../utils/database';
+import iotConnector from '../utils/iotConnector';
+import { useLanguage } from '../contexts/LanguageContext';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -80,6 +84,13 @@ function AppCard({ app, isActive, isFavorite, isRecent, onLaunch, onFavorite }) 
         return { bg: '#f1f5f9', text: '#475569' };
     };
     const statusStyle = getStatusStyle(app.approval_status || 'DRAFT');
+    const [isCached, setIsCached] = useState(false);
+
+    useEffect(() => {
+        import('../utils/offlineDb').then(m => {
+            m.getCachedApp(app.id).then(res => setIsCached(!!res));
+        });
+    }, [app.id]);
 
     return (
         <div
@@ -126,26 +137,31 @@ function AppCard({ app, isActive, isFavorite, isRecent, onLaunch, onFavorite }) 
                         </span>
                     </div>
                 </div>
-                <button
-                    onClick={(e) => { e.stopPropagation(); onFavorite(app.id); }}
-                    title={isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
-                    style={{
-                        background: 'rgba(255,255,255,0.2)',
-                        border: 'none',
-                        borderRadius: '6px',
-                        padding: '4px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: isFavorite ? '#fde68a' : 'rgba(255,255,255,0.7)',
-                        transition: 'color 0.15s',
-                        position: 'relative',
-                        zIndex: 1
-                    }}
-                >
-                    <Star size={14} fill={isFavorite ? '#fde68a' : 'none'} />
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', position: 'absolute', right: '12px', top: '8px', zIndex: 1 }}>
+                    {isCached && (
+                        <div title="Available Offline" style={{ backgroundColor: 'rgba(255,255,255,0.2)', padding: '4px', borderRadius: '6px', color: 'white', display: 'flex' }}>
+                            <CheckCircle2 size={12} />
+                        </div>
+                    )}
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onFavorite(app.id); }}
+                        title={isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+                        style={{
+                            background: 'rgba(255,255,255,0.2)',
+                            border: 'none',
+                            borderRadius: '6px',
+                            padding: '4px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: isFavorite ? '#fde68a' : 'rgba(255,255,255,0.7)',
+                            transition: 'color 0.15s'
+                        }}
+                    >
+                        <Star size={14} fill={isFavorite ? '#fde68a' : 'none'} />
+                    </button>
+                </div>
             </div>
 
             {/* actions */}
@@ -189,7 +205,47 @@ function AppCard({ app, isActive, isFavorite, isRecent, onLaunch, onFavorite }) 
 function AuthModal({ app, operatorDefault, stationDefault, stations = [], onConfirm, onCancel }) {
     const [opName, setOpName] = useState(operatorDefault || '');
     const [stn, setStn] = useState(stationDefault || (stations[0]?.id || ''));
+    const [isScanning, setIsScanning] = useState(false);
+    const badgeBuffer = useRef('');
+    const lastKeyTime = useRef(0);
     const hue = nameToHue(app?.name || '');
+
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            const now = Date.now();
+            
+            // Fast typing (scanner simulation)
+            if (now - lastKeyTime.current < 50) {
+                setIsScanning(true);
+            }
+            
+            if (e.key === 'Enter') {
+                if (badgeBuffer.current.length > 2) {
+                    // Valid badge scanned
+                    const scannedValue = badgeBuffer.current;
+                    setOpName(scannedValue);
+                    onConfirm(scannedValue, stn || 'Station-01');
+                }
+                badgeBuffer.current = '';
+                setIsScanning(false);
+            } else if (e.key.length === 1) {
+                badgeBuffer.current += e.key;
+            }
+            
+            lastKeyTime.current = now;
+            
+            // Reset buffer if idle for too long
+            setTimeout(() => {
+                if (Date.now() - lastKeyTime.current > 100) {
+                    badgeBuffer.current = '';
+                    setIsScanning(false);
+                }
+            }, 150);
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [stn, onConfirm]);
 
     return (
         <div style={{
@@ -218,16 +274,28 @@ function AuthModal({ app, operatorDefault, stationDefault, stations = [], onConf
                 </div>
 
                 <div style={{ padding: '20px' }}>
+                    {isScanning && (
+                        <div style={{ 
+                            marginBottom: '14px', padding: '10px', borderRadius: '8px', 
+                            backgroundColor: '#eff6ff', border: '1px dashed #3b82f6',
+                            display: 'flex', alignItems: 'center', gap: '8px',
+                            animation: 'pulse 1.5s infinite'
+                        }}>
+                            <Rocket size={14} color="#3b82f6" />
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1d4ed8' }}>Waiting for Badge Scan...</span>
+                        </div>
+                    )}
+
                     <div style={{ marginBottom: '14px' }}>
                         <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>
                             <User size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                            Operator Name <span style={{ color: '#ef4444' }}>*</span>
+                            Operator Name / Badge ID <span style={{ color: '#ef4444' }}>*</span>
                         </label>
                         <input
                             autoFocus
                             value={opName}
                             onChange={(e) => setOpName(e.target.value)}
-                            placeholder="Enter your name..."
+                            placeholder="Scan badge or enter name..."
                             style={{
                                 width: '100%', padding: '8px 12px', borderRadius: '8px',
                                 border: `1px solid ${opName.trim() ? '#cbd5e1' : '#fca5a5'}`,
@@ -235,7 +303,7 @@ function AuthModal({ app, operatorDefault, stationDefault, stations = [], onConf
                                 backgroundColor: opName.trim() ? 'white' : '#fff5f5'
                             }}
                         />
-                        {!opName.trim() && (
+                        {!opName.trim() && !isScanning && (
                             <div style={{ fontSize: '0.7rem', color: '#ef4444', marginTop: '4px' }}>Operator name is required to launch.</div>
                         )}
                     </div>
@@ -280,6 +348,240 @@ function AuthModal({ app, operatorDefault, stationDefault, stations = [], onConf
     );
 }
 
+function DeviceConnectivityWidget() {
+    const [devices, setDevices] = useState([]);
+    const [iotStatus, setIotStatus] = useState('disconnected');
+
+    useEffect(() => {
+        getEdgeDevices().then(setDevices).catch(console.error);
+        const unsub = iotConnector.subscribeStatus(s => setIotStatus(s.status));
+        return () => unsub();
+    }, []);
+
+    const getStatusIcon = (status) => {
+        if (status === 'ONLINE' || status === 'connected') return <CheckCircle2 size={12} color="#10b981" />;
+        if (status === 'error' || status === 'OFFLINE') return <XCircle size={12} color="#ef4444" />;
+        return <AlertCircle size={12} color="#f59e0b" />;
+    };
+
+    return (
+        <div style={{ marginTop: 'auto', padding: '16px', borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <Wifi size={12} /> Device Connectivity
+                </div>
+                <div style={{ 
+                    fontSize: '0.6rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px',
+                    backgroundColor: iotStatus === 'connected' ? '#dcfce7' : '#fee2e2',
+                    color: iotStatus === 'connected' ? '#166534' : '#991b1b',
+                    display: 'flex', alignItems: 'center', gap: '4px'
+                }}>
+                    <Signal size={10} /> MQTT: {iotStatus.toUpperCase()}
+                </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '120px', overflowY: 'auto' }}>
+                {devices.length === 0 ? (
+                    <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontStyle: 'italic' }}>No edge devices assigned.</div>
+                ) : (
+                    devices.map(d => (
+                        <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'white', padding: '6px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <HardDrive size={14} color="#64748b" />
+                                <div style={{ minWidth: 0 }}>
+                                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#334155', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.name}</div>
+                                    <div style={{ fontSize: '0.6rem', color: '#94a3b8' }}>{d.ipAddress || 'No IP'}</div>
+                                </div>
+                            </div>
+                            {getStatusIcon(d.status || 'ONLINE')}
+                        </div>
+                    ))
+                )}
+            </div>
+        </div>
+    );
+}
+
+
+
+// ─── Modals ──────────────────────────────────────────────────────────────────
+
+function CameraCaptureModal({ onCapture, onClose }) {
+    const videoRef = useRef(null);
+    const canvasRef = useRef(null);
+    const [stream, setStream] = useState(null);
+
+    useEffect(() => {
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+            .then(s => {
+                setStream(s);
+                if (videoRef.current) videoRef.current.srcObject = s;
+            })
+            .catch(err => console.error("Camera access denied", err));
+
+        return () => {
+            if (stream) stream.getTracks().forEach(track => track.stop());
+        };
+    }, []);
+
+    const handleCapture = () => {
+        if (!videoRef.current || !canvasRef.current) return;
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg');
+        if (stream) stream.getTracks().forEach(track => track.stop());
+        onCapture(dataUrl);
+    };
+
+    const handleClose = () => {
+        if (stream) stream.getTracks().forEach(track => track.stop());
+        onClose();
+    };
+
+    return (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, backdropFilter: 'blur(4px)' }}>
+            <div style={{ backgroundColor: '#1e293b', padding: '20px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '90vw' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ color: 'white', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Camera size={18} /> Media Capture
+                    </div>
+                    <button onClick={handleClose} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={20} /></button>
+                </div>
+                <div style={{ backgroundColor: 'black', borderRadius: '8px', overflow: 'hidden', position: 'relative', width: '100%', maxWidth: '640px', aspectRatio: '4/3' }}>
+                    <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <canvas ref={canvasRef} style={{ display: 'none' }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <button onClick={handleCapture} style={{ padding: '12px 32px', borderRadius: '30px', backgroundColor: '#3b82f6', color: 'white', border: 'none', fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(59,130,246,0.3)' }}>
+                        Capture Photo
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ESignatureModal({ operator, onClose, onSign }) {
+    const canvasRef = useRef(null);
+    const [isDrawing, setIsDrawing] = useState(false);
+    const [pin, setPin] = useState('');
+    const [error, setError] = useState('');
+
+    const getCoordinates = (e, canvas) => {
+        const rect = canvas.getBoundingClientRect();
+        if (e.touches && e.touches.length > 0) {
+            return {
+                x: e.touches[0].clientX - rect.left,
+                y: e.touches[0].clientY - rect.top
+            };
+        }
+        return {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
+    };
+
+    const startDrawing = (e) => {
+        setIsDrawing(true);
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        const { x, y } = getCoordinates(e, canvas);
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+    };
+
+    const draw = (e) => {
+        if (!isDrawing) return;
+        e.preventDefault(); // Prevent scrolling on touch
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        const { x, y } = getCoordinates(e, canvas);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+    };
+
+    const stopDrawing = () => {
+        setIsDrawing(false);
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        ctx.closePath();
+    };
+
+    const clearCanvas = () => {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    };
+
+    const handleSign = () => {
+        if (pin.length < 4) {
+            setError('Valid PIN is required for 21 CFR Part 11 compliance.');
+            return;
+        }
+        const canvas = canvasRef.current;
+        const signatureBase64 = canvas.toDataURL('image/png');
+        onSign({ signatureBase64, operator, timestamp: new Date().toISOString() });
+    };
+
+    return (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, backdropFilter: 'blur(4px)' }}>
+            <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '16px', width: '400px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ color: '#0f172a', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <PenTool size={18} color="#3b82f6" /> Digital Signature
+                    </div>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={20} /></button>
+                </div>
+                
+                <div style={{ fontSize: '0.8rem', color: '#475569', backgroundColor: '#f1f5f9', padding: '10px', borderRadius: '8px' }}>
+                    I, <strong>{operator || 'Operator'}</strong>, hereby electronically sign this record in accordance with 21 CFR Part 11.
+                </div>
+
+                <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', display: 'block', marginBottom: '6px' }}>Draw Signature</label>
+                    <div style={{ border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#f8fafc', position: 'relative' }}>
+                        <canvas 
+                            ref={canvasRef}
+                            width={350}
+                            height={150}
+                            style={{ width: '100%', height: '150px', cursor: 'crosshair', touchAction: 'none' }}
+                            onMouseDown={startDrawing}
+                            onMouseMove={draw}
+                            onMouseUp={stopDrawing}
+                            onMouseLeave={stopDrawing}
+                            onTouchStart={startDrawing}
+                            onTouchMove={draw}
+                            onTouchEnd={stopDrawing}
+                        />
+                        <button onClick={clearCanvas} style={{ position: 'absolute', top: '8px', right: '8px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '4px', fontSize: '0.65rem', padding: '2px 6px', cursor: 'pointer' }}>Clear</button>
+                    </div>
+                </div>
+
+                <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', display: 'block', marginBottom: '6px' }}>Operator PIN / Password</label>
+                    <input 
+                        type="password" 
+                        value={pin}
+                        onChange={(e) => { setPin(e.target.value); setError(''); }}
+                        placeholder="Enter 4-digit PIN"
+                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: `1px solid ${error ? '#ef4444' : '#cbd5e1'}`, fontSize: '0.85rem' }}
+                    />
+                    {error && <div style={{ fontSize: '0.7rem', color: '#ef4444', marginTop: '4px' }}>{error}</div>}
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                    <button onClick={onClose} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', fontWeight: 700, color: '#64748b', cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={handleSign} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', backgroundColor: '#3b82f6', color: 'white', fontWeight: 800, cursor: 'pointer' }}>Sign & Verify</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 const AppPlayer = () => {
@@ -289,6 +591,18 @@ const AppPlayer = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [search, setSearch] = useState('');
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+    useEffect(() => {
+        const h1 = () => setIsOnline(true);
+        const h2 = () => setIsOnline(false);
+        window.addEventListener('online', h1);
+        window.addEventListener('offline', h2);
+        return () => {
+            window.removeEventListener('online', h1);
+            window.removeEventListener('offline', h2);
+        };
+    }, []);
     
     // Auto-detect station from URL if available, else keep state
     const [stationIdFilter, setStationIdFilter] = useState(''); 
@@ -320,6 +634,21 @@ const AppPlayer = () => {
     const [isFullscreen, setIsFullscreen] = useState(false);
     const playerContainerRef = useRef(null);
     const iframeRef = useRef(null);
+
+    // Debugging states (Tulip parity)
+    const [syncedVariables, setSyncedVariables] = useState([]);
+    const [triggerHistory, setTriggerHistory] = useState([]);
+    const [showDebugPanel, setShowDebugPanel] = useState(devMode); // Default show if dev mode
+    const [activeDebugTab, setActiveDebugTab] = useState('variables'); // 'variables' | 'triggers'
+
+    // Advanced Enterprise Features
+    const { changeLanguage, currentLanguage } = useLanguage();
+    const [themeColor, setThemeColor] = useState(() => loadLS('mavi_theme_color', '#1e293b'));
+    const [companyLogo, setCompanyLogo] = useState(() => loadLS('mavi_company_logo', ''));
+    
+    // Modals
+    const [showCameraModal, setShowCameraModal] = useState(false);
+    const [showSignatureModal, setShowSignatureModal] = useState(false);
 
     // Auth modal
     const [pendingApp, setPendingApp] = useState(null);
@@ -405,7 +734,7 @@ const AppPlayer = () => {
         }
     };
 
-    // ── postMessage listener (step progress) ─────────────────────────────────
+    // ── postMessage listener (Tulip parity: variables & triggers) ────────────────
     useEffect(() => {
         const handler = (e) => {
             if (e.data?.type === 'STEP_PROGRESS') {
@@ -414,6 +743,13 @@ const AppPlayer = () => {
                     totalSteps: e.data.totalSteps ?? 0,
                     stepTitle: e.data.stepTitle || ''
                 });
+            } else if (e.data?.type === 'VARIABLES_SYNC') {
+                setSyncedVariables(e.data.variables || []);
+            } else if (e.data?.type === 'TRIGGER_FIRED') {
+                setTriggerHistory(prev => [{
+                    ...e.data,
+                    id: Math.random().toString(36).substr(2, 9)
+                }, ...prev].slice(0, 50));
             }
         };
         window.addEventListener('message', handler);
@@ -522,6 +858,8 @@ const AppPlayer = () => {
         setIframeError(false);
         setIsPaused(false);
         setSessionComments([]);
+        setSyncedVariables([]);
+        setTriggerHistory([]);
         clearTimeout(iframeLoadTimer.current);
     };
 
@@ -565,6 +903,7 @@ const AppPlayer = () => {
         setElapsedSeconds(0);
         setStepProgress(null);
         setIsPaused(false);
+        setTriggerHistory([]); // Clear logs on restart
     };
 
     const handleChangeApp = () => {
@@ -617,7 +956,9 @@ const AppPlayer = () => {
             <div style={{
                 height: '100%',
                 display: 'grid',
-                gridTemplateColumns: sidebarHidden ? '0 1fr' : '360px 1fr',
+                gridTemplateColumns: sidebarHidden 
+                    ? `0 1fr ${showDebugPanel && devMode ? '320px' : '0'}` 
+                    : `360px 1fr ${showDebugPanel && devMode ? '320px' : '0'}`,
                 gap: sidebarHidden ? '0' : '16px',
                 transition: 'grid-template-columns 0.3s ease'
             }}>
@@ -637,6 +978,15 @@ const AppPlayer = () => {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                 <Rocket size={18} color="#2563eb" />
                                 <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>App Player</h2>
+                            </div>
+                            <div style={{ 
+                                fontSize: '0.65rem', fontWeight: 800, padding: '3px 8px', borderRadius: '20px',
+                                backgroundColor: isOnline ? '#dcfce7' : '#fee2e2',
+                                color: isOnline ? '#166534' : '#991b1b',
+                                display: 'flex', alignItems: 'center', gap: '5px'
+                            }}>
+                                <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: isOnline ? '#22c55e' : '#ef4444' }} />
+                                {isOnline ? 'ONLINE' : 'OFFLINE'}
                             </div>
                         </div>
 
@@ -734,6 +1084,9 @@ const AppPlayer = () => {
                             ))
                         )}
                     </div>
+
+                    {/* Device Connectivity Widget */}
+                    <DeviceConnectivityWidget />
                 </div>
 
                 {/* ── PLAYER PANE ───────────────────────────────────────────── */}
@@ -741,28 +1094,34 @@ const AppPlayer = () => {
                     {/* Header */}
                     <div style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        gap: '12px', borderBottom: '1px solid #e2e8f0', padding: '10px 14px', minHeight: '52px'
+                        gap: '12px', padding: '10px 14px', minHeight: '52px',
+                        backgroundColor: themeColor,
+                        color: 'white',
+                        borderBottom: `1px solid ${themeColor}`
                     }}>
                         <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            {companyLogo ? (
+                                <img src={companyLogo} alt="Logo" style={{ height: '24px', objectFit: 'contain' }} />
+                            ) : null}
                             <div>
-                                <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {activeApp ? activeApp.name : 'Select an app to begin'}
                                 </div>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '2px' }}>
                                     {activeApp && (
                                         <>
-                                            <span style={{ fontSize: '0.72rem', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                            <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                                                 <MapPin size={11} /> {activeStationName || '-'}
                                             </span>
-                                            <span style={{ fontSize: '0.72rem', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                            <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                                                 <User size={11} /> {operator || '-'}
                                             </span>
-                                            <span style={{ fontSize: '0.72rem', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                            <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                                                 <Clock3 size={11} /> {formatDuration(elapsedSeconds)}
                                             </span>
                                             {stepLabel && (
                                                 <span style={{
-                                                    fontSize: '0.72rem', fontWeight: 700, color: '#7c3aed', backgroundColor: '#f3e8ff',
+                                                    fontSize: '0.72rem', fontWeight: 700, color: themeColor, backgroundColor: 'white',
                                                     borderRadius: '6px', padding: '1px 7px', display: 'inline-flex', alignItems: 'center', gap: '4px'
                                                 }}>
                                                     <ChevronRight size={11} /> {stepLabel}
@@ -775,23 +1134,50 @@ const AppPlayer = () => {
                         </div>
 
                         <div style={{ display: 'flex', gap: '6px', flexShrink: 0, alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.1)', padding: '2px 8px', borderRadius: '8px', gap: '4px' }}>
+                                <Globe size={13} color="white" />
+                                <select 
+                                    value={currentLanguage} 
+                                    onChange={(e) => changeLanguage(e.target.value)}
+                                    style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '0.75rem', fontWeight: 700, outline: 'none', cursor: 'pointer' }}
+                                >
+                                    <option value="en" style={{ color: 'black' }}>EN</option>
+                                    <option value="id" style={{ color: 'black' }}>ID</option>
+                                    <option value="ja" style={{ color: 'black' }}>JA</option>
+                                </select>
+                            </div>
+
                             <button
                                 onClick={() => setDevMode(!devMode)}
                                 title="Toggle Developer Mode (Skip DB writes)"
                                 style={{ 
-                                    padding: '7px 10px', border: `1px solid ${devMode ? '#8b5cf6' : '#cbd5e1'}`, borderRadius: '8px', 
-                                    backgroundColor: devMode ? '#ede9fe' : 'white', color: devMode ? '#7c3aed' : '#64748b', 
+                                    padding: '7px 10px', border: `1px solid rgba(255,255,255,0.3)`, borderRadius: '8px', 
+                                    backgroundColor: devMode ? 'rgba(255,255,255,0.2)' : 'transparent', color: 'white', 
                                     cursor: 'pointer', display: 'flex', gap: '5px', alignItems: 'center', fontWeight: 700, fontSize: '0.75rem' 
                                 }}
                             >
                                 <Code size={13} /> {devMode ? 'Dev Mode' : 'Prod Mode'}
                             </button>
+
+                            {devMode && (
+                                <button
+                                    onClick={() => setShowDebugPanel(!showDebugPanel)}
+                                    title="Toggle Debug Inspector"
+                                    style={{ 
+                                        padding: '7px 10px', border: `1px solid rgba(255,255,255,0.3)`, borderRadius: '8px', 
+                                        backgroundColor: showDebugPanel ? 'rgba(255,255,255,0.2)' : 'transparent', color: 'white', 
+                                        cursor: 'pointer', display: 'flex', gap: '5px', alignItems: 'center', fontWeight: 700, fontSize: '0.75rem' 
+                                    }}
+                                >
+                                    <Bug size={13} /> {showDebugPanel ? 'Hide Debug' : 'Show Debug'}
+                                </button>
+                            )}
                             
                             {activeApp && (
                                 <button
                                     onClick={() => setShowTechDetails(!showTechDetails)}
                                     title="Technical Details"
-                                    style={{ padding: '7px', border: '1px solid #cbd5e1', borderRadius: '8px', backgroundColor: 'white', color: '#334155', cursor: 'pointer', display: 'flex' }}
+                                    style={{ padding: '7px', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '8px', backgroundColor: 'transparent', color: 'white', cursor: 'pointer', display: 'flex' }}
                                 >
                                     <Info size={14} />
                                 </button>
@@ -799,7 +1185,7 @@ const AppPlayer = () => {
                             <button
                                 onClick={toggleFullscreen}
                                 title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen / Kiosk Mode'}
-                                style={{ padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '8px', backgroundColor: isFullscreen ? '#0f172a' : 'white', color: isFullscreen ? 'white' : '#334155', cursor: 'pointer', display: 'flex', gap: '5px', alignItems: 'center', fontWeight: 700, fontSize: '0.75rem' }}
+                                style={{ padding: '7px 10px', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '8px', backgroundColor: isFullscreen ? 'rgba(0,0,0,0.3)' : 'transparent', color: 'white', cursor: 'pointer', display: 'flex', gap: '5px', alignItems: 'center', fontWeight: 700, fontSize: '0.75rem' }}
                             >
                                 {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
                                 {isFullscreen ? 'Exit' : 'Kiosk'}
@@ -850,11 +1236,48 @@ const AppPlayer = () => {
                             >
                                 <RefreshCw size={13} /> Change App
                             </button>
+                            <div style={{ width: '1px', height: '20px', backgroundColor: '#475569' }} />
+                            <button
+                                onClick={() => setShowCameraModal(true)}
+                                style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #475569', backgroundColor: '#334155', color: 'white', cursor: 'pointer', display: 'flex', gap: '6px', alignItems: 'center', fontSize: '0.75rem', fontWeight: 600 }}
+                            >
+                                <Camera size={13} /> Camera
+                            </button>
+                            <button
+                                onClick={() => setShowSignatureModal(true)}
+                                style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #475569', backgroundColor: '#334155', color: 'white', cursor: 'pointer', display: 'flex', gap: '6px', alignItems: 'center', fontSize: '0.75rem', fontWeight: 600 }}
+                            >
+                                <PenTool size={13} /> Sign Session
+                            </button>
                         </div>
                     )}
 
                     {/* Main Content Area */}
                     <div style={{ flex: 1, backgroundColor: '#f8fafc', position: 'relative', overflow: 'hidden' }}>
+                        
+                        {showCameraModal && (
+                            <CameraCaptureModal 
+                                onClose={() => setShowCameraModal(false)}
+                                onCapture={(imgUrl) => {
+                                    // In a real implementation, this could save to session variables or cloud
+                                    console.log('Captured Media length:', imgUrl.length);
+                                    setShowCameraModal(false);
+                                    alert('Media Captured (Base64 string ready for logic variables)');
+                                }}
+                            />
+                        )}
+
+                        {showSignatureModal && (
+                            <ESignatureModal 
+                                operator={operator}
+                                onClose={() => setShowSignatureModal(false)}
+                                onSign={(data) => {
+                                    console.log('Signature Data:', data);
+                                    setShowSignatureModal(false);
+                                    alert(`Session signed by ${data.operator} at ${data.timestamp}. Base64 ready for 21 CFR Part 11 storage.`);
+                                }}
+                            />
+                        )}
                         
                         {/* Pause Overlay */}
                         {isPaused && (
@@ -966,6 +1389,102 @@ const AppPlayer = () => {
                         )}
                     </div>
                 </div>
+
+                {/* ── DEBUG PANEL (Tulip parity: Variable Watcher & Trigger Log) ── */}
+                {devMode && showDebugPanel && (
+                    <div style={{
+                        ...panelStyle,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        overflow: 'hidden',
+                        backgroundColor: '#0f172a',
+                        color: '#cbd5e1',
+                        border: 'none'
+                    }}>
+                        {/* Debug Header */}
+                        <div style={{ padding: '14px', borderBottom: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Bug size={16} color="#f59e0b" />
+                                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'white' }}>Debug Inspector</span>
+                            </div>
+                            <button onClick={() => setShowDebugPanel(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={16} /></button>
+                        </div>
+
+                        {/* Debug Tabs */}
+                        <div style={{ display: 'flex', backgroundColor: '#1e293b' }}>
+                            <button
+                                onClick={() => setActiveDebugTab('variables')}
+                                style={{
+                                    flex: 1, padding: '10px 0', border: 'none', background: activeDebugTab === 'variables' ? '#334155' : 'transparent',
+                                    color: activeDebugTab === 'variables' ? 'white' : '#94a3b8', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer'
+                                }}
+                            >
+                                Variables ({syncedVariables.length})
+                            </button>
+                            <button
+                                onClick={() => setActiveDebugTab('triggers')}
+                                style={{
+                                    flex: 1, padding: '10px 0', border: 'none', background: activeDebugTab === 'triggers' ? '#334155' : 'transparent',
+                                    color: activeDebugTab === 'triggers' ? 'white' : '#94a3b8', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer'
+                                }}
+                            >
+                                Trigger Log ({triggerHistory.length})
+                            </button>
+                        </div>
+
+                        {/* Debug Content */}
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
+                            {activeDebugTab === 'variables' ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    {syncedVariables.length === 0 ? (
+                                        <div style={{ textAlign: 'center', padding: '20px', color: '#64748b', fontSize: '0.75rem' }}>No variables found in app.</div>
+                                    ) : (
+                                        syncedVariables.map((v, i) => (
+                                            <div key={i} style={{ backgroundColor: '#1e293b', borderRadius: '6px', padding: '8px 10px', border: '1px solid #334155' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#f59e0b' }}>{v.name}</span>
+                                                    <span style={{ fontSize: '0.6rem', color: '#64748b' }}>{v.type}</span>
+                                                </div>
+                                                <div style={{ fontSize: '0.8rem', color: 'white', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                                                    {v.value === null || v.value === undefined ? <span style={{ color: '#64748b', fontStyle: 'italic' }}>null</span> : String(v.value)}
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    {triggerHistory.length === 0 ? (
+                                        <div style={{ textAlign: 'center', padding: '20px', color: '#64748b', fontSize: '0.75rem' }}>No triggers fired yet.</div>
+                                    ) : (
+                                        triggerHistory.map((log) => (
+                                            <div key={log.id} style={{ borderLeft: '2px solid #f59e0b', paddingLeft: '10px', marginBottom: '4px' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'white' }}>{log.triggerName}</span>
+                                                    <span style={{ fontSize: '0.6rem', color: '#64748b' }}>{new Date(log.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                                                </div>
+                                                <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>
+                                                    {log.eventId} on <span style={{ color: '#3b82f6' }}>{log.source}</span>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Debug Footer */}
+                        <div style={{ padding: '8px 12px', borderTop: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.6rem', color: '#64748b' }}>Real-time Sync Active</span>
+                            <button 
+                                onClick={() => activeDebugTab === 'variables' ? setSyncedVariables([]) : setTriggerHistory([])}
+                                style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                                Clear Logs
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
