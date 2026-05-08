@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, AlertCircle, CheckCircle2, Clock, Map, TrendingUp, Users, Zap } from 'lucide-react';
+import { Activity, AlertCircle, CheckCircle2, Clock, Map, TrendingUp, Users, Zap, MessageSquare } from 'lucide-react';
 import { getSupabaseClient } from '../utils/supabaseManualDB.js';
 import { acknowledgeAndon, getShopFloorRealtimeSnapshot } from '../utils/supabaseFrontlineDB.js';
+import ChatWidget from './ChatWidget';
+import { getCurrentUser } from '../utils/auth';
 
 const Home = () => {
   const [activeAndons, setActiveAndons] = useState([]);
@@ -9,6 +11,9 @@ const Home = () => {
   const [oeeToday, setOeeToday] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showChat, setShowChat] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const currentUser = getCurrentUser()?.name || 'Manager';
 
   const refreshSnapshot = async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -38,8 +43,9 @@ const Home = () => {
 
     initial();
 
+    const supabase = getSupabaseClient();
+
     try {
-      const supabase = getSupabaseClient();
       realtimeChannel = supabase
         .channel(`shop-floor-home-${Date.now()}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'production_queue' }, () => {
@@ -63,6 +69,27 @@ const Home = () => {
       pollingInterval = setInterval(() => refreshSnapshot({ silent: true }), 10000);
     }
 
+    // Chat Notification Listener
+    const chatChannel = supabase
+      .channel('chat_notifications')
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'chat_messages' 
+      }, (payload) => {
+        const msg = payload.new;
+        // If chat is closed, increment unread count
+        if (!showChat) {
+          setUnreadCount(prev => prev + 1);
+          // Play a subtle notification sound
+          try {
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
+            audio.play();
+          } catch (e) {}
+        }
+      })
+      .subscribe();
+
     return () => {
       isMounted = false;
       if (pollingInterval) clearInterval(pollingInterval);
@@ -73,8 +100,9 @@ const Home = () => {
           console.warn('[Home] Failed to unsubscribe realtime channel', e);
         }
       }
+      if (chatChannel) chatChannel.unsubscribe();
     };
-  }, []);
+  }, [showChat]);
 
   // Timer to update "Elapsed Time" for active Andons
   const [currentTime, setCurrentTime] = useState(Date.now());
@@ -93,11 +121,16 @@ const Home = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'RUNNING': return { bg: '#dcfce7', text: '#166534', border: '#bbf7d0', icon: <Activity size={16} /> };
-      case 'READY': return { bg: '#f1f5f9', text: '#475569', border: '#e2e8f0', icon: <CheckCircle2 size={16} /> };
-      case 'DOWN': return { bg: '#fee2e2', text: '#991b1b', border: '#fecaca', icon: <AlertCircle size={16} /> };
-      default: return { bg: '#f1f5f9', text: '#475569', border: '#e2e8f0', icon: <Clock size={16} /> };
+      case 'RUNNING': return { bg: '#eff6ff', text: '#2563eb', border: '#bfdbfe', accent: '#2563eb', icon: <Activity size={14} /> };
+      case 'READY': return { bg: '#f8fafc', text: '#475569', border: '#e2e8f0', accent: '#94a3b8', icon: <CheckCircle2 size={14} /> };
+      case 'DOWN': return { bg: '#fef2f2', text: '#dc2626', border: '#fecaca', accent: '#ef4444', icon: <AlertCircle size={14} /> };
+      default: return { bg: '#f8fafc', text: '#475569', border: '#e2e8f0', accent: '#94a3b8', icon: <Clock size={14} /> };
     }
+  };
+
+  const getInitials = (name) => {
+    if (!name || name === 'N/A') return '??';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
   };
 
   return (
@@ -178,58 +211,153 @@ const Home = () => {
       )}
 
       {/* WORKSTATION GRID */}
-      <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', marginBottom: '20px' }}>Live Workstations</h2>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '24px' }}>
+      {/* WORKSTATION GRID */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>Live Stations</h2>
+        <div style={{ display: 'flex', gap: '20px', fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#2563eb' }} /> Running</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#94a3b8' }} /> Idle</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ef4444' }} /> Down</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
         {workstations.map(ws => {
           const conf = getStatusColor(ws.status);
           const progress = ws.expectedOutput > 0 ? Math.round((ws.actualOutput / ws.expectedOutput) * 100) : 0;
           const isDown = ws.status === 'DOWN';
+          const isRunning = ws.status === 'RUNNING';
 
           return (
             <div
               key={ws.id}
               style={{
-                backgroundColor: isDown ? '#fef2f2' : 'white',
-                borderRadius: '12px',
-                border: isDown ? '2px solid transparent' : `1px solid ${conf.border}`,
-                boxShadow: isDown ? '0 4px 15px rgba(239, 68, 68, 0.4)' : '0 4px 6px -1px rgba(0,0,0,0.05)',
+                backgroundColor: 'white',
+                borderRadius: '16px',
+                border: `1px solid ${conf.border}`,
+                boxShadow: isDown ? '0 10px 25px -5px rgba(239, 68, 68, 0.2)' : '0 4px 6px -1px rgba(0,0,0,0.05)',
                 overflow: 'hidden',
-                transition: 'transform 0.2s',
-                cursor: 'pointer',
-                animation: isDown ? 'pulse-border 2s infinite' : 'none'
+                transition: 'all 0.2s',
+                position: 'relative',
+                display: 'flex',
+                flexDirection: 'column'
               }}
-              onMouseEnter={(e) => !isDown && (e.currentTarget.style.transform = 'translateY(-2px)')}
-              onMouseLeave={(e) => !isDown && (e.currentTarget.style.transform = 'none')}
             >
-              <div style={{ padding: '15px 20px', borderBottom: `1px solid ${isDown ? '#fecaca' : '#f1f5f9'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: isDown ? '#fef2f2' : 'transparent' }}>
-                <span style={{ fontWeight: 800, color: isDown ? '#991b1b' : '#0f172a' }}>{ws.id}</span>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', borderRadius: '20px', backgroundColor: conf.bg, color: conf.text, fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.5px' }}>
-                  {conf.icon} {ws.status}
-                </span>
-              </div>
+              {/* Status Header Bar */}
+              <div style={{ height: '6px', backgroundColor: conf.accent }} />
 
               <div style={{ padding: '20px' }}>
-                <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#334155', marginBottom: '15px' }}>{ws.name}</div>
-
-                {ws.currentJob ? (
-                  <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#64748b', marginBottom: '5px' }}>
-                      <span>Job: {ws.currentJob}</span>
-                      <span style={{ fontWeight: 600, color: '#0f172a' }}>{ws.actualOutput} / {ws.expectedOutput}</span>
+                {/* Station Info Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                       <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: ws.isOnline ? '#22c55e' : '#cbd5e1', border: '2px solid white', boxShadow: '0 0 0 1px #e2e8f0' }} />
+                       <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{ws.id}</span>
                     </div>
-                    <div style={{ height: '6px', backgroundColor: '#f1f5f9', borderRadius: '3px', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${progress}%`, backgroundColor: conf.text, transition: 'width 0.5s' }} />
-                    </div>
-                  </>
-                ) : (
-                  <div style={{ height: '28px', display: 'flex', alignItems: 'center', color: '#94a3b8', fontSize: '0.85rem', fontStyle: 'italic' }}>
-                    No active job
+                    <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ws.name}</h3>
                   </div>
-                )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 12px', borderRadius: '30px', backgroundColor: conf.bg, color: conf.text, fontSize: '0.7rem', fontWeight: 800, border: `1px solid ${conf.border}` }}>
+                    {conf.icon} {ws.status}
+                  </div>
+                </div>
+
+                {/* Operator Info */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px', marginBottom: '20px' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#3b82f6', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: 900 }}>
+                    {getInitials(ws.operator)}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Operator</div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#334155', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ws.operator}</div>
+                  </div>
+                </div>
+
+                {/* App Status Section */}
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div>
+                      <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '4px' }}>Active Application</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: isRunning ? '#2563eb' : '#64748b', fontWeight: 700, fontSize: '0.95rem' }}>
+                        <Zap size={16} /> {ws.activeApp}
+                      </div>
+                    </div>
+                    {isRunning && (
+                       <div>
+                         <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '4px' }}>Current Step</div>
+                         <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#0f172a' }}>{ws.activeStep}</div>
+                       </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Progress / Job Section */}
+                <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #f1f5f9' }}>
+                   {ws.currentJob ? (
+                     <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                           <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>Job: <span style={{ color: '#0f172a' }}>{ws.currentJob}</span></span>
+                           <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>{ws.actualOutput} <span style={{ color: '#94a3b8', fontWeight: 400 }}>/ {ws.expectedOutput}</span></span>
+                        </div>
+                        <div style={{ height: '8px', backgroundColor: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                           <div style={{ height: '100%', width: `${progress}%`, backgroundColor: conf.accent, transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }} />
+                        </div>
+                     </>
+                   ) : (
+                     <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Clock size={14} /> Ready for next assignment
+                     </div>
+                   )}
+                </div>
               </div>
+
+              {/* Down Indicator Overlay */}
+              {isDown && (
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, border: '3px solid #ef4444', borderRadius: '16px', pointerEvents: 'none', animation: 'pulse-border 2s infinite' }} />
+              )}
             </div>
           );
         })}
+      </div>
+
+      {/* CHAT WIDGET */}
+      <div style={{ position: 'fixed', bottom: '30px', right: '30px', zIndex: 1000 }}>
+        {!showChat ? (
+          <div style={{ position: 'relative' }}>
+            {unreadCount > 0 && (
+              <div style={{ 
+                position: 'absolute', top: '-5px', right: '-5px', 
+                backgroundColor: '#ef4444', color: 'white', 
+                borderRadius: '50%', width: '22px', height: '22px', 
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '0.7rem', fontWeight: 900, border: '2px solid white',
+                zIndex: 1001
+              }}>
+                {unreadCount}
+              </div>
+            )}
+            <button 
+              onClick={() => {
+                setShowChat(true);
+                setUnreadCount(0);
+              }}
+              style={{ 
+                width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#001e3c', color: 'white',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none',
+                boxShadow: '0 10px 25px -5px rgba(0,0,0,0.3)', cursor: 'pointer', transition: 'transform 0.2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+            >
+              <MessageSquare size={24} />
+            </button>
+          </div>
+        ) : (
+          <ChatWidget 
+            currentStation="SUPERVISOR"
+            currentUser={currentUser}
+            onClose={() => setShowChat(false)}
+          />
+        )}
       </div>
 
     </div>

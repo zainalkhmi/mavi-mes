@@ -8,8 +8,12 @@ import {
   AlertCircle,
   Minimize2,
   Maximize2,
-  Clock
+  Clock,
+  Paperclip,
+  File,
+  Loader2
 } from 'lucide-react';
+import { uploadManualImage } from '../utils/supabaseManualDB';
 import { getSupabaseClient } from '../utils/supabaseManualDB';
 import { getStations } from '../utils/database';
 
@@ -20,6 +24,8 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
   const [inputText, setInputText] = useState('');
   const [isMinimized, setIsMinimized] = useState(false);
   const [isCalling, setIsCalling] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
   const supabase = getSupabaseClient();
 
@@ -100,6 +106,8 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
     if (error) {
       console.error('Error sending message:', error);
     } else {
+      // Optimistic update
+      setMessages(prev => [...prev, newMessage]);
       setInputText('');
     }
   };
@@ -121,6 +129,49 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
       type: 'ALERT',
       created_at: new Date().toISOString()
     }]);
+  };
+  
+  const handleFileSelect = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      // Create a unique path for the chat media
+      const storagePath = `chat-media/${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+      const fileUrl = await uploadManualImage(storagePath, file);
+      
+      let msgType = 'FILE';
+      if (file.type.startsWith('image/')) msgType = 'IMAGE';
+      if (file.type.startsWith('video/')) msgType = 'VIDEO';
+
+      const newMessage = {
+        sender_id: currentUser,
+        sender_name: currentUser,
+        station_id: currentStation,
+        target_station_id: targetStation === 'ALL' ? null : targetStation,
+        content: fileUrl,
+        type: msgType,
+        created_at: new Date().toISOString()
+      };
+
+      const { error } = await supabase.from('chat_messages').insert([newMessage]);
+      if (error) throw error;
+
+      // Optimistic update
+      setMessages(prev => [...prev, newMessage]);
+      console.log('File message sent successfully:', newMessage);
+    } catch (err) {
+      console.error('Upload failed:', err);
+      alert('Upload failed. Check Supabase storage settings.');
+    } finally {
+      setIsUploading(false);
+      if (e.target) e.target.value = '';
+    }
   };
 
   if (isMinimized) {
@@ -240,7 +291,39 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
                 boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
                 border: isMe ? 'none' : '1px solid #e2e8f0'
               }}>
-                {msg.content}
+                {msg.type?.toUpperCase() === 'IMAGE' && (
+                  <img 
+                    src={msg.content} 
+                    style={{ maxWidth: '100%', borderRadius: '8px', cursor: 'pointer' }} 
+                    alt="Chat media" 
+                    onClick={() => window.open(msg.content, '_blank')}
+                  />
+                )}
+                {msg.type?.toUpperCase() === 'VIDEO' && (
+                  <video 
+                    src={msg.content} 
+                    controls 
+                    style={{ maxWidth: '100%', borderRadius: '8px' }} 
+                  />
+                )}
+                {msg.type?.toUpperCase() === 'FILE' && (
+                  <a 
+                    href={msg.content} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    style={{ 
+                      color: isMe ? 'white' : '#2563eb', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '8px',
+                      textDecoration: 'underline',
+                      fontWeight: 700
+                    }}
+                  >
+                    <File size={16} /> Download File
+                  </a>
+                )}
+                {(msg.type?.toUpperCase() === 'TEXT' || !msg.type) && msg.content}
               </div>
               <div style={{ fontSize: '0.6rem', color: '#94a3b8', marginTop: '4px', textAlign: isMe ? 'right' : 'left', display: 'flex', alignItems: 'center', justifyContent: isMe ? 'flex-end' : 'flex-start', gap: '4px' }}>
                 <Clock size={10} /> {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -252,7 +335,26 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSendMessage} style={{ padding: '15px', borderTop: '1px solid #f1f5f9', display: 'flex', gap: '10px' }}>
+      <form onSubmit={handleSendMessage} style={{ padding: '15px', borderTop: '1px solid #f1f5f9', display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          style={{ display: 'none' }} 
+          onChange={handleFileUpload}
+        />
+        
+        <button 
+          type="button"
+          onClick={handleFileSelect}
+          disabled={isUploading}
+          style={{ 
+            background: 'none', border: 'none', color: '#64748b', cursor: 'pointer',
+            padding: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}
+        >
+          {isUploading ? <Loader2 size={20} className="animate-spin" /> : <Paperclip size={20} />}
+        </button>
+
         <input 
           value={inputText}
           onChange={e => setInputText(e.target.value)}

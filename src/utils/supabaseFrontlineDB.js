@@ -1,4 +1,5 @@
 import { getSupabaseClient } from './supabaseManualDB.js';
+import { getStations } from './database.js';
 import * as offlineDb from './offlineDb';
 
 const LOCAL_APP_CACHE_KEYS = ['offline_apps_cache', 'mavi_offline_vault', 'draft_frontline_apps'];
@@ -519,12 +520,7 @@ export async function updateJobStatus(id, status) {
     return data;
 }
 
-const DEFAULT_WORKSTATIONS = [
-    { id: 'WS-01', name: 'Assembly Station A' },
-    { id: 'WS-02', name: 'Testing Station B' },
-    { id: 'WS-03', name: 'Packaging Station C' },
-    { id: 'WS-04', name: 'Inspection Station D' }
-];
+// Removed hardcoded DEFAULT_WORKSTATIONS to sync with Station Menu
 
 const statusFromQueue = (rawStatus) => {
     const value = String(rawStatus || '').toUpperCase();
@@ -596,15 +592,41 @@ export async function getShopFloorRealtimeSnapshot() {
     const auditRows = auditRes.data || [];
     const activeAndons = buildActiveAndons(auditRows);
     const andonStationSet = new Set(activeAndons.map(a => a.workstation));
+    const registeredStations = await getStations();
+    const now = Date.now();
+    
+    // Extract last activity per station from audit logs
+    const lastActivityMap = new Map();
+    auditRows.forEach(row => {
+        const stationId = row.station_id || row.payload?.workstation;
+        if (!stationId || lastActivityMap.has(stationId)) return;
+        
+        lastActivityMap.set(stationId, {
+            operator: row.operator_id || 'Unknown',
+            appName: row.payload?.name || row.payload?.title || row.payload?.app_name || '',
+            stepName: row.payload?.step_name || '',
+            lastSeen: new Date(row.created_at).getTime()
+        });
+    });
 
     const stationMap = new Map(
-        DEFAULT_WORKSTATIONS.map(ws => [ws.id, {
-            ...ws,
-            status: 'READY',
-            currentJob: null,
-            expectedOutput: 0,
-            actualOutput: 0
-        }])
+        registeredStations.map(ws => {
+            const lastActivity = lastActivityMap.get(ws.id);
+            const isOnline = lastActivity ? (now - lastActivity.lastSeen < 300000) : false; // Online if activity in last 5 mins
+            
+            return [ws.id, {
+                ...ws,
+                status: ws.status || 'READY',
+                currentJob: null,
+                expectedOutput: 0,
+                actualOutput: 0,
+                operator: lastActivity?.operator || 'N/A',
+                activeApp: lastActivity?.appName || 'None',
+                activeStep: lastActivity?.stepName || 'N/A',
+                isOnline,
+                lastActivityTime: lastActivity?.lastSeen || null
+            }];
+        })
     );
 
     queueRows.forEach((job) => {
@@ -618,7 +640,12 @@ export async function getShopFloorRealtimeSnapshot() {
             status: 'READY',
             currentJob: null,
             expectedOutput: 0,
-            actualOutput: 0
+            actualOutput: 0,
+            operator: 'N/A',
+            activeApp: 'None',
+            activeStep: 'N/A',
+            isOnline: false,
+            lastActivityTime: null
         };
 
         if (!base.currentJob) {
@@ -626,16 +653,22 @@ export async function getShopFloorRealtimeSnapshot() {
             base.expectedOutput = safeNumber(job?.target_qty, 0);
             base.actualOutput = safeNumber(payload?.actual_output, 0);
             base.status = statusFromQueue(job?.status);
+            
+            // If job is in progress, ensure we show some activity if not in audit logs
+            if (base.status === 'RUNNING' && !base.activeApp) {
+                base.activeApp = job.app_id ? 'App Loading...' : 'In Progress';
+            }
         }
 
         stationMap.set(stationId, base);
     });
 
     const workstations = Array.from(stationMap.values()).map((ws) => {
+        let finalStatus = ws.status;
         if (andonStationSet.has(ws.id)) {
-            return { ...ws, status: 'DOWN' };
+            finalStatus = 'DOWN';
         }
-        return ws;
+        return { ...ws, status: finalStatus };
     });
 
     const totalExpected = workstations.reduce((acc, ws) => acc + safeNumber(ws.expectedOutput), 0);

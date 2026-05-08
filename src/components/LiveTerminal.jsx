@@ -104,6 +104,7 @@ import UnifiedScanner from './UnifiedScanner';
 import MobileBottomNav from './MobileBottomNav';
 import { listGlobalVariables, upsertGlobalVariable, subscribeToGlobalVariables } from '../utils/supabaseGlobalVars';
 import { validateVariable } from '../utils/validationEngine';
+import { getCurrentUser } from '../utils/auth';
 
 const STATUS_CONFIG = {
   READY: { label: 'System Ready', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.1)', border: 'rgba(34, 197, 94, 0.2)' },
@@ -416,8 +417,8 @@ const LiveTerminal = () => {
   const [recordPlaceholders, setRecordPlaceholders] = useState([]);
   const [recordPlaceholderData, setRecordPlaceholderData] = useState({});
   const [appContext, setAppContext] = useState({
-    user: 'Operator',
-    station: 'WS-01'
+    user: getCurrentUser()?.name || launchOperator || 'Operator',
+    station: launchStation || 'WS-01'
   });
   const [boundData, setBoundData] = useState({}); // { [compId]: value }
   const [chartData, setChartData] = useState({}); // { [compId]: Array of data }
@@ -5054,8 +5055,8 @@ const LiveTerminal = () => {
 
       {showChat && (
         <ChatWidget 
-          currentStation={launchStation || 'WS-Unknown'} 
-          currentUser={launchOperator || 'Anonymous'} 
+          currentStation={appContext.station} 
+          currentUser={appContext.user} 
           onClose={() => setShowChat(false)} 
         />
       )}
