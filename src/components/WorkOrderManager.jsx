@@ -60,8 +60,8 @@ const WorkOrderManager = ({ onSelect, currentWorkOrder }) => {
                         <span style={{ color: '#2e7d32', fontSize: '0.7rem', backgroundColor: 'rgba(46, 125, 50, 0.1)', padding: '2px 8px', borderRadius: '4px', fontWeight: 800 }}>ACTIVE</span>
                     </div>
                 ) : (
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                        <div style={{ position: 'relative', flex: 1 }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+                        <div style={{ position: 'relative', flex: '1 1 200px' }}>
                             <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
                             <input
                                 type="text"
@@ -88,10 +88,12 @@ const WorkOrderManager = ({ onSelect, currentWorkOrder }) => {
                             disabled={!inputValue.trim()}
                             className="btn btn-primary"
                             style={{
-                                padding: '0 25px',
+                                padding: '12px 25px',
                                 borderRadius: '4px',
                                 fontWeight: 'bold',
-                                fontSize: '0.9rem'
+                                fontSize: '0.9rem',
+                                height: '100%',
+                                whiteSpace: 'nowrap'
                             }}
                         >
                             CONFIRM
@@ -119,9 +121,9 @@ const WorkOrderManager = ({ onSelect, currentWorkOrder }) => {
             )}
 
             {!isConfirmed && (
-                <div style={{ color: '#94a3b8', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
+                <div style={{ color: '#94a3b8', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, flexShrink: 0, marginLeft: 'auto' }}>
                     <Barcode size={16} />
-                    SCANNER READY
+                    <span style={{ whiteSpace: 'nowrap' }}>SCANNER READY</span>
                 </div>
             )}
         </div>

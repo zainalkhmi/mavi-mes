@@ -79,7 +79,12 @@ import {
   PlayCircle,
   Database,
   Layers,
-  MessageSquare
+  MessageSquare,
+  Search,
+  Star,
+  LogOut,
+  MoreVertical,
+  HardDrive
 } from 'lucide-react';
 import * as offlineDb from '../utils/offlineDb';
 import { toast } from 'react-hot-toast';
@@ -245,6 +250,20 @@ const LiveTerminal = () => {
   const launchParams = new URLSearchParams(location.search || '');
   const launchOperator = (launchParams.get('operator') || '').trim();
   const launchStation = (launchParams.get('station') || '').trim();
+  
+  // Dashboard states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [terminalTab, setTerminalTab] = useState('All'); // 'All' | 'Favorites' | 'Recent'
+  const [favoriteApps, setFavoriteApps] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('mavi_terminal_favorites')) || []; } catch (e) { return []; }
+  });
+  const [recentApps, setRecentApps] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('mavi_terminal_recent')) || []; } catch (e) { return []; }
+  });
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [showOperatorMenu, setShowOperatorMenu] = useState(false);
+  const { changeLanguage, currentLanguage } = useLanguage();
+
   const [loading, setLoading] = useState(true);
   const [manuals, setManuals] = useState([]);
   const [frontlineApps, setFrontlineApps] = useState([]);
@@ -1093,6 +1112,11 @@ const LiveTerminal = () => {
   };
 
   const handleStartApp = async (app) => {
+    // Track Recent Apps
+    const newRecent = [app.id, ...recentApps.filter(id => id !== app.id)].slice(0, 8);
+    setRecentApps(newRecent);
+    localStorage.setItem('mavi_terminal_recent', JSON.stringify(newRecent));
+
     // Enterprise Governance: Use published_config if published, else draft config
     const effectiveConfig = app.is_published ? (app.published_config || app.config) : app.config;
     const normalizedApp = { ...app, config: effectiveConfig };
@@ -2382,18 +2406,31 @@ const LiveTerminal = () => {
     const currentStationObj = stations.find(s => s.id === appContext.station || s.name === appContext.station);
 
     // Filter apps based on assigned station
-    const filteredApps = frontlineApps.filter(app => {
+    const baseFilteredApps = frontlineApps.filter(app => {
       if (!currentStationObj || !currentStationObj.assignedApps) return true; // fallback
       return currentStationObj.assignedApps.includes(app.id);
     });
 
+    // Apply Search Filter
+    const searchFilteredApps = baseFilteredApps.filter(app => 
+      app.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    // Apply Tab Filter
+    const tabFilteredApps = searchFilteredApps.filter(app => {
+      if (terminalTab === 'Favorites') return favoriteApps.includes(app.id);
+      if (terminalTab === 'Recent') return recentApps.includes(app.id);
+      return true; // 'All'
+    });
+
     // Group apps dynamically
     const appGroups = {};
-    filteredApps.forEach(app => {
+    tabFilteredApps.forEach(app => {
       const category = app.category || 'Custom Apps';
       if (!appGroups[category]) appGroups[category] = [];
       appGroups[category].push(app);
     });
+
 
     // App Gradients
     const appGradients = [
@@ -2508,7 +2545,12 @@ const LiveTerminal = () => {
               <div style={{ fontWeight: 800, fontSize: '1.2rem', letterSpacing: '0.05em' }}>STATION {appContext.station}</div>
             </div>
             <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div 
+              style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '4px 8px', borderRadius: '8px', transition: 'background-color 0.2s' }}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+              onClick={() => setShowOperatorMenu(true)}
+            >
               <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, border: '1px solid #334155' }}>
                 {appContext.user.charAt(0)}
               </div>
@@ -2523,17 +2565,27 @@ const LiveTerminal = () => {
               <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>{currentTime.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
               <div style={{ fontSize: '1.1rem', fontWeight: 800, fontFamily: 'monospace' }}>{currentTime.toLocaleTimeString()}</div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: 'rgba(34, 197, 94, 0.1)', padding: '6px 12px', borderRadius: '20px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
-              <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#22c55e', boxShadow: '0 0 8px #22c55e' }} />
-              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#22c55e' }}>ONLINE</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: isOnline ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)', padding: '6px 12px', borderRadius: '20px', border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)'}` }}>
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: isOnline ? '#22c55e' : '#ef4444', boxShadow: `0 0 8px ${isOnline ? '#22c55e' : '#ef4444'}` }} />
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: isOnline ? '#22c55e' : '#ef4444' }}>{isOnline ? 'ONLINE' : 'OFFLINE'}</span>
             </div>
+            <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
+            <button 
+              onClick={() => setShowDiagnostics(true)}
+              style={{ background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer', padding: '8px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background-color 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = 'white'; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#cbd5e1'; }}
+            >
+              <Menu size={24} />
+            </button>
           </div>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '40px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '40px 20px', backgroundColor: '#f1f5f9' }}>
+          <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
 
           {/* TRACKING IDENTITY (Work Order) */}
-          <div style={{ marginBottom: '40px', maxWidth: '800px', backgroundColor: 'white', padding: '24px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', border: '1px solid #e2e8f0' }}>
+          <div style={{ marginBottom: '40px', backgroundColor: 'white', padding: '24px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', border: '1px solid #e2e8f0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
               <Barcode size={24} color="#64748b" />
               <h2 style={{ margin: 0, color: '#0f172a', fontSize: '1.2rem', fontWeight: 800 }}>Tracking Identity</h2>
@@ -2551,6 +2603,38 @@ const LiveTerminal = () => {
                 }
               }}
             />
+          </div>
+
+          {/* SEARCH & FILTERS */}
+          <div style={{ marginBottom: '30px', display: 'flex', flexWrap: 'wrap', gap: '20px', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', gap: '10px', backgroundColor: '#e2e8f0', padding: '4px', borderRadius: '8px' }}>
+              {['All', 'Favorites', 'Recent'].map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setTerminalTab(tab)}
+                  style={{
+                    padding: '8px 16px', borderRadius: '6px', border: 'none',
+                    backgroundColor: terminalTab === tab ? 'white' : 'transparent',
+                    color: terminalTab === tab ? '#0f172a' : '#64748b',
+                    fontWeight: 700, cursor: 'pointer', boxShadow: terminalTab === tab ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '0 12px', width: '300px' }}>
+              <Search size={18} color="#94a3b8" />
+              <input
+                type="text"
+                placeholder="Search apps..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                style={{ border: 'none', padding: '10px', width: '100%', outline: 'none', fontWeight: 600, color: '#334155' }}
+              />
+            </div>
           </div>
 
           {/* APPS GRID grouped by category */}
@@ -2594,14 +2678,33 @@ const LiveTerminal = () => {
                         padding: '16px'
                       }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <div style={{ backgroundColor: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(4px)', padding: '4px 8px', borderRadius: '4px', color: 'white', fontSize: '0.7rem', fontWeight: 700 }}>
-                            v{app.version || '1.0'}
-                          </div>
-                          {!app.is_published && (
-                            <div style={{ backgroundColor: '#fef08a', color: '#854d0e', padding: '4px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 800 }}>
-                              DRAFT
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <div style={{ backgroundColor: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(4px)', padding: '4px 8px', borderRadius: '4px', color: 'white', fontSize: '0.7rem', fontWeight: 700 }}>
+                              v{app.version || '1.0'}
                             </div>
-                          )}
+                            {!app.is_published && (
+                              <div style={{ backgroundColor: '#fef08a', color: '#854d0e', padding: '4px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 800 }}>
+                                DRAFT
+                              </div>
+                            )}
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const isFav = favoriteApps.includes(app.id);
+                              let newFavs;
+                              if (isFav) {
+                                newFavs = favoriteApps.filter(id => id !== app.id);
+                              } else {
+                                newFavs = [...favoriteApps, app.id];
+                              }
+                              setFavoriteApps(newFavs);
+                              localStorage.setItem('mavi_terminal_favorites', JSON.stringify(newFavs));
+                            }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                          >
+                            <Star size={20} fill={favoriteApps.includes(app.id) ? '#fbbf24' : 'none'} color={favoriteApps.includes(app.id) ? '#fbbf24' : 'rgba(255,255,255,0.6)'} />
+                          </button>
                         </div>
                       </div>
 
@@ -2724,6 +2827,7 @@ const LiveTerminal = () => {
               </div>
             </div>
           )}
+          </div>
         </div>
       </div>
     );
@@ -5083,6 +5187,120 @@ const LiveTerminal = () => {
           currentUser={appContext.user} 
           onClose={() => setShowChat(false)} 
         />
+      )}
+
+      {/* Operator Menu Modal */}
+      {showOperatorMenu && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, backgroundColor: 'transparent' }} onClick={() => setShowOperatorMenu(false)}>
+          <div 
+            style={{ position: 'absolute', top: '70px', right: '350px', backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', border: '1px solid #e2e8f0', width: '280px', overflow: 'hidden' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ padding: '20px', borderBottom: '1px solid #f1f5f9', backgroundColor: '#f8fafc' }}>
+              <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600, marginBottom: '4px' }}>CURRENT OPERATOR</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>{appContext.user}</div>
+              <div style={{ fontSize: '0.8rem', color: '#3b82f6', fontWeight: 600, marginTop: '4px' }}>Station: {appContext.station}</div>
+            </div>
+            
+            <div style={{ padding: '12px' }}>
+              <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 700, padding: '8px 12px', textTransform: 'uppercase' }}>Language</div>
+              {['EN', 'ID', 'JA'].map(lang => (
+                <button
+                  key={lang}
+                  onClick={() => { changeLanguage(lang); setShowOperatorMenu(false); }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', backgroundColor: currentLanguage === lang ? '#f0f9ff' : 'transparent', border: 'none', borderRadius: '6px', cursor: 'pointer', color: currentLanguage === lang ? '#0284c7' : '#475569', fontWeight: 600 }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Globe size={16} /> {lang === 'EN' ? 'English' : lang === 'ID' ? 'Bahasa Indonesia' : '日本語 (Japanese)'}
+                  </div>
+                  {currentLanguage === lang && <CheckCircle2 size={16} color="#0284c7" />}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ borderTop: '1px solid #f1f5f9', padding: '12px' }}>
+              <button 
+                onClick={() => {
+                  window.location.href = '/';
+                }}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', backgroundColor: '#fef2f2', border: 'none', borderRadius: '6px', color: '#ef4444', fontWeight: 700, cursor: 'pointer' }}
+              >
+                <LogOut size={16} /> Switch User / Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Station Diagnostics Modal */}
+      {showDiagnostics && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ backgroundColor: 'white', borderRadius: '16px', width: '100%', maxWidth: '600px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc' }}>
+              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <HardDrive size={24} color="#3b82f6" /> Station Diagnostics
+              </h2>
+              <button onClick={() => setShowDiagnostics(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: '#64748b' }}>
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div style={{ padding: '24px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+                <div style={{ padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', backgroundColor: isOnline ? '#f0fdf4' : '#fef2f2' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                    <Wifi size={20} color={isOnline ? '#16a34a' : '#dc2626'} />
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#64748b' }}>NETWORK STATUS</span>
+                  </div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 800, color: isOnline ? '#16a34a' : '#dc2626' }}>
+                    {isOnline ? 'Connected' : 'Offline'}
+                  </div>
+                </div>
+                <div style={{ padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', backgroundColor: '#f0f9ff' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                    <Zap size={20} color="#0284c7" />
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#64748b' }}>MQTT BROKER</span>
+                  </div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0284c7' }}>
+                    Active
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '24px' }}>
+                <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '12px' }}>Connected Edge Devices</h3>
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+                  {['Barcode Scanner (USB)', 'Scale (COM3)', 'Edge IO (192.168.1.50)'].map((dev, i) => (
+                    <div key={i} style={{ padding: '12px 16px', borderBottom: i < 2 ? '1px solid #e2e8f0' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Cpu size={16} color="#64748b" />
+                        <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#334155' }}>{dev}</span>
+                      </div>
+                      <div style={{ backgroundColor: '#dcfce7', color: '#16a34a', padding: '4px 8px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 700 }}>
+                        ONLINE
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '12px' }}>Hardware Test</h3>
+                <input 
+                  type="text" 
+                  placeholder="Scan a barcode here to test..." 
+                  style={{ width: '100%', padding: '12px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.95rem', outline: 'none' }} 
+                  onKeyDown={e => {
+                    if(e.key === 'Enter') {
+                      toast.success(`Test Scanned: ${e.target.value}`);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
