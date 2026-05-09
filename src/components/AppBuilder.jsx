@@ -287,6 +287,30 @@ const COMPONENT_TYPES = {
             conditionalFormattingRules: []
         }
     },
+    VARIABLE_TEXT: {
+        id: 'VARIABLE_TEXT', label: 'Variable Text', icon: Type, defaultSize: { w: 200, h: 40 },
+        defaultProps: { label: 'Variable Label', targetVariable: '', visible: true, triggers: [] }
+    },
+    RADIO_GROUP: {
+        id: 'RADIO_GROUP', label: 'Radio Group', icon: CheckSquare, defaultSize: { w: 300, h: 80 },
+        defaultProps: { label: 'Select Option', options: ['Option 1', 'Option 2'], visible: true, triggers: [] }
+    },
+    CHECKLIST: {
+        id: 'CHECKLIST', label: 'Checklist', icon: CheckSquare, defaultSize: { w: 300, h: 120 },
+        defaultProps: { title: 'Checklist', items: ['Item 1', 'Item 2'], visible: true, triggers: [] }
+    },
+    QUALITY_TOLERANCE: {
+        id: 'QUALITY_TOLERANCE', label: 'Tolerance Check', icon: Activity, defaultSize: { w: 300, h: 80 },
+        defaultProps: { label: 'Measurement', min: 0, max: 10, unit: 'mm', visible: true, triggers: [] }
+    },
+    QUALITY_PASS_FAIL: {
+        id: 'QUALITY_PASS_FAIL', label: 'Pass/Fail', icon: Activity, defaultSize: { w: 300, h: 80 },
+        defaultProps: { label: 'Judgment', visible: true, triggers: [] }
+    },
+    CAMERA_CAPTURE: {
+        id: 'CAMERA_CAPTURE', label: 'Camera Capture', icon: Camera, defaultSize: { w: 300, h: 200 },
+        defaultProps: { label: 'Take Photo', visible: true, triggers: [] }
+    },
     CHECKBOX: {
         id: 'CHECKBOX',
         label: 'Checkbox',
@@ -1326,6 +1350,14 @@ const CATEGORIZED_COMPONENTS = {
             'DATE_PICKER', 'DATETIME_PICKER', 'IMAGE', 'EMBED_WEB', 'VIDEO_PLAYER',
             'FILE_PICKER', 'IMAGE_PICKER', 'SIGNATURE_PAD', 'SIGNATURE',
             'NOTIFIER', 'CUSTOM_WIDGET'
+        ]
+    },
+    QUALITY: {
+        label: 'Quality & Inspection',
+        icon: Activity,
+        color: '#f59e0b',
+        types: [
+            'CHECKLIST', 'QUALITY_TOLERANCE', 'QUALITY_PASS_FAIL', 'CAMERA_CAPTURE', 'RADIO_GROUP', 'VARIABLE_TEXT'
         ]
     },
     // 2. Tables, records, storage
@@ -10077,6 +10109,77 @@ const AppBuilder = () => {
                         )}
                     </div>
                 );
+
+            case 'CHECKLIST':
+                return (
+                    <div style={{ width: '100%', height: '100%', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '6px', padding: '12px', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '8px' }}>{comp.props.title || 'Checklist'}</div>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {(comp.props.items || ['Item 1', 'Item 2']).map((item, i) => (
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <div style={{ width: '16px', height: '16px', border: '1px solid var(--border-secondary)', borderRadius: '4px' }}></div>
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{item}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+
+            case 'QUALITY_TOLERANCE':
+                return (
+                    <div style={{ width: '100%', height: '100%', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '6px', padding: '12px', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px' }}>{comp.props.label || 'Quality Tolerance'} <span style={{ color: 'var(--text-quaternary)' }}>({comp.props.min || 0}-{comp.props.max || 10} {comp.props.unit || ''})</span></div>
+                        <div style={{ flex: 1, border: '2px solid var(--border-secondary)', borderRadius: '6px', backgroundColor: 'var(--bg-secondary)' }}></div>
+                    </div>
+                );
+
+            case 'QUALITY_PASS_FAIL':
+                return (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px' }}>{comp.props.label || 'Pass/Fail'}</div>
+                        <div style={{ flex: 1, display: 'flex', gap: '12px' }}>
+                            <div style={{ flex: 1, backgroundColor: 'var(--bg-panel)', border: '2px solid var(--border-secondary)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a', fontWeight: 900 }}>PASS</div>
+                            <div style={{ flex: 1, backgroundColor: 'var(--bg-panel)', border: '2px solid var(--border-secondary)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#dc2626', fontWeight: 900 }}>FAIL</div>
+                        </div>
+                    </div>
+                );
+
+            case 'CAMERA_CAPTURE':
+                return (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '8px' }}>{comp.props.label || 'Take Photo'}</div>
+                        <div style={{ flex: 1, border: '1px solid var(--border-secondary)', borderRadius: '12px', backgroundColor: '#0f172a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-quaternary)', gap: '10px' }}>
+                            <Camera size={48} color="#cbd5e1" />
+                            <div style={{ fontSize: '0.8rem' }}>Camera Preview</div>
+                        </div>
+                    </div>
+                );
+
+            case 'RADIO_GROUP':
+                return (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px', color: 'var(--text-primary)' }}>{comp.props.label || 'Radio Group'}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {(comp.props.options || ['Option 1', 'Option 2']).map((opt, i) => (
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: '2px solid var(--border-secondary)', backgroundColor: 'transparent' }}></div>
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>{opt}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+
+            case 'VARIABLE_TEXT':
+                return (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                        {comp.props.label && <div style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '4px' }}>{comp.props.label}</div>}
+                        <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                            {`@${comp.props.targetVariable || 'Variable'}`}
+                        </div>
+                    </div>
+                );
+
             default:
                 if (CHROMELESS_COMPONENT_TYPES.includes(comp.type)) {
                     if (viewMode === 'DESIGN') {

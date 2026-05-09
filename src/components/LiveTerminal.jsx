@@ -1685,12 +1685,14 @@ const LiveTerminal = () => {
           }
 
           if (action.type === 'CREATE_RECORD') {
-            const { addTableRecord } = await import('../utils/database');
-            await addTableRecord(tableId, resolvedData);
+            const { addTableRecord, resolveTableIdReference } = await import('../utils/database');
+            const resolvedTableId = await resolveTableIdReference(tableId);
+            await addTableRecord(resolvedTableId, resolvedData);
           } else {
             const recordId = await resolveSourceValue('STATIC', rawRecordId);
-            const { updateTableRecord } = await import('../utils/database');
-            await updateTableRecord(tableId, recordId, resolvedData);
+            const { updateTableRecord, resolveTableIdReference } = await import('../utils/database');
+            const resolvedTableId = await resolveTableIdReference(tableId);
+            await updateTableRecord(resolvedTableId, recordId, resolvedData);
           }
         } else if (['TABLE_RECORD_LOAD', 'TABLE_RECORD_CREATE', 'TABLE_RECORD_CREATE_OR_LOAD'].includes(action.type)) {
           const { placeholderId, idType = 'STATIC', idValue = '' } = action.payload || {};

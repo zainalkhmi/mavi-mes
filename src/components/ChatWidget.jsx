@@ -295,7 +295,7 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
         <h3 style={{ margin: '0 0 10px 0', color: '#1e293b' }}>Supabase Belum Dikonfigurasi</h3>
         <p style={{ fontSize: '0.85rem', color: '#64748b', lineHeight: '1.5' }}>
           Fitur chat memerlukan koneksi Supabase. Silakan buka: <br/>
-          <strong>System -> Supabase Settings</strong> <br/>
+          <strong>System &gt; Supabase Settings</strong> <br/>
           untuk memasukkan URL dan API Key Anda.
         </p>
         <button 
