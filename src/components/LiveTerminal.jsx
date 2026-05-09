@@ -86,7 +86,6 @@ import {
   MoreVertical,
   HardDrive
 } from 'lucide-react';
-import * as offlineDb from '../utils/offlineDb';
 import { toast } from 'react-hot-toast';
 import obd2Service from '../utils/obd2Service';
 import WebcamComp from 'react-webcam';
@@ -94,7 +93,7 @@ import Tesseract from 'tesseract.js';
 import { listManualSummaries, getManualById, uploadManualImage } from '../utils/supabaseManualDB';
 import { saveLiveMeasurement } from '../utils/supabaseUtilityDB';
 import { getAllFrontlineApps, getProductionQueue } from '../utils/supabaseFrontlineDB';
-import { getTableRecords, queryTableRecords, getTableById, resolveTableIdReference } from '../utils/supabaseTablesDB';
+import { getTableRecords, queryTableRecords, getTableById, resolveTableIdReference, addTableRecord } from '../utils/supabaseTablesDB';
 import { saveCompletion } from '../utils/supabaseCompletionsDB';
 import { getMachines, getStations } from '../utils/database';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -762,35 +761,25 @@ const LiveTerminal = () => {
   };
 
   const runStressTest = async () => {
-    const count = 500;
-    const toastId = toast.loading(`Queueing ${count} stress test items...`);
+    const count = 10; // Reduced for direct cloud mode
+    const toastId = toast.loading(`Sending ${count} test records to cloud...`);
 
     try {
-      const resolvedTableId = await resolveTableIdReference('STRESS_TEST_TABLE');
-      for (let i = 0; i < count; i++) {
-        await offlineDb.addToSyncQueue('ADD_RECORD', {
-          tableId: resolvedTableId,
-          recordId: `STRESS_${Date.now()}_${i}`,
-          data: {
-            timestamp: new Date().toISOString(),
-            index: i,
-            note: 'Stress test record for performance verification'
-          }
-        });
-      }
-      toast.success(`${count} items added to sync queue for table ${resolvedTableId}. Go online to trigger sync.`, { id: toastId });
+        const resolvedTableId = await resolveTableIdReference('STRESS_TEST_TABLE');
+        for (let i = 0; i < count; i++) {
+            await addTableRecord(resolvedTableId, {
+                timestamp: new Date().toISOString(),
+                index: i,
+                note: 'Direct cloud stress test'
+            });
+        }
+        toast.success(`Sent ${count} records directly to Supabase table ${resolvedTableId}.`, { id: toastId });
     } catch (err) {
-      toast.error(`Stress test failed to queue: ${err?.message || 'Unknown error'}`);
-      toast.dismiss(toastId);
+        toast.error(`Cloud test failed: ${err?.message || 'Unknown error'}`);
+        toast.dismiss(toastId);
     }
   };
 
-  const clearSyncQueue = async () => {
-    if (window.confirm('Clear all pending sync items?')) {
-      await offlineDb.db.syncQueue.clear();
-      toast.success('Sync queue cleared');
-    }
-  };
 
   const handleVisionOcr = async (comp, webcamRef) => {
     if (!webcamRef.current) return;
@@ -913,7 +902,7 @@ const LiveTerminal = () => {
   useEffect(() => {
     if (!selectedApp || !selectedApp.config?.iotConfig) return;
 
-    const { brokerUrl, topics } = selectedApp.config.iotConfig;
+    const { brokerUrl, topics = [] } = selectedApp.config.iotConfig;
     console.log(`LiveTerminal: Connecting to IoT Broker: ${brokerUrl}`);
 
     // Connect to broker
@@ -1159,7 +1148,16 @@ const LiveTerminal = () => {
       user: launchOperator || prev.user || 'Operator',
       station: launchStation || prev.station || 'WS-01'
     }));
-    setAppVariables(normalizedApp.config?.appVariables || []);
+    const resolvedVariables = (normalizedApp.config?.appVariables || []).map(v => {
+      let val = v.defaultValue;
+      if (typeof val === 'string' && val.startsWith('@APP_INFO.')) {
+        if (val === '@APP_INFO.USER') val = launchOperator || appContext.user || 'Operator';
+        else if (val === '@APP_INFO.STATION') val = launchStation || appContext.station || 'WS-01';
+        else if (val === '@APP_INFO.APP_NAME') val = normalizedApp.name || '';
+      }
+      return { ...v, value: val };
+    });
+    setAppVariables(resolvedVariables);
     setAppFunctions(normalizedApp.config?.appFunctions || []);
     setRecordPlaceholders(normalizedApp.config?.recordPlaceholders || []);
     setRecordPlaceholderData({});
@@ -1638,7 +1636,8 @@ const LiveTerminal = () => {
     const runActions = async (actions) => {
       if (!actions) return;
       for (const action of actions) {
-        if (action.type === 'SET_VARIABLE') {
+        try {
+          if (action.type === 'SET_VARIABLE') {
           const { varPath, value, valueType } = action.payload;
           const resolvedValue = await resolveSourceValue(valueType || 'STATIC', value);
           if (varPath === 'APP_INFO.USER') setAppContext(prev => ({ ...prev, user: resolvedValue }));
@@ -1685,14 +1684,26 @@ const LiveTerminal = () => {
           }
 
           if (action.type === 'CREATE_RECORD') {
-            const { addTableRecord, resolveTableIdReference } = await import('../utils/database');
+            const { addTableRecord, resolveTableIdReference } = await import('../utils/supabaseTablesDB');
             const resolvedTableId = await resolveTableIdReference(tableId);
+            if (!resolvedData.recordId && !resolvedData.id) {
+              resolvedData.recordId = `QC_${Date.now()}`;
+            }
             await addTableRecord(resolvedTableId, resolvedData);
           } else {
             const recordId = await resolveSourceValue('STATIC', rawRecordId);
-            const { updateTableRecord, resolveTableIdReference } = await import('../utils/database');
+            const { updateTableRecord, resolveTableIdReference, getTableRecords } = await import('../utils/supabaseTablesDB');
             const resolvedTableId = await resolveTableIdReference(tableId);
-            await updateTableRecord(resolvedTableId, recordId, resolvedData);
+            
+            // For Supabase, we need the internal row ID.
+            const records = await getTableRecords(resolvedTableId);
+            const target = records.find(r => String(r.recordId).toLowerCase() === String(recordId).toLowerCase());
+            
+            if (target) {
+              await updateTableRecord(target.id, resolvedData);
+            } else {
+              throw new Error(`Record "${recordId}" not found in table "${tableId}"`);
+            }
           }
         } else if (['TABLE_RECORD_LOAD', 'TABLE_RECORD_CREATE', 'TABLE_RECORD_CREATE_OR_LOAD'].includes(action.type)) {
           const { placeholderId, idType = 'STATIC', idValue = '' } = action.payload || {};
@@ -1701,7 +1712,7 @@ const LiveTerminal = () => {
           const resolvedId = await resolveSourceValue(idType, idValue);
 
           const loadById = async () => {
-            const { getTableRecords } = await import('../utils/database');
+            const { getTableRecords } = await import('../utils/supabaseTablesDB');
             const rows = await getTableRecords(placeholder.tableId);
             const found = (rows || []).find(r => String(r.id) === String(resolvedId));
             if (found) {
@@ -1712,7 +1723,7 @@ const LiveTerminal = () => {
           };
 
           const createById = async () => {
-            const { addTableRecord } = await import('../utils/database');
+            const { addTableRecord } = await import('../utils/supabaseTablesDB');
             const created = await addTableRecord(placeholder.tableId, { id: resolvedId });
             setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: created || { id: resolvedId } }));
             return true;
@@ -1803,6 +1814,10 @@ const LiveTerminal = () => {
           } catch (err) {
             console.error(`[LinkedRecords] Failed to ${action.type}:`, err);
           }
+        }
+        } catch (err) {
+          console.error(`Action execution failed (${action.type}):`, err);
+          toast.error(`Action Failed: ${err.message || 'Unknown error'}`);
         }
       } // End actions loop
     };
@@ -3197,7 +3212,7 @@ const LiveTerminal = () => {
                         let resolvedProps = { ...comp.props };
 
                         // 2. Resolve Data Bindings (@Variable, @Record.Field)
-                        const propsToResolve = ['text', 'label', 'defaultValue', 'value', 'placeholder', 'src', 'title', 'url', 'varSource'];
+                        const propsToResolve = ['text', 'label', 'defaultValue', 'value', 'placeholder', 'src', 'title', 'url', 'varSource', 'targetVariable'];
                         propsToResolve.forEach(p => {
                           if (typeof resolvedProps[p] === 'string' && resolvedProps[p].startsWith('@')) {
                             resolvedProps[p] = resolveValue(resolvedProps[p]);
@@ -3796,8 +3811,8 @@ const LiveTerminal = () => {
                               <div>
                                 <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '12px', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a' }}>{comp.props.label}{comp.props.required ? ' *' : ''}</div>
                                 <div style={{ display: 'flex', gap: '12px' }}>
-                                  <button onClick={() => { setQualityResult(p => ({ ...p, [comp.id]: 'PASS' })); setQualityData(p => ({ ...p, [comp.id]: 'PASS' })); fireWidgetTriggers(comp, 'ON_CHANGE'); }} style={{ flex: 1, padding: '18px', backgroundColor: res === 'PASS' ? '#16a34a' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : 'white'), border: `2px solid ${res === 'PASS' ? '#16a34a' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0')}`, borderRadius: '6px', color: res === 'PASS' ? 'white' : '#16a34a', fontSize: '1rem', fontWeight: 900, cursor: 'pointer' }}>PASS</button>
-                                  <button onClick={() => { setQualityResult(p => ({ ...p, [comp.id]: 'FAIL' })); setQualityData(p => ({ ...p, [comp.id]: 'FAIL' })); fireWidgetTriggers(comp, 'ON_CHANGE'); }} style={{ flex: 1, padding: '18px', backgroundColor: res === 'FAIL' ? '#dc2626' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : 'white'), border: `2px solid ${res === 'FAIL' ? '#dc2626' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0')}`, borderRadius: '6px', color: res === 'FAIL' ? 'white' : '#dc2626', fontSize: '1rem', fontWeight: 900, cursor: 'pointer' }}>FAIL</button>
+                                  <button onClick={() => { setQualityResult(p => ({ ...p, [comp.id]: 'PASS' })); setQualityData(p => ({ ...p, [comp.id]: 'PASS' })); syncVariable('PASS'); fireWidgetTriggers(comp, 'ON_CHANGE'); }} style={{ flex: 1, padding: '18px', backgroundColor: res === 'PASS' ? '#16a34a' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : 'white'), border: `2px solid ${res === 'PASS' ? '#16a34a' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0')}`, borderRadius: '6px', color: res === 'PASS' ? 'white' : '#16a34a', fontSize: '1rem', fontWeight: 900, cursor: 'pointer' }}>PASS</button>
+                                  <button onClick={() => { setQualityResult(p => ({ ...p, [comp.id]: 'FAIL' })); setQualityData(p => ({ ...p, [comp.id]: 'FAIL' })); syncVariable('FAIL'); fireWidgetTriggers(comp, 'ON_CHANGE'); }} style={{ flex: 1, padding: '18px', backgroundColor: res === 'FAIL' ? '#dc2626' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : 'white'), border: `2px solid ${res === 'FAIL' ? '#dc2626' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0')}`, borderRadius: '6px', color: res === 'FAIL' ? 'white' : '#dc2626', fontSize: '1rem', fontWeight: 900, cursor: 'pointer' }}>FAIL</button>
                                 </div>
                                 {res === 'FAIL' && <div style={{ marginTop: '10px', padding: '10px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? 'rgba(220, 38, 38, 0.1)' : '#fef2f2', borderRadius: '6px', border: '1px solid #dc2626', color: '#fca5a5', fontSize: '0.8rem', fontWeight: 600 }}>Defect detected - Log a defect in the right panel</div>}
                               </div>
@@ -3813,7 +3828,7 @@ const LiveTerminal = () => {
                                 <input
                                   type="number"
                                   value={toleranceValues[comp.id] || ''}
-                                  onChange={e => { setToleranceValues(prev => ({ ...prev, [comp.id]: e.target.value })); fireWidgetTriggers(comp, 'ON_CHANGE'); }}
+                                  onChange={e => { setToleranceValues(prev => ({ ...prev, [comp.id]: e.target.value })); syncVariable(e.target.value); fireWidgetTriggers(comp, 'ON_CHANGE'); }}
                                   style={{
                                     width: '100%', padding: '12px',
                                     border: `2px solid ${inR ? '#22c55e' : outR ? '#ef4444' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0')}`,
@@ -3899,7 +3914,7 @@ const LiveTerminal = () => {
                           case 'IMAGE': return comp.props.src ? <img src={comp.props.src} alt={comp.props.alt || 'Image'} style={{ maxWidth: '100%', borderRadius: '4px', display: 'block' }} /> : <div style={{ padding: '30px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc', border: `1px dashed ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#cbd5e1'}`, borderRadius: '6px', textAlign: 'center', color: '#94a3b8' }}><ImageIcon size={32} /><div style={{ fontSize: '0.8rem', marginTop: '6px' }}>No image URL</div></div>;
                           case 'VARIABLE_TEXT': {
                             let vv = '';
-                            const varSource = resolvedProps.varSource || comp.props.varSource;
+                            const varSource = resolvedProps.varSource || comp.props.varSource || resolvedProps.targetVariable || comp.props.targetVariable;
 
                             if (comp.props.iotTopicId && machineData[comp.props.iotTopicId] !== undefined) {
                               vv = String(machineData[comp.props.iotTopicId]);
@@ -3925,7 +3940,23 @@ const LiveTerminal = () => {
                                 vv = v ? v.value : '{' + varSource + '}';
                               }
                             }
-                            return <div style={{ fontSize: (comp.props.fontSize || 16) + 'px', color: comp.props.color || (selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a'), fontWeight: comp.props.fontWeight || 600, fontStyle: comp.props.fontStyle, textAlign: comp.props.textAlign }}>{vv}</div>;
+                            return (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: comp.props.textAlign }}>
+                                {comp.props.label && (
+                                  <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.025em' }}>
+                                    {comp.props.label}
+                                  </div>
+                                )}
+                                <div style={{
+                                  fontSize: (comp.props.fontSize || 18) + 'px',
+                                  color: comp.props.color || (selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a'),
+                                  fontWeight: comp.props.fontWeight || 700,
+                                  fontStyle: comp.props.fontStyle
+                                }}>
+                                  {vv}
+                                </div>
+                              </div>
+                            );
                           }
                           case 'NUMBER_INPUT': return (
                             <div>
@@ -4792,19 +4823,14 @@ const LiveTerminal = () => {
                       return (
                         <div key={comp.id || idx} ref={(el) => { if (comp?.id) widgetContainerRefs.current[comp.id] = el; }} style={containerStyle}>
                           <div style={{
-                            border: err ? '2px solid #ef4444' : (selectedApp?.is_published ? 'none' : '3px dashed #3b82f6'),
+                            border: err ? '2px solid #ef4444' : 'none',
                             borderRadius: '8px',
                             padding: err ? '10px' : 0,
-                            backgroundColor: err ? '#fee2e2' : 'rgba(59, 130, 246, 0.05)',
+                            backgroundColor: err ? '#fee2e2' : 'transparent',
                             height: isAbsolute ? '100%' : 'auto',
                             position: 'relative',
                             boxSizing: 'border-box'
                           }}>
-                            {!selectedApp?.is_published && (
-                              <div style={{ position: 'absolute', top: -12, left: 4, fontSize: '10px', color: '#3b82f6', backgroundColor: 'white', padding: '0 4px', zIndex: 1000 }}>
-                                {comp.name} ({comp.type})
-                              </div>
-                            )}
                             {renderWidget()}
                           </div>
                           {err && (

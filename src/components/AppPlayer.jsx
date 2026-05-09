@@ -84,13 +84,6 @@ function AppCard({ app, isActive, isFavorite, isRecent, onLaunch, onFavorite }) 
         return { bg: '#f1f5f9', text: '#475569' };
     };
     const statusStyle = getStatusStyle(app.approval_status || 'DRAFT');
-    const [isCached, setIsCached] = useState(false);
-
-    useEffect(() => {
-        import('../utils/offlineDb').then(m => {
-            m.getCachedApp(app.id).then(res => setIsCached(!!res));
-        });
-    }, [app.id]);
 
     return (
         <div
@@ -138,11 +131,6 @@ function AppCard({ app, isActive, isFavorite, isRecent, onLaunch, onFavorite }) 
                     </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', position: 'absolute', right: '12px', top: '8px', zIndex: 1 }}>
-                    {isCached && (
-                        <div title="Available Offline" style={{ backgroundColor: 'rgba(255,255,255,0.2)', padding: '4px', borderRadius: '6px', color: 'white', display: 'flex' }}>
-                            <CheckCircle2 size={12} />
-                        </div>
-                    )}
                     <button
                         onClick={(e) => { e.stopPropagation(); onFavorite(app.id); }}
                         title={isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}

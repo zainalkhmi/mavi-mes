@@ -1,6 +1,5 @@
 import { getSupabaseClient } from './supabaseManualDB.js';
 import automationEngine from './automationEngine.js';
-import * as offlineDb from './offlineDb';
 
 /**
  * supabaseTablesDB.js
@@ -78,17 +77,9 @@ export async function getTables() {
             .order('created_at', { ascending: true });
         if (error) throw error;
         const tables = (data || []).map(rowToTable);
-
-        // Cache them for offline use
-        for (const t of tables) {
-            await offlineDb.cacheApp(t);
-        }
-
         return tables;
     } catch (e) {
-        console.warn('[Offline Mode] Could not load tables from network, trying cache.', e);
-        const cached = await offlineDb.db.apps.toArray();
-        if (cached && cached.length > 0) return cached;
+        console.error('[Supabase] Could not load tables:', e);
         return [];
     }
 }
@@ -257,14 +248,10 @@ export async function getTableRecords(tableId) {
             .order('created_at', { ascending: true });
         if (error) throw error;
         const records = (data || []).map(rowToRecord);
-
-        // Cache records
-        await offlineDb.cacheTableRecords(normalizedTableId, records);
-
         return records;
     } catch (e) {
-        console.warn(`[Offline Mode] Network failed for table ${tableId}, loading from cache.`, e);
-        return await offlineDb.getCachedTableRecords(tableId);
+        console.error(`[Supabase] Failed to load records for table ${tableId}:`, e);
+        return [];
     }
 }
 
@@ -379,10 +366,6 @@ export async function addTableRecord(tableId, recordData) {
         if (error) throw error;
         const record = rowToRecord(data);
 
-        // Update cache immediately
-        const cached = await offlineDb.getCachedTableRecords(normalizedTableId);
-        await offlineDb.cacheTableRecords(normalizedTableId, [...cached, record]);
-
         // Fire automation trigger
         if (automationEngine && typeof automationEngine.trigger === 'function') {
             automationEngine.trigger('TABLE_ROW_ADDED', {
@@ -395,24 +378,8 @@ export async function addTableRecord(tableId, recordData) {
 
         return record;
     } catch (err) {
-        console.warn('[Offline Mode] Network failed to add record, adding to sync queue.', err);
-        const tempId = `temp_${Date.now()}`;
-        const offlineRecord = {
-            id: tempId,
-            tableId: normalizedTableId,
-            recordId,
-            ...calculatedPayload,
-            createdAt: new Date().toISOString(),
-            isOffline: true
-        };
-
-        await offlineDb.addToSyncQueue('ADD_RECORD', { tableId: normalizedTableId, recordId, data: calculatedPayload });
-
-        // Add to local cache so user sees it immediately
-        const cached = await offlineDb.getCachedTableRecords(normalizedTableId);
-        await offlineDb.cacheTableRecords(normalizedTableId, [...cached, offlineRecord]);
-
-        return offlineRecord;
+        console.error('[Supabase] Failed to add record:', err);
+        throw err;
     }
 }
 export async function deleteTableRecord(recordInternalId) {

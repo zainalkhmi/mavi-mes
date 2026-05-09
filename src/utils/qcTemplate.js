@@ -70,6 +70,7 @@ export function createQCTemplate() {
                                 targetVariable: "Part_ID",
                                 triggers: [
                                     {
+                                        name: "Submit Barcode & Auto Next",
                                         event: "ON_CHANGE",
                                         actions: [
                                             { type: "NEXT_STEP" }
@@ -114,7 +115,7 @@ export function createQCTemplate() {
                             x: 50, y: 500, w: 900, h: 60,
                             props: {
                                 label: "CONTINUE", text: "CONTINUE", backgroundColor: "#3b82f6", color: "white", fontSize: 16, fontWeight: "bold",
-                                triggers: [{ event: "ON_CLICK", actions: [{ type: "NEXT_STEP" }] }]
+                                triggers: [{ name: "Confirm Specs & Next", event: "ON_CLICK", actions: [{ type: "NEXT_STEP" }] }]
                             }
                         }
                     ]
@@ -158,7 +159,7 @@ export function createQCTemplate() {
                             x: 50, y: 500, w: 900, h: 60,
                             props: {
                                 label: "CONTINUE", text: "CONTINUE", backgroundColor: "#3b82f6", color: "white", fontSize: 16, fontWeight: "bold",
-                                triggers: [{ event: "ON_CLICK", actions: [{ type: "NEXT_STEP" }] }]
+                                triggers: [{ name: "Dimensional Complete & Next", event: "ON_CLICK", actions: [{ type: "NEXT_STEP" }] }]
                             }
                         }
                     ]
@@ -199,7 +200,7 @@ export function createQCTemplate() {
                             x: 50, y: 730, w: 900, h: 60,
                             props: {
                                 label: "CONTINUE", text: "CONTINUE", backgroundColor: "#3b82f6", color: "white", fontSize: 16, fontWeight: "bold",
-                                triggers: [{ event: "ON_CLICK", actions: [{ type: "NEXT_STEP" }] }]
+                                triggers: [{ name: "Visual Complete & Next", event: "ON_CLICK", actions: [{ type: "NEXT_STEP" }] }]
                             }
                         }
                     ]
@@ -240,7 +241,7 @@ export function createQCTemplate() {
                             x: 50, y: 420, w: 900, h: 60,
                             props: {
                                 label: "CONTINUE", text: "CONTINUE", backgroundColor: "#3b82f6", color: "white", fontSize: 16, fontWeight: "bold",
-                                triggers: [{ event: "ON_CLICK", actions: [{ type: "NEXT_STEP" }] }]
+                                triggers: [{ name: "Functional Complete & Next", event: "ON_CLICK", actions: [{ type: "NEXT_STEP" }] }]
                             }
                         }
                     ]
@@ -298,7 +299,7 @@ export function createQCTemplate() {
                             x: 50, y: 400, w: 900, h: 60,
                             props: {
                                 label: "CONTINUE TO SIGN-OFF", text: "CONTINUE TO SIGN-OFF", backgroundColor: "#3b82f6", color: "white", fontSize: 16, fontWeight: "bold",
-                                triggers: [{ event: "ON_CLICK", actions: [{ type: "NEXT_STEP" }] }]
+                                triggers: [{ name: "Confirm Specs & Next", event: "ON_CLICK", actions: [{ type: "NEXT_STEP" }] }]
                             }
                         }
                     ]
@@ -325,6 +326,7 @@ export function createQCTemplate() {
                                 label: "SUBMIT QC RECORD", text: "SUBMIT QC RECORD", backgroundColor: "#10b981", color: "white", fontSize: 18, fontWeight: "bold",
                                 triggers: [
                                     {
+                                        name: "Submit Inspection Record",
                                         event: "ON_CLICK",
                                         actions: [
                                             { 

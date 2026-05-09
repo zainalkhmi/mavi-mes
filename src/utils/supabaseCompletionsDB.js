@@ -1,5 +1,5 @@
 import { getSupabaseClient } from './supabaseManualDB';
-import * as offlineDb from './offlineDb';
+
 
 /**
  * App Completions Data Utility
@@ -39,15 +39,8 @@ export const saveCompletion = async (completionData) => {
         if (error) throw error;
         return data[0];
     } catch (error) {
-        console.warn('[Offline Mode] Network failed to save completion, adding to sync queue.', error);
-        
-        await offlineDb.addToSyncQueue('COMPLETION', completionData);
-        
-        return { 
-            ...completionData, 
-            id: `offline_${Date.now()}`,
-            isOffline: true 
-        };
+        console.error('[Supabase] Failed to save completion:', error);
+        throw error;
     }
 };
 

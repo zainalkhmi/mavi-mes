@@ -48,7 +48,6 @@ import DashboardManager from './components/DashboardManager';
 import DashboardEditor from './components/DashboardEditor';
 import AiSettings from './components/AiSettings';
 import SupabaseSettings from './components/SupabaseSettings';
-import { startSyncProcess } from './utils/syncManager';
 import { Toaster } from 'react-hot-toast';
 
 const Placeholder = ({ title }) => (
@@ -102,9 +101,6 @@ const App = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    startSyncProcess();
-  }, []);
 
   const navLinkStyle = (path) => ({
     color: location.pathname === path ? '#001e3c' : 'rgba(255,255,255,0.7)',

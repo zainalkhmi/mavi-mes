@@ -1,87 +1,14 @@
 import { getSupabaseClient } from './supabaseManualDB.js';
-import { getStations } from './database.js';
-import * as offlineDb from './offlineDb';
 
-const LOCAL_APP_CACHE_KEYS = ['offline_apps_cache', 'mavi_offline_vault', 'draft_frontline_apps'];
+async function getStations() {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('stations').select('*').order('name');
+    if (error) return [];
+    return data || [];
+}
 
-const pruneLocalAppCaches = (appId) => {
-    if (typeof window === 'undefined' || !window?.localStorage) return;
 
-    const normalizedId = String(appId ?? '');
 
-    LOCAL_APP_CACHE_KEYS.forEach((key) => {
-        try {
-            const raw = window.localStorage.getItem(key);
-            if (!raw) return;
-
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) {
-                const next = parsed.filter(app => String(app?.id ?? '') !== normalizedId);
-                if (next.length === parsed.length) return;
-
-                if (next.length > 0) {
-                    window.localStorage.setItem(key, JSON.stringify(next));
-                } else {
-                    window.localStorage.removeItem(key);
-                }
-            } else if (parsed && typeof parsed === 'object') {
-                let mutated = false;
-                Object.keys(parsed).forEach((cacheKey) => {
-                    const value = parsed[cacheKey];
-                    if (String(cacheKey) === normalizedId || (value && String(value.id ?? '') === normalizedId)) {
-                        delete parsed[cacheKey];
-                        mutated = true;
-                    }
-                });
-
-                if (mutated) {
-                    if (Object.keys(parsed).length > 0) {
-                        window.localStorage.setItem(key, JSON.stringify(parsed));
-                    } else {
-                        window.localStorage.removeItem(key);
-                    }
-                }
-            }
-        } catch (cacheErr) {
-            console.warn(`[Cache] Failed to prune ${key}`, cacheErr);
-        }
-    });
-};
-
-const pruneOfflineIndexedDbAppCache = async (appId) => {
-    const normalizedId = String(appId ?? '').trim();
-    if (!normalizedId) return;
-
-    try {
-        await offlineDb.db.apps.delete(normalizedId);
-    } catch (err) {
-        console.warn('[Offline Cache] Failed to prune IndexedDB app cache', err);
-    }
-};
-
-const isNetworkError = (error) => {
-    if (!error) return false;
-    const message = String(error.message || error.toString() || '').toLowerCase();
-    if (!message) return false;
-
-    return (
-        message.includes('failed to fetch') ||
-        message.includes('fetch failed') ||
-        message.includes('networkerror') ||
-        message.includes('network request failed') ||
-        message.includes('network timeout') ||
-        message.includes('request timed out') ||
-        message.includes('socket hang up') ||
-        message.includes('offline') ||
-        message.includes('dns') ||
-        message.includes('cors')
-    );
-};
-
-const isUuid = (value) => {
-    if (!value || typeof value !== 'string') return false;
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.trim());
-};
 
 export async function getTables() {
     try {
@@ -107,9 +34,6 @@ export async function getTables() {
  */
 
 export async function getAllFrontlineApps() {
-    let cloudApps = [];
-    let cloudError = null;
-
     try {
         const supabase = getSupabaseClient();
         const { data, error } = await supabase
@@ -117,67 +41,25 @@ export async function getAllFrontlineApps() {
             .select('*')
             .order('name');
 
-        if (error) {
-            cloudError = error;
-            console.warn('[Supabase] Fetch failed, falling back to cache.', error);
-        } else {
-            cloudApps = (data || []).map(app => {
-                if (app.config && app.config.iotConfig && app.config.iotConfig.brokerUrl) {
-                    let url = app.config.iotConfig.brokerUrl;
-                    if (url === 'ws://broker.emqx.io:8083/mqtt') url = 'wss://broker.emqx.io:8084/mqtt';
-                    else if (url.startsWith('ws://') && typeof window !== 'undefined' && window.location.protocol === 'https:') {
-                        url = url.replace('ws://', 'wss://');
-                    }
-                    if (url !== app.config.iotConfig.brokerUrl) {
-                        return { ...app, config: { ...app.config, iotConfig: { ...app.config.iotConfig, brokerUrl: url } } };
-                    }
+        if (error) throw error;
+        
+        return (data || []).map(app => {
+            if (app.config?.iotConfig?.brokerUrl) {
+                let url = app.config.iotConfig.brokerUrl;
+                if (url === 'ws://broker.emqx.io:8083/mqtt') url = 'wss://broker.emqx.io:8084/mqtt';
+                else if (url.startsWith('ws://') && typeof window !== 'undefined' && window.location.protocol === 'https:') {
+                    url = url.replace('ws://', 'wss://');
                 }
-                return app;
-            });
-
-            // Save successfully fetched apps to offline cache
-            for (const app of cloudApps) {
-                await offlineDb.cacheApp(app);
+                if (url !== app.config.iotConfig.brokerUrl) {
+                    return { ...app, config: { ...app.config, iotConfig: { ...app.config.iotConfig, brokerUrl: url } } };
+                }
             }
-        }
+            return app;
+        });
     } catch (err) {
-        cloudError = err;
-        console.warn('[Offline Mode] Supabase connection failed.');
+        console.error('[Supabase] Failed to fetch frontline apps:', err);
+        return [];
     }
-
-    // --- UNIVERSAL MERGE LOGIC ---
-    let combined = [...cloudApps];
-
-    // Load from IndexedDB
-    const cached = await offlineDb.db.apps.toArray();
-    cached.forEach(la => {
-        const exists = combined.find(a => String(a.id) === String(la.id));
-        if (!exists) {
-            combined.push(la);
-        } else {
-            if (new Date(la.updated_at) > new Date(exists.updated_at)) {
-                const idx = combined.indexOf(exists);
-                combined[idx] = la;
-            }
-        }
-    });
-
-    // Support legacy localStorage vault if still exists
-    if (typeof window !== 'undefined') {
-        try {
-            const rawVault = localStorage.getItem('mavi_offline_vault');
-            if (rawVault) {
-                const vault = JSON.parse(rawVault);
-                vault.forEach(va => {
-                    const exists = combined.find(a => String(a.id) === String(va.id));
-                    if (!exists) combined.push(va);
-                });
-            }
-        } catch (e) { /* ignore */ }
-    }
-
-    // Final Sort
-    return combined.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
 }
 
 export async function saveFrontlineApp(app) {
@@ -185,80 +67,40 @@ export async function saveFrontlineApp(app) {
         name: app.name,
         category: app.category || 'Shop Floor',
         config: app.config || { components: [] },
-        // Governance fields
         is_published: app.is_published ?? false,
         approval_status: app.approval_status || 'DRAFT',
         version: app.version || 1,
         updated_at: new Date().toISOString()
     };
 
-    try {
-        const supabase = getSupabaseClient();
-        const saveWithPayload = async (currentPayload) => {
-            if (app.id) {
-                return await supabase
-                    .from('frontline_apps')
-                    .update(currentPayload)
-                    .eq('id', app.id)
-                    .select()
-                    .single();
-            } else {
-                return await supabase
-                    .from('frontline_apps')
-                    .insert({ ...currentPayload, created_at: new Date().toISOString() })
-                    .select()
-                    .single();
-            }
-        };
-
-        let result = await saveWithPayload(payload);
-
-        // Backward compatibility if DB schema doesn't have category yet
-        if (result.error && String(result.error.message || '').includes('category')) {
-            const fallbackPayload = { ...payload };
-            delete fallbackPayload.category;
-            result = await saveWithPayload(fallbackPayload);
+    const supabase = getSupabaseClient();
+    const saveWithPayload = async (currentPayload) => {
+        if (app.id) {
+            return await supabase
+                .from('frontline_apps')
+                .update(currentPayload)
+                .eq('id', app.id)
+                .select()
+                .single();
+        } else {
+            return await supabase
+                .from('frontline_apps')
+                .insert({ ...currentPayload, created_at: new Date().toISOString() })
+                .select()
+                .single();
         }
+    };
 
-        // NEW: Fallback for Enterprise Governance fields if migration hasn't been run
-        if (result.error && (
-            String(result.error.message || '').includes('is_published') ||
-            String(result.error.message || '').includes('approval_status') ||
-            String(result.error.message || '').includes('version')
-        )) {
-            console.warn('[Supabase] Governance columns missing, falling back to legacy save.');
-            const legacyPayload = {
-                name: payload.name,
-                category: payload.category, // might still fail if category is also missing
-                config: payload.config,
-                updated_at: payload.updated_at
-            };
-            if (result.error && String(result.error.message || '').includes('category')) {
-                delete legacyPayload.category;
-            }
-            result = await saveWithPayload(legacyPayload);
-        }
+    let result = await saveWithPayload(payload);
 
-        if (result.error) {
-            console.error('[Supabase] Save failed permanently:', result.error);
-            throw result.error;
-        }
-
-        // On success, sync to local cache immediately
-        await offlineDb.cacheApp(result.data);
-
-        return result.data;
-    } catch (err) {
-        console.warn('[Offline Mode] Intercepting save, applying to IndexedDB', err);
-        let outputApp = { ...app, ...payload };
-
-        if (!outputApp.id) {
-            outputApp.id = `app_${Date.now()}`;
-        }
-
-        await offlineDb.cacheApp(outputApp);
-        return outputApp;
+    if (result.error && String(result.error.message || '').includes('category')) {
+        const fallbackPayload = { ...payload };
+        delete fallbackPayload.category;
+        result = await saveWithPayload(fallbackPayload);
     }
+
+    if (result.error) throw result.error;
+    return result.data;
 }
 
 /**
@@ -266,226 +108,78 @@ export async function saveFrontlineApp(app) {
  * Copies working 'config' to 'published_config'.
  */
 export async function publishApp(appId) {
-    try {
-        const supabase = getSupabaseClient();
+    const supabase = getSupabaseClient();
 
-        // 1. Get current draft
-        const { data: app, error: fetchError } = await supabase
-            .from('frontline_apps')
-            .select('*')
-            .eq('id', appId)
-            .single();
+    // 1. Get current draft
+    const { data: app, error: fetchError } = await supabase
+        .from('frontline_apps')
+        .select('*')
+        .eq('id', appId)
+        .single();
 
-        if (fetchError) throw fetchError;
+    if (fetchError) throw fetchError;
 
-        // 2. Increment version and copy config
-        let result = await supabase
-            .from('frontline_apps')
-            .update({
-                published_config: app.config,
-                is_published: true,
-                approval_status: 'PUBLISHED',
-                version: (app.version || 0) + 1,
-                updated_at: new Date().toISOString()
-            })
-            .eq('id', appId)
-            .select()
-            .single();
+    // 2. Increment version and copy config
+    let result = await supabase
+        .from('frontline_apps')
+        .update({
+            published_config: app.config,
+            is_published: true,
+            approval_status: 'PUBLISHED',
+            version: (app.version || 0) + 1,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', appId)
+        .select()
+        .single();
 
-        // NEW: Fallback for missing governance columns
-        if (result.error && (
-            String(result.error.message || '').includes('published_config') ||
-            String(result.error.message || '').includes('is_published') ||
-            String(result.error.message || '').includes('version')
-        )) {
-            console.warn('[Supabase] Governance columns missing in publishApp, falling back to legacy update.');
-            result = await supabase
-                .from('frontline_apps')
-                .update({
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', appId)
-                .select()
-                .single();
-        }
-
-        if (result.error) throw result.error;
-        return result.data;
-    } catch (err) {
-        console.warn('[Offline Mode] Intercepting publish, applying to vault', err);
-        const raw = localStorage.getItem('mavi_offline_vault');
-        let cached = [];
-        try { cached = raw ? JSON.parse(raw) : []; } catch (e) { cached = []; }
-
-        const index = cached.findIndex(a => String(a.id) === String(appId));
-
-        if (index > -1) {
-            const appData = cached[index];
-            const updatedApp = {
-                ...appData,
-                published_config: appData.config,
-                is_published: true,
-                approval_status: 'PUBLISHED',
-                version: (parseInt(appData.version) || 0) + 1,
-                updated_at: new Date().toISOString()
-            };
-            cached[index] = updatedApp;
-            localStorage.setItem('mavi_offline_vault', JSON.stringify(cached));
-            return updatedApp;
-        }
-        throw err;
-    }
+    if (result.error) throw result.error;
+    return result.data;
 }
 
 export async function requestApproval(appId) {
-    try {
-        const supabase = getSupabaseClient();
-        const { data, error } = await supabase
-            .from('frontline_apps')
-            .update({
-                approval_status: 'PENDING',
-                updated_at: new Date().toISOString()
-            })
-            .eq('id', appId)
-            .select()
-            .single();
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+        .from('frontline_apps')
+        .update({
+            approval_status: 'PENDING',
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', appId)
+        .select()
+        .single();
 
-        if (error) throw error;
-        return data;
-    } catch (err) {
-        console.warn('[Offline Mode] Intercepting request approval, applying to localStorage cache', err);
-        const cached = JSON.parse(localStorage.getItem('offline_apps_cache') || '[]');
-        const index = cached.findIndex(a => String(a.id) === String(appId));
-
-        if (index > -1) {
-            const updatedApp = {
-                ...cached[index],
-                approval_status: 'PENDING',
-                updated_at: new Date().toISOString()
-            };
-            cached[index] = updatedApp;
-            localStorage.setItem('offline_apps_cache', JSON.stringify(cached));
-            return updatedApp;
-        }
-        throw err;
-    }
+    if (error) throw error;
+    return data;
 }
 
 export async function approveApp(appId, operatorId) {
-    try {
-        const supabase = getSupabaseClient();
-        const { data, error } = await supabase
-            .from('frontline_apps')
-            .update({
-                approval_status: 'APPROVED',
-                approved_by: operatorId,
-                approved_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            })
-            .eq('id', appId)
-            .select()
-            .single();
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+        .from('frontline_apps')
+        .update({
+            approval_status: 'APPROVED',
+            approved_by: operatorId,
+            approved_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', appId)
+        .select()
+        .single();
 
-        if (error) throw error;
-        return data;
-    } catch (err) {
-        console.warn('[Offline Mode] Intercepting approve, applying to localStorage cache', err);
-        const cached = JSON.parse(localStorage.getItem('offline_apps_cache') || '[]');
-        const index = cached.findIndex(a => String(a.id) === String(appId));
-
-        if (index > -1) {
-            const updatedApp = {
-                ...cached[index],
-                approval_status: 'APPROVED',
-                approved_by: operatorId,
-                approved_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            };
-            cached[index] = updatedApp;
-            localStorage.setItem('offline_apps_cache', JSON.stringify(cached));
-            return updatedApp;
-        }
-        throw err;
-    }
+    if (error) throw error;
+    return data;
 }
 
 export async function deleteFrontlineApp(id) {
-    const normalizedId = String(id ?? '').trim();
-    if (!normalizedId) {
-        console.warn('[FrontlineApp] deleteFrontlineApp called without a valid id');
-        return true;
-    }
+    const supabase = getSupabaseClient();
+    const { error } = await supabase
+        .from('frontline_apps')
+        .delete()
+        .eq('id', id);
 
-    // If the ID is not a UUID, we treat it as an offline-only draft
-    if (!isUuid(normalizedId)) {
-        await pruneOfflineIndexedDbAppCache(normalizedId);
-        pruneLocalAppCaches(normalizedId);
-        return true;
-    }
-
-    let supabase;
-    try {
-        supabase = getSupabaseClient();
-    } catch (clientError) {
-        console.warn('[Offline Mode] Supabase client unavailable during delete, pruning local caches only.', clientError);
-        await pruneOfflineIndexedDbAppCache(normalizedId);
-        pruneLocalAppCaches(normalizedId);
-        return true;
-    }
-
-    try {
-        // Delete dependent queue rows first to avoid FK conflicts (409 / 23503)
-        // when production_queue.app_id still references this frontline app.
-        const { error: queueError } = await supabase
-            .from('production_queue')
-            .delete()
-            .eq('app_id', normalizedId);
-
-        if (queueError) {
-            // Ignore when table does not exist in older schemas, otherwise surface error.
-            const isMissingTable = queueError.code === '42P01' || String(queueError.message || '').toLowerCase().includes('production_queue');
-            if (!isMissingTable) throw queueError;
-        }
-
-        // Remove completion history to avoid FK conflicts with completions.app_id
-        const { error: completionsError } = await supabase
-            .from('completions')
-            .delete()
-            .eq('app_id', normalizedId);
-
-        if (completionsError) {
-            const isMissingTable = completionsError.code === '42P01' || String(completionsError.message || '').toLowerCase().includes('completions');
-            if (!isMissingTable) throw completionsError;
-        }
-
-        const { error } = await supabase
-            .from('frontline_apps')
-            .delete()
-            .eq('id', normalizedId);
-
-        if (error) {
-            const isFkConflict = error.code === '23503' || String(error.message || '').toLowerCase().includes('foreign key');
-            if (isFkConflict) {
-                const fkError = new Error('Cannot delete app because it is still referenced by related records. Remove dependent records first, then retry.');
-                fkError.code = '23503';
-                throw fkError;
-            }
-            throw error;
-        }
-
-        await pruneOfflineIndexedDbAppCache(normalizedId);
-        pruneLocalAppCaches(normalizedId);
-        return true;
-    } catch (err) {
-        if (!isNetworkError(err)) {
-            throw err;
-        }
-
-        console.warn('[Offline Mode] Intercepting delete, applying to local caches', err);
-        await pruneOfflineIndexedDbAppCache(normalizedId);
-        pruneLocalAppCaches(normalizedId);
-        return true;
-    }
+    if (error) throw error;
+    return true;
 }
 
 export async function getProductionQueue() {

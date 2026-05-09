@@ -6959,13 +6959,14 @@ const AppBuilder = () => {
             approved_at: app.approved_at || null
         });
         // Migration for legacy single-config apps
-        const appSteps = (app.config.steps || [
-            { id: 'screen_1', title: 'Screen 1', components: app.config.components || [] }
+        const config = app.config || {};
+        const appSteps = (config.steps || [
+            { id: 'screen_1', title: 'Screen 1', components: config.components || [] }
         ]).map(s => ({
             ...s,
             cycleTimeSeconds: clampNonNegativeInt(s.cycleTimeSeconds ?? s.stepCycleTimeSeconds, 60),
             formSubmit: normalizeFormSubmitConfig(s),
-            components: s.components.map(c => ({
+            components: (s.components || []).map(c => ({
                 ...c,
                 x: c.x ?? 50,
                 y: c.y ?? 50,
@@ -6974,10 +6975,10 @@ const AppBuilder = () => {
             }))
         }));
         setSteps(appSteps);
-        setBaseComponents(app.config.baseComponents || []);
-        setAppVariables(app.config.appVariables || []);
-        setAppTriggers(app.config.appTriggers || []);
-        setAppFunctions(app.config.appFunctions || []);
+        setBaseComponents(config.baseComponents || []);
+        setAppVariables(config.appVariables || []);
+        setAppTriggers(config.appTriggers || []);
+        setAppFunctions(config.appFunctions || []);
         setAppTables(app.config.appTables || []);
         setRecordPlaceholders(app.config.recordPlaceholders || []);
         setRecordPlaceholderData({});
