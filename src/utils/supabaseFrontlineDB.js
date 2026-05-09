@@ -48,6 +48,17 @@ const pruneLocalAppCaches = (appId) => {
     });
 };
 
+const pruneOfflineIndexedDbAppCache = async (appId) => {
+    const normalizedId = String(appId ?? '').trim();
+    if (!normalizedId) return;
+
+    try {
+        await offlineDb.db.apps.delete(normalizedId);
+    } catch (err) {
+        console.warn('[Offline Cache] Failed to prune IndexedDB app cache', err);
+    }
+};
+
 const isNetworkError = (error) => {
     if (!error) return false;
     const message = String(error.message || error.toString() || '').toLowerCase();
@@ -244,7 +255,7 @@ export async function saveFrontlineApp(app) {
         if (!outputApp.id) {
             outputApp.id = `app_${Date.now()}`;
         }
-        
+
         await offlineDb.cacheApp(outputApp);
         return outputApp;
     }
@@ -407,6 +418,7 @@ export async function deleteFrontlineApp(id) {
 
     // If the ID is not a UUID, we treat it as an offline-only draft
     if (!isUuid(normalizedId)) {
+        await pruneOfflineIndexedDbAppCache(normalizedId);
         pruneLocalAppCaches(normalizedId);
         return true;
     }
@@ -416,6 +428,7 @@ export async function deleteFrontlineApp(id) {
         supabase = getSupabaseClient();
     } catch (clientError) {
         console.warn('[Offline Mode] Supabase client unavailable during delete, pruning local caches only.', clientError);
+        await pruneOfflineIndexedDbAppCache(normalizedId);
         pruneLocalAppCaches(normalizedId);
         return true;
     }
@@ -460,6 +473,7 @@ export async function deleteFrontlineApp(id) {
             throw error;
         }
 
+        await pruneOfflineIndexedDbAppCache(normalizedId);
         pruneLocalAppCaches(normalizedId);
         return true;
     } catch (err) {
@@ -468,6 +482,7 @@ export async function deleteFrontlineApp(id) {
         }
 
         console.warn('[Offline Mode] Intercepting delete, applying to local caches', err);
+        await pruneOfflineIndexedDbAppCache(normalizedId);
         pruneLocalAppCaches(normalizedId);
         return true;
     }
@@ -594,13 +609,13 @@ export async function getShopFloorRealtimeSnapshot() {
     const andonStationSet = new Set(activeAndons.map(a => a.workstation));
     const registeredStations = await getStations();
     const now = Date.now();
-    
+
     // Extract last activity per station from audit logs
     const lastActivityMap = new Map();
     auditRows.forEach(row => {
         const stationId = row.station_id || row.payload?.workstation;
         if (!stationId || lastActivityMap.has(stationId)) return;
-        
+
         lastActivityMap.set(stationId, {
             operator: row.operator_id || 'Unknown',
             appName: row.payload?.name || row.payload?.title || row.payload?.app_name || '',
@@ -613,7 +628,7 @@ export async function getShopFloorRealtimeSnapshot() {
         registeredStations.map(ws => {
             const lastActivity = lastActivityMap.get(ws.id);
             const isOnline = lastActivity ? (now - lastActivity.lastSeen < 300000) : false; // Online if activity in last 5 mins
-            
+
             return [ws.id, {
                 ...ws,
                 status: ws.status || 'READY',
@@ -653,7 +668,7 @@ export async function getShopFloorRealtimeSnapshot() {
             base.expectedOutput = safeNumber(job?.target_qty, 0);
             base.actualOutput = safeNumber(payload?.actual_output, 0);
             base.status = statusFromQueue(job?.status);
-            
+
             // If job is in progress, ensure we show some activity if not in audit logs
             if (base.status === 'RUNNING' && !base.activeApp) {
                 base.activeApp = job.app_id ? 'App Loading...' : 'In Progress';

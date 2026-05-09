@@ -9,6 +9,7 @@ import * as offlineDb from './offlineDb';
  */
 
 const TABLE_FIELD_LIMIT = 200;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const TABLE_FIELD_TYPES = [
     'text', 'number', 'boolean', 'integer', 'interval',
@@ -23,6 +24,49 @@ export const LINK_TYPES = {
     MANY_TO_MANY: 'many_to_many'
 };
 
+function isUuid(value) {
+    return UUID_REGEX.test(String(value || '').trim());
+}
+
+function ensureUuidOrThrow(value, context = 'table_id') {
+    const normalized = String(value || '').trim();
+    if (!isUuid(normalized)) {
+        throw new Error(`Invalid ${context}: expected UUID, got "${normalized || '(empty)'}"`);
+    }
+    return normalized;
+}
+
+export async function resolveTableIdReference(tableRef) {
+    const supabase = getSupabaseClient();
+    const raw = String(tableRef || '').trim();
+    if (!raw) {
+        throw new Error('Table reference is required.');
+    }
+    if (isUuid(raw)) return raw;
+
+    // Resolve alias/name -> UUID for App Player/stress paths that still pass symbolic IDs.
+    const { data: exact, error: exactErr } = await supabase
+        .from('app_tables')
+        .select('id,name')
+        .eq('name', raw)
+        .maybeSingle();
+
+    if (exactErr) throw exactErr;
+    if (exact?.id) return exact.id;
+
+    const { data: near, error: nearErr } = await supabase
+        .from('app_tables')
+        .select('id,name')
+        .ilike('name', raw)
+        .limit(1)
+        .maybeSingle();
+
+    if (nearErr) throw nearErr;
+    if (near?.id) return near.id;
+
+    throw new Error(`Table reference "${raw}" could not be resolved to a valid UUID table ID.`);
+}
+
 // ── Tables API ─────────────────────────────────────────────────────────────
 
 export async function getTables() {
@@ -34,12 +78,12 @@ export async function getTables() {
             .order('created_at', { ascending: true });
         if (error) throw error;
         const tables = (data || []).map(rowToTable);
-        
+
         // Cache them for offline use
         for (const t of tables) {
             await offlineDb.cacheApp(t);
         }
-        
+
         return tables;
     } catch (e) {
         console.warn('[Offline Mode] Could not load tables from network, trying cache.', e);
@@ -189,11 +233,12 @@ export async function deleteTable(tableId) {
 }
 
 export async function getTableById(id) {
+    const normalizedId = ensureUuidOrThrow(id, 'table_id');
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
         .from('app_tables')
         .select('*')
-        .eq('id', id)
+        .eq('id', normalizedId)
         .single();
     if (error) throw error;
     return rowToTable(data);
@@ -203,18 +248,19 @@ export async function getTableById(id) {
 
 export async function getTableRecords(tableId) {
     try {
+        const normalizedTableId = ensureUuidOrThrow(tableId, 'table_id');
         const supabase = getSupabaseClient();
         const { data, error } = await supabase
             .from('app_table_records')
             .select('*')
-            .eq('table_id', tableId)
+            .eq('table_id', normalizedTableId)
             .order('created_at', { ascending: true });
         if (error) throw error;
         const records = (data || []).map(rowToRecord);
-        
+
         // Cache records
-        await offlineDb.cacheTableRecords(tableId, records);
-        
+        await offlineDb.cacheTableRecords(normalizedTableId, records);
+
         return records;
     } catch (e) {
         console.warn(`[Offline Mode] Network failed for table ${tableId}, loading from cache.`, e);
@@ -296,6 +342,7 @@ export async function queryTableRecords(tableId, options = {}) {
 
 export async function addTableRecord(tableId, recordData) {
     const supabase = getSupabaseClient();
+    const normalizedTableId = ensureUuidOrThrow(tableId, 'table_id');
     const recordId = String(recordData?.recordId ?? recordData?.id ?? '').trim();
     if (!recordId) throw new Error('Record ID is required and must be a non-empty text value.');
 
@@ -303,7 +350,7 @@ export async function addTableRecord(tableId, recordData) {
     const { data: existing } = await supabase
         .from('app_table_records')
         .select('id')
-        .eq('table_id', tableId)
+        .eq('table_id', normalizedTableId)
         .ilike('record_id', recordId)
         .maybeSingle();
 
@@ -313,14 +360,14 @@ export async function addTableRecord(tableId, recordData) {
     delete payload.id;
     delete payload.recordId;
 
-    const table = await getTableById(tableId);
+    const table = await getTableById(normalizedTableId);
     const calculatedPayload = applyExcelLikeFormulas(table, payload);
 
     try {
         const { data, error } = await supabase
             .from('app_table_records')
             .insert({
-                table_id: tableId,
+                table_id: normalizedTableId,
                 record_id: recordId,
                 data: calculatedPayload,
                 created_at: new Date().toISOString(),
@@ -331,15 +378,15 @@ export async function addTableRecord(tableId, recordData) {
 
         if (error) throw error;
         const record = rowToRecord(data);
-        
+
         // Update cache immediately
-        const cached = await offlineDb.getCachedTableRecords(tableId);
-        await offlineDb.cacheTableRecords(tableId, [...cached, record]);
+        const cached = await offlineDb.getCachedTableRecords(normalizedTableId);
+        await offlineDb.cacheTableRecords(normalizedTableId, [...cached, record]);
 
         // Fire automation trigger
         if (automationEngine && typeof automationEngine.trigger === 'function') {
             automationEngine.trigger('TABLE_ROW_ADDED', {
-                tableId,
+                tableId: normalizedTableId,
                 recordId: record.recordId,
                 record: record,
                 source: 'DATABASE'
@@ -352,23 +399,22 @@ export async function addTableRecord(tableId, recordData) {
         const tempId = `temp_${Date.now()}`;
         const offlineRecord = {
             id: tempId,
-            tableId,
+            tableId: normalizedTableId,
             recordId,
             ...calculatedPayload,
             createdAt: new Date().toISOString(),
             isOffline: true
         };
-        
-        await offlineDb.addToSyncQueue('ADD_RECORD', { tableId, recordId, data: calculatedPayload });
-        
+
+        await offlineDb.addToSyncQueue('ADD_RECORD', { tableId: normalizedTableId, recordId, data: calculatedPayload });
+
         // Add to local cache so user sees it immediately
-        const cached = await offlineDb.getCachedTableRecords(tableId);
-        await offlineDb.cacheTableRecords(tableId, [...cached, offlineRecord]);
-        
+        const cached = await offlineDb.getCachedTableRecords(normalizedTableId);
+        await offlineDb.cacheTableRecords(normalizedTableId, [...cached, offlineRecord]);
+
         return offlineRecord;
     }
 }
-
 export async function deleteTableRecord(recordInternalId) {
     const supabase = getSupabaseClient();
     const { error } = await supabase

@@ -94,7 +94,7 @@ import Tesseract from 'tesseract.js';
 import { listManualSummaries, getManualById, uploadManualImage } from '../utils/supabaseManualDB';
 import { saveLiveMeasurement } from '../utils/supabaseUtilityDB';
 import { getAllFrontlineApps, getProductionQueue } from '../utils/supabaseFrontlineDB';
-import { getTableRecords, queryTableRecords, getTableById } from '../utils/supabaseTablesDB';
+import { getTableRecords, queryTableRecords, getTableById, resolveTableIdReference } from '../utils/supabaseTablesDB';
 import { saveCompletion } from '../utils/supabaseCompletionsDB';
 import { getMachines, getStations } from '../utils/database';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -250,7 +250,7 @@ const LiveTerminal = () => {
   const launchParams = new URLSearchParams(location.search || '');
   const launchOperator = (launchParams.get('operator') || '').trim();
   const launchStation = (launchParams.get('station') || '').trim();
-  
+
   // Dashboard states
   const [searchQuery, setSearchQuery] = useState('');
   const [terminalTab, setTerminalTab] = useState('All'); // 'All' | 'Favorites' | 'Recent'
@@ -764,11 +764,12 @@ const LiveTerminal = () => {
   const runStressTest = async () => {
     const count = 500;
     const toastId = toast.loading(`Queueing ${count} stress test items...`);
-    
+
     try {
+      const resolvedTableId = await resolveTableIdReference('STRESS_TEST_TABLE');
       for (let i = 0; i < count; i++) {
         await offlineDb.addToSyncQueue('ADD_RECORD', {
-          tableId: 'STRESS_TEST_TABLE',
+          tableId: resolvedTableId,
           recordId: `STRESS_${Date.now()}_${i}`,
           data: {
             timestamp: new Date().toISOString(),
@@ -777,9 +778,9 @@ const LiveTerminal = () => {
           }
         });
       }
-      toast.success(`${count} items added to sync queue. Go online to trigger sync.`, { id: toastId });
+      toast.success(`${count} items added to sync queue for table ${resolvedTableId}. Go online to trigger sync.`, { id: toastId });
     } catch (err) {
-      toast.error("Stress test failed to queue.");
+      toast.error(`Stress test failed to queue: ${err?.message || 'Unknown error'}`);
       toast.dismiss(toastId);
     }
   };
@@ -2412,7 +2413,7 @@ const LiveTerminal = () => {
     });
 
     // Apply Search Filter
-    const searchFilteredApps = baseFilteredApps.filter(app => 
+    const searchFilteredApps = baseFilteredApps.filter(app =>
       app.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
@@ -2474,10 +2475,10 @@ const LiveTerminal = () => {
                       boxShadow: '0 2px 4px rgba(0,0,0,0.02)', position: 'relative'
                     }}
                   >
-                    <div style={{ 
-                      width: '50px', height: '50px', borderRadius: '12px', 
-                      background: getAppGradient(app.name), display: 'flex', 
-                      alignItems: 'center', justifyContent: 'center', color: 'white' 
+                    <div style={{
+                      width: '50px', height: '50px', borderRadius: '12px',
+                      background: getAppGradient(app.name), display: 'flex',
+                      alignItems: 'center', justifyContent: 'center', color: 'white'
                     }}>
                       <LayoutGrid size={24} />
                     </div>
@@ -2506,17 +2507,17 @@ const LiveTerminal = () => {
             )}
           </div>
 
-          <MobileBottomNav 
-            activeTab={activeMobileTab} 
+          <MobileBottomNav
+            activeTab={activeMobileTab}
             onTabChange={(tab) => {
               if (tab === 'scan') setShowGlobalScanner(true);
               else if (tab === 'chat') setShowChat(true);
               else setActiveMobileTab(tab);
-            }} 
+            }}
           />
 
           {showGlobalScanner && (
-            <UnifiedScanner 
+            <UnifiedScanner
               label="Global Quick Scan"
               onScan={(val) => {
                 setShowGlobalScanner(false);
@@ -2545,7 +2546,7 @@ const LiveTerminal = () => {
               <div style={{ fontWeight: 800, fontSize: '1.2rem', letterSpacing: '0.05em' }}>STATION {appContext.station}</div>
             </div>
             <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
-            <div 
+            <div
               style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '4px 8px', borderRadius: '8px', transition: 'background-color 0.2s' }}
               onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
               onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
@@ -2570,7 +2571,7 @@ const LiveTerminal = () => {
               <span style={{ fontSize: '0.75rem', fontWeight: 700, color: isOnline ? '#22c55e' : '#ef4444' }}>{isOnline ? 'ONLINE' : 'OFFLINE'}</span>
             </div>
             <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
-            <button 
+            <button
               onClick={() => setShowDiagnostics(true)}
               style={{ background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer', padding: '8px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background-color 0.2s' }}
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = 'white'; }}
@@ -2584,71 +2585,167 @@ const LiveTerminal = () => {
         <div style={{ flex: 1, overflowY: 'auto', padding: '40px 20px', backgroundColor: '#f1f5f9' }}>
           <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
 
-          {/* TRACKING IDENTITY (Work Order) */}
-          <div style={{ marginBottom: '40px', backgroundColor: 'white', padding: '24px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', border: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-              <Barcode size={24} color="#64748b" />
-              <h2 style={{ margin: 0, color: '#0f172a', fontSize: '1.2rem', fontWeight: 800 }}>Tracking Identity</h2>
-            </div>
-            <WorkOrderManager
-              currentWorkOrder={currentWorkOrder}
-              onSelect={(wo) => {
-                setCurrentWorkOrder(wo);
-                if (wo) {
-                  logEvent({
-                    type: AUDIT_EVENTS.WORK_ORDER_BIND,
-                    workstation: appContext.station,
-                    workOrder: wo
-                  });
-                }
-              }}
-            />
-          </div>
-
-          {/* SEARCH & FILTERS */}
-          <div style={{ marginBottom: '30px', display: 'flex', flexWrap: 'wrap', gap: '20px', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', gap: '10px', backgroundColor: '#e2e8f0', padding: '4px', borderRadius: '8px' }}>
-              {['All', 'Favorites', 'Recent'].map(tab => (
-                <button
-                  key={tab}
-                  onClick={() => setTerminalTab(tab)}
-                  style={{
-                    padding: '8px 16px', borderRadius: '6px', border: 'none',
-                    backgroundColor: terminalTab === tab ? 'white' : 'transparent',
-                    color: terminalTab === tab ? '#0f172a' : '#64748b',
-                    fontWeight: 700, cursor: 'pointer', boxShadow: terminalTab === tab ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '0 12px', width: '300px' }}>
-              <Search size={18} color="#94a3b8" />
-              <input
-                type="text"
-                placeholder="Search apps..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                style={{ border: 'none', padding: '10px', width: '100%', outline: 'none', fontWeight: 600, color: '#334155' }}
+            {/* TRACKING IDENTITY (Work Order) */}
+            <div style={{ marginBottom: '40px', backgroundColor: 'white', padding: '24px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                <Barcode size={24} color="#64748b" />
+                <h2 style={{ margin: 0, color: '#0f172a', fontSize: '1.2rem', fontWeight: 800 }}>Tracking Identity</h2>
+              </div>
+              <WorkOrderManager
+                currentWorkOrder={currentWorkOrder}
+                onSelect={(wo) => {
+                  setCurrentWorkOrder(wo);
+                  if (wo) {
+                    logEvent({
+                      type: AUDIT_EVENTS.WORK_ORDER_BIND,
+                      workstation: appContext.station,
+                      workOrder: wo
+                    });
+                  }
+                }}
               />
             </div>
-          </div>
 
-          {/* APPS GRID grouped by category */}
-          {Object.keys(appGroups).length > 0 ? (
-            Object.keys(appGroups).map(category => (
-              <div key={category} style={{ marginBottom: '40px' }}>
+            {/* SEARCH & FILTERS */}
+            <div style={{ marginBottom: '30px', display: 'flex', flexWrap: 'wrap', gap: '20px', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', gap: '10px', backgroundColor: '#e2e8f0', padding: '4px', borderRadius: '8px' }}>
+                {['All', 'Favorites', 'Recent'].map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setTerminalTab(tab)}
+                    style={{
+                      padding: '8px 16px', borderRadius: '6px', border: 'none',
+                      backgroundColor: terminalTab === tab ? 'white' : 'transparent',
+                      color: terminalTab === tab ? '#0f172a' : '#64748b',
+                      fontWeight: 700, cursor: 'pointer', boxShadow: terminalTab === tab ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '0 12px', width: '300px' }}>
+                <Search size={18} color="#94a3b8" />
+                <input
+                  type="text"
+                  placeholder="Search apps..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  style={{ border: 'none', padding: '10px', width: '100%', outline: 'none', fontWeight: 600, color: '#334155' }}
+                />
+              </div>
+            </div>
+
+            {/* APPS GRID grouped by category */}
+            {Object.keys(appGroups).length > 0 ? (
+              Object.keys(appGroups).map(category => (
+                <div key={category} style={{ marginBottom: '40px' }}>
+                  <h3 style={{ color: '#475569', fontSize: '1.1rem', marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <LayoutGrid size={20} /> {category}
+                  </h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
+                    {appGroups[category].map(app => (
+                      <div
+                        key={app.id}
+                        onClick={() => handleStartApp(app)}
+                        style={{
+                          backgroundColor: 'white',
+                          borderRadius: '12px',
+                          overflow: 'hidden',
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+                          border: '1px solid #e2e8f0',
+                          transition: 'transform 0.2s, boxShadow 0.2s',
+                          position: 'relative'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'translateY(-4px)';
+                          e.currentTarget.style.boxShadow = '0 12px 20px -5px rgba(0, 0, 0, 0.1)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.05)';
+                        }}
+                      >
+                        {/* App Header (Gradient / Thumbnail) */}
+                        <div style={{
+                          height: '140px',
+                          background: app.config?.thumbnail ? `url(${app.config.thumbnail}) center/cover` : getAppGradient(app.name),
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          padding: '16px'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <div style={{ backgroundColor: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(4px)', padding: '4px 8px', borderRadius: '4px', color: 'white', fontSize: '0.7rem', fontWeight: 700 }}>
+                                v{app.version || '1.0'}
+                              </div>
+                              {!app.is_published && (
+                                <div style={{ backgroundColor: '#fef08a', color: '#854d0e', padding: '4px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 800 }}>
+                                  DRAFT
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const isFav = favoriteApps.includes(app.id);
+                                let newFavs;
+                                if (isFav) {
+                                  newFavs = favoriteApps.filter(id => id !== app.id);
+                                } else {
+                                  newFavs = [...favoriteApps, app.id];
+                                }
+                                setFavoriteApps(newFavs);
+                                localStorage.setItem('mavi_terminal_favorites', JSON.stringify(newFavs));
+                              }}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                            >
+                              <Star size={20} fill={favoriteApps.includes(app.id) ? '#fbbf24' : 'none'} color={favoriteApps.includes(app.id) ? '#fbbf24' : 'rgba(255,255,255,0.6)'} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* App Body */}
+                        <div style={{ padding: '20px' }}>
+                          <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>{app.name}</h4>
+                          <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                            {app.description || 'Custom Workstation App'}
+                          </p>
+                        </div>
+
+                        <div style={{ padding: '12px 20px', borderTop: '1px solid #f1f5f9', backgroundColor: '#f8fafc', display: 'flex', justifyContent: 'flex-end' }}>
+                          <div style={{ color: '#3b82f6', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            Launch App <ChevronRight size={16} />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div style={{ textAlign: 'center', padding: '100px 20px', backgroundColor: 'white', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
+                <div style={{ color: '#94a3b8', marginBottom: '16px' }}><Package size={48} /></div>
+                <h3 style={{ margin: '0 0 8px 0', color: '#0f172a', fontSize: '1.2rem', fontWeight: 700 }}>No Apps Assigned</h3>
+                <p style={{ margin: 0, color: '#64748b' }}>There are no applications assigned to <b>Station {appContext.station}</b>.</p>
+              </div>
+            )}
+
+            {/* SOPs & MANUALS */}
+            {manuals.length > 0 && (
+              <div style={{ marginBottom: '40px' }}>
                 <h3 style={{ color: '#475569', fontSize: '1.1rem', marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <LayoutGrid size={20} /> {category}
+                  <FileText size={20} /> SOPs & Manuals
                 </h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
-                  {appGroups[category].map(app => (
+                  {manuals.map(m => (
                     <div
-                      key={app.id}
-                      onClick={() => handleStartApp(app)}
+                      key={m.id}
+                      onClick={() => handleStartCycle(m.id)}
                       style={{
                         backgroundColor: 'white',
                         borderRadius: '12px',
@@ -2657,7 +2754,6 @@ const LiveTerminal = () => {
                         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
                         border: '1px solid #e2e8f0',
                         transition: 'transform 0.2s, boxShadow 0.2s',
-                        position: 'relative'
                       }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.transform = 'translateY(-4px)';
@@ -2668,165 +2764,70 @@ const LiveTerminal = () => {
                         e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.05)';
                       }}
                     >
-                      {/* App Header (Gradient / Thumbnail) */}
-                      <div style={{
-                        height: '140px',
-                        background: app.config?.thumbnail ? `url(${app.config.thumbnail}) center/cover` : getAppGradient(app.name),
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        padding: '16px'
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <div style={{ backgroundColor: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(4px)', padding: '4px 8px', borderRadius: '4px', color: 'white', fontSize: '0.7rem', fontWeight: 700 }}>
-                              v{app.version || '1.0'}
-                            </div>
-                            {!app.is_published && (
-                              <div style={{ backgroundColor: '#fef08a', color: '#854d0e', padding: '4px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 800 }}>
-                                DRAFT
-                              </div>
-                            )}
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const isFav = favoriteApps.includes(app.id);
-                              let newFavs;
-                              if (isFav) {
-                                newFavs = favoriteApps.filter(id => id !== app.id);
-                              } else {
-                                newFavs = [...favoriteApps, app.id];
-                              }
-                              setFavoriteApps(newFavs);
-                              localStorage.setItem('mavi_terminal_favorites', JSON.stringify(newFavs));
-                            }}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
-                          >
-                            <Star size={20} fill={favoriteApps.includes(app.id) ? '#fbbf24' : 'none'} color={favoriteApps.includes(app.id) ? '#fbbf24' : 'rgba(255,255,255,0.6)'} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* App Body */}
                       <div style={{ padding: '20px' }}>
-                        <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>{app.name}</h4>
-                        <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                          {app.description || 'Custom Workstation App'}
+                        <div style={{ color: '#2e7d32', marginBottom: '16px' }}><Activity size={28} /></div>
+                        <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>{m.title}</h4>
+                        <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>
+                          {m.documentNumber ? `ID: ${m.documentNumber}` : 'No Document ID'}
                         </p>
-                      </div>
-
-                      <div style={{ padding: '12px 20px', borderTop: '1px solid #f1f5f9', backgroundColor: '#f8fafc', display: 'flex', justifyContent: 'flex-end' }}>
-                        <div style={{ color: '#3b82f6', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          Launch App <ChevronRight size={16} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '16px', color: '#94a3b8', fontSize: '0.8rem', fontWeight: 600 }}>
+                          <Clock size={14} /> <span>Est. {m.timeRequired || 'N/A'}</span>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
-            ))
-          ) : (
-            <div style={{ textAlign: 'center', padding: '100px 20px', backgroundColor: 'white', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
-              <div style={{ color: '#94a3b8', marginBottom: '16px' }}><Package size={48} /></div>
-              <h3 style={{ margin: '0 0 8px 0', color: '#0f172a', fontSize: '1.2rem', fontWeight: 700 }}>No Apps Assigned</h3>
-              <p style={{ margin: 0, color: '#64748b' }}>There are no applications assigned to <b>Station {appContext.station}</b>.</p>
-            </div>
-          )}
+            )}
 
-          {/* SOPs & MANUALS */}
-          {manuals.length > 0 && (
-            <div style={{ marginBottom: '40px' }}>
-              <h3 style={{ color: '#475569', fontSize: '1.1rem', marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <FileText size={20} /> SOPs & Manuals
-              </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
-                {manuals.map(m => (
-                  <div
-                    key={m.id}
-                    onClick={() => handleStartCycle(m.id)}
-                    style={{
-                      backgroundColor: 'white',
-                      borderRadius: '12px',
-                      overflow: 'hidden',
-                      cursor: 'pointer',
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
-                      border: '1px solid #e2e8f0',
-                      transition: 'transform 0.2s, boxShadow 0.2s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-4px)';
-                      e.currentTarget.style.boxShadow = '0 12px 20px -5px rgba(0, 0, 0, 0.1)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.05)';
-                    }}
-                  >
-                    <div style={{ padding: '20px' }}>
-                      <div style={{ color: '#2e7d32', marginBottom: '16px' }}><Activity size={28} /></div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>{m.title}</h4>
-                      <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>
-                        {m.documentNumber ? `ID: ${m.documentNumber}` : 'No Document ID'}
-                      </p>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '16px', color: '#94a3b8', fontSize: '0.8rem', fontWeight: 600 }}>
-                        <Clock size={14} /> <span>Est. {m.timeRequired || 'N/A'}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* PENDING JOB QUEUE */}
-          {productionQueue.length > 0 && (
-            <div style={{ marginTop: '20px', padding: '30px', backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
-                <div style={{ padding: '6px 10px', backgroundColor: '#fff3cd', color: '#856404', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Assigned</div>
-                <h3 style={{ color: '#0f172a', fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>Pending Job Queue</h3>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
-                {productionQueue.map(job => {
-                  const app = frontlineApps.find(a => a.id === job.app_id);
-                  return (
-                    <div
-                      key={job.id}
-                      onClick={async () => {
-                        if (app) {
-                          setCurrentWorkOrder(job.work_order);
-                          handleStartApp(app);
-                        }
-                      }}
-                      style={{
-                        padding: '20px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        backgroundColor: '#f8fafc',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '8px',
-                        borderLeft: job.priority === 'P1' ? '4px solid #ef4444' : '4px solid #3b82f6'
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', marginBottom: '4px' }}>{job.work_order}</div>
-                        <div style={{ fontSize: '0.85rem', color: '#64748b' }}>{app?.name || 'Unknown App'}</div>
-                        <div style={{ marginTop: '8px', fontSize: '0.75rem', color: '#94a3b8' }}>Target: <b style={{ color: '#475569' }}>{job.target_qty} units</b></div>
-                      </div>
-                      {job.priority === 'P1' && (
-                        <div style={{ color: '#ef4444', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                          <AlertCircle size={20} />
-                          <span style={{ fontSize: '0.6rem', fontWeight: 800 }}>URGENT</span>
+            {/* PENDING JOB QUEUE */}
+            {productionQueue.length > 0 && (
+              <div style={{ marginTop: '20px', padding: '30px', backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
+                  <div style={{ padding: '6px 10px', backgroundColor: '#fff3cd', color: '#856404', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Assigned</div>
+                  <h3 style={{ color: '#0f172a', fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>Pending Job Queue</h3>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+                  {productionQueue.map(job => {
+                    const app = frontlineApps.find(a => a.id === job.app_id);
+                    return (
+                      <div
+                        key={job.id}
+                        onClick={async () => {
+                          if (app) {
+                            setCurrentWorkOrder(job.work_order);
+                            handleStartApp(app);
+                          }
+                        }}
+                        style={{
+                          padding: '20px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          backgroundColor: '#f8fafc',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '8px',
+                          borderLeft: job.priority === 'P1' ? '4px solid #ef4444' : '4px solid #3b82f6'
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', marginBottom: '4px' }}>{job.work_order}</div>
+                          <div style={{ fontSize: '0.85rem', color: '#64748b' }}>{app?.name || 'Unknown App'}</div>
+                          <div style={{ marginTop: '8px', fontSize: '0.75rem', color: '#94a3b8' }}>Target: <b style={{ color: '#475569' }}>{job.target_qty} units</b></div>
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                        {job.priority === 'P1' && (
+                          <div style={{ color: '#ef4444', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                            <AlertCircle size={20} />
+                            <span style={{ fontSize: '0.6rem', fontWeight: 800 }}>URGENT</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            )}
           </div>
         </div>
       </div>
@@ -2850,10 +2851,10 @@ const LiveTerminal = () => {
     return (
       <div style={{ height: '100dvh', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc', display: 'flex', flexDirection: 'column', fontFamily: "'Inter', sans-serif", overflow: 'hidden' }}>
         {/* Mobile App Header */}
-        <div style={{ 
-          padding: '12px 16px', backgroundColor: activeAndon ? '#dc2626' : '#001e3c', color: 'white', 
+        <div style={{
+          padding: '12px 16px', backgroundColor: activeAndon ? '#dc2626' : '#001e3c', color: 'white',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)' 
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <button onClick={() => { setSelectedApp(null); setSelectedManual(null); }} style={{ background: 'none', border: 'none', color: 'white', padding: '4px' }}><ArrowLeft size={20} /></button>
@@ -2868,13 +2869,13 @@ const LiveTerminal = () => {
         </div>
 
         {/* Mobile Step Indicator - Compact */}
-        <div style={{ 
-          padding: '10px 16px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white', 
+        <div style={{
+          padding: '10px 16px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white',
           borderBottom: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`,
           display: 'flex', overflowX: 'auto', gap: '8px', scrollbarWidth: 'none'
         }}>
           {steps.map((step, idx) => (
-            <div 
+            <div
               key={idx}
               onClick={() => setCurrentStepIndex(idx)}
               style={{
@@ -2890,50 +2891,50 @@ const LiveTerminal = () => {
         </div>
 
         {/* Mobile Component Container */}
-        <div style={{ 
-          flex: 1, overflowY: 'auto', padding: '16px', 
+        <div style={{
+          flex: 1, overflowY: 'auto', padding: '16px',
           display: 'flex', flexDirection: 'column', gap: '20px',
           backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc')
         }}>
           <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: '0 0 10px 0', color: selectedApp?.config?.appThemeMode === 'DARK' ? 'white' : '#0f172a' }}>{activeStep?.title}</h2>
-          
+
           {appComponents.filter(c => !c.step_id || c.step_id === activeStep?.id).map((comp) => (
             <div key={comp.id} style={{ width: '100%' }}>
               {/* This will use the existing component switch logic, just in a mobile-optimized container */}
               {renderComponent(comp)}
             </div>
           ))}
-          
+
           {/* Padding for bottom buttons */}
           <div style={{ height: '80px' }} />
         </div>
 
         {/* Mobile Footer Controls */}
-        <div style={{ 
+        <div style={{
           position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px',
           backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white',
           borderTop: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`,
           display: 'flex', gap: '12px', zIndex: 100
         }}>
-          <button 
+          <button
             disabled={currentStepIndex === 0}
             onClick={() => setCurrentStepIndex(prev => Math.max(0, prev - 1))}
-            style={{ 
-              flex: 1, padding: '14px', borderRadius: '10px', 
-              backgroundColor: '#f1f5f9', color: '#475569', 
+            style={{
+              flex: 1, padding: '14px', borderRadius: '10px',
+              backgroundColor: '#f1f5f9', color: '#475569',
               border: 'none', fontWeight: 700, fontSize: '0.9rem',
               opacity: currentStepIndex === 0 ? 0.5 : 1
             }}
           >
             Previous
           </button>
-          
+
           {currentStepIndex === steps.length - 1 ? (
-            <button 
+            <button
               onClick={() => setShowSignaturePad(true)}
-              style={{ 
-                flex: 2, padding: '14px', borderRadius: '10px', 
-                backgroundColor: '#10b981', color: 'white', 
+              style={{
+                flex: 2, padding: '14px', borderRadius: '10px',
+                backgroundColor: '#10b981', color: 'white',
                 border: 'none', fontWeight: 800, fontSize: '0.95rem',
                 boxShadow: '0 4px 10px rgba(16, 185, 129, 0.3)'
               }}
@@ -2941,12 +2942,12 @@ const LiveTerminal = () => {
               Sign Off Order
             </button>
           ) : (
-            <button 
+            <button
               disabled={!currentStepRequiredOk}
               onClick={() => setCurrentStepIndex(prev => Math.min(steps.length - 1, prev + 1))}
-              style={{ 
-                flex: 2, padding: '14px', borderRadius: '10px', 
-                backgroundColor: currentStepRequiredOk ? '#3b82f6' : '#94a3b8', 
+              style={{
+                flex: 2, padding: '14px', borderRadius: '10px',
+                backgroundColor: currentStepRequiredOk ? '#3b82f6' : '#94a3b8',
                 color: 'white', border: 'none', fontWeight: 800, fontSize: '0.95rem',
                 boxShadow: currentStepRequiredOk ? '0 4px 10px rgba(59, 130, 246, 0.3)' : 'none'
               }}
@@ -3015,13 +3016,13 @@ const LiveTerminal = () => {
 
         <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
           {/* Connectivity Badge */}
-          <div style={{ 
-              display: 'flex', alignItems: 'center', gap: '6px', 
-              padding: '4px 12px', borderRadius: '20px', 
-              backgroundColor: isOnline ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)',
-              color: 'white',
-              fontSize: '0.7rem', fontWeight: 800,
-              border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '4px 12px', borderRadius: '20px',
+            backgroundColor: isOnline ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+            color: 'white',
+            fontSize: '0.7rem', fontWeight: 800,
+            border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`
           }}>
             <Wifi size={12} /> {isOnline ? 'ONLINE' : 'OFFLINE MODE'}
           </div>
@@ -3148,30 +3149,30 @@ const LiveTerminal = () => {
               }}>
                 {/* App Components Render */}
                 <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 10000 }}>
-                    {devMode && (
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button
-                              onClick={runStressTest}
-                              title="Stress Test (Queue 500 items)"
-                              style={{ padding: '7px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#fef2f2', color: '#dc2626', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-                          >
-                              <Database size={14} /> <span style={{fontSize: '0.7rem', fontWeight: 700}}>STRESS TEST</span>
-                          </button>
-                          <button
-                              onClick={clearSyncQueue}
-                              title="Clear Sync Queue"
-                              style={{ padding: '7px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#f8fafc', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-                          >
-                              <Layers size={14} /> <span style={{fontSize: '0.7rem', fontWeight: 700}}>CLEAR QUEUE</span>
-                          </button>
-                        </div>
-                    )}
-                    <button
-                        onClick={() => setDevMode(!devMode)}
-                        style={{ marginTop: '10px', padding: '6px 12px', fontSize: '0.7rem', cursor: 'pointer' }}
-                    >
-                        {devMode ? 'Hide Dev Tools' : 'Show Dev Tools'}
-                    </button>
+                  {devMode && (
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={runStressTest}
+                        title="Stress Test (Queue 500 items)"
+                        style={{ padding: '7px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#fef2f2', color: '#dc2626', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                      >
+                        <Database size={14} /> <span style={{ fontSize: '0.7rem', fontWeight: 700 }}>STRESS TEST</span>
+                      </button>
+                      <button
+                        onClick={clearSyncQueue}
+                        title="Clear Sync Queue"
+                        style={{ padding: '7px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#f8fafc', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                      >
+                        <Layers size={14} /> <span style={{ fontSize: '0.7rem', fontWeight: 700 }}>CLEAR QUEUE</span>
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setDevMode(!devMode)}
+                    style={{ marginTop: '10px', padding: '6px 12px', fontSize: '0.7rem', cursor: 'pointer' }}
+                  >
+                    {devMode ? 'Hide Dev Tools' : 'Show Dev Tools'}
+                  </button>
                 </div>
                 {appComponents.length > 0 ? (
                   <div style={{
@@ -3258,22 +3259,22 @@ const LiveTerminal = () => {
                               <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>
                                 {comp.props.label || 'Scan Barcode / QR'}{comp.props.required ? ' *' : ''}
                               </div>
-                              <div style={{ 
-                                border: '1.5px solid #e2e8f0', borderRadius: '12px', padding: '16px', 
+                              <div style={{
+                                border: '1.5px solid #e2e8f0', borderRadius: '12px', padding: '16px',
                                 backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '12px'
                               }}>
                                 <button
                                   onClick={() => setCameraScannerActive(prev => ({ ...prev, [comp.id]: true }))}
-                                  style={{ 
-                                    padding: '14px', backgroundColor: '#3b82f6', color: 'white', 
-                                    border: 'none', borderRadius: '10px', fontWeight: 700, 
-                                    cursor: 'pointer', display: 'flex', alignItems: 'center', 
-                                    justifyContent: 'center', gap: '10px', fontSize: '0.95rem' 
+                                  style={{
+                                    padding: '14px', backgroundColor: '#3b82f6', color: 'white',
+                                    border: 'none', borderRadius: '10px', fontWeight: 700,
+                                    cursor: 'pointer', display: 'flex', alignItems: 'center',
+                                    justifyContent: 'center', gap: '10px', fontSize: '0.95rem'
                                   }}
                                 >
                                   <Barcode size={20} /> OPEN SCANNER
                                 </button>
-                                
+
                                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                   <input
                                     value={cameraScannerValues[comp.id] || ''}
@@ -3288,16 +3289,16 @@ const LiveTerminal = () => {
                                     Apply
                                   </button>
                                 </div>
-                                
+
                                 {cameraScannerStatus[comp.id] && (
                                   <div style={{ fontSize: '0.75rem', color: '#15803d', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     <CheckCircle2 size={14} /> {cameraScannerStatus[comp.id]}
                                   </div>
                                 )}
                               </div>
-                              
+
                               {cameraScannerActive[comp.id] && (
-                                <UnifiedScanner 
+                                <UnifiedScanner
                                   label={comp.props.label}
                                   onScan={(val) => {
                                     applyCameraScannerValue(comp, val, 'camera');
@@ -4747,18 +4748,18 @@ const LiveTerminal = () => {
                                   </div>
                                   <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: connected ? '#10b981' : '#cbd5e1', flexShrink: 0 }} />
                                 </div>
-                                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px', maxWidth: '100%' }}>
-                                      <span style={{ 
-                                        fontSize: String(data.value).length > 4 ? '1.2rem' : '1.6rem', 
-                                        lineHeight: 1, 
-                                        fontWeight: 900, 
-                                        color: selectedApp?.config?.appThemeMode === 'DARK' ? 'white' : '#0f172a',
-                                        whiteSpace: 'nowrap'
-                                      }}>{data.value}</span>
-                                      <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>{data.unit}</span>
-                                    </div>
+                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px', maxWidth: '100%' }}>
+                                    <span style={{
+                                      fontSize: String(data.value).length > 4 ? '1.2rem' : '1.6rem',
+                                      lineHeight: 1,
+                                      fontWeight: 900,
+                                      color: selectedApp?.config?.appThemeMode === 'DARK' ? 'white' : '#0f172a',
+                                      whiteSpace: 'nowrap'
+                                    }}>{data.value}</span>
+                                    <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>{data.unit}</span>
                                   </div>
+                                </div>
                               </div>
                             );
 
@@ -5182,17 +5183,17 @@ const LiveTerminal = () => {
       )}
 
       {showChat && (
-        <ChatWidget 
-          currentStation={appContext.station} 
-          currentUser={appContext.user} 
-          onClose={() => setShowChat(false)} 
+        <ChatWidget
+          currentStation={appContext.station}
+          currentUser={appContext.user}
+          onClose={() => setShowChat(false)}
         />
       )}
 
       {/* Operator Menu Modal */}
       {showOperatorMenu && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, backgroundColor: 'transparent' }} onClick={() => setShowOperatorMenu(false)}>
-          <div 
+          <div
             style={{ position: 'absolute', top: '70px', right: '350px', backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', border: '1px solid #e2e8f0', width: '280px', overflow: 'hidden' }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -5201,7 +5202,7 @@ const LiveTerminal = () => {
               <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>{appContext.user}</div>
               <div style={{ fontSize: '0.8rem', color: '#3b82f6', fontWeight: 600, marginTop: '4px' }}>Station: {appContext.station}</div>
             </div>
-            
+
             <div style={{ padding: '12px' }}>
               <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 700, padding: '8px 12px', textTransform: 'uppercase' }}>Language</div>
               {['EN', 'ID', 'JA'].map(lang => (
@@ -5219,7 +5220,7 @@ const LiveTerminal = () => {
             </div>
 
             <div style={{ borderTop: '1px solid #f1f5f9', padding: '12px' }}>
-              <button 
+              <button
                 onClick={() => {
                   window.location.href = '/';
                 }}
@@ -5244,7 +5245,7 @@ const LiveTerminal = () => {
                 <X size={24} />
               </button>
             </div>
-            
+
             <div style={{ padding: '24px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
                 <div style={{ padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', backgroundColor: isOnline ? '#f0fdf4' : '#fef2f2' }}>
@@ -5286,12 +5287,12 @@ const LiveTerminal = () => {
 
               <div>
                 <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '12px' }}>Hardware Test</h3>
-                <input 
-                  type="text" 
-                  placeholder="Scan a barcode here to test..." 
-                  style={{ width: '100%', padding: '12px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.95rem', outline: 'none' }} 
+                <input
+                  type="text"
+                  placeholder="Scan a barcode here to test..."
+                  style={{ width: '100%', padding: '12px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.95rem', outline: 'none' }}
                   onKeyDown={e => {
-                    if(e.key === 'Enter') {
+                    if (e.key === 'Enter') {
                       toast.success(`Test Scanned: ${e.target.value}`);
                       e.target.value = '';
                     }
