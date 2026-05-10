@@ -281,7 +281,36 @@ export function createShopfloorTemplate() {
                             id: `c5_done_${timestamp}`,
                             type: "COMPLETE_BUTTON",
                             x: 300, y: 460, w: 424, h: 80,
-                            props: { label: "COMPLETE WORK ORDER", action: "COMPLETE", backgroundColor: "#10b981", color: "#ffffff", fontSize: 20, fontWeight: "bold", textAlign: "center", triggers: [] }
+                            props: { 
+                                label: "COMPLETE WORK ORDER", 
+                                action: "COMPLETE", 
+                                backgroundColor: "#10b981", 
+                                color: "#ffffff", 
+                                fontSize: 20, 
+                                fontWeight: "bold", 
+                                textAlign: "center", 
+                                triggers: [
+                                    {
+                                        name: "Log Production Completion",
+                                        event: "ON_CLICK",
+                                        actions: [
+                                            {
+                                                type: "CREATE_RECORD",
+                                                payload: {
+                                                    tableId: "orders_table_placeholder",
+                                                    mappings: {
+                                                        "Work_Order": { type: "VARIABLE", value: "Work_Order" },
+                                                        "Operator": { type: "VARIABLE", value: "APP_INFO.USER" },
+                                                        "Station": { type: "VARIABLE", value: "APP_INFO.STATION" },
+                                                        "Status": { type: "STATIC", value: "COMPLETED" },
+                                                        "Timestamp": { type: "EXPRESSION", value: "NOW()" }
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    }
+                                ] 
+                            }
                         }
                     ]
                 }

@@ -326,7 +326,28 @@ export function createMaterialRequisitionTemplate() {
                                 fontSize: 20, 
                                 fontWeight: "bold", 
                                 textAlign: "center", 
-                                triggers: [] 
+                                triggers: [
+                                    {
+                                        name: "Save Requisition Record",
+                                        event: "ON_CLICK",
+                                        actions: [
+                                            {
+                                                type: "CREATE_RECORD",
+                                                payload: {
+                                                    tableId: "inventory_table_placeholder",
+                                                    mappings: {
+                                                        "Requisition_ID": { type: "VARIABLE", value: "Requisition_ID" },
+                                                        "Part_Number": { type: "VARIABLE", value: "Part_Number" },
+                                                        "Qty_Picked": { type: "VARIABLE", value: "Qty_Picked" },
+                                                        "Operator": { type: "VARIABLE", value: "APP_INFO.USER" },
+                                                        "Status": { type: "STATIC", value: "COMPLETED" },
+                                                        "Timestamp": { type: "EXPRESSION", value: "NOW()" }
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    }
+                                ] 
                             }
                         }
                     ]

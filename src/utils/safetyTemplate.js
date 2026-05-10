@@ -316,7 +316,34 @@ export function createSafetyTemplate() {
                             id: `c5_done_${timestamp}`,
                             type: "COMPLETE_BUTTON",
                             x: 300, y: 500, w: 424, h: 80,
-                            props: { label: "APPROVE & START WORK", action: "COMPLETE", backgroundColor: "#0f172a", color: "#ffffff", fontSize: 20, fontWeight: "bold", triggers: [] }
+                            props: { 
+                                label: "APPROVE & START WORK", 
+                                action: "COMPLETE", 
+                                backgroundColor: "#0f172a", 
+                                color: "#ffffff", 
+                                fontSize: 20, 
+                                fontWeight: "bold", 
+                                triggers: [
+                                    {
+                                        name: "Log Safety Permit",
+                                        event: "ON_CLICK",
+                                        actions: [
+                                            {
+                                                type: "CREATE_RECORD",
+                                                payload: {
+                                                    tableId: "safety_audits_placeholder",
+                                                    mappings: {
+                                                        "Permit_Number": { type: "VARIABLE", value: "Permit_Number" },
+                                                        "Operator": { type: "VARIABLE", value: "APP_INFO.USER" },
+                                                        "Compliance_Status": { type: "STATIC", value: "APPROVED" },
+                                                        "Timestamp": { type: "EXPRESSION", value: "NOW()" }
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    }
+                                ] 
+                            }
                         }
                     ]
                 }

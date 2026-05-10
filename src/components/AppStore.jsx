@@ -131,6 +131,7 @@ const AppStore = () => {
         
         try {
             let templateApp;
+            
             if (templateId === 'qc') {
                 let qcData = createQCTemplate();
                 let actualTableId = 'qvc';
@@ -170,6 +171,10 @@ const AppStore = () => {
                         ]
                     });
                     if (newTable && newTable.id) {
+                        const placeholderId = "orders_table_placeholder";
+                        const appStr = JSON.stringify(templateApp).replace(new RegExp(placeholderId, 'g'), newTable.id);
+                        templateApp = JSON.parse(appStr);
+                        
                         if (templateApp.config.recordPlaceholders && templateApp.config.recordPlaceholders.length > 0) {
                             templateApp.config.recordPlaceholders[0].tableId = newTable.id;
                         }
@@ -182,17 +187,22 @@ const AppStore = () => {
                 templateApp = createMaterialRequisitionTemplate();
                 try {
                     const newTable = await createTable({
-                        name: `Inventory_Logs`,
+                        name: `Inventory_Requisitions`,
                         description: 'Log of material picking and transfers',
                         fields: [
                             { name: 'Requisition_ID', type: 'text' },
                             { name: 'Part_Number', type: 'text' },
                             { name: 'Qty_Picked', type: 'number' },
                             { name: 'Operator', type: 'user' },
+                            { name: 'Status', type: 'text' },
                             { name: 'Timestamp', type: 'datetime' }
                         ]
                     });
                     if (newTable && newTable.id) {
+                        const placeholderId = "inventory_table_placeholder";
+                        const appStr = JSON.stringify(templateApp).replace(new RegExp(placeholderId, 'g'), newTable.id);
+                        templateApp = JSON.parse(appStr);
+                        
                         if (templateApp.config.recordPlaceholders && templateApp.config.recordPlaceholders.length > 0) {
                             templateApp.config.recordPlaceholders[0].tableId = newTable.id;
                         }
@@ -206,17 +216,20 @@ const AppStore = () => {
                 try {
                     const newTable = await createTable({
                         name: `Maintenance_Logs`,
-                        description: 'Enterprise maintenance execution records',
+                        description: 'Detailed records of preventive maintenance activities',
                         fields: [
                             { name: 'Machine_ID', type: 'text' },
                             { name: 'Meter_Reading', type: 'number' },
-                            { name: 'Health_Score', type: 'number' },
                             { name: 'Operator', type: 'user' },
                             { name: 'Status', type: 'text' },
                             { name: 'Timestamp', type: 'datetime' }
                         ]
                     });
                     if (newTable && newTable.id) {
+                        const placeholderId = "maintenance_logs_placeholder";
+                        const appStr = JSON.stringify(templateApp).replace(new RegExp(placeholderId, 'g'), newTable.id);
+                        templateApp = JSON.parse(appStr);
+                        
                         if (templateApp.config.recordPlaceholders && templateApp.config.recordPlaceholders.length > 0) {
                             templateApp.config.recordPlaceholders[0].tableId = newTable.id;
                         }
@@ -229,18 +242,20 @@ const AppStore = () => {
                 templateApp = createSafetyTemplate();
                 try {
                     const newTable = await createTable({
-                        name: `Safety_Audit_Logs`,
-                        description: 'Audit logs for safety permits and LOTO compliance',
+                        name: `Safety_Audits`,
+                        description: 'Log of safety inspections and EHS compliance',
                         fields: [
                             { name: 'Permit_Number', type: 'text' },
                             { name: 'Operator', type: 'user' },
-                            { name: 'Hazard_Count', type: 'number' },
-                            { name: 'PPE_Status', type: 'text' },
-                            { name: 'LOTO_Verified', type: 'boolean' },
+                            { name: 'Compliance_Status', type: 'text' },
                             { name: 'Timestamp', type: 'datetime' }
                         ]
                     });
                     if (newTable && newTable.id) {
+                        const placeholderId = "safety_audits_placeholder";
+                        const appStr = JSON.stringify(templateApp).replace(new RegExp(placeholderId, 'g'), newTable.id);
+                        templateApp = JSON.parse(appStr);
+                        
                         if (templateApp.config.recordPlaceholders && templateApp.config.recordPlaceholders.length > 0) {
                             templateApp.config.recordPlaceholders[0].tableId = newTable.id;
                         }
@@ -291,6 +306,10 @@ const AppStore = () => {
                         ]
                     });
                     if (newTable && newTable.id) {
+                        const placeholderId = "defect_events_placeholder";
+                        const appStr = JSON.stringify(templateApp).replace(new RegExp(placeholderId, 'g'), newTable.id);
+                        templateApp = JSON.parse(appStr);
+                        
                         if (templateApp.config.recordPlaceholders && templateApp.config.recordPlaceholders.length > 0) {
                             templateApp.config.recordPlaceholders[0].tableId = newTable.id;
                         }

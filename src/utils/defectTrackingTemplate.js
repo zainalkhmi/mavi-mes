@@ -23,6 +23,8 @@ export function createDefectTrackingTemplate() {
             appVariables: [
                 { id: `var_def_id_${timestamp}`, name: "Defect_ID", type: "string", defaultValue: "AUTO-GEN", persisted: true },
                 { id: `var_mat_id_${timestamp}`, name: "Material_ID", type: "string", defaultValue: "", persisted: false },
+                { id: `var_desc_${timestamp}`, name: "Defect_Description", type: "string", defaultValue: "", persisted: false },
+                { id: `var_qty_${timestamp}`, name: "Quantity", type: "number", defaultValue: 1, persisted: false },
                 { id: `var_status_${timestamp}`, name: "Defect_Status", type: "string", defaultValue: "NEW", persisted: false }
             ],
             recordPlaceholders: [
@@ -118,19 +120,19 @@ export function createDefectTrackingTemplate() {
                             id: `c2_mat_${timestamp}`,
                             type: "TEXT_INPUT",
                             x: 40, y: 120, w: 440, h: 80,
-                            props: { label: "Defective Material ID", placeholder: "Enter ID...", required: true, triggers: [] }
+                            props: { label: "Defective Material ID", placeholder: "Enter ID...", required: true, targetVariable: "Material_ID", triggers: [] }
                         },
                         {
                             id: `c2_desc_${timestamp}`,
                             type: "TEXT_INPUT",
                             x: 40, y: 220, w: 440, h: 120,
-                            props: { label: "Defect Description", placeholder: "What's wrong?", multiline: true, triggers: [] }
+                            props: { label: "Defect Description", placeholder: "What's wrong?", multiline: true, targetVariable: "Defect_Description", triggers: [] }
                         },
                         {
                             id: `c2_qty_${timestamp}`,
                             type: "NUMBER_INPUT",
                             x: 40, y: 360, w: 440, h: 80,
-                            props: { label: "Quantity", defaultValue: 1, triggers: [] }
+                            props: { label: "Quantity", defaultValue: 1, targetVariable: "Quantity", triggers: [] }
                         },
                         {
                             id: `c2_cam_${timestamp}`,
@@ -148,7 +150,28 @@ export function createDefectTrackingTemplate() {
                                 color: "white", 
                                 action: "NEXT_STEP", 
                                 targetStepId: `step_label_${timestamp}`,
-                                triggers: [] 
+                                triggers: [
+                                    {
+                                        name: "Save Defect Record",
+                                        event: "ON_CLICK",
+                                        actions: [
+                                            {
+                                                type: "CREATE_RECORD",
+                                                payload: {
+                                                    tableId: "defect_events_placeholder",
+                                                    mappings: {
+                                                        "Material_ID": { type: "VARIABLE", value: "Material_ID" },
+                                                        "Description": { type: "VARIABLE", value: "Defect_Description" },
+                                                        "Quantity": { type: "VARIABLE", value: "Quantity" },
+                                                        "Status": { type: "STATIC", value: "NEW" },
+                                                        "Reported_By": { type: "VARIABLE", value: "APP_INFO.USER" },
+                                                        "Timestamp": { type: "EXPRESSION", value: "NOW()" }
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    }
+                                ] 
                             }
                         }
                     ]

@@ -449,3 +449,46 @@ BEGIN
     ALTER TABLE public.machines ADD COLUMN IF NOT EXISTS type TEXT;
     ALTER TABLE public.machines ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'OFFLINE';
 END $$;
+
+-- 22. Table: measurements (Legacy Live Terminal records)
+CREATE TABLE IF NOT EXISTS public.measurements (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    video_name TEXT,
+    timestamp TIMESTAMPTZ DEFAULT now(),
+    measurements JSONB DEFAULT '{}',
+    cycle_data JSONB DEFAULT '[]',
+    narration TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 23. Table: completions (Formal App Execution records)
+CREATE TABLE IF NOT EXISTS public.completions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    app_id UUID NOT NULL,
+    app_name TEXT NOT NULL,
+    app_version INTEGER DEFAULT 1,
+    user_id TEXT,
+    user_email TEXT,
+    station_name TEXT,
+    start_time TIMESTAMPTZ,
+    end_time TIMESTAMPTZ DEFAULT now(),
+    duration_ms BIGINT,
+    status TEXT DEFAULT 'COMPLETED', -- COMPLETED, CANCELED, SAVED
+    variables_snapshot JSONB DEFAULT '{}',
+    step_history JSONB DEFAULT '[]',
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Grants & Policies for Measurements & Completions
+GRANT ALL ON TABLE public.measurements TO anon, authenticated;
+GRANT ALL ON TABLE public.completions TO anon, authenticated;
+
+ALTER TABLE public.measurements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.completions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow all measurements" ON public.measurements;
+CREATE POLICY "Allow all measurements" ON public.measurements FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all completions" ON public.completions;
+CREATE POLICY "Allow all completions" ON public.completions FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);

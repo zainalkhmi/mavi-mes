@@ -1377,6 +1377,8 @@ const LiveTerminal = () => {
     try {
       const fnProcessed = processed
         // Math Functions
+        .replace(/NOW\(\)/g, () => `"${new Date().toISOString()}"`)
+        .replace(/DATE\(\)/g, () => `"${new Date().toLocaleDateString()}"`)
         .replace(/SUM\((.*?)\)/g, (m, args) => `([${args}].reduce((a,b)=>Number(a)+Number(b),0))`)
         .replace(/ABS\((.*?)\)/g, (m, arg) => `Math.abs(${arg})`)
         .replace(/ROUND\((.*?)\)/g, (m, arg) => `Math.round(${arg})`)
@@ -1638,20 +1640,39 @@ const LiveTerminal = () => {
       if (!actions) return;
       for (const action of actions) {
         try {
-          if (action.type === 'SET_VARIABLE') {
-          const { varPath, value, valueType } = action.payload;
-          const resolvedValue = await resolveSourceValue(valueType || 'STATIC', value);
-          if (varPath === 'APP_INFO.USER') setAppContext(prev => ({ ...prev, user: resolvedValue }));
-          else if (varPath === 'APP_INFO.STATION') setAppContext(prev => ({ ...prev, station: resolvedValue }));
-          else {
-            const vDef = appVariables.find(v => v.name === varPath);
-            setAppVariables(prev => prev.map(v => v.name === varPath ? { ...v, value: resolvedValue } : v));
-            if (vDef?.isPersistent) {
-              const { upsertGlobalVariable } = await import('../utils/supabaseGlobalVars');
-              await upsertGlobalVariable(varPath, vDef.type || 'TEXT', resolvedValue);
+          const act = action;
+          const type = act.type;
+          const payload = act.payload || act.detail || {};
+
+          if (type === 'SET_VARIABLE' || type === 'DATA_MANIPULATION') {
+            const varPath = payload.varPath || payload.target || payload.variableName;
+            const value = payload.value || payload.expression;
+            const valueType = payload.valueType || payload.source || (payload.operation === 'SET' ? 'STATIC' : 'STATIC');
+            
+            // Handle Mustache-style payload in value
+            let finalValue = value;
+            if (typeof value === 'string' && value.includes('{{EVENT.PAYLOAD}}')) {
+              // This should be passed from the caller of runActions
+              // For now, if we don't have it, we'll try to find it in the trigger event
             }
-          }
-        } else if (action.type === 'PLAY_SOUND') {
+
+            const resolvedValue = await resolveSourceValue(valueType || 'STATIC', finalValue);
+            
+            if (varPath === 'APP_INFO.USER') setAppContext(prev => ({ ...prev, user: resolvedValue }));
+            else if (varPath === 'APP_INFO.STATION') setAppContext(prev => ({ ...prev, station: resolvedValue }));
+            else if (varPath === 'APP_INFO.WORK_ORDER') setAppContext(prev => ({ ...prev, workOrder: resolvedValue }));
+            else {
+              // Try to find by name or ID
+              const vDef = appVariables.find(v => v.name === varPath || v.id === varPath);
+              if (vDef) {
+                setAppVariables(prev => prev.map(v => (v.name === varPath || v.id === varPath) ? { ...v, value: resolvedValue } : v));
+                if (vDef.isPersistent) {
+                  const { upsertGlobalVariable } = await import('../utils/supabaseGlobalVars');
+                  await upsertGlobalVariable(vDef.name, vDef.type || 'TEXT', resolvedValue);
+                }
+              }
+            }
+          } else if (type === 'PLAY_SOUND') {
           const { url } = action.payload;
           if (url) {
             const audio = new Audio(url);

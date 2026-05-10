@@ -358,7 +358,27 @@ export function createMaintenanceTemplate() {
                                 color: "#ffffff", 
                                 fontSize: 18, 
                                 fontWeight: "bold",
-                                triggers: [] 
+                                triggers: [
+                                    {
+                                        name: "Save Maintenance Log",
+                                        event: "ON_CLICK",
+                                        actions: [
+                                            {
+                                                type: "CREATE_RECORD",
+                                                payload: {
+                                                    tableId: "maintenance_logs_placeholder",
+                                                    mappings: {
+                                                        "Machine_ID": { type: "VARIABLE", value: "Machine_ID" },
+                                                        "Meter_Reading": { type: "VARIABLE", value: "Meter_Reading" },
+                                                        "Operator": { type: "VARIABLE", value: "APP_INFO.USER" },
+                                                        "Status": { type: "STATIC", value: "COMPLETED" },
+                                                        "Timestamp": { type: "EXPRESSION", value: "NOW()" }
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    }
+                                ] 
                             }
                         }
                     ]

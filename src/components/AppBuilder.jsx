@@ -234,7 +234,6 @@ import { logEvent, AUDIT_EVENTS } from '../utils/auditLog';
 import ColorPicker from './ColorPicker';
 import ShapePicker from './ShapePicker';
 import { createShopfloorTemplate } from '../utils/shopfloorTemplate';
-import { createQCTemplate } from '../utils/qcTemplate';
 import automationEngine from '../utils/automationEngine';
 import hardwareService from '../utils/hardwareService';
 import obd2Service from '../utils/obd2Service';
@@ -6790,70 +6789,6 @@ const AppBuilder = () => {
         });
     };
 
-    const handleLoadQCTemplate = async () => {
-        if (!window.confirm('This will replace your current workspace with the QC Inspection template. Continue?')) return;
-        
-        setIsSaving(true);
-        try {
-            let qcData = createQCTemplate();
-
-            // 1. Ensure table exists in local database
-            let actualTableId = 'qvc';
-            try {
-                const tables = await getLocalTables();
-                let qvcTable = tables.find(t => t.name === 'QVC Inspection' || t.id === 'qvc');
-                if (!qvcTable) {
-                    qvcTable = await createLocalTable({
-                        name: 'QVC Inspection',
-                        fields: [
-                            { name: 'part_id', type: 'text' },
-                            { name: 'operator', type: 'text' },
-                            { name: 'status', type: 'text' },
-                            { name: 'measurement', type: 'number' },
-                            { name: 'timestamp', type: 'datetime' }
-                        ]
-                    });
-                }
-                if (qvcTable && qvcTable.id) {
-                    actualTableId = qvcTable.id;
-                }
-                const updatedTables = await getTables(); // Sync with state
-                setTables(updatedTables);
-            } catch (err) {
-                console.error('Error initializing QC table:', err);
-            }
-
-            // 2. Replace placeholder 'qvc' table ID with actual UUID
-            const qcDataStr = JSON.stringify(qcData).replace(/"qvc"/g, `"${actualTableId}"`);
-            qcData = JSON.parse(qcDataStr);
-
-            // 3. Save the new app immediately to make it persistent
-            // Remove ID from template data so saveFrontlineApp does an insert
-            const { id, ...templateData } = qcData;
-            const savedApp = await saveFrontlineApp({
-                ...templateData,
-                updated_at: new Date().toISOString()
-            });
-
-            // 4. Refresh and load the new app
-            await loadApps();
-            loadApp(savedApp || qcData);
-            
-            setStepPanelTab('RECORDS');
-            setActiveTab('APP');
-
-            // 5. Show success dialog
-            setProUiDialog({
-                type: 'success',
-                message: `QC Inspection Template Saved & Loaded!\n\n- Project "Professional QC Inspection" created.\n- Table initialized.\n- Data triggers for "Submit Inspection" configured.\n- UI steps for Scan and Inspection generated.`
-            });
-        } catch (error) {
-            console.error('Failed to load QC template:', error);
-            alert('Error generating QC template project. Please try again.');
-        } finally {
-            setIsSaving(false);
-        }
-    };
 
     const handleImportProject = async (importedData) => {
         try {
@@ -11831,21 +11766,6 @@ const AppBuilder = () => {
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                             <FolderOpen size={12} /> MY FRONT-LINE APPS
                                         </div>
-                                        <button
-                                            onClick={handleLoadQCTemplate}
-                                            style={{
-                                                fontSize: '0.6rem',
-                                                backgroundColor: 'var(--odoo-teal)',
-                                                color: 'white',
-                                                border: 'none',
-                                                padding: '2px 6px',
-                                                borderRadius: '4px',
-                                                cursor: 'pointer',
-                                                fontWeight: 800
-                                            }}
-                                        >
-                                            + QC TEMPLATE
-                                        </button>
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                         {appsList.length === 0 ? (
