@@ -51,6 +51,7 @@ export function createShopfloorTemplate() {
             appTriggers: [
                 {
                     id: `trig_start_${timestamp}`,
+                    name: "App Initialization",
                     on: "APP_START",
                     actions: [
                         { type: "SHOW_MESSAGE", detail: { message: "Welcome to Shopfloor Module. Please scan your Work Order to begin.", status: "INFO" } }
@@ -112,6 +113,7 @@ export function createShopfloorTemplate() {
                                 triggers: [
                                     {
                                         id: `trig_scan_${timestamp}`,
+                                        name: "On Barcode Scan", // Explicit name for AppPlayer log
                                         on: "BARCODE_SCANNED",
                                         actions: [
                                             { type: "DATA_MANIPULATION", detail: { target: "APP_INFO.WORK_ORDER", operation: "SET", value: "{{EVENT.PAYLOAD}}" } },

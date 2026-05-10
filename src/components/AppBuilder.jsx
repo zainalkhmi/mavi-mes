@@ -4707,6 +4707,18 @@ const AppBuilder = () => {
 
                 for (const trig of evt.triggers) {
                     if (runtimeCtx.transitionExecuted) break;
+                    
+                    // Notify parent AppPlayer of the trigger execution (Tulip parity)
+                    if (viewMode === 'PREVIEW' || viewMode === 'RUN') {
+                        window.parent.postMessage({
+                            type: 'TRIGGER_FIRED',
+                            triggerName: trig.name || (trig.event || trig.on || 'Unnamed').replace('ON_', '').replace(/_/g, ' ') + ' Trigger',
+                            eventId: evt.eventId,
+                            source: currentStep?.title || 'App',
+                            timestamp: new Date().toISOString()
+                        }, '*');
+                    }
+
                     try {
                         await executeTrigger(trig, runtimeCtx);
                     } catch (err) {
@@ -6464,6 +6476,7 @@ const AppBuilder = () => {
     };
 
     const handleCreateTemplateApp = async () => {
+        setIsSaving(true);
         try {
             const templateApp = createShopfloorTemplate();
 
@@ -6471,7 +6484,7 @@ const AppBuilder = () => {
             let logTableId = null;
             try {
                 const newTable = await createTable({
-                    name: `Shopfloor_Logs_${Date.now()}`,
+                    name: `Shopfloor_Logs`, // Use a stable name to prevent daily clutter
                     description: 'Automated table for shop floor data collection',
                     fields: [
                         { name: 'Work_Order', type: 'text' },
@@ -6481,7 +6494,9 @@ const AppBuilder = () => {
                         { name: 'Timestamp', type: 'datetime' }
                     ]
                 });
-                logTableId = newTable.id;
+                if (newTable && newTable.id) {
+                    logTableId = newTable.id;
+                }
                 // Refresh local tables state
                 const updatedTables = await getTables();
                 setTables(updatedTables);
@@ -6498,15 +6513,30 @@ const AppBuilder = () => {
             }
 
             // 3. Save the new app
+            // Map published -> is_published and approvalStatus -> approval_status
             const { id, ...templateData } = templateApp;
-            const savedApp = await saveFrontlineApp(templateData);
+            const savedApp = await saveFrontlineApp({
+                ...templateData,
+                is_published: templateApp.published ?? false,
+                approval_status: templateApp.approvalStatus || 'DRAFT',
+                updated_at: new Date().toISOString()
+            });
 
+            // 4. Refresh and load
             await loadApps();
             setIsCreateDrawerOpen(false);
             loadApp(savedApp || templateApp);
+            
+            setProUiDialog({
+                type: 'success',
+                message: 'Shopfloor Template Created Successfully!',
+                detail: 'Standard Work Instructions and automated logging table are ready.'
+            });
         } catch (error) {
             console.error('Failed to create template app:', error);
-            alert('Error generating template app. Please try again.');
+            alert('Error generating template app: ' + (error.message || 'Unknown error') + '. Please check your connection.');
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -6604,7 +6634,7 @@ const AppBuilder = () => {
     const addStepTriggerTemplate = (event, name) => {
         const newTrig = {
             id: `trig_${Date.now()}`,
-            name,
+            name: name || (event || 'Unnamed').replace('ON_', '').replace(/_/g, ' ') + ' Trigger',
             event,
             enabled: true,
             clauses: [{ conditions: [], actions: [] }],
@@ -6762,47 +6792,67 @@ const AppBuilder = () => {
 
     const handleLoadQCTemplate = async () => {
         if (!window.confirm('This will replace your current workspace with the QC Inspection template. Continue?')) return;
-        let qcData = createQCTemplate();
-
-        // Ensure table exists in local database
-        let actualTableId = 'qvc';
+        
+        setIsSaving(true);
         try {
-            const tables = await getLocalTables();
-            let qvcTable = tables.find(t => t.name === 'QVC Inspection' || t.id === 'qvc');
-            if (!qvcTable) {
-                qvcTable = await createLocalTable({
-                    name: 'QVC Inspection',
-                    fields: [
-                        { name: 'part_id', type: 'text' },
-                        { name: 'operator', type: 'text' },
-                        { name: 'status', type: 'text' },
-                        { name: 'measurement', type: 'number' },
-                        { name: 'timestamp', type: 'datetime' }
-                    ]
-                });
+            let qcData = createQCTemplate();
+
+            // 1. Ensure table exists in local database
+            let actualTableId = 'qvc';
+            try {
+                const tables = await getLocalTables();
+                let qvcTable = tables.find(t => t.name === 'QVC Inspection' || t.id === 'qvc');
+                if (!qvcTable) {
+                    qvcTable = await createLocalTable({
+                        name: 'QVC Inspection',
+                        fields: [
+                            { name: 'part_id', type: 'text' },
+                            { name: 'operator', type: 'text' },
+                            { name: 'status', type: 'text' },
+                            { name: 'measurement', type: 'number' },
+                            { name: 'timestamp', type: 'datetime' }
+                        ]
+                    });
+                }
+                if (qvcTable && qvcTable.id) {
+                    actualTableId = qvcTable.id;
+                }
+                const updatedTables = await getTables(); // Sync with state
+                setTables(updatedTables);
+            } catch (err) {
+                console.error('Error initializing QC table:', err);
             }
-            if (qvcTable && qvcTable.id) {
-                actualTableId = qvcTable.id;
-            }
-            const updatedTables = await getLocalTables();
-            setTables(updatedTables);
-        } catch (err) {
-            console.error('Error initializing QC table:', err);
+
+            // 2. Replace placeholder 'qvc' table ID with actual UUID
+            const qcDataStr = JSON.stringify(qcData).replace(/"qvc"/g, `"${actualTableId}"`);
+            qcData = JSON.parse(qcDataStr);
+
+            // 3. Save the new app immediately to make it persistent
+            // Remove ID from template data so saveFrontlineApp does an insert
+            const { id, ...templateData } = qcData;
+            const savedApp = await saveFrontlineApp({
+                ...templateData,
+                updated_at: new Date().toISOString()
+            });
+
+            // 4. Refresh and load the new app
+            await loadApps();
+            loadApp(savedApp || qcData);
+            
+            setStepPanelTab('RECORDS');
+            setActiveTab('APP');
+
+            // 5. Show success dialog
+            setProUiDialog({
+                type: 'success',
+                message: `QC Inspection Template Saved & Loaded!\n\n- Project "Professional QC Inspection" created.\n- Table initialized.\n- Data triggers for "Submit Inspection" configured.\n- UI steps for Scan and Inspection generated.`
+            });
+        } catch (error) {
+            console.error('Failed to load QC template:', error);
+            alert('Error generating QC template project. Please try again.');
+        } finally {
+            setIsSaving(false);
         }
-
-        // Replace the placeholder 'qvc' table ID with the actual UUID generated by Supabase
-        const qcDataStr = JSON.stringify(qcData).replace(/"qvc"/g, `"${actualTableId}"`);
-        qcData = JSON.parse(qcDataStr);
-
-        handleImportProject(qcData);
-        setStepPanelTab('RECORDS');
-        setActiveTab('APP');
-
-        // Show success dialog
-        setProUiDialog({
-            type: 'success',
-            message: `QC Inspection Template Loaded!\n\n- Table initialized.\n- Data triggers for "Submit Inspection" configured.\n- UI steps for Scan and Inspection generated.`
-        });
     };
 
     const handleImportProject = async (importedData) => {
@@ -6811,6 +6861,14 @@ const AppBuilder = () => {
             setCurrentAppId(null);
             setAppName(importedData.name);
             setAppCategory(importedData.category);
+            setAppMeta({
+                version: 1,
+                approval_status: 'DRAFT',
+                is_published: false,
+                lastPublishedAt: null,
+                approved_by: null,
+                approved_at: null
+            });
             setSteps(importedData.config?.steps || []);
             setBaseComponents(importedData.config?.baseComponents || []);
             setAppTriggers(importedData.config?.appTriggers || []);
@@ -9389,6 +9447,7 @@ const AppBuilder = () => {
                         </div>
                     </div>
                 );
+            case 'PDF':
             case 'PDF_VIEWER':
             case 'DOCUMENT':
                 return (
@@ -12704,7 +12763,23 @@ const AppBuilder = () => {
                                                                                                 transition: 'all 0.2s'
                                                                                             }} />
                                                                                         </div>
-                                                                                        <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100px' }}>{trig.name}</span>
+                                                                                        <span 
+                                                                                            onClick={() => setTriggerEditor({ isOpen: true, sourceType: 'WIDGET', sourceId: selectedComp.id, trigger: trig, editIndex: fullIdx })}
+                                                                                            style={{ 
+                                                                                                fontSize: '0.7rem', 
+                                                                                                fontWeight: 600, 
+                                                                                                color: '#8b5cf6', 
+                                                                                                whiteSpace: 'nowrap', 
+                                                                                                overflow: 'hidden', 
+                                                                                                textOverflow: 'ellipsis', 
+                                                                                                maxWidth: '100px',
+                                                                                                cursor: 'pointer',
+                                                                                                textDecoration: 'underline'
+                                                                                            }}
+                                                                                            title="Click to rename"
+                                                                                        >
+                                                                                            {trig.name || 'Unnamed Trigger'}
+                                                                                        </span>
                                                                                     </div>
                                                                                     <div style={{ display: 'flex', gap: '4px' }}>
                                                                                         <button
@@ -18230,7 +18305,23 @@ const AppBuilder = () => {
                                                                                             transition: 'all 0.2s'
                                                                                         }} />
                                                                                     </div>
-                                                                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px' }}>{trig.name}</span>
+                                                                                    <span 
+                                                        onClick={() => setTriggerEditor({ isOpen: true, sourceType: 'STEP', sourceId: currentStepId, trigger: trig, editIndex: fullIdx })}
+                                                        style={{ 
+                                                            fontSize: '0.75rem', 
+                                                            fontWeight: 600, 
+                                                            color: '#3b82f6', 
+                                                            whiteSpace: 'nowrap', 
+                                                            overflow: 'hidden', 
+                                                            textOverflow: 'ellipsis', 
+                                                            maxWidth: '120px',
+                                                            cursor: 'pointer',
+                                                            textDecoration: 'underline'
+                                                        }}
+                                                        title="Click to rename"
+                                                    >
+                                                        {trig.name || 'Unnamed Trigger'}
+                                                    </span>
                                                                                 </div>
                                                                                 <div style={{ display: 'flex', gap: '6px' }}>
                                                                                     <button
@@ -19047,23 +19138,34 @@ const AppBuilder = () => {
                         <div style={{ padding: '12px 24px', backgroundColor: 'var(--bg-panel)', borderBottom: '1px solid var(--border-primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flex: 1 }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', flex: 1, maxWidth: '400px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                        <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase' }}>Trigger Name</label>
+                                        <Pencil size={10} color="#3b82f6" />
+                                    </div>
                                     <input
                                         value={triggerEditor.trigger.name || ''}
                                         onChange={(e) => setTriggerEditor({ ...triggerEditor, trigger: { ...triggerEditor.trigger, name: e.target.value } })}
                                         style={{
-                                            fontSize: '1.1rem',
-                                            fontWeight: 700,
-                                            border: 'none',
-                                            borderBottom: '2px solid transparent',
-                                            padding: '4px 0',
+                                            fontSize: '1.2rem',
+                                            fontWeight: 800,
+                                            border: '1px solid #ddd6fe',
+                                            borderRadius: '6px',
+                                            padding: '8px 12px',
                                             outline: 'none',
                                             color: 'var(--text-primary)',
                                             width: '100%',
-                                            transition: 'border-color 0.2s'
+                                            backgroundColor: '#f5f3ff',
+                                            transition: 'all 0.2s'
                                         }}
-                                        onFocus={e => e.target.style.borderBottomColor = '#8b5cf6'}
-                                        onBlur={e => e.target.style.borderBottomColor = 'transparent'}
-                                        placeholder="Trigger Name..."
+                                        onFocus={e => {
+                                            e.target.style.borderColor = '#8b5cf6';
+                                            e.target.style.boxShadow = '0 0 0 3px rgba(139, 92, 246, 0.1)';
+                                        }}
+                                        onBlur={e => {
+                                            e.target.style.borderColor = '#ddd6fe';
+                                            e.target.style.boxShadow = 'none';
+                                        }}
+                                        placeholder="Enter a descriptive name for this trigger..."
                                     />
                                     <div style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
                                         <span style={{ textTransform: 'uppercase' }}>{triggerEditor.sourceType} TRIGGER</span>
@@ -20160,6 +20262,9 @@ const AppBuilder = () => {
                                         delete finalized.conditions;
                                         delete finalized.actions;
                                         delete finalized.conditionMatch;
+                                        if (!finalized.name) {
+                                            finalized.name = (finalized.event || 'Unnamed').replace('ON_', '').replace(/_/g, ' ') + ' Trigger';
+                                        }
                                         if (typeof finalized.stopOnError !== 'boolean') {
                                             finalized.stopOnError = getDefaultStopOnError(finalized.event);
                                         }

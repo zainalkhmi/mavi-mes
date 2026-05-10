@@ -44,6 +44,7 @@ export function createQCTemplate() {
             appTriggers: [
                 {
                     id: `trig_start_${timestamp}`,
+                    name: "QC Module Start",
                     event: "ON_APP_START",
                     actions: [
                         { type: "SHOW_MESSAGE", payload: { message: "QC Inspection Module Initialized", msgType: "info" } }

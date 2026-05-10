@@ -19,7 +19,8 @@ import {
   Eye,
   BrainCircuit,
   SlidersHorizontal,
-  Users
+  Users,
+  ShoppingBag
 } from 'lucide-react';
 import TableManager from './components/TableManager';
 import ConnectorManager from './components/ConnectorManager';
@@ -48,6 +49,7 @@ import DashboardManager from './components/DashboardManager';
 import DashboardEditor from './components/DashboardEditor';
 import AiSettings from './components/AiSettings';
 import SupabaseSettings from './components/SupabaseSettings';
+import AppStore from './components/AppStore';
 import { Toaster } from 'react-hot-toast';
 
 const Placeholder = ({ title }) => (
@@ -191,6 +193,7 @@ const App = () => {
               {appsMenuOpen && (
                 <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, backgroundColor: 'white', minWidth: '200px', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)', padding: '8px 0', display: 'flex', flexDirection: 'column', zIndex: 1001, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
                   <Link to="/builder" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/builder')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/builder' ? '#f0f7ff' : 'transparent'}><Layout size={16} /> App Builder</Link>
+                  <Link to="/store" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/store')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/store' ? '#f0f7ff' : 'transparent'}><ShoppingBag size={16} /> App Store</Link>
                   <Link to="/tables" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/tables')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/tables' ? '#f0f7ff' : 'transparent'}><Database size={16} /> Tables</Link>
                   <Link to="/connectors" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/connectors')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/connectors' ? '#f0f7ff' : 'transparent'}><Link2 size={16} /> Connectors</Link>
                   <Link to="/variables" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/variables')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/variables' ? '#f0f7ff' : 'transparent'}><Variable size={16} /> Variables</Link>
@@ -396,6 +399,7 @@ const App = () => {
               <Route path="/edge-devices" element={<EdgeDeviceManager />} />
               <Route path="/vision" element={<VisionManager />} />
               <Route path="/builder" element={<AppBuilder />} />
+              <Route path="/store" element={<AppStore />} />
               <Route path="/tables" element={<TableManager />} />
               <Route path="/connectors" element={<ConnectorManager />} />
               <Route path="/variables" element={<VariableManager />} />

@@ -4,12 +4,14 @@ import {
     Rocket, Clock3, Package, Maximize2, Minimize2, Star,
     AlertTriangle, RotateCcw, X, ChevronRight, Pause, MessageSquare, Info, Code, Play as PlayIcon,
     Wifi, Cpu, HardDrive, CheckCircle2, XCircle, AlertCircle, Signal, Bug,
-    Languages, Camera, PenTool, Globe
+    Languages, Camera, PenTool, Globe, Plus, FilePlus, Settings2, Sparkles, CheckCircle2 as CheckIcon
 } from 'lucide-react';
-import { getAllFrontlineApps, getProductionQueue, logPlayerSession } from '../utils/supabaseFrontlineDB';
-import { getStations, getEdgeDevices } from '../utils/database';
+import { getAllFrontlineApps, getProductionQueue, logPlayerSession, saveFrontlineApp } from '../utils/supabaseFrontlineDB';
+import { getStations, getEdgeDevices, createTable, getTables } from '../utils/database';
 import iotConnector from '../utils/iotConnector';
 import { useLanguage } from '../contexts/LanguageContext';
+import { createShopfloorTemplate } from '../utils/shopfloorTemplate';
+import { createQCTemplate } from '../utils/qcTemplate';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -570,6 +572,86 @@ function ESignatureModal({ operator, onClose, onSign }) {
     );
 }
 
+function NewAppModal({ onConfirm, onCancel }) {
+    const templates = [
+        {
+            id: 'qc',
+            name: 'QC Inspection',
+            description: 'Standard QVC inspection with measurement collection and auto-judgment.',
+            icon: <Sparkles size={24} color="#8b5cf6" />,
+            bg: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
+            accent: '#8b5cf6'
+        },
+        {
+            id: 'shopfloor',
+            name: 'Shopfloor Workflow',
+            description: '5-step Standard Work Application with built-in production logging.',
+            icon: <Settings2 size={24} color="#10b981" />,
+            bg: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
+            accent: '#10b981'
+        }
+    ];
+
+    return (
+        <div style={{
+            position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+            backdropFilter: 'blur(8px)'
+        }}>
+            <div style={{
+                backgroundColor: 'white', borderRadius: '24px', width: '500px',
+                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden'
+            }}>
+                <div style={{ padding: '24px 32px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                        <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>Create New App</h2>
+                        <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>Choose a template to get started</p>
+                    </div>
+                    <button onClick={onCancel} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', padding: '8px', cursor: 'pointer', color: '#64748b' }}>
+                        <X size={20} />
+                    </button>
+                </div>
+
+                <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {templates.map(t => (
+                        <div
+                            key={t.id}
+                            onClick={() => onConfirm(t.id)}
+                            style={{
+                                padding: '20px', borderRadius: '16px', border: '2px solid #f1f5f9',
+                                background: t.bg, cursor: 'pointer', transition: 'all 0.2s',
+                                display: 'flex', gap: '16px', alignItems: 'center'
+                            }}
+                            onMouseEnter={e => {
+                                e.currentTarget.style.borderColor = t.accent;
+                                e.currentTarget.style.transform = 'translateY(-2px)';
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.borderColor = '#f1f5f9';
+                                e.currentTarget.style.transform = 'translateY(0)';
+                            }}
+                        >
+                            <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                                {t.icon}
+                            </div>
+                            <div>
+                                <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '1rem' }}>{t.name}</div>
+                                <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '2px', lineHeight: 1.4 }}>{t.description}</div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <div style={{ padding: '16px 24px', backgroundColor: '#f8fafc', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end' }}>
+                    <button onClick={onCancel} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', color: '#64748b', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 const AppPlayer = () => {
@@ -640,6 +722,8 @@ const AppPlayer = () => {
 
     // Auth modal
     const [pendingApp, setPendingApp] = useState(null);
+    const [showNewAppModal, setShowNewAppModal] = useState(false);
+    const [isCreating, setIsCreating] = useState(false);
 
     // Iframe error
     const [iframeError, setIframeError] = useState(false);
@@ -817,6 +901,86 @@ const AppPlayer = () => {
         setPendingApp(null);
     };
 
+    const handleCreateTemplate = async (templateId) => {
+        setShowNewAppModal(false);
+        setIsCreating(true);
+        try {
+            let templateApp;
+            if (templateId === 'qc') {
+                let qcData = createQCTemplate();
+                // Initialize QC Table
+                let actualTableId = 'qvc';
+                try {
+                    const tables = await getTables();
+                    let qvcTable = tables.find(t => t.name === 'QVC Inspection' || t.id === 'qvc');
+                    if (!qvcTable) {
+                        qvcTable = await createTable({
+                            name: 'QVC Inspection',
+                            fields: [
+                                { name: 'part_id', type: 'text' },
+                                { name: 'operator', type: 'text' },
+                                { name: 'status', type: 'text' },
+                                { name: 'measurement', type: 'number' },
+                                { name: 'timestamp', type: 'datetime' }
+                            ]
+                        });
+                    }
+                    if (qvcTable && qvcTable.id) {
+                        actualTableId = qvcTable.id;
+                    }
+                } catch (err) {
+                    console.error('Error initializing QC table:', err);
+                }
+                const qcDataStr = JSON.stringify(qcData).replace(/"qvc"/g, `"${actualTableId}"`);
+                templateApp = JSON.parse(qcDataStr);
+            } else {
+                templateApp = createShopfloorTemplate();
+                // Initialize Shopfloor Table
+                try {
+                    const newTable = await createTable({
+                        name: `Shopfloor_Logs`,
+                        description: 'Automated table for shop floor data collection',
+                        fields: [
+                            { name: 'Work_Order', type: 'text' },
+                            { name: 'Operator', type: 'user' },
+                            { name: 'Station', type: 'station' },
+                            { name: 'Status', type: 'text' },
+                            { name: 'Timestamp', type: 'datetime' }
+                        ]
+                    });
+                    if (newTable && newTable.id) {
+                        if (templateApp.config.recordPlaceholders && templateApp.config.recordPlaceholders.length > 0) {
+                            templateApp.config.recordPlaceholders[0].tableId = newTable.id;
+                        }
+                        templateApp.config.appTables = [newTable.id];
+                    }
+                } catch (tErr) {
+                    console.warn('Could not create automated table:', tErr);
+                }
+            }
+
+            // Save the new app
+            const { id, ...templateData } = templateApp;
+            const savedApp = await saveFrontlineApp({
+                ...templateData,
+                is_published: false,
+                approval_status: 'DRAFT',
+                updated_at: new Date().toISOString()
+            });
+
+            // Refresh and load
+            await loadData();
+            if (savedApp) {
+                requestLaunch(savedApp);
+            }
+        } catch (err) {
+            console.error('Failed to create template:', err);
+            alert('Failed to create application: ' + err.message);
+        } finally {
+            setIsCreating(false);
+        }
+    };
+
     const cancelLaunch = () => setPendingApp(null);
 
     const stopSession = async () => {
@@ -941,6 +1105,24 @@ const AppPlayer = () => {
                 />
             )}
 
+            {showNewAppModal && (
+                <NewAppModal
+                    onConfirm={handleCreateTemplate}
+                    onCancel={() => setShowNewAppModal(false)}
+                />
+            )}
+
+            {isCreating && (
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.4)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', textAlign: 'center' }}>
+                        <div style={{ width: '40px', height: '40px', border: '3px solid #f1f5f9', borderTopColor: '#3b82f6', borderRadius: '50%', animation: 'mavi-spin 1s linear infinite', margin: '0 auto 16px' }} />
+                        <div style={{ fontWeight: 800, color: '#0f172a' }}>Creating Your App...</div>
+                        <p style={{ margin: '8px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>Initializing tables and workflow structure</p>
+                        <style>{`@keyframes mavi-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+                    </div>
+                </div>
+            )}
+
             <div style={{
                 height: '100%',
                 display: 'grid',
@@ -967,14 +1149,30 @@ const AppPlayer = () => {
                                 <Rocket size={18} color="#2563eb" />
                                 <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>App Player</h2>
                             </div>
-                            <div style={{ 
-                                fontSize: '0.65rem', fontWeight: 800, padding: '3px 8px', borderRadius: '20px',
-                                backgroundColor: isOnline ? '#dcfce7' : '#fee2e2',
-                                color: isOnline ? '#166534' : '#991b1b',
-                                display: 'flex', alignItems: 'center', gap: '5px'
-                            }}>
-                                <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: isOnline ? '#22c55e' : '#ef4444' }} />
-                                {isOnline ? 'ONLINE' : 'OFFLINE'}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ 
+                                    fontSize: '0.65rem', fontWeight: 800, padding: '3px 8px', borderRadius: '20px',
+                                    backgroundColor: isOnline ? '#dcfce7' : '#fee2e2',
+                                    color: isOnline ? '#166534' : '#991b1b',
+                                    display: 'flex', alignItems: 'center', gap: '5px'
+                                }}>
+                                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: isOnline ? '#22c55e' : '#ef4444' }} />
+                                    {isOnline ? 'ONLINE' : 'OFFLINE'}
+                                </div>
+                                <button
+                                    onClick={() => setShowNewAppModal(true)}
+                                    title="Create New App"
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px',
+                                        backgroundColor: '#2563eb', color: 'white', border: 'none',
+                                        borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800,
+                                        cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#1d4ed8'}
+                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = '#2563eb'}
+                                >
+                                    <Plus size={14} /> NEW
+                                </button>
                             </div>
                         </div>
 
@@ -1448,7 +1646,7 @@ const AppPlayer = () => {
                                         triggerHistory.map((log) => (
                                             <div key={log.id} style={{ borderLeft: '2px solid #f59e0b', paddingLeft: '10px', marginBottom: '4px' }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'white' }}>{log.triggerName}</span>
+                                                    <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'white' }}>{log.triggerName || 'Unnamed Trigger'}</span>
                                                     <span style={{ fontSize: '0.6rem', color: '#64748b' }}>{new Date(log.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
                                                 </div>
                                                 <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>

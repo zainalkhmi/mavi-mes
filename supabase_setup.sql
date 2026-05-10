@@ -305,3 +305,19 @@ ALTER TABLE public.manuals ADD COLUMN IF NOT EXISTS time_required TEXT;
 ALTER TABLE public.manuals ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'Work Instruction';
 ALTER TABLE public.manuals ADD COLUMN IF NOT EXISTS industry TEXT;
 ALTER TABLE public.manuals ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'manual';
+
+-- 15. Policies for frontline_apps (Fix RLS violation on save)
+GRANT ALL ON TABLE public.frontline_apps TO anon, authenticated;
+ALTER TABLE public.frontline_apps ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow read frontline_apps" ON public.frontline_apps;
+CREATE POLICY "Allow read frontline_apps" ON public.frontline_apps FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Allow insert frontline_apps" ON public.frontline_apps;
+CREATE POLICY "Allow insert frontline_apps" ON public.frontline_apps FOR INSERT TO anon, authenticated WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow update frontline_apps" ON public.frontline_apps;
+CREATE POLICY "Allow update frontline_apps" ON public.frontline_apps FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow delete frontline_apps" ON public.frontline_apps;
+CREATE POLICY "Allow delete frontline_apps" ON public.frontline_apps FOR DELETE TO anon, authenticated USING (true);
