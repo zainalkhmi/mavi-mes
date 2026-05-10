@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     Monitor,
     Plus,
@@ -28,6 +29,7 @@ const InterfaceManager = () => {
     const [newInterfaceData, setNewInterfaceData] = useState({ name: '', deviceType: 'Computer', stationId: '' });
     const [editInterfaceData, setEditInterfaceData] = useState({ id: '', name: '', stationId: '' });
     const [isSaving, setIsSaving] = useState(false);
+    const navigate = useNavigate();
 
     useEffect(() => {
         loadData();
@@ -68,6 +70,13 @@ const InterfaceManager = () => {
         };
     };
 
+    const handleLaunchPlayer = (iface) => {
+        const station = stations.find(s => s.id === iface.stationId);
+        const stationName = station ? station.name : 'WS-01';
+        // Open in new tab for player experience
+        window.open(`/terminal?station=${encodeURIComponent(stationName)}`, '_blank');
+    };
+
     const filteredInterfaces = useMemo(() => {
         return interfaces.filter((i) =>
             i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -96,7 +105,7 @@ const InterfaceManager = () => {
             await loadData();
         } catch (err) {
             console.error('Failed to register interface:', err);
-            alert('Failed to register interface. Please try again.');
+            alert(`Failed to register interface: ${err.message || 'Unknown error'}. Please check your database connection.`);
         } finally {
             setIsSaving(false);
         }
@@ -132,7 +141,7 @@ const InterfaceManager = () => {
             await loadData();
         } catch (err) {
             console.error('Failed to update interface:', err);
-            alert('Failed to update interface.');
+            alert(`Failed to update interface: ${err.message || 'Unknown error'}`);
         } finally {
             setIsSaving(false);
         }
@@ -220,7 +229,12 @@ const InterfaceManager = () => {
                                             <span style={{ fontWeight: 600 }}>{iface.lastSeen ? new Date(iface.lastSeen).toLocaleString() : '-'}</span>
                                         </div>
                                     </div>
-                                    <button style={{ width: '100%', marginTop: '20px', padding: '10px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                    <button 
+                                        onClick={() => handleLaunchPlayer(iface)}
+                                        style={{ width: '100%', marginTop: '20px', padding: '10px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                                        onMouseEnter={(e) => e.target.style.backgroundColor = '#f1f5f9'}
+                                        onMouseLeave={(e) => e.target.style.backgroundColor = '#f8fafc'}
+                                    >
                                         Launch Player <ExternalLink size={14} />
                                     </button>
                                 </div>

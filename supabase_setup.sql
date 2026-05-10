@@ -321,3 +321,131 @@ CREATE POLICY "Allow update frontline_apps" ON public.frontline_apps FOR UPDATE 
 
 DROP POLICY IF EXISTS "Allow delete frontline_apps" ON public.frontline_apps;
 CREATE POLICY "Allow delete frontline_apps" ON public.frontline_apps FOR DELETE TO anon, authenticated USING (true);
+
+-- =====================================================
+-- SHOP FLOOR MANAGEMENT TABLES
+-- =====================================================
+
+-- 16. Table: stations
+CREATE TABLE IF NOT EXISTS public.stations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    description TEXT,
+    station_group_id TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 17. Table: machines
+CREATE TABLE IF NOT EXISTS public.machines (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    type TEXT,
+    status TEXT DEFAULT 'OFFLINE',
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 18. Table: interfaces
+CREATE TABLE IF NOT EXISTS public.interfaces (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    device_type TEXT DEFAULT 'Computer',
+    station_id TEXT,
+    status TEXT DEFAULT 'ONLINE',
+    version TEXT DEFAULT 'r284.1',
+    last_seen TIMESTAMPTZ DEFAULT now(),
+    ip_address TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 19. Table: integration_connectors
+CREATE TABLE IF NOT EXISTS public.integration_connectors (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    type TEXT NOT NULL, -- AI, HTTP, DATABASE, etc.
+    config JSONB DEFAULT '{}',
+    status TEXT DEFAULT 'ACTIVE',
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 20. Table: edge_devices
+CREATE TABLE IF NOT EXISTS public.edge_devices (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    type TEXT,
+    ip_address TEXT,
+    status TEXT DEFAULT 'OFFLINE',
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 21. Table: station_groups
+CREATE TABLE IF NOT EXISTS public.station_groups (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Basic grants for new tables
+GRANT ALL ON TABLE public.stations TO anon, authenticated;
+GRANT ALL ON TABLE public.machines TO anon, authenticated;
+GRANT ALL ON TABLE public.interfaces TO anon, authenticated;
+GRANT ALL ON TABLE public.integration_connectors TO anon, authenticated;
+GRANT ALL ON TABLE public.edge_devices TO anon, authenticated;
+GRANT ALL ON TABLE public.station_groups TO anon, authenticated;
+
+-- Enable RLS and add basic policies (Public read/write for dev)
+ALTER TABLE public.stations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.machines ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.interfaces ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.integration_connectors ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.edge_devices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.station_groups ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow all stations" ON public.stations;
+CREATE POLICY "Allow all stations" ON public.stations FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all machines" ON public.machines;
+CREATE POLICY "Allow all machines" ON public.machines FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all interfaces" ON public.interfaces;
+CREATE POLICY "Allow all interfaces" ON public.interfaces FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all integration_connectors" ON public.integration_connectors;
+CREATE POLICY "Allow all integration_connectors" ON public.integration_connectors FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all edge_devices" ON public.edge_devices;
+CREATE POLICY "Allow all edge_devices" ON public.edge_devices FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all station_groups" ON public.station_groups;
+CREATE POLICY "Allow all station_groups" ON public.station_groups FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+-- =====================================================
+-- SCHEMA MIGRATIONS (Ensure columns exist for old tables)
+-- =====================================================
+
+DO $$ 
+BEGIN
+    -- Interfaces table
+    ALTER TABLE public.interfaces ADD COLUMN IF NOT EXISTS device_type TEXT DEFAULT 'Computer';
+    ALTER TABLE public.interfaces ADD COLUMN IF NOT EXISTS station_id TEXT;
+    ALTER TABLE public.interfaces ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'ONLINE';
+    ALTER TABLE public.interfaces ADD COLUMN IF NOT EXISTS version TEXT DEFAULT 'r284.1';
+    ALTER TABLE public.interfaces ADD COLUMN IF NOT EXISTS last_seen TIMESTAMPTZ DEFAULT now();
+    ALTER TABLE public.interfaces ADD COLUMN IF NOT EXISTS ip_address TEXT;
+    ALTER TABLE public.interfaces ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
+    ALTER TABLE public.interfaces ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
+    
+    -- Stations table
+    ALTER TABLE public.stations ADD COLUMN IF NOT EXISTS description TEXT;
+    ALTER TABLE public.stations ADD COLUMN IF NOT EXISTS station_group_id TEXT;
+    
+    -- Machines table
+    ALTER TABLE public.machines ADD COLUMN IF NOT EXISTS type TEXT;
+    ALTER TABLE public.machines ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'OFFLINE';
+END $$;

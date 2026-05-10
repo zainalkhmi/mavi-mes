@@ -7,6 +7,11 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { createShopfloorTemplate } from '../utils/shopfloorTemplate';
 import { createQCTemplate } from '../utils/qcTemplate';
+import { createMaterialRequisitionTemplate } from '../utils/inventoryTemplate';
+import { createMaintenanceTemplate } from '../utils/maintenanceTemplate';
+import { createSafetyTemplate } from '../utils/safetyTemplate';
+import { createAutomotiveTuneUpTemplate } from '../utils/automotiveTemplate';
+import { createDefectTrackingTemplate } from '../utils/defectTrackingTemplate';
 import { saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { createTable, getTables } from '../utils/database';
 import { toast, Toaster } from 'react-hot-toast';
@@ -32,6 +37,19 @@ const AppStore = () => {
             rating: 4.9,
             installs: '2.4k',
             features: ['Auto-Judgment', 'Photo Evidence', 'Cloud Storage']
+        },
+        {
+            id: 'defect',
+            name: 'Defect Tracking & Rework',
+            category: 'Quality',
+            description: 'Report and monitor defect events with integrated rework workflows and disposition management.',
+            longDescription: 'End-to-end defect management. Log defects with photos, print material labels, and manage dispositions (Scrap, Rework, Use As-Is). Track rework progress across specialized stations to ensure 100% quality compliance.',
+            icon: <ShieldAlert size={28} color="#ef4444" />,
+            bg: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+            accent: '#ef4444',
+            rating: 4.9,
+            installs: '1.1k',
+            features: ['Rework Workflow', 'Label Printing', 'Disposition Logic']
         },
         {
             id: 'shopfloor',
@@ -61,29 +79,42 @@ const AppStore = () => {
         },
         {
             id: 'maintenance',
-            name: 'Preventive Maintenance',
+            name: 'Preventive Maintenance Pro',
             category: 'Maintenance',
-            description: 'Routine machine checks and autonomous maintenance. Log meter readings and schedule repairs.',
-            longDescription: 'Maximize equipment uptime with scheduled inspections. Operators can log issues directly and attach photos for technicians.',
+            description: 'Enterprise-grade machine maintenance with LOTO safety protocols, meter logging, and health score analytics.',
+            longDescription: 'Ensure maximum equipment uptime and operator safety. This professional template includes mandatory Lock-Out Tag-Out (LOTO) checklists, photo evidence for inspections, and automated health score calculations based on meter readings.',
             icon: <Wrench size={28} color="#f59e0b" />,
             bg: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
             accent: '#f59e0b',
-            rating: 4.6,
-            installs: '1.2k',
-            features: ['Meter Logging', 'Machine Health', 'Auto-Scheduler']
+            rating: 4.9,
+            installs: '1.5k',
+            features: ['LOTO Safety Protocol', 'Meter & Part Tracking', 'Health Score AI']
         },
         {
             id: 'safety',
-            name: 'Safety Audit (LOTO)',
+            name: 'EHS Safety & LOTO Enterprise',
             category: 'Safety',
-            description: 'Critical safety checklists and Lock-Out Tag-Out procedures to ensure zero accidents.',
-            longDescription: 'Protect your workforce with mandatory safety verification steps. Logs every check for audit compliance.',
+            description: 'Zero-accident safety management with mandatory PPE checks, hazard mapping, and LOTO compliance.',
+            longDescription: 'Protect your workforce with a world-class safety management system. This template ensures 100% compliance with ISO 45001 by requiring photographic PPE verification, interactive hazard assessments, and step-by-step Lock-Out Tag-Out (LOTO) procedures with unique lock identification.',
             icon: <ShieldAlert size={28} color="#ef4444" />,
             bg: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
             accent: '#ef4444',
             rating: 5.0,
-            installs: '800+',
-            features: ['Compliance Logs', 'Photo Verification', 'Manager Alerts']
+            installs: '1.2k',
+            features: ['PPE Camera Check', 'Isolation Tracking', 'ISO 45001 Ready']
+        },
+        {
+            id: 'automotive',
+            name: 'Automotive Tune-Up',
+            category: 'Maintenance',
+            description: 'Standardized vehicle service with real-time OBD2 diagnostics, engine health monitoring, and multi-point inspection.',
+            longDescription: 'Digitize your automotive workshop. This template integrates with ELM327 OBD2 scanners to read live RPM, Coolant Temp, and DTC codes. Includes step-by-step checklists for Spark Plugs, Filters, and Oil Service with photo evidence.',
+            icon: <Zap size={28} color="#facc15" />,
+            bg: 'linear-gradient(135deg, #fffcf0 0%, #fef9c3 100%)',
+            accent: '#eab308',
+            rating: 4.8,
+            installs: '500+',
+            features: ['OBD2 Live Data', 'DTC Error Scanner', 'Multi-point Check']
         }
     ];
 
@@ -146,6 +177,127 @@ const AppStore = () => {
                     }
                 } catch (tErr) {
                     console.warn('Could not create automated table:', tErr);
+                }
+            } else if (templateId === 'inventory') {
+                templateApp = createMaterialRequisitionTemplate();
+                try {
+                    const newTable = await createTable({
+                        name: `Inventory_Logs`,
+                        description: 'Log of material picking and transfers',
+                        fields: [
+                            { name: 'Requisition_ID', type: 'text' },
+                            { name: 'Part_Number', type: 'text' },
+                            { name: 'Qty_Picked', type: 'number' },
+                            { name: 'Operator', type: 'user' },
+                            { name: 'Timestamp', type: 'datetime' }
+                        ]
+                    });
+                    if (newTable && newTable.id) {
+                        if (templateApp.config.recordPlaceholders && templateApp.config.recordPlaceholders.length > 0) {
+                            templateApp.config.recordPlaceholders[0].tableId = newTable.id;
+                        }
+                        templateApp.config.appTables = [newTable.id];
+                    }
+                } catch (invErr) {
+                    console.warn('Could not create inventory table:', invErr);
+                }
+            } else if (templateId === 'maintenance') {
+                templateApp = createMaintenanceTemplate();
+                try {
+                    const newTable = await createTable({
+                        name: `Maintenance_Logs`,
+                        description: 'Enterprise maintenance execution records',
+                        fields: [
+                            { name: 'Machine_ID', type: 'text' },
+                            { name: 'Meter_Reading', type: 'number' },
+                            { name: 'Health_Score', type: 'number' },
+                            { name: 'Operator', type: 'user' },
+                            { name: 'Status', type: 'text' },
+                            { name: 'Timestamp', type: 'datetime' }
+                        ]
+                    });
+                    if (newTable && newTable.id) {
+                        if (templateApp.config.recordPlaceholders && templateApp.config.recordPlaceholders.length > 0) {
+                            templateApp.config.recordPlaceholders[0].tableId = newTable.id;
+                        }
+                        templateApp.config.appTables = [newTable.id];
+                    }
+                } catch (maintErr) {
+                    console.warn('Could not create maintenance table:', maintErr);
+                }
+            } else if (templateId === 'safety') {
+                templateApp = createSafetyTemplate();
+                try {
+                    const newTable = await createTable({
+                        name: `Safety_Audit_Logs`,
+                        description: 'Audit logs for safety permits and LOTO compliance',
+                        fields: [
+                            { name: 'Permit_Number', type: 'text' },
+                            { name: 'Operator', type: 'user' },
+                            { name: 'Hazard_Count', type: 'number' },
+                            { name: 'PPE_Status', type: 'text' },
+                            { name: 'LOTO_Verified', type: 'boolean' },
+                            { name: 'Timestamp', type: 'datetime' }
+                        ]
+                    });
+                    if (newTable && newTable.id) {
+                        if (templateApp.config.recordPlaceholders && templateApp.config.recordPlaceholders.length > 0) {
+                            templateApp.config.recordPlaceholders[0].tableId = newTable.id;
+                        }
+                        templateApp.config.appTables = [newTable.id];
+                    }
+                } catch (safeErr) {
+                    console.warn('Could not create safety table:', safeErr);
+                }
+            } else if (templateId === 'automotive') {
+                templateApp = createAutomotiveTuneUpTemplate();
+                try {
+                    const newTable = await createTable({
+                        name: `Vehicle_Service_Logs`,
+                        description: 'Detailed records of car tune-ups and OBD2 diagnostics',
+                        fields: [
+                            { name: 'Vehicle_VIN', type: 'text' },
+                            { name: 'Mileage', type: 'number' },
+                            { name: 'OBD_Status', type: 'text' },
+                            { name: 'DTC_Codes', type: 'text' },
+                            { name: 'Mechanic', type: 'user' },
+                            { name: 'Timestamp', type: 'datetime' }
+                        ]
+                    });
+                    if (newTable && newTable.id) {
+                        if (templateApp.config.recordPlaceholders && templateApp.config.recordPlaceholders.length > 0) {
+                            templateApp.config.recordPlaceholders[0].tableId = newTable.id;
+                        }
+                        templateApp.config.appTables = [newTable.id];
+                    }
+                } catch (autoErr) {
+                    console.warn('Could not create automotive table:', autoErr);
+                }
+            } else if (templateId === 'defect') {
+                templateApp = createDefectTrackingTemplate();
+                try {
+                    const newTable = await createTable({
+                        name: `Defect_Events`,
+                        description: 'Log of manufacturing defects and their dispositions',
+                        fields: [
+                            { name: 'Material_ID', type: 'text' },
+                            { name: 'Description', type: 'text' },
+                            { name: 'Quantity', type: 'number' },
+                            { name: 'Status', type: 'text' },
+                            { name: 'Reported_By', type: 'user' },
+                            { name: 'Location_Detected', type: 'text' },
+                            { name: 'Rework_Station', type: 'text' },
+                            { name: 'Timestamp', type: 'datetime' }
+                        ]
+                    });
+                    if (newTable && newTable.id) {
+                        if (templateApp.config.recordPlaceholders && templateApp.config.recordPlaceholders.length > 0) {
+                            templateApp.config.recordPlaceholders[0].tableId = newTable.id;
+                        }
+                        templateApp.config.appTables = [newTable.id];
+                    }
+                } catch (defErr) {
+                    console.warn('Could not create defect table:', defErr);
                 }
             } else {
                 // For others, we just create a blank-ish app for now or use Shopfloor as base

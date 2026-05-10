@@ -15,9 +15,10 @@ import {
   Check,
   CheckCheck,
   Plus,
-  Camera
+  Camera,
+  Trash2
 } from 'lucide-react';
-import { uploadManualImage, getSupabaseClient, isSupabaseReady } from '../utils/supabaseManualDB';
+import { uploadManualImage, getSupabaseClient, isSupabaseReady, deleteChatMedia } from '../utils/supabaseManualDB';
 import { getStations } from '../utils/database';
 
 const ChatWidget = ({ currentStation, currentUser, onClose }) => {
@@ -78,6 +79,14 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
         const updatedMsg = payload.new;
         setMessages(prev => prev.map(m => m.id === updatedMsg.id ? updatedMsg : m));
       })
+      .on('postgres_changes', {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'chat_messages'
+      }, (payload) => {
+        const deletedId = payload.old.id;
+        setMessages(prev => prev.filter(m => m.id !== deletedId));
+      })
       .subscribe();
 
     return () => {
@@ -128,6 +137,34 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleDeleteMessage = async (msgId) => {
+    if (!msgId) return;
+    
+    // Check if the message is already optimistic (no ID yet)
+    const msg = messages.find(m => m.id === msgId);
+    if (!msg) return;
+
+    if (!window.confirm('Hapus pesan ini?')) return;
+
+    // If it's a media message, delete from storage too
+    if (msg.type === 'IMAGE' || msg.type === 'VIDEO' || msg.type === 'FILE') {
+      await deleteChatMedia(msg.content);
+    }
+
+    const { error } = await supabase
+      .from('chat_messages')
+      .delete()
+      .eq('id', msgId);
+
+    if (error) {
+      console.error('Error deleting message:', error);
+      alert('Gagal menghapus pesan.');
+    } else {
+      // Optimistic update
+      setMessages(prev => prev.filter(m => m.id !== msgId));
+    }
   };
 
   const handleSendMessage = async (e) => {
@@ -467,11 +504,53 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
           }
 
           return (
-            <div key={msg.id || i} style={{ 
-              alignSelf: isMe ? 'flex-end' : 'flex-start',
-              maxWidth: '85%',
-              marginBottom: '2px'
-            }}>
+            <div 
+              key={msg.id || i} 
+              style={{ 
+                alignSelf: isMe ? 'flex-end' : 'flex-start',
+                maxWidth: '85%',
+                marginBottom: '2px',
+                position: 'relative',
+                group: 'message' // CSS-like logic for hover
+              }}
+              onMouseEnter={e => {
+                const btn = e.currentTarget.querySelector('.delete-btn');
+                if (btn) btn.style.opacity = '1';
+              }}
+              onMouseLeave={e => {
+                const btn = e.currentTarget.querySelector('.delete-btn');
+                if (btn) btn.style.opacity = '0';
+              }}
+            >
+              {isMe && msg.id && (
+                <button
+                  className="delete-btn"
+                  onClick={() => handleDeleteMessage(msg.id)}
+                  style={{
+                    position: 'absolute',
+                    left: '-30px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    backgroundColor: 'white',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '50%',
+                    width: '24px',
+                    height: '24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ef4444',
+                    cursor: 'pointer',
+                    opacity: '0',
+                    transition: 'opacity 0.2s',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    zIndex: 10
+                  }}
+                  title="Hapus pesan"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
               <div style={{ 
                 padding: '6px 7px 8px 9px',
                 borderRadius: '8px',

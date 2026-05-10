@@ -442,6 +442,37 @@ export async function uploadManualImage(storagePath, fileOrDataUrl, overrideSett
     return data.publicUrl;
 }
 
+/**
+ * Delete a file from Supabase Storage by its public URL.
+ * 
+ * @param {string} publicUrl 
+ * @returns {boolean} success
+ */
+export async function deleteChatMedia(publicUrl) {
+    if (!publicUrl || !publicUrl.includes('/storage/v1/object/public/')) return false;
+    
+    try {
+        const supabase = getSupabaseClient();
+        const urlObj = new URL(publicUrl);
+        const parts = urlObj.pathname.split('/storage/v1/object/public/');
+        if (parts.length < 2) return false;
+        
+        const pathParts = parts[1].split('/');
+        const bucket = pathParts[0];
+        const path = pathParts.slice(1).join('/');
+        
+        const { error } = await supabase.storage.from(bucket).remove([path]);
+        if (error) {
+            console.warn('[Supabase Storage] Delete failed:', error);
+            return false;
+        }
+        return true;
+    } catch (e) {
+        console.warn('[Supabase Storage] URL parsing failed:', e);
+        return false;
+    }
+}
+
 // ── Internal helpers ──────────────────────────────────
 
 /**

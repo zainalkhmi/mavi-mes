@@ -84,7 +84,8 @@ import {
   Star,
   LogOut,
   MoreVertical,
-  HardDrive
+  HardDrive,
+  Lock
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import obd2Service from '../utils/obd2Service';
@@ -1975,6 +1976,21 @@ const LiveTerminal = () => {
     const checks = requiredComps.map(c => getRequiredCheckForComponent(c));
     const done = checks.filter(c => c.ok).length;
     return { total: requiredComps.length, done, ok: done === requiredComps.length };
+  };
+
+  const canNavigateToStep = (targetIdx) => {
+    // Always allowed to go back
+    if (targetIdx <= currentStepIndex) return true;
+    
+    // Only allow going to the very next step
+    if (targetIdx > currentStepIndex + 1) return false;
+    
+    // To go to the next step, the current step must be complete
+    const currentStep = steps[currentStepIndex];
+    if (!currentStep) return true;
+    
+    const summary = getStepRequiredSummary(currentStep);
+    return summary.ok;
   };
 
   const scrollToFirstInvalidWidget = (errors) => {
@@ -4864,41 +4880,67 @@ const LiveTerminal = () => {
                     {appComponents.length} Widgets
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '5px' }}>
+                <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '10px' }}>
                   {steps.map((step, idx) => (
                     (() => {
                       const summary = selectedApp ? getStepRequiredSummary(step) : { total: 0, done: 0, ok: true };
-                      const stepComps = step.components || [];
+                      const isLocked = !canNavigateToStep(idx);
+                      const isActive = idx === currentStepIndex;
+                      
                       return (
                         <div
                           key={idx}
-                          onClick={() => setCurrentStepIndex(idx)}
+                          onClick={() => {
+                            if (!isLocked) {
+                              setCurrentStepIndex(idx);
+                            } else {
+                              toast.error(`Please complete "${steps[currentStepIndex]?.title || 'current step'}" first`, {
+                                icon: '🔒',
+                                style: { borderRadius: '10px', background: '#334155', color: '#fff' }
+                              });
+                            }
+                          }}
                           style={{
-                            minWidth: '140px',
-                            height: '80px',
-                            backgroundColor: 'white',
-                            border: idx === currentStepIndex ? '2px solid #007bff' : '1px solid #e2e8f0',
-                            borderRadius: '4px',
-                            padding: '8px',
-                            cursor: 'pointer',
+                            minWidth: '150px',
+                            height: '100px',
+                            backgroundColor: isActive ? '#fff' : (isLocked ? '#f1f5f9' : '#fff'),
+                            border: isActive ? '3px solid #3b82f6' : '1px solid #e2e8f0',
+                            borderRadius: '12px',
+                            padding: '10px',
+                            cursor: isLocked ? 'not-allowed' : 'pointer',
                             display: 'flex',
                             flexDirection: 'column',
-                            gap: '5px'
+                            gap: '8px',
+                            opacity: isLocked ? 0.7 : 1,
+                            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                            boxShadow: isActive ? '0 10px 15px -3px rgba(59, 130, 246, 0.2)' : 'none',
+                            position: 'relative'
                           }}
                         >
-                          <div style={{ fontSize: '0.7rem', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <div style={{ fontSize: '0.75rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: '8px', color: isLocked ? '#94a3b8' : '#1e293b' }}>
                             {selectedApp && summary.total > 0 && (
-                              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: summary.ok ? '#22c55e' : '#ef4444', flexShrink: 0 }} />
+                              <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: summary.ok ? '#22c55e' : '#ef4444', flexShrink: 0 }} />
                             )}
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{step.title}</span>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{idx + 1}. {step.title}</span>
+                            {isLocked && <div style={{ marginLeft: 'auto' }}><Lock size={12} color="#94a3b8" /></div>}
                           </div>
-                          <div style={{ flex: 1, backgroundColor: '#f1f5f9', borderRadius: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            {selectedApp && summary.total > 0 ? (
-                              <span style={{ fontSize: '0.63rem', fontWeight: 700, color: summary.ok ? '#15803d' : '#b91c1c' }}>{summary.done}/{summary.total}</span>
+                          <div style={{ flex: 1, backgroundColor: isLocked ? '#e2e8f0' : '#f8fafc', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                            {step.image ? (
+                              <img src={step.image} alt={step.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             ) : (
-                              <Activity size={16} color="#cbd5e1" />
+                              selectedApp && summary.total > 0 ? (
+                                <div style={{ textAlign: 'center' }}>
+                                  <div style={{ fontSize: '0.9rem', fontWeight: 900, color: summary.ok ? '#15803d' : '#b91c1c' }}>{summary.done}/{summary.total}</div>
+                                  <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Required</div>
+                                </div>
+                              ) : (
+                                <Activity size={20} color={isLocked ? '#cbd5e1' : '#3b82f6'} opacity={0.5} />
+                              )
                             )}
                           </div>
+                          {isActive && (
+                            <div style={{ position: 'absolute', bottom: '-5px', left: '50%', transform: 'translateX(-50%)', width: '20px', height: '4px', backgroundColor: '#3b82f6', borderRadius: '2px' }} />
+                          )}
                         </div>
                       );
                     })()
@@ -5075,50 +5117,90 @@ const LiveTerminal = () => {
 
       {/* MAVI FOOTER BAR */}
       <div style={{
-        height: '56px',
+        height: '64px',
         backgroundColor: '#1e293b',
         display: 'flex',
         justifyContent: 'space-between',
-        padding: '0 20px',
+        padding: '0 25px',
         alignItems: 'center',
-        color: 'white'
+        color: 'white',
+        borderTop: '1px solid #334155'
       }}>
-        <button
-          onClick={() => setCurrentStepIndex(prev => Math.max(0, prev - 1))}
-          style={{
-            backgroundColor: '#475569',
-            border: 'none',
-            color: 'white',
-            padding: '10px 25px',
-            borderRadius: '2px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontSize: '0.9rem',
-            fontWeight: 600,
-            cursor: 'pointer'
-          }}
-        >
-          <ArrowLeft size={18} /> Previous
-        </button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button
+            onClick={() => setCurrentStepIndex(prev => Math.max(0, prev - 1))}
+            disabled={currentStepIndex === 0}
+            style={{
+              backgroundColor: '#475569',
+              border: 'none',
+              color: 'white',
+              padding: '10px 20px',
+              borderRadius: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '0.9rem',
+              fontWeight: 700,
+              cursor: currentStepIndex === 0 ? 'not-allowed' : 'pointer',
+              opacity: currentStepIndex === 0 ? 0.5 : 1
+            }}
+          >
+            <ArrowLeft size={18} /> Previous
+          </button>
+
+          <button
+            onClick={() => {
+              const nextIdx = currentStepIndex + 1;
+              if (nextIdx < steps.length) {
+                if (canNavigateToStep(nextIdx)) {
+                  handleNextStep();
+                } else {
+                  toast.error(`Please complete all required fields on "${steps[currentStepIndex].title}" first`, {
+                    icon: '🔒',
+                    style: { borderRadius: '10px', background: '#334155', color: '#fff' }
+                  });
+                }
+              }
+            }}
+            disabled={currentStepIndex >= steps.length - 1}
+            style={{
+              backgroundColor: (currentStepIndex < steps.length - 1 && canNavigateToStep(currentStepIndex + 1)) ? '#3b82f6' : '#334155',
+              border: 'none',
+              color: 'white',
+              padding: '10px 30px',
+              borderRadius: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '1rem',
+              fontWeight: 800,
+              cursor: (currentStepIndex < steps.length - 1 && canNavigateToStep(currentStepIndex + 1)) ? 'pointer' : 'not-allowed',
+              transition: 'all 0.2s',
+              boxShadow: (currentStepIndex < steps.length - 1 && canNavigateToStep(currentStepIndex + 1)) ? '0 4px 12px rgba(59, 130, 246, 0.4)' : 'none'
+            }}
+          >
+            Next Step <ChevronRight size={18} />
+          </button>
+        </div>
 
         <button
           onClick={() => setShowSignaturePad(true)}
           style={{
-            backgroundColor: '#334155',
+            backgroundColor: '#10b981',
             border: 'none',
             color: 'white',
-            padding: '10px 25px',
-            borderRadius: '2px',
+            padding: '12px 35px',
+            borderRadius: '4px',
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            fontSize: '0.9rem',
-            fontWeight: 600,
-            cursor: 'pointer'
+            fontSize: '1rem',
+            fontWeight: 800,
+            cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(16, 185, 129, 0.4)'
           }}
         >
-          <ThumbsUp size={18} /> Sign Off Order
+          <CheckCircle size={20} /> Complete Order
         </button>
       </div>
 
