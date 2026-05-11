@@ -3,10 +3,9 @@ import {
     Layout, Sparkles, Settings2, Package, Wrench, ArrowRight, CheckCircle2, 
     Search, Filter, Star, Zap, Info, Rocket, Database, ShieldCheck, 
     ChevronRight, ShoppingBag, Plus, Award, Boxes, ShieldAlert, BookOpen, X,
-    List, Cpu, Settings, FileText, PlayCircle, Activity, HeartPulse
+    List, Cpu, Settings, FileText, PlayCircle, Activity, HeartPulse,
+    Image as ImageIcon
 } from 'lucide-react';
-
-
 
 import { useNavigate } from 'react-router-dom';
 import { createShopfloorTemplate } from '../utils/shopfloorTemplate';
@@ -19,10 +18,9 @@ import { createDefectTrackingTemplate } from '../utils/defectTrackingTemplate';
 import { createHospitalLabTemplate } from '../utils/hospitalLabTemplate';
 import { createDiabetesManagementTemplate } from '../utils/diabetesManagementTemplate';
 
-
 import { saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { createTable, getTables, addTableRecord } from '../utils/database';
-import { toast, Toaster } from 'react-hot-toast';
+import toast, { Toaster } from 'react-hot-toast';
 
 const AppStore = () => {
     const navigate = useNavigate();
@@ -30,6 +28,7 @@ const AppStore = () => {
     const [activeCategory, setActiveCategory] = useState('All');
     const [installingId, setInstallingId] = useState(null);
     const [selectedGuide, setSelectedGuide] = useState(null);
+    const [modalTab, setModalTab] = useState('guide'); // 'guide' | 'preview'
 
 
     const categories = ['All', 'Quality', 'Production', 'Logistics', 'Maintenance', 'Safety', 'Healthcare'];
@@ -47,7 +46,8 @@ const AppStore = () => {
             accent: '#8b5cf6',
             rating: 4.9,
             installs: '2.4k',
-            features: ['Auto-Judgment', 'Photo Evidence', 'Cloud Storage']
+            features: ['Auto-Judgment', 'Photo Evidence', 'Cloud Storage'],
+            previewImage: '/assets/previews/qc_inspection_preview_1778510357626.png'
         },
         {
             id: 'defect',
@@ -60,7 +60,8 @@ const AppStore = () => {
             accent: '#ef4444',
             rating: 4.9,
             installs: '1.1k',
-            features: ['Rework Workflow', 'Label Printing', 'Disposition Logic']
+            features: ['Rework Workflow', 'Label Printing', 'Disposition Logic'],
+            previewImage: '/assets/previews/defect_tracking_preview_1778510784639.png'
         },
         {
             id: 'shopfloor',
@@ -73,7 +74,8 @@ const AppStore = () => {
             accent: '#10b981',
             rating: 4.8,
             installs: '1.8k',
-            features: ['Cycle Timing', 'OEE Tracking', 'Station Sync']
+            features: ['Cycle Timing', 'OEE Tracking', 'Station Sync'],
+            previewImage: '/assets/previews/standard_work_preview_1778510801489.png'
         },
         {
             id: 'inventory',
@@ -87,6 +89,7 @@ const AppStore = () => {
             rating: 4.9,
             installs: 'Enterprise',
             features: ['Shortage Alerts', 'Picking Flow', 'Inventory Sync'],
+            previewImage: '/assets/previews/material_requisition_preview_1778510316063.png',
             guide: {
                 operation: '1. View shortage alerts\n2. Request material via scan\n3. Warehouse picking flow\n4. Confirm delivery to station\n5. Update inventory levels',
                 widgets: ['Alert Banner', 'Picking List', 'Scan-to-Confirm', 'Stock Level Gauge'],
@@ -115,7 +118,8 @@ const AppStore = () => {
             accent: '#f59e0b',
             rating: 4.9,
             installs: '1.5k',
-            features: ['LOTO Safety Protocol', 'Meter & Part Tracking', 'Health Score AI']
+            features: ['LOTO Safety Protocol', 'Meter & Part Tracking', 'Health Score AI'],
+            previewImage: '/assets/previews/maintenance_pro_preview_1778510377454.png'
         },
         {
             id: 'safety',
@@ -128,7 +132,8 @@ const AppStore = () => {
             accent: '#ef4444',
             rating: 5.0,
             installs: '1.2k',
-            features: ['PPE Camera Check', 'Isolation Tracking', 'ISO 45001 Ready']
+            features: ['PPE Camera Check', 'Isolation Tracking', 'ISO 45001 Ready'],
+            previewImage: '/assets/previews/safety_loto_preview_1778510819340.png'
         },
         {
             id: 'automotive',
@@ -142,6 +147,7 @@ const AppStore = () => {
             rating: 4.8,
             installs: '500+',
             features: ['OBD2 Live Data', 'DTC Error Scanner', 'Multi-point Check'],
+            previewImage: '/assets/previews/automotive_tuneup_preview_1778510859296.png',
             guide: {
                 operation: '1. Scan vehicle VIN\n2. Connect OBD2 sensor\n3. Run diagnostic scan\n4. Follow multi-point inspection steps\n5. Generate service report',
                 widgets: ['OBD2 Connector', 'DTC Reader', 'Multi-step Checklist', 'Photo Evidence'],
@@ -171,6 +177,7 @@ const AppStore = () => {
             rating: 5.0,
             installs: 'Enterprise',
             features: ['Critical Value Alerting', 'Delta Check Analysis', 'HL7 HIS Integration'],
+            previewImage: '/assets/previews/hospital_lab_preview_1778510393426.png',
             guide: {
                 operation: '1. Register patient via wristband scan & select test panels\n2. Pre-Analytical QC: verify specimen integrity & acceptance criteria\n3. Hematology: enter FBC values with auto delta-check vs prior result\n4. Chemistry: enter metabolic panel — eGFR auto-calculated\n5. Pathologist review: consolidated result card, comments & digital sign-off\n6. Authorise & release: PDF generated and pushed to HIS via HL7',
                 widgets: ['Barcode Scanner', 'Multi-Select Panel Chips', 'Form Grid (2-col)', 'Delta Check Panel', 'Critical Flag Widget', 'Calculated Field', 'Result Summary Card', 'Signature Pad'],
@@ -204,6 +211,7 @@ const AppStore = () => {
             rating: 5.0,
             installs: 'Professional',
             features: ['Metabolic Trending', 'Insulin Logic Engine', 'Multi-disciplinary Care Plans'],
+            previewImage: '/assets/previews/diabetes_care_preview_1778510837192.png',
             guide: {
                 operation: '1. Patient Triage: Record BP, Weight, and BMI\n2. Metabolic Profiling: Enter Glucose and A1C lab values\n3. Medication Review: Adjust insulin dosage based on automated suggestions\n4. Nutrition & Activity: Define lifestyle goals and target weights\n5. Specialist Review: Final physician sign-off and Care Plan activation',
                 widgets: ['Metabolic Chart', 'Dosage Calculator', 'Trend Analysis Gauge', 'Electronic Signature', 'Pro-Form Grid'],
@@ -969,7 +977,7 @@ const AppStore = () => {
                                 </div>
 
                                 <button
-                                    onClick={() => setSelectedGuide(t)}
+                                    onClick={() => { setSelectedGuide(t); setModalTab('guide'); }}
                                     style={{
                                         width: '100%', marginBottom: '20px', padding: '10px', borderRadius: '12px',
                                         border: '1px solid #e2e8f0', backgroundColor: '#f8fafc', color: '#475569',
@@ -1065,79 +1073,136 @@ const AppStore = () => {
                             </button>
                         </div>
                         
+                        <div style={{ display: 'flex', borderBottom: '1px solid #f1f5f9', backgroundColor: '#f8fafc' }}>
+                            <button 
+                                onClick={() => setModalTab('guide')}
+                                style={{ 
+                                    flex: 1, padding: '16px', border: 'none', 
+                                    backgroundColor: modalTab === 'guide' ? 'white' : 'transparent', 
+                                    borderBottom: modalTab === 'guide' ? `3px solid ${selectedGuide.accent}` : 'none', 
+                                    color: modalTab === 'guide' ? selectedGuide.accent : '#64748b', 
+                                    fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                                }}
+                            >
+                                <BookOpen size={18} /> Technical Guide
+                            </button>
+                            {selectedGuide.previewImage && (
+                                <button 
+                                    onClick={() => setModalTab('preview')}
+                                    style={{ 
+                                        flex: 1, padding: '16px', border: 'none', 
+                                        backgroundColor: modalTab === 'preview' ? 'white' : 'transparent', 
+                                        borderBottom: modalTab === 'preview' ? `3px solid ${selectedGuide.accent}` : 'none', 
+                                        color: modalTab === 'preview' ? selectedGuide.accent : '#64748b', 
+                                        fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                                    }}
+                                >
+                                    <ImageIcon size={18} /> Visual Preview
+                                </button>
+                            )}
+                        </div>
+                        
                         <div style={{ padding: '32px', maxHeight: '70vh', overflowY: 'auto' }}>
-                            <div style={{ display: 'grid', gap: '28px' }}>
-                                
-                                <section>
-                                    <h3 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <PlayCircle size={18} color="#2563eb" /> Operation Workflow
-                                    </h3>
-                                    <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '16px', fontSize: '0.95rem', color: '#475569', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
-                                        {selectedGuide.guide?.operation}
-                                    </div>
-                                </section>
-
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                            {modalTab === 'guide' ? (
+                                <div style={{ display: 'grid', gap: '28px' }}>
+                                    
                                     <section>
                                         <h3 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <Cpu size={18} color="#8b5cf6" /> Key Widgets
+                                            <PlayCircle size={18} color="#2563eb" /> Operation Workflow
                                         </h3>
-                                        <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.9rem', color: '#475569', display: 'grid', gap: '6px' }}>
-                                            {selectedGuide.guide?.widgets.map(w => <li key={w}>{w}</li>)}
-                                        </ul>
+                                        <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '16px', fontSize: '0.95rem', color: '#475569', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+                                            {selectedGuide.guide?.operation}
+                                        </div>
                                     </section>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                                        <section>
+                                            <h3 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <Cpu size={18} color="#8b5cf6" /> Key Widgets
+                                            </h3>
+                                            <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.9rem', color: '#475569', display: 'grid', gap: '6px' }}>
+                                                {selectedGuide.guide?.widgets.map(w => <li key={w}>{w}</li>)}
+                                            </ul>
+                                        </section>
+                                        <section>
+                                            <h3 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <List size={18} color="#10b981" /> App Components
+                                            </h3>
+                                            <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.9rem', color: '#475569', display: 'grid', gap: '6px' }}>
+                                                {selectedGuide.guide?.components.map(c => <li key={c}>{c}</li>)}
+                                            </ul>
+                                        </section>
+                                    </div>
+
                                     <section>
                                         <h3 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <List size={18} color="#10b981" /> App Components
+                                            <Database size={18} color="#0ea5e9" /> Database Architecture
                                         </h3>
-                                        <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.9rem', color: '#475569', display: 'grid', gap: '6px' }}>
-                                            {selectedGuide.guide?.components.map(c => <li key={c}>{c}</li>)}
-                                        </ul>
-                                    </section>
-                                </div>
-
-                                <section>
-                                    <h3 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <Database size={18} color="#0ea5e9" /> Database Architecture
-                                    </h3>
-                                    <div style={{ display: 'grid', gap: '10px' }}>
-                                        {selectedGuide.guide?.tables.map(table => (
-                                            <div key={table.name} style={{ backgroundColor: '#f0f9ff', border: '1px solid #e0f2fe', padding: '12px 16px', borderRadius: '12px' }}>
-                                                <div style={{ fontWeight: 800, fontSize: '0.85rem', color: '#0369a1', fontFamily: 'monospace', marginBottom: '4px' }}>{table.name}</div>
-                                                <div style={{ fontSize: '0.8rem', color: '#0369a1', opacity: 0.8 }}>{table.description}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </section>
-
-                                <section>
-                                    <h3 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <Zap size={18} color="#facc15" /> Automation Triggers
-                                    </h3>
-                                    <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fef3c7', padding: '16px', borderRadius: '16px' }}>
-                                        <div style={{ display: 'grid', gap: '12px' }}>
-                                            {selectedGuide.guide?.triggers.map(trigger => (
-                                                <div key={trigger.event} style={{ display: 'flex', gap: '12px', fontSize: '0.85rem' }}>
-                                                    <div style={{ fontWeight: 800, color: '#92400e', backgroundColor: '#fef3c7', padding: '2px 8px', borderRadius: '4px', height: 'fit-content', whiteSpace: 'nowrap' }}>
-                                                        {trigger.event}
-                                                    </div>
-                                                    <div style={{ color: '#92400e', lineHeight: 1.4 }}>{trigger.function}</div>
+                                        <div style={{ display: 'grid', gap: '10px' }}>
+                                            {selectedGuide.guide?.tables.map(table => (
+                                                <div key={table.name} style={{ backgroundColor: '#f0f9ff', border: '1px solid #e0f2fe', padding: '12px 16px', borderRadius: '12px' }}>
+                                                    <div style={{ fontWeight: 800, fontSize: '0.85rem', color: '#0369a1', fontFamily: 'monospace', marginBottom: '4px' }}>{table.name}</div>
+                                                    <div style={{ fontSize: '0.8rem', color: '#0369a1', opacity: 0.8 }}>{table.description}</div>
                                                 </div>
                                             ))}
                                         </div>
+                                    </section>
+
+                                    <section>
+                                        <h3 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <Zap size={18} color="#facc15" /> Automation Triggers
+                                        </h3>
+                                        <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fef3c7', padding: '16px', borderRadius: '16px' }}>
+                                            <div style={{ display: 'grid', gap: '12px' }}>
+                                                {selectedGuide.guide?.triggers.map(trigger => (
+                                                    <div key={trigger.event} style={{ display: 'flex', gap: '12px', fontSize: '0.85rem' }}>
+                                                        <div style={{ fontWeight: 800, color: '#92400e', backgroundColor: '#fef3c7', padding: '2px 8px', borderRadius: '4px', height: 'fit-content', whiteSpace: 'nowrap' }}>
+                                                            {trigger.event}
+                                                        </div>
+                                                        <div style={{ color: '#92400e', lineHeight: 1.4 }}>{trigger.function}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </section>
+
+
+                                    <section>
+                                        <h3 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <Settings size={18} color="#f59e0b" /> Underlying Mechanism
+                                        </h3>
+                                        <p style={{ margin: 0, fontSize: '0.9rem', color: '#475569', lineHeight: 1.6 }}>
+                                            {selectedGuide.guide?.mechanism}
+                                        </p>
+                                    </section>
+                                </div>
+                            ) : (
+                                <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
+                                    <div style={{ marginBottom: '20px' }}>
+                                        <h3 style={{ margin: '0 0 12px 0', fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>Live Interface Preview</h3>
+                                        <p style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: '20px' }}>
+                                            This is a visual representation of how the {selectedGuide.name} application looks in production. 
+                                            The template includes all widgets and layouts shown below.
+                                        </p>
                                     </div>
-                                </section>
-
-
-                                <section>
-                                    <h3 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <Settings size={18} color="#f59e0b" /> Underlying Mechanism
-                                    </h3>
-                                    <p style={{ margin: 0, fontSize: '0.9rem', color: '#475569', lineHeight: 1.6 }}>
-                                        {selectedGuide.guide?.mechanism}
-                                    </p>
-                                </section>
-                            </div>
+                                    <div style={{ borderRadius: '16px', overflow: 'hidden', border: '4px solid #f1f5f9', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
+                                        <img 
+                                            src={selectedGuide.previewImage} 
+                                            alt={`${selectedGuide.name} Preview`} 
+                                            style={{ width: '100%', display: 'block', borderRadius: '12px' }}
+                                        />
+                                    </div>
+                                    <div style={{ marginTop: '24px', padding: '20px', backgroundColor: '#f0fdf4', borderRadius: '16px', border: '1px solid #dcfce7', display: 'flex', gap: '16px', alignItems: 'center' }}>
+                                        <Sparkles size={24} color="#16a34a" />
+                                        <div>
+                                            <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#166534' }}>Ready to Deploy</div>
+                                            <div style={{ fontSize: '0.8rem', color: '#166534', opacity: 0.8 }}>All UI components, logic blocks, and database tables are pre-configured.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div style={{ padding: '24px 32px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end', backgroundColor: '#f8fafc' }}>

@@ -19,6 +19,7 @@ import {
   Square,
   Settings,
   ChevronRight,
+  ChevronDown,
   AlertCircle,
   CheckCircle2,
   Clock,
@@ -226,6 +227,7 @@ const LiveTerminal = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [activeMobileTab, setActiveMobileTab] = useState('apps');
   const [showGlobalScanner, setShowGlobalScanner] = useState(false);
+  const [showWorkSequence, setShowWorkSequence] = useState(false);
 
   useEffect(() => {
     const handleResize = () => {
@@ -5033,80 +5035,93 @@ const LiveTerminal = () => {
             {/* WORK SEQUENCE FOOTER (IN CENTER PANEL) */}
             {selectedApp?.config?.stepListEnabled !== false && (
               <div style={{ padding: '15px 20px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : '#f8fafc', borderTop: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}` }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b' }}>
-                    WORK SEQUENCE <span style={{ fontWeight: 400, fontSize: '0.7rem', color: '#94a3b8', marginLeft: '5px' }}>Click to expand instruction</span>
+                <div 
+                  onClick={() => setShowWorkSequence(!showWorkSequence)}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showWorkSequence ? '15px' : '0', cursor: 'pointer', userSelect: 'none' }}
+                >
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {showWorkSequence ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    WORK SEQUENCE <span style={{ fontWeight: 400, fontSize: '0.7rem', color: '#94a3b8', marginLeft: '5px' }}>{showWorkSequence ? 'Click to collapse' : 'Click to expand instruction'}</span>
                   </div>
-                  <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600 }}>
-                    {appComponents.length} Widgets
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600 }}>
+                      {steps.length} Steps
+                    </div>
+                    <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600 }}>
+                      {appComponents.length} Widgets
+                    </div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '10px' }}>
-                  {steps.map((step, idx) => (
-                    (() => {
-                      const summary = selectedApp ? getStepRequiredSummary(step) : { total: 0, done: 0, ok: true };
-                      const isLocked = !canNavigateToStep(idx);
-                      const isActive = idx === currentStepIndex;
-                      
-                      return (
-                        <div
-                          key={idx}
-                          onClick={() => {
-                            if (!isLocked) {
-                              setCurrentStepIndex(idx);
-                            } else {
-                              toast.error(`Please complete "${steps[currentStepIndex]?.title || 'current step'}" first`, {
-                                icon: '🔒',
-                                style: { borderRadius: '10px', background: '#334155', color: '#fff' }
-                              });
-                            }
-                          }}
-                          style={{
-                            minWidth: '150px',
-                            height: '100px',
-                            backgroundColor: isActive ? '#fff' : (isLocked ? '#f1f5f9' : '#fff'),
-                            border: isActive ? '3px solid #3b82f6' : '1px solid #e2e8f0',
-                            borderRadius: '12px',
-                            padding: '10px',
-                            cursor: isLocked ? 'not-allowed' : 'pointer',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '8px',
-                            opacity: isLocked ? 0.7 : 1,
-                            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                            boxShadow: isActive ? '0 10px 15px -3px rgba(59, 130, 246, 0.2)' : 'none',
-                            position: 'relative'
-                          }}
-                        >
-                          <div style={{ fontSize: '0.75rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: '8px', color: isLocked ? '#94a3b8' : '#1e293b' }}>
-                            {selectedApp && summary.total > 0 && (
-                              <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: summary.ok ? '#22c55e' : '#ef4444', flexShrink: 0 }} />
-                            )}
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{idx + 1}. {step.title}</span>
-                            {isLocked && <div style={{ marginLeft: 'auto' }}><Lock size={12} color="#94a3b8" /></div>}
-                          </div>
-                          <div style={{ flex: 1, backgroundColor: isLocked ? '#e2e8f0' : '#f8fafc', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                            {step.image ? (
-                              <img src={step.image} alt={step.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            ) : (
-                              selectedApp && summary.total > 0 ? (
-                                <div style={{ textAlign: 'center' }}>
-                                  <div style={{ fontSize: '0.9rem', fontWeight: 900, color: summary.ok ? '#15803d' : '#b91c1c' }}>{summary.done}/{summary.total}</div>
-                                  <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Required</div>
-                                </div>
+                
+                {showWorkSequence && (
+                  <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '10px', animation: 'fadeIn 0.3s ease-in-out' }}>
+                    {steps.map((step, idx) => (
+                      (() => {
+                        const summary = selectedApp ? getStepRequiredSummary(step) : { total: 0, done: 0, ok: true };
+                        const isLocked = !canNavigateToStep(idx);
+                        const isActive = idx === currentStepIndex;
+                        
+                        return (
+                          <div
+                            key={idx}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!isLocked) {
+                                setCurrentStepIndex(idx);
+                              } else {
+                                toast.error(`Please complete "${steps[currentStepIndex]?.title || 'current step'}" first`, {
+                                  icon: '🔒',
+                                  style: { borderRadius: '10px', background: '#334155', color: '#fff' }
+                                });
+                              }
+                            }}
+                            style={{
+                              minWidth: '150px',
+                              height: '100px',
+                              backgroundColor: isActive ? '#fff' : (isLocked ? '#f1f5f9' : '#fff'),
+                              border: isActive ? '3px solid #3b82f6' : '1px solid #e2e8f0',
+                              borderRadius: '12px',
+                              padding: '10px',
+                              cursor: isLocked ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '8px',
+                              opacity: isLocked ? 0.7 : 1,
+                              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                              boxShadow: isActive ? '0 10px 15px -3px rgba(59, 130, 246, 0.2)' : 'none',
+                              position: 'relative'
+                            }}
+                          >
+                            <div style={{ fontSize: '0.75rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: '8px', color: isLocked ? '#94a3b8' : '#1e293b' }}>
+                              {selectedApp && summary.total > 0 && (
+                                <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: summary.ok ? '#22c55e' : '#ef4444', flexShrink: 0 }} />
+                              )}
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{idx + 1}. {step.title}</span>
+                              {isLocked && <div style={{ marginLeft: 'auto' }}><Lock size={12} color="#94a3b8" /></div>}
+                            </div>
+                            <div style={{ flex: 1, backgroundColor: isLocked ? '#e2e8f0' : '#f8fafc', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                              {step.image ? (
+                                <img src={step.image} alt={step.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                               ) : (
-                                <Activity size={20} color={isLocked ? '#cbd5e1' : '#3b82f6'} opacity={0.5} />
-                              )
+                                selectedApp && summary.total > 0 ? (
+                                  <div style={{ textAlign: 'center' }}>
+                                    <div style={{ fontSize: '0.9rem', fontWeight: 900, color: summary.ok ? '#15803d' : '#b91c1c' }}>{summary.done}/{summary.total}</div>
+                                    <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Required</div>
+                                  </div>
+                                ) : (
+                                  <Activity size={20} color={isLocked ? '#cbd5e1' : '#3b82f6'} opacity={0.5} />
+                                )
+                              )}
+                            </div>
+                            {isActive && (
+                              <div style={{ position: 'absolute', bottom: '-5px', left: '50%', transform: 'translateX(-50%)', width: '20px', height: '4px', backgroundColor: '#3b82f6', borderRadius: '2px' }} />
                             )}
                           </div>
-                          {isActive && (
-                            <div style={{ position: 'absolute', bottom: '-5px', left: '50%', transform: 'translateX(-50%)', width: '20px', height: '4px', backgroundColor: '#3b82f6', borderRadius: '2px' }} />
-                          )}
-                        </div>
-                      );
-                    })()
-                  ))}
-                </div>
+                        );
+                      })()
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

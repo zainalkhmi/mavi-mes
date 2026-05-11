@@ -3471,12 +3471,32 @@ const AppBuilder = () => {
 
     const handleDelete = () => {
         if (selectedCompIds.length === 0) return;
+        
+        // Filter out locked widgets
+        const idsToDelete = selectedCompIds.filter(id => {
+            let comp = baseComponents.find(c => c.id === id);
+            if (!comp) {
+                const step = steps.find(s => s.id === currentStepId);
+                if (step) comp = step.components.find(c => c.id === id);
+            }
+            return !comp?.props?.locked;
+        });
+
+        if (idsToDelete.length === 0 && selectedCompIds.length > 0) {
+            toast.error("Widget sedang dikunci, buka kunci untuk menghapus", {
+                icon: '🔒',
+                style: { borderRadius: '10px', background: '#333', color: '#fff' }
+            });
+            setContextMenu({ isOpen: false, x: 0, y: 0, compId: null });
+            return;
+        }
+
         if (currentStepId === 'BASE') {
-            const nextBase = baseComponents.filter(c => !selectedCompIds.includes(c.id));
+            const nextBase = baseComponents.filter(c => !idsToDelete.includes(c.id));
             setBaseComponents(nextBase);
             handleHistorySnapshot(steps, nextBase);
         } else {
-            const nextSteps = steps.map(s => s.id === currentStepId ? { ...s, components: s.components.filter(c => !selectedCompIds.includes(c.id)) } : s);
+            const nextSteps = steps.map(s => s.id === currentStepId ? { ...s, components: s.components.filter(c => !idsToDelete.includes(c.id)) } : s);
             setSteps(nextSteps);
             handleHistorySnapshot(nextSteps, baseComponents);
         }
@@ -3488,6 +3508,26 @@ const AppBuilder = () => {
         if (selectedCompIds.length === 0) return;
         handleCopy();
         handleDelete();
+    };
+
+    const handleToggleLock = () => {
+        if (selectedCompIds.length === 0 && !contextMenu.compId) return;
+        
+        const idsToToggle = contextMenu.compId ? [contextMenu.compId] : selectedCompIds;
+        
+        idsToToggle.forEach(id => {
+            let comp = baseComponents.find(c => c.id === id);
+            if (!comp) {
+                const step = steps.find(s => s.id === currentStepId);
+                if (step) comp = step.components.find(c => c.id === id);
+            }
+            
+            if (comp) {
+                updateComponentProps(id, { locked: !comp.props?.locked });
+            }
+        });
+        
+        setContextMenu({ isOpen: false, x: 0, y: 0, compId: null });
     };
 
     const handleCopy = () => {
@@ -6213,6 +6253,14 @@ const AppBuilder = () => {
         const comp = [...baseComponents, ...steps.flatMap(s => s.components || [])].find(c => c.id === id);
         if (!comp) return;
 
+        if (comp.props?.locked) {
+            toast.error("Widget sedang dikunci, buka kunci untuk menghapus", {
+                icon: '🔒',
+                style: { borderRadius: '10px', background: '#333', color: '#fff' }
+            });
+            return;
+        }
+
         const confirmMsg = `Hapus widget "${comp.name || comp.id}"?\n\nSemua code block yang berhubungan dengan widget ini di Logic Editor juga akan dihapus secara otomatis.`;
         if (!window.confirm(confirmMsg)) return;
 
@@ -7796,6 +7844,29 @@ const AppBuilder = () => {
                         }}
                     >
                         <AlertTriangle size={11} color="#d97706" />
+                    </div>
+                )}
+                {comp.props?.locked && viewMode === 'DESIGN' && !isSelected && (
+                    <div
+                        title="Widget is Locked"
+                        style={{
+                            position: 'absolute',
+                            top: '-6px',
+                            left: '-6px',
+                            width: '16px',
+                            height: '16px',
+                            borderRadius: '50%',
+                            backgroundColor: '#4f46e5',
+                            color: 'white',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            zIndex: 2000,
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                            pointerEvents: 'none'
+                        }}
+                    >
+                        <Lock size={10} />
                     </div>
                 )}
                 {isSelected && viewMode === 'DESIGN' && (
@@ -12270,6 +12341,20 @@ const AppBuilder = () => {
                                                 <button onClick={handleDuplicate} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-secondary)', borderRadius: '4px', outline: 'none' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
                                                     <FilePlus size={14} /> Duplicate
                                                 </button>
+                                                <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '4px 0' }} />
+                                                {(() => {
+                                                    const targetId = contextMenu.compId || (selectedCompIds.length === 1 ? selectedCompIds[0] : null);
+                                                    let isLocked = false;
+                                                    if (targetId) {
+                                                        const comp = (currentStepId === 'BASE' ? baseComponents : currentStep?.components)?.find(c => c.id === targetId);
+                                                        isLocked = !!comp?.props?.locked;
+                                                    }
+                                                    return (
+                                                        <button onClick={handleToggleLock} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', color: isLocked ? '#4f46e5' : 'var(--text-secondary)', borderRadius: '4px', outline: 'none' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = isLocked ? '#eef2ff' : '#f1f5f9'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                                                            {isLocked ? <Unlock size={14} /> : <Lock size={14} />} {isLocked ? 'Unlock Widget' : 'Lock Widget'}
+                                                        </button>
+                                                    );
+                                                })()}
                                                 <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '4px 0' }} />
                                                 <button onClick={handleDelete} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', color: '#ef4444', borderRadius: '4px', outline: 'none' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#fef2f2'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
                                                     <Trash2 size={14} /> Delete
