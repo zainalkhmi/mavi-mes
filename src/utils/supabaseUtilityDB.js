@@ -95,16 +95,32 @@ export async function saveLiveMeasurement(data) {
         timestamp: new Date().toISOString(),
         measurements: data.measurements || {},
         cycle_data: data.cycle_data || [],
+        quality_data: data.quality_data || {},
+        work_order: data.work_order || '',
         narration: data.narration || 'Live Terminal Production Cycle',
         created_at: new Date().toISOString()
     };
 
-    const { data: result, error } = await supabase
-        .from('measurements')
-        .insert(payload)
-        .select()
-        .single();
 
-    if (error) throw error;
-    return result;
+    const saveWithPayload = async (p) => {
+        return await supabase
+            .from('measurements')
+            .insert(p)
+            .select()
+            .single();
+    };
+
+    let result = await saveWithPayload(payload);
+
+    // Robust Fallback: If quality_data or work_order columns are missing, retry without them
+    if (result.error && (result.error.message?.includes('quality_data') || result.error.message?.includes('work_order'))) {
+        const fallback = { ...payload };
+        delete fallback.quality_data;
+        delete fallback.work_order;
+        result = await saveWithPayload(fallback);
+    }
+
+    if (result.error) throw result.error;
+    return result.data;
 }
+

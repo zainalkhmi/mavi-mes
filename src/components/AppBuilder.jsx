@@ -3388,8 +3388,9 @@ const AppBuilder = () => {
         }
     }, [steps, baseComponents]);
     // --- Builder Polish State ---
-    const [snapToGrid, setSnapToGrid] = useState(true);
-    const [showGrid, setShowGrid] = useState(true);
+    const [snapToGrid, setSnapToGrid] = useState(false);
+    const [showGrid, setShowGrid] = useState(false);
+
     const GRID_SIZE = 20;
 
     // --- Undo/Redo State ---
@@ -4098,7 +4099,22 @@ const AppBuilder = () => {
         return val;
     };
 
+    const safeRender = (val) => {
+        if (val === null || val === undefined) return '';
+        if (typeof val === 'object') {
+            if (React.isValidElement(val)) return val;
+            try {
+                if (val.value !== undefined && Object.keys(val).length <= 2) return String(val.value);
+                return JSON.stringify(val);
+            } catch (e) {
+                return '[Object]';
+            }
+        }
+        return val;
+    };
+
     const evaluateExpression = (expr, customContext = {}) => {
+
         if (!expr || typeof expr !== 'string') return expr;
         let processed = expr;
 
@@ -7888,7 +7904,8 @@ const AppBuilder = () => {
 
                 return (
                     <div style={labelStyles}>
-                        {textContent || (viewMode === 'DESIGN' ? 'Text Component' : '')}
+                        {safeRender(textContent) || (viewMode === 'DESIGN' ? 'Text Component' : '')}
+
                     </div>
                 );
             case 'BUTTON':
@@ -7963,7 +7980,8 @@ const AppBuilder = () => {
                             ...commonTextStyle
                         }}
                     >
-                        {comp.props.text || comp.props.label || 'Button'}
+                        {safeRender(comp.props.text || comp.props.label || 'Button')}
+
                     </button>
                 );
             case 'CHECKBOX':
@@ -8562,7 +8580,7 @@ const AppBuilder = () => {
 
                 return (
                     <div style={{ width: '100%', opacity: sEnabled ? 1 : 0.5 }}>
-                        {comp.props.label && <div style={{ fontSize: '0.75rem', color: 'var(--text-quaternary)', marginBottom: '8px', fontWeight: 600 }}>{comp.props.label}</div>}
+                        {comp.props.label && <div style={{ fontSize: '0.75rem', color: 'var(--text-quaternary)', marginBottom: '8px', fontWeight: 600 }}>{safeRender(comp.props.label)}</div>}
                         <input
                             type="range"
                             min={sMin}
@@ -8642,7 +8660,7 @@ const AppBuilder = () => {
 
                 return (
                     <div style={{ width: '100%' }}>
-                        {comp.props.label && <div style={{ marginBottom: '4px', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-quaternary)' }}>{comp.props.label}</div>}
+                        {comp.props.label && <div style={{ marginBottom: '4px', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-quaternary)' }}>{safeRender(comp.props.label)}</div>}
                         <select
                             id={comp.id}
                             value={spSelection}
@@ -8827,7 +8845,7 @@ const AppBuilder = () => {
                 const selectedOptions = previewFormValues[comp.id] || resolveComponentDatasourceValue(comp, []);
                 return (
                     <div style={{ width: '100%' }}>
-                        {comp.props.label && <div style={{ marginBottom: '8px', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-quaternary)' }}>{comp.props.label}</div>}
+                        {comp.props.label && <div style={{ marginBottom: '8px', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-quaternary)' }}>{safeRender(comp.props.label)}</div>}
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                             {multiOptions.map(opt => {
                                 const active = selectedOptions.includes(opt);
@@ -8861,7 +8879,7 @@ const AppBuilder = () => {
                 const percent = ((gaugeVal - comp.props.min) / (comp.props.max - comp.props.min)) * 100;
                 return (
                     <div style={{ width: '100%', textAlign: 'center' }}>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>{comp.props.label}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>{safeRender(comp.props.label)}</div>
                         <div style={{ height: '12px', backgroundColor: '#e2e8f0', borderRadius: '6px', overflow: 'hidden', marginBottom: '10px' }}>
                             <div style={{ width: `${Math.min(100, Math.max(0, percent))}%`, height: '100%', backgroundColor: comp.props.color || '#3b82f6', transition: 'width 0.3s' }} />
                         </div>
@@ -10168,7 +10186,7 @@ const AppBuilder = () => {
             case 'VARIABLE_TEXT':
                 return (
                     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-                        {comp.props.label && <div style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '4px' }}>{comp.props.label}</div>}
+                        {comp.props.label && <div style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '4px' }}>{safeRender(comp.props.label)}</div>}
                         <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                             {`@${comp.props.targetVariable || 'Variable'}`}
                         </div>
@@ -10662,75 +10680,7 @@ const AppBuilder = () => {
 
                         {/* Design Controls */}
                         <div style={{ display: 'flex', gap: '4px' }}>
-                            <button
-                                onClick={() => setShowGrid(!showGrid)}
-                                title={`Grid: ${showGrid ? 'ON' : 'OFF'}`}
-                                style={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    minWidth: '60px',
-                                    padding: '8px',
-                                    height: '56px',
-                                    backgroundColor: showGrid ? '#f1f5f9' : 'transparent',
-                                    border: 'none',
-                                    borderRadius: '6px',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                    gap: '6px'
-                                }}
-                            >
-                                <div style={{
-                                    backgroundColor: showGrid ? '#e2e8f0' : '#f8fafc',
-                                    padding: '6px',
-                                    borderRadius: '6px',
-                                    color: showGrid ? '#0f172a' : '#64748b',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    width: '32px',
-                                    height: '32px'
-                                }}>
-                                    <Grid3X3 size={18} strokeWidth={2} />
-                                </div>
-                                <span style={{ fontSize: '0.6rem', fontWeight: 600, color: showGrid ? '#0f172a' : '#64748b' }}>Grid</span>
-                            </button>
 
-                            <button
-                                onClick={() => setSnapToGrid(!snapToGrid)}
-                                title={`Snap: ${snapToGrid ? 'ON' : 'OFF'}`}
-                                style={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    minWidth: '60px',
-                                    padding: '8px',
-                                    height: '56px',
-                                    backgroundColor: snapToGrid ? '#f1f5f9' : 'transparent',
-                                    border: 'none',
-                                    borderRadius: '6px',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                    gap: '6px'
-                                }}
-                            >
-                                <div style={{
-                                    backgroundColor: snapToGrid ? '#e2e8f0' : '#f8fafc',
-                                    padding: '6px',
-                                    borderRadius: '6px',
-                                    color: snapToGrid ? '#0f172a' : '#64748b',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    width: '32px',
-                                    height: '32px'
-                                }}>
-                                    <Magnet size={18} strokeWidth={2} />
-                                </div>
-                                <span style={{ fontSize: '0.6rem', fontWeight: 600, color: snapToGrid ? '#0f172a' : '#64748b' }}>Snap</span>
-                            </button>
 
                             <div style={{ width: '8px' }} />
                         </div>

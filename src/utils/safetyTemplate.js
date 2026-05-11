@@ -192,7 +192,7 @@ export function createSafetyTemplate() {
                         },
                         {
                             id: `c3_grid_${timestamp}`,
-                            type: "MULTI_SELECT",
+                            type: "CHECKLIST",
                             x: 40, y: 160, w: 944, h: 300,
                             props: { 
                                 label: "Select all that apply in the immediate area:", 

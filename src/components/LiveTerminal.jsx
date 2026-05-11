@@ -1236,28 +1236,50 @@ const LiveTerminal = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const resolveSourceValue = async (source, value, defaultVal = '') => {
-    if (!source || source === 'STATIC') return value;
+  const resolveSourceValue = async (source, value, defaultVal = '', eventPayload = null) => {
+    let rawValue = value;
+    
+    // Resolve Mustache-style placeholders in strings first
+    if (typeof rawValue === 'string' && rawValue.includes('{{')) {
+      rawValue = rawValue.replace(/\{\{EVENT\.PAYLOAD\}\}/g, eventPayload || '');
+      rawValue = rawValue.replace(/\{\{EVENT\.VALUE\}\}/g, eventPayload || '');
+      
+      // Resolve variables: {{VARIABLE.VarName}}
+      rawValue = rawValue.replace(/\{\{VARIABLE\.([a-zA-Z0-9_.]+)\}\}/g, (match, varName) => {
+        const v = appVariables.find(av => av.name === varName || av.id === varName);
+        return v ? String(v.value) : '';
+      });
+      
+      // Resolve app info: {{APP_INFO.USER}}, etc.
+      rawValue = rawValue.replace(/\{\{APP_INFO\.([a-zA-Z0-9_.]+)\}\}/g, (match, infoKey) => {
+        if (infoKey === 'USER') return appContext.user || '';
+        if (infoKey === 'STATION') return appContext.station || '';
+        return match;
+      });
+    }
+
+    if (!source || source === 'STATIC') return rawValue;
+    if (source === 'EVENT_VALUE') return eventPayload || rawValue;
     if (source === 'VARIABLE') {
-      if (!value) return defaultVal;
-      if (value.startsWith('APP_INFO.')) {
-        if (value === 'APP_INFO.USER') return appContext.user;
-        if (value === 'APP_INFO.STATION') return appContext.station;
-        if (value === 'APP_INFO.STEP_NAME') return (selectedApp?.config?.steps || [])[currentStepIndex]?.title || '';
-        if (value === 'APP_INFO.APP_NAME') return selectedApp?.name || '';
+      if (!rawValue) return defaultVal;
+      if (typeof rawValue === 'string' && rawValue.startsWith('APP_INFO.')) {
+        if (rawValue === 'APP_INFO.USER') return appContext.user;
+        if (rawValue === 'APP_INFO.STATION') return appContext.station;
+        if (rawValue === 'APP_INFO.STEP_NAME') return (selectedApp?.config?.steps || [])[currentStepIndex]?.title || '';
+        if (rawValue === 'APP_INFO.APP_NAME') return selectedApp?.name || '';
       }
-      const v = appVariables.find(av => av.name === value);
+      const v = appVariables.find(av => av.name === rawValue || av.id === rawValue);
       return v ? v.value : defaultVal;
     }
     if (source === 'APP_INFO') {
-      if (value === 'APP_INFO.USER') return appContext.user;
-      if (value === 'APP_INFO.STATION') return appContext.station;
-      if (value === 'APP_INFO.STEP_NAME') return (selectedApp?.config?.steps || [])[currentStepIndex]?.title || '';
-      if (value === 'APP_INFO.APP_NAME') return selectedApp?.name || '';
+      if (rawValue === 'APP_INFO.USER') return appContext.user;
+      if (rawValue === 'APP_INFO.STATION') return appContext.station;
+      if (rawValue === 'APP_INFO.STEP_NAME') return (selectedApp?.config?.steps || [])[currentStepIndex]?.title || '';
+      if (rawValue === 'APP_INFO.APP_NAME') return selectedApp?.name || '';
       return defaultVal;
     }
     if (source === 'RECORD_FIELD') {
-      const parts = value.split('.');
+      const parts = String(rawValue).split('.');
       if (parts.length >= 2) {
         const pName = parts[0];
         const fieldPath = parts.slice(1);
@@ -1279,7 +1301,7 @@ const LiveTerminal = () => {
       }
     }
     if (source === 'TABLE_AGGREGATION') {
-      const [tableId, aggId] = value.split(':');
+      const [tableId, aggId] = String(rawValue).split(':');
       if (!tableId || !aggId) return defaultVal;
       try {
         const { getTableById, getTableRecords } = await import('../utils/database');
@@ -1305,8 +1327,8 @@ const LiveTerminal = () => {
         return defaultVal;
       }
     }
-    if (source === 'EXPRESSION') return evaluateExpression(value);
-    return value || defaultVal;
+    if (source === 'EXPRESSION') return evaluateExpression(rawValue);
+    return rawValue || defaultVal;
   };
 
   const evaluateCondition = async (cond) => {
@@ -1319,8 +1341,8 @@ const LiveTerminal = () => {
     const rightValue = cond.rightValue || cond.value;
     const operator = cond.operator || '==';
 
-    const actualValue = await resolveSourceValue(leftSource, leftValue);
-    const targetValue = await resolveSourceValue(rightSource, rightValue);
+    const actualValue = await resolveSourceValue(leftSource, leftValue, '', eventPayload);
+    const targetValue = await resolveSourceValue(rightSource, rightValue, '', eventPayload);
 
     switch (operator) {
       case '==': return String(actualValue) === String(targetValue);
@@ -1336,9 +1358,43 @@ const LiveTerminal = () => {
     }
   };
 
+  const safeRender = (val) => {
+    if (val === null || val === undefined) return '';
+    if (typeof val === 'object') {
+      if (React.isValidElement(val)) return val;
+      try {
+        // If it's a special object with a value property (like what evaluation might return)
+        if (val.value !== undefined && Object.keys(val).length <= 2) return String(val.value);
+        return JSON.stringify(val);
+      } catch (e) {
+        return '[Object]';
+      }
+    }
+    return val;
+  };
+
   const evaluateExpression = (expr, customContext = {}) => {
+
     if (!expr || typeof expr !== 'string') return expr;
     let processed = expr;
+ 
+    // 0. Support [Placeholder.Field] syntax (Tulip-style)
+    processed = processed.replace(/\[([a-zA-Z0-9_.]+)]/g, (match, path) => {
+      const parts = path.split('.');
+      if (parts.length >= 2) {
+        const pName = parts[0];
+        const fName = parts.slice(1).join('.');
+        const placeholder = recordPlaceholders.find(rp => rp.name === pName || rp.id === pName);
+        if (placeholder) {
+          const data = recordPlaceholderData[placeholder.id];
+          if (!data) return '""';
+          const val = data[fName] ?? (fName === 'recordId' ? data.recordId : '');
+          if (val === undefined || val === null) return '""';
+          return typeof val === 'string' ? `"${val}"` : val;
+        }
+      }
+      return match;
+    });
 
     // 1. Resolve Variables (@VariableName)
     const varRegex = /@([a-zA-Z0-9_.]+)/g;
@@ -1574,7 +1630,7 @@ const LiveTerminal = () => {
           const { getTableById } = await import('../utils/supabaseTablesDB');
           const table = await getTableById(comp.props.tableId);
           const queryDef = table?.queries?.find(q => q.id === comp.props.queryId);
-
+ 
           if (queryDef) {
             data = await queryTableRecords(comp.props.tableId, {
               filters: queryDef.filters || [],
@@ -1590,14 +1646,39 @@ const LiveTerminal = () => {
           const fetched = await getTableRecords(comp.props.tableId);
           data = fetched.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
         }
+ 
         results[comp.id] = data;
+ 
+        // Apply Dynamic Variable Filters if defined
+        if (comp.props.variableFilters && Array.isArray(comp.props.variableFilters)) {
+          let filtered = [...data];
+          for (const f of comp.props.variableFilters) {
+            const vDef = appVariables.find(v => v.name === f.variableName || v.id === f.variableName);
+            let searchVal = vDef?.value;
+            if (searchVal && typeof searchVal === 'object') {
+              searchVal = searchVal.value || searchVal.id || searchVal.recordId || JSON.stringify(searchVal);
+            }
+            searchVal = String(searchVal || '').trim().toLowerCase();
+            
+            if (searchVal && searchVal !== '[object object]') {
+              filtered = filtered.filter(row => {
+                // Search across all non-object values in the row for maximum reliability
+                return Object.entries(row).some(([key, val]) => {
+                  if (typeof val === 'object' || val === null) return false;
+                  return String(val).toLowerCase().includes(searchVal);
+                });
+              });
+            }
+          }
+          results[comp.id] = filtered;
+        }
       } catch (err) {
         console.error(`Failed to fetch table data for ${comp.id}:`, err);
       }
     }
     setTableData(prev => ({ ...prev, ...results }));
     setAdvancedTableData(prev => ({ ...prev, ...results }));
-  }, [currentStepIndex, getTableRecords, queryTableRecords]);
+  }, [currentStepIndex, getTableRecords, queryTableRecords, JSON.stringify(appVariables)]);
 
   useEffect(() => {
     if (selectedApp) {
@@ -1632,7 +1713,7 @@ const LiveTerminal = () => {
   }, [activeMedia]);
 
   // Handle barcode scanned from hardware
-  const executeTrigger = async (trigger) => {
+  const executeTrigger = async (trigger, eventPayload = null) => {
     if (!trigger || trigger.enabled === false) return;
 
     // Helper to run actions (using existing logic)
@@ -1645,18 +1726,21 @@ const LiveTerminal = () => {
           const payload = act.payload || act.detail || {};
 
           if (type === 'SET_VARIABLE' || type === 'DATA_MANIPULATION') {
-            const varPath = payload.varPath || payload.target || payload.variableName;
+            const varPath = payload.varPath || payload.target || payload.variableName || payload.variable;
             const value = payload.value || payload.expression;
-            const valueType = payload.valueType || payload.source || (payload.operation === 'SET' ? 'STATIC' : 'STATIC');
+            const valueType = payload.valueType || payload.source || (payload.operation === 'SET' || payload.action === 'SET' ? 'STATIC' : 'STATIC');
             
             // Handle Mustache-style payload in value
+            // Handle case where value is an object with type and value properties (new standard)
             let finalValue = value;
-            if (typeof value === 'string' && value.includes('{{EVENT.PAYLOAD}}')) {
-              // This should be passed from the caller of runActions
-              // For now, if we don't have it, we'll try to find it in the trigger event
+            let finalType = valueType || 'STATIC';
+            
+            if (value && typeof value === 'object' && value.type) {
+              finalType = value.type;
+              finalValue = value.value || value.id || value.expression || '';
             }
 
-            const resolvedValue = await resolveSourceValue(valueType || 'STATIC', finalValue);
+            const resolvedValue = await resolveSourceValue(finalType, finalValue, '', eventPayload);
             
             if (varPath === 'APP_INFO.USER') setAppContext(prev => ({ ...prev, user: resolvedValue }));
             else if (varPath === 'APP_INFO.STATION') setAppContext(prev => ({ ...prev, station: resolvedValue }));
@@ -1702,7 +1786,7 @@ const LiveTerminal = () => {
           for (const [col, mapObj] of Object.entries(mappings || {})) {
             const mValue = typeof mapObj === 'string' ? mapObj : (mapObj.value || '');
             const mType = typeof mapObj === 'string' ? 'STATIC' : (mapObj.type || 'STATIC');
-            resolvedData[col] = await resolveSourceValue(mType, mValue);
+            resolvedData[col] = await resolveSourceValue(mType, mValue, '', eventPayload);
           }
 
           if (action.type === 'CREATE_RECORD') {
@@ -1731,12 +1815,12 @@ const LiveTerminal = () => {
           const { placeholderId, idType = 'STATIC', idValue = '' } = action.payload || {};
           const placeholder = recordPlaceholders.find(rp => rp.id === placeholderId);
           if (!placeholder?.tableId) continue;
-          const resolvedId = await resolveSourceValue(idType, idValue);
+          const resolvedId = await resolveSourceValue(idType, idValue, '', eventPayload);
 
           const loadById = async () => {
             const { getTableRecords } = await import('../utils/supabaseTablesDB');
             const rows = await getTableRecords(placeholder.tableId);
-            const found = (rows || []).find(r => String(r.id) === String(resolvedId));
+            const found = (rows || []).find(r => String(r.id) === String(resolvedId) || String(r.recordId) === String(resolvedId));
             if (found) {
               setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: found }));
               return true;
@@ -1752,7 +1836,13 @@ const LiveTerminal = () => {
           };
 
           if (action.type === 'TABLE_RECORD_LOAD') {
-            await loadById();
+            console.log(`[Action] Loading record for ${placeholder.name} with ID: "${resolvedId}"`);
+            const ok = await loadById();
+            if (!ok) {
+              console.warn(`[Action] Record with ID "${resolvedId}" NOT FOUND in table ${placeholder.tableId}`);
+            } else {
+              console.log(`[Action] Record loaded successfully into ${placeholder.name}`);
+            }
           } else if (action.type === 'TABLE_RECORD_CREATE') {
             await createById();
           } else {
@@ -1770,7 +1860,7 @@ const LiveTerminal = () => {
 
           const resolvedParams = {};
           for (const [name, paramObj] of Object.entries(parameters || {})) {
-            resolvedParams[name] = await resolveSourceValue(paramObj.type, paramObj.value);
+            resolvedParams[name] = await resolveSourceValue(paramObj.type, paramObj.value, '', eventPayload);
           }
 
           let localContext = { ...resolvedParams };
@@ -1792,7 +1882,7 @@ const LiveTerminal = () => {
           const { connectorId, functionId, parameters, resultVar } = action.payload;
           const resolvedParams = {};
           for (const [name, paramObj] of Object.entries(parameters || {})) {
-            resolvedParams[name] = await resolveSourceValue(paramObj.type, paramObj.value);
+            resolvedParams[name] = await resolveSourceValue(paramObj.type, paramObj.value, '', eventPayload);
           }
 
           const { webhookUtility } = await import('../utils/webhookUtility');
@@ -1814,8 +1904,8 @@ const LiveTerminal = () => {
             targetFieldName
           } = action.payload;
 
-          const sourceRecordId = await resolveSourceValue(action.payload.sourceRecordIdType || 'STATIC', rawSourceId);
-          const targetRecordId = await resolveSourceValue(action.payload.targetRecordIdType || 'STATIC', rawTargetId);
+          const sourceRecordId = await resolveSourceValue(action.payload.sourceRecordIdType || 'STATIC', rawSourceId, '', eventPayload);
+          const targetRecordId = await resolveSourceValue(action.payload.targetRecordIdType || 'STATIC', rawTargetId, '', eventPayload);
 
           if (!sourceRecordId || !targetRecordId) {
             console.warn(`[LinkedRecords] Missing record IDs for ${action.type}:`, { sourceRecordId, targetRecordId });
@@ -1874,7 +1964,7 @@ const LiveTerminal = () => {
   };
 
   // Helper: fire triggers for any widget event (Tulip-style)
-  const fireWidgetTriggers = async (comp, eventId) => {
+  const fireWidgetTriggers = async (comp, eventId, eventPayload = null) => {
     if (!comp || !comp.props?.triggers) return;
     const trigList = comp.props.triggers.filter(t => t.event === eventId || (!t.event && (['BUTTON', 'COMPLETE_BUTTON'].includes(comp.type) ? eventId === 'ON_CLICK' : eventId === 'ON_CHANGE')));
     for (const trig of trigList) {
@@ -1886,7 +1976,7 @@ const LiveTerminal = () => {
         source: comp.props?.label || comp.type,
         timestamp: new Date().toISOString()
       }, '*');
-      await executeTrigger(trig);
+      await executeTrigger(trig, eventPayload);
     }
   };
 
@@ -2055,7 +2145,8 @@ const LiveTerminal = () => {
       }
 
       const savedData = {
-        video_name: `LIVE_${selectedApp ? selectedApp.name : selectedManual.title}_${new Date().getTime()}`,
+        video_name: `LIVE_${selectedApp ? selectedApp.name : (selectedManual?.title || 'Unknown')}_${new Date().getTime()}`,
+
         measurements: {
           manual_id: selectedManual?.id || selectedApp?.id,
           manual_title: selectedManual?.title || selectedApp?.name,
@@ -2115,7 +2206,8 @@ const LiveTerminal = () => {
       alert('Cycle completed and signed off successfully!');
     } catch (err) {
       console.error('Failed to save cycle:', err);
-      alert('Cycle completed, but failed to save to database.');
+      alert(`Cycle completed, but failed to save to database: ${err.message || err}`);
+
     }
 
     setSelectedManual(null);
@@ -3247,14 +3339,19 @@ const LiveTerminal = () => {
                       const renderWidget = () => {
                         // 1. Base Props
                         let resolvedProps = { ...comp.props };
+                        const isDark = selectedApp?.config?.appThemeMode === 'DARK';
 
                         // 2. Resolve Data Bindings (@Variable, @Record.Field)
                         const propsToResolve = ['text', 'label', 'defaultValue', 'value', 'placeholder', 'src', 'title', 'url', 'varSource', 'targetVariable'];
                         propsToResolve.forEach(p => {
-                          if (typeof resolvedProps[p] === 'string' && resolvedProps[p].startsWith('@')) {
-                            resolvedProps[p] = resolveValue(resolvedProps[p]);
+                          const val = resolvedProps[p];
+                          if (typeof val === 'string' && val.startsWith('@')) {
+                            resolvedProps[p] = safeRender(resolveValue(val));
+                          } else if (val && typeof val === 'object' && val.type === 'EXPRESSION') {
+                            resolvedProps[p] = safeRender(evaluateExpression(val.value));
                           }
                         });
+
 
                         // 3. Resolve IoT Binding if present
                         if (comp.props.iotTopicId && machineData[comp.props.iotTopicId] !== undefined) {
@@ -3283,7 +3380,7 @@ const LiveTerminal = () => {
                           );
                           case 'BARCODE': return (
                             <div>
-                              <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>SCAN / TYPE BARCODE</div>
+                              <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>SCAN / TYPE BARCODE</div>
                               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                                 <Barcode size={24} color="#3b82f6" />
                                 <input
@@ -3293,19 +3390,25 @@ const LiveTerminal = () => {
                                     const val = e.target.value;
                                     setBarcodeValues(prev => ({ ...prev, [comp.id]: val }));
                                     syncVariable(val);
-                                    fireWidgetTriggers(comp, 'ON_CHANGE');
+                                    fireWidgetTriggers(comp, 'ON_CHANGE', val);
+                                  }}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                      const val = e.target.value;
+                                      fireWidgetTriggers(comp, 'ON_SCAN', val);
+                                    }
                                   }}
                                   placeholder={comp.props.placeholder}
                                   style={{
                                     flex: 1, padding: '12px',
-                                    border: `2px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`,
+                                    border: `2px solid ${isDark ? '#334155' : '#e2e8f0'}`,
                                     borderRadius: '4px', fontSize: '1rem', outline: 'none',
-                                    backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : 'white',
-                                    color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a'
+                                    backgroundColor: isDark ? '#0f172a' : 'white',
+                                    color: isDark ? '#f8fafc' : '#0f172a'
                                   }}
                                 />
                               </div>
-                              {barcodeValues[comp.id] && <div style={{ marginTop: '8px', padding: '6px 10px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? 'rgba(34, 197, 94, 0.1)' : '#f0fdf4', borderRadius: '4px', color: '#22c55e', fontSize: '0.8rem', fontWeight: 600 }}>{String.fromCharCode(10003)} Scanned: {barcodeValues[comp.id]}</div>}
+                              {barcodeValues[comp.id] && <div style={{ marginTop: '8px', padding: '6px 10px', backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : '#f0fdf4', borderRadius: '4px', color: '#22c55e', fontSize: '0.8rem', fontWeight: 600 }}>{String.fromCharCode(10003)} Scanned: {barcodeValues[comp.id]}</div>}
                             </div>
                           );
                           case 'CAMERA_SCANNER': return (
@@ -3566,7 +3669,7 @@ const LiveTerminal = () => {
                                 <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>
                                   {comp.props.label || 'File Attachment'}{comp.props.required ? ' *' : ''}
                                 </div>
-                                <div style={{ border: `2px dashed ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#cbd5e1'}`, borderRadius: '12px', padding: '24px', textAlign: 'center', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc', position: 'relative' }}>
+                                <div style={{ border: `2px dashed ${isDark ? '#334155' : '#cbd5e1'}`, borderRadius: '12px', padding: '24px', textAlign: 'center', backgroundColor: isDark ? '#0f172a' : '#f8fafc', position: 'relative' }}>
                                   <input
                                     type="file"
                                     accept={comp.props.accept || '*/*'}
@@ -3580,7 +3683,7 @@ const LiveTerminal = () => {
                                       ) : (
                                         <FileText size={48} color="#94a3b8" />
                                       )}
-                                      <div style={{ fontSize: '0.85rem', fontWeight: 600, color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#334155' }}>{file.name}</div>
+                                      <div style={{ fontSize: '0.85rem', fontWeight: 600, color: isDark ? '#f8fafc' : '#334155' }}>{file.name}</div>
                                       <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{(file.size / 1024).toFixed(1)} KB</div>
                                       <button onClick={(e) => { e.stopPropagation(); setUploadValues(p => ({ ...p, [comp.id]: null })); }} style={{ border: 'none', background: 'none', color: '#ef4444', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>Remove</button>
                                     </div>
@@ -3610,10 +3713,10 @@ const LiveTerminal = () => {
                                 placeholder={resolvedProps.placeholder || 'Type here...'}
                                 style={{
                                   width: '100%', padding: '12px',
-                                  border: `2px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`,
+                                  border: `2px solid ${isDark ? '#334155' : '#e2e8f0'}`,
                                   borderRadius: '6px', fontSize: '1rem', outline: 'none',
-                                  backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : 'white',
-                                  color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a'
+                                  backgroundColor: isDark ? '#0f172a' : 'white',
+                                  color: isDark ? '#f8fafc' : '#0f172a'
                                 }}
                               />
                             </div>
@@ -3813,7 +3916,6 @@ const LiveTerminal = () => {
                           }
                           case 'MACHINE_STATUS': {
                             const machineId = comp.props.machineId;
-                            const isDark = selectedApp?.config?.appThemeMode === 'DARK';
                             return (
                               <div style={{ backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', padding: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
@@ -3896,7 +3998,6 @@ const LiveTerminal = () => {
                           case 'QUANTITY_LOGGER': {
                             const lg = quantityLog[comp.id] || { completed: 0, target: comp.props.targetQty || 100 };
                             const pct = Math.min(100, Math.round((lg.completed / lg.target) * 100));
-                            const isDark = selectedApp?.config?.appThemeMode === 'DARK';
                             return (
                               <div style={{ border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '8px', overflow: 'hidden' }}>
                                 <div style={{ padding: '10px 15px', backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderBottom: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: isDark ? '#94a3b8' : '#64748b' }}>{comp.props.label}</div>
@@ -3948,7 +4049,34 @@ const LiveTerminal = () => {
 
                             return <div style={{ width: '100%', height: '60px', backgroundColor: shapeColor, borderRadius: shapeType === 'circle' ? '999px' : (comp.props.borderRadius || 0) + 'px' }} />;
                           }
-                          case 'IMAGE': return comp.props.src ? <img src={comp.props.src} alt={comp.props.alt || 'Image'} style={{ maxWidth: '100%', borderRadius: '4px', display: 'block' }} /> : <div style={{ padding: '30px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc', border: `1px dashed ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#cbd5e1'}`, borderRadius: '6px', textAlign: 'center', color: '#94a3b8' }}><ImageIcon size={32} /><div style={{ fontSize: '0.8rem', marginTop: '6px' }}>No image URL</div></div>;
+                          case 'IMAGE': {
+                            const imgSrc = resolvedProps.src || resolvedProps.url || resolvedProps.text || comp.props.src || comp.props.url;
+                            const isCamera = comp.props.mode === 'CAMERA';
+                            
+                            if (isCamera && !imgSrc) {
+                              return (
+                                <div style={{ height: '100%', minHeight: '300px', backgroundColor: '#000', borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'white', position: 'relative', overflow: 'hidden' }}>
+                                  <Camera size={48} style={{ opacity: 0.5, marginBottom: '20px' }} />
+                                  <div style={{ fontSize: '1.2rem', fontWeight: 600 }}>Camera Ready</div>
+                                  <div style={{ fontSize: '0.9rem', opacity: 0.7, marginTop: '8px' }}>Tap "Log Defect" to capture</div>
+                                  <div style={{ position: 'absolute', top: '20px', left: '20px', backgroundColor: 'rgba(239, 68, 68, 0.8)', padding: '4px 12px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase' }}>Live Feed</div>
+                                </div>
+                              );
+                            }
+
+                            return imgSrc ? (
+                              <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                                {resolvedProps.label && <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}</div>}
+                                <img src={imgSrc} alt={comp.props.alt || 'Image'} style={{ width: '100%', height: 'auto', maxHeight: '100%', borderRadius: '12px', display: 'block', objectFit: 'contain', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }} />
+                              </div>
+                            ) : (
+                              <div style={{ padding: '40px', height: '100%', minHeight: '200px', backgroundColor: isDark ? '#0f172a' : '#f8fafc', border: `2px dashed ${isDark ? '#334155' : '#cbd5e1'}`, borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#94a3b8' }}>
+                                <ImageIcon size={48} style={{ marginBottom: '12px', opacity: 0.5 }} />
+                                <div style={{ fontSize: '1rem', fontWeight: 600 }}>{resolvedProps.label || 'Product Image'}</div>
+                                <div style={{ fontSize: '0.8rem', marginTop: '4px' }}>No image data available for this record</div>
+                              </div>
+                            );
+                          }
                           case 'VARIABLE_TEXT': {
                             let vv = '';
                             const varSource = resolvedProps.varSource || comp.props.varSource || resolvedProps.targetVariable || comp.props.targetVariable;
@@ -3990,7 +4118,8 @@ const LiveTerminal = () => {
                                   fontWeight: comp.props.fontWeight || 700,
                                   fontStyle: comp.props.fontStyle
                                 }}>
-                                  {vv}
+                                  {safeRender(vv)}
+
                                 </div>
                               </div>
                             );
@@ -4188,7 +4317,6 @@ const LiveTerminal = () => {
                           case 'OEE_DASHBOARD': {
                             const machineId = comp.props.machineId;
                             const stats = oeeData[machineId] || { availability: 0, performance: 0, quality: 0, oee: 0 };
-                            const isDark = selectedApp?.config?.appThemeMode === 'DARK';
 
                             const MetricCard = ({ label, value, color }) => (
                               <div style={{ flex: 1, padding: '12px', backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderRadius: '8px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, textAlign: 'center' }}>
@@ -4229,7 +4357,19 @@ const LiveTerminal = () => {
                               <div style={{ backgroundColor: comp.props.backgroundColor || '#ffffff', border: comp.props.bordered !== false ? '1px solid #e2e8f0' : 'none', borderRadius: '8px', padding: '15px', display: 'flex', flexDirection: 'column' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' }}>
                                   <Table size={18} color={comp.props.color || '#3b82f6'} />
-                                  <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569' }}>{comp.props.title || 'Data View'}</span>
+                                  <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569' }}>
+                                    {comp.props.title || 'Data View'}
+                                    {(() => {
+                                      const filter = comp.props.variableFilters?.[0];
+                                      if (filter) {
+                                        const v = appVariables.find(v => v.name === filter.variableName || v.id === filter.variableName);
+                                        let val = v?.value;
+                                        if (val && typeof val === 'object') val = val.value || val.id || val.recordId || '[Object]';
+                                        if (val) return <span style={{ color: '#3b82f6', marginLeft: '10px', fontSize: '0.7rem', backgroundColor: 'rgba(59,130,246,0.1)', padding: '2px 6px', borderRadius: '4px' }}>[Filter: {String(val)}]</span>;
+                                      }
+                                      return null;
+                                    })()}
+                                  </span>
                                 </div>
                                 <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '4px' }}>
                                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>

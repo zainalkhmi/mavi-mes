@@ -291,7 +291,7 @@ export function createMaintenanceTemplate() {
                         },
                         {
                             id: `c4_list_${timestamp}`,
-                            type: "MULTI_SELECT",
+                            type: "CHECKLIST",
                             x: 540, y: 120, w: 440, h: 340,
                             props: { 
                                 label: "Consumables Replaced", 

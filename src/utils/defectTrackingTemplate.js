@@ -33,6 +33,12 @@ export function createDefectTrackingTemplate() {
                     name: "Selected_Defect",
                     tableId: "defect_events_placeholder",
                     description: "Main handle for the selected defect event"
+                },
+                {
+                    id: `rp_material_${timestamp}`,
+                    name: "Selected_Material",
+                    tableId: "materials_master_placeholder",
+                    description: "Master record for the scanned part"
                 }
             ],
             appTables: [],
@@ -60,12 +66,32 @@ export function createDefectTrackingTemplate() {
                         {
                             id: `c1_table_${timestamp}`,
                             type: "INTERACTIVE_TABLE",
-                            x: 20, y: 100, w: 600, h: 500,
+                            x: 20, y: 100, w: 600, h: 250,
                             props: { 
-                                title: "Select Defect Event", 
+                                title: "Defect History (Filtered)", 
                                 dataSource: "TABLE", 
                                 tableId: "defect_events_placeholder",
-                                columns: ["ID", "Material_ID", "Status", "Reported_Date"],
+                                columns: ["recordId", "Material_ID", "Status", "Timestamp"],
+                                variableFilters: [
+                                    { variableName: `var_mat_id_${timestamp}`, columnName: "Material_ID" }
+                                ],
+                                linkedRecordPlaceholderId: `rp_defect_${timestamp}`,
+                                triggers: [] 
+                            }
+                        },
+                        {
+                            id: `c1_mat_table_${timestamp}`,
+                            type: "INTERACTIVE_TABLE",
+                            x: 20, y: 370, w: 600, h: 200,
+                            props: { 
+                                title: "Material Master Details", 
+                                dataSource: "TABLE", 
+                                tableId: "materials_master_placeholder",
+                                columns: ["recordId", "Name", "Description", "Category"],
+                                variableFilters: [
+                                    { variableName: `var_mat_id_${timestamp}`, columnName: "recordId" }
+                                ],
+                                linkedRecordPlaceholderId: `rp_material_${timestamp}`,
                                 triggers: [] 
                             }
                         },
@@ -73,7 +99,34 @@ export function createDefectTrackingTemplate() {
                             id: `c1_scanner_${timestamp}`,
                             type: "BARCODE",
                             x: 640, y: 100, w: 360, h: 200,
-                            props: { label: "Scan Defect Label", placeholder: "Scan...", triggers: [] }
+                            props: { 
+                                label: "Scan Defect Label", 
+                                placeholder: "Scan...", 
+                                triggers: [
+                                    {
+                                        name: "Handle Scan",
+                                        event: "ON_SCAN",
+                                        actions: [
+                                            {
+                                                type: "DATA_MANIPULATION",
+                                                payload: {
+                                                    action: "SET",
+                                                    variable: `var_mat_id_${timestamp}`,
+                                                    value: { type: "EVENT_VALUE" }
+                                                }
+                                            },
+                                            {
+                                                type: "TABLE_RECORD_LOAD",
+                                                payload: {
+                                                    placeholderId: `rp_material_${timestamp}`,
+                                                    idType: "STATIC",
+                                                    idValue: "{{EVENT.PAYLOAD}}"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                ] 
+                            }
                         },
                         {
                             id: `c1_log_btn_${timestamp}`,
@@ -117,21 +170,43 @@ export function createDefectTrackingTemplate() {
                             props: { type: "rectangle", backgroundColor: "white", borderRadius: 12, strokeWidth: 1, strokeColor: "#e2e8f0", triggers: [] }
                         },
                         {
-                            id: `c2_mat_${timestamp}`,
-                            type: "TEXT_INPUT",
-                            x: 40, y: 120, w: 440, h: 80,
-                            props: { label: "Defective Material ID", placeholder: "Enter ID...", required: true, targetVariable: "Material_ID", triggers: [] }
+                            id: `c2_prod_img_${timestamp}`,
+                            type: "IMAGE",
+                            x: 40, y: 110, w: 440, h: 180,
+                            props: { 
+                                src: { type: "EXPRESSION", value: `[Selected_Material.Image]` },
+                                label: "Product Reference",
+                                triggers: [] 
+                            }
+                        },
+                        {
+                            id: `c2_mat_info_${timestamp}`,
+                            type: "TEXT",
+                            x: 40, y: 300, w: 440, h: 40,
+                            props: { 
+                                text: { type: "EXPRESSION", value: `[Selected_Material.Name] + " (" + [Selected_Material.recordId] + ")"` }, 
+                                fontSize: 20, fontWeight: "800", color: "#0f172a", triggers: [] 
+                            }
+                        },
+                        {
+                            id: `c2_mat_desc_${timestamp}`,
+                            type: "TEXT",
+                            x: 40, y: 340, w: 440, h: 40,
+                            props: { 
+                                text: { type: "EXPRESSION", value: `[Selected_Material.Description]` }, 
+                                fontSize: 14, color: "#64748b", triggers: [] 
+                            }
                         },
                         {
                             id: `c2_desc_${timestamp}`,
                             type: "TEXT_INPUT",
-                            x: 40, y: 220, w: 440, h: 120,
+                            x: 40, y: 390, w: 440, h: 100,
                             props: { label: "Defect Description", placeholder: "What's wrong?", multiline: true, targetVariable: "Defect_Description", triggers: [] }
                         },
                         {
                             id: `c2_qty_${timestamp}`,
                             type: "NUMBER_INPUT",
-                            x: 40, y: 360, w: 440, h: 80,
+                            x: 40, y: 500, w: 440, h: 80,
                             props: { label: "Quantity", defaultValue: 1, targetVariable: "Quantity", triggers: [] }
                         },
                         {
@@ -160,7 +235,7 @@ export function createDefectTrackingTemplate() {
                                                 payload: {
                                                     tableId: "defect_events_placeholder",
                                                     mappings: {
-                                                        "Material_ID": { type: "VARIABLE", value: "Material_ID" },
+                                                        "Material_ID": { type: "VARIABLE", value: `var_mat_id_${timestamp}` },
                                                         "Description": { type: "VARIABLE", value: "Defect_Description" },
                                                         "Quantity": { type: "VARIABLE", value: "Quantity" },
                                                         "Status": { type: "STATIC", value: "NEW" },
