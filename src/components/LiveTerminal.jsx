@@ -368,6 +368,8 @@ const LiveTerminal = () => {
   const [andonDetail, setAndonDetail] = useState('');
 
   const [appVariables, setAppVariables] = useState([]);
+  const [globalLogic, setGlobalLogic] = useState(null);
+  const [blocklyRuntimeError, setBlocklyRuntimeError] = useState(null);
 
   // --- DERIVED STATE ---
   const steps = selectedApp ? (selectedApp.config?.steps || []) : (selectedManual?.content?.steps || []);
@@ -494,6 +496,7 @@ const LiveTerminal = () => {
   };
 
   const timerRef = useRef(null);
+  const lastStepIndexRef = useRef(-1);
   const barcodeBuffer = useRef('');
   const lastKeyTime = useRef(0);
   const drawCanvasRefs = useRef({});
@@ -978,6 +981,22 @@ const LiveTerminal = () => {
 
     evalVisibility();
   }, [selectedApp, currentStepIndex, appVariables, recordPlaceholderData]);
+  
+  useEffect(() => {
+    if (!selectedApp || status !== 'RUNNING') return;
+
+    // 1. Fire ON_STEP_EXIT for PREVIOUS step index
+    if (lastStepIndexRef.current !== -1 && lastStepIndexRef.current !== currentStepIndex) {
+      executeBlocklyLogic('ON_STEP_EXIT', {}, lastStepIndexRef.current);
+    }
+
+    // 2. Fire ON_STEP_ENTER / ON_STEP_INITIALIZE for CURRENT step
+    executeBlocklyLogic('ON_STEP_ENTER');
+    executeBlocklyLogic('ON_STEP_INITIALIZE'); // Aliased for MIT parity
+
+    // 3. Update Ref
+    lastStepIndexRef.current = currentStepIndex;
+  }, [currentStepIndex, selectedApp?.id]);
 
   const handleBarcodeScan = async (code) => {
     console.log('Barcode Scanned:', code);
@@ -1113,12 +1132,28 @@ const LiveTerminal = () => {
     // Enterprise Governance: Use published_config if published, else draft config
     const effectiveConfig = app.is_published ? (app.published_config || app.config) : app.config;
     const normalizedApp = { ...app, config: effectiveConfig };
-
+    
+    setGlobalLogic(effectiveConfig.globalLogic || null);
     setSelectedApp(normalizedApp);
     setSelectedManual(null);
     setStatus('RUNNING');
     setTimer(0);
     setCurrentStepIndex(0);
+    
+    // Fire Global/App Start logic (Legacy Actions)
+    if (effectiveConfig.appTriggers) {
+      const startTriggers = effectiveConfig.appTriggers.filter(t => t.event === 'ON_APP_START');
+      for (const trig of startTriggers) {
+        await executeTrigger(trig);
+      }
+    }
+
+    // Fire Global/App Start logic (Blockly)
+    // Note: We use a small timeout to ensure state (selectedApp, globalLogic) is committed if needed,
+    // though executeBlocklyLogic should be able to handle normalizedApp directly if we pass it.
+    setTimeout(() => {
+      executeBlocklyLogic('ON_APP_START');
+    }, 50);
     setCycleData([]);
     setQuantityLog({});
     setChecklistState({});
@@ -1195,20 +1230,23 @@ const LiveTerminal = () => {
       }
     });
 
-    // Fire ON_APP_START triggers (Tulip-style)
+    // Fire ON_APP_START triggers (Tulip-style Actions & Blockly)
     if (app.config?.appTriggers) {
       const startTriggers = app.config.appTriggers.filter(t => t.event === 'ON_APP_START');
       for (const trig of startTriggers) {
         await executeTrigger(trig);
       }
     }
+    executeBlocklyLogic('ON_APP_START');
 
     // Fire ON_STEP_ENTER for the first step
     const firstStep = appSteps[0];
-    if (firstStep?.triggers) {
-      const enterTriggers = firstStep.triggers.filter(t => t.event === 'ON_STEP_ENTER');
-      for (const trig of enterTriggers) {
-        await executeTrigger(trig);
+    if (firstStep) {
+      if (firstStep.triggers) {
+        const enterTriggers = firstStep.triggers.filter(t => t.event === 'ON_STEP_ENTER');
+        for (const trig of enterTriggers) {
+          await executeTrigger(trig);
+        }
       }
     }
 
@@ -1775,7 +1813,7 @@ const LiveTerminal = () => {
         } else if (action.type === 'NEXT_STEP') {
           handleNextStep();
         } else if (action.type === 'PREV_STEP') {
-          setCurrentStepIndex(prev => Math.max(0, prev - 1));
+          handlePrevStep();
         } else if (action.type === 'COMPLETE_APP') {
           await handleCompleteApp();
         } else if (action.type === 'CANCEL_APP') {
@@ -1967,6 +2005,10 @@ const LiveTerminal = () => {
 
   // Helper: fire triggers for any widget event (Tulip-style)
   const fireWidgetTriggers = async (comp, eventId, eventPayload = null) => {
+    // 1. Execute Blockly Logic (Scoped to Widget)
+    executeBlocklyLogic(`WIDGET_EVENT:${comp.id}:${eventId}`, eventPayload);
+
+    // 2. Execute Legacy Actions Triggers
     if (!comp || !comp.props?.triggers) return;
     const trigList = comp.props.triggers.filter(t => t.event === eventId || (!t.event && (['BUTTON', 'COMPLETE_BUTTON'].includes(comp.type) ? eventId === 'ON_CLICK' : eventId === 'ON_CHANGE')));
     for (const trig of trigList) {
@@ -1984,6 +2026,7 @@ const LiveTerminal = () => {
 
   // Helper: fire step-level triggers
   const fireStepTriggers = async (step, eventId) => {
+    // Legacy Actions Triggers
     if (!step || !step.triggers) return;
     const trigList = step.triggers.filter(t => t.event === eventId);
     for (const trig of trigList) {
@@ -1995,6 +2038,230 @@ const LiveTerminal = () => {
         timestamp: new Date().toISOString()
       }, '*');
       await executeTrigger(trig);
+    }
+  };
+
+  const executeBlocklyLogic = (triggerKey, payload = {}, stepIndexOverride = null) => {
+    if (!selectedApp) return;
+    const targetIdx = stepIndexOverride !== null ? stepIndexOverride : currentStepIndex;
+    const currentStep = (selectedApp.config?.steps || [])[targetIdx];
+    const stepLogic = currentStep?.logic?.code || '';
+    const globalLogicCode = globalLogic?.code || '';
+
+    const runtimeContext = {
+      ...payload,
+      goToStep: (id) => {
+        const idx = steps.findIndex(s => s.id === id || s.title === id || s.name === id);
+        if (idx !== -1) setCurrentStepIndex(idx);
+      },
+      nextStep: () => {
+        if (currentStepIndex < steps.length - 1) setCurrentStepIndex(prev => prev + 1);
+      },
+      prevStep: () => {
+        if (currentStepIndex > 0) setCurrentStepIndex(prev => prev - 1);
+      },
+      completeApp: async () => {
+        await handleCompleteApp();
+      },
+      cancelApp: async () => {
+        await handleCancelApp();
+      },
+      setVariable: (id, val) => {
+        setAppVariables(prev => {
+          const next = prev.map(v => (v.id === id || v.name === id) ? { ...v, value: val } : v);
+          // Fire VARIABLE_CHANGED trigger
+          const changedVar = next.find(v => v.id === id || v.name === id);
+          if (changedVar) {
+            executeBlocklyLogic(`VARIABLE_CHANGED:${changedVar.id}`);
+            executeBlocklyLogic(`VARIABLE_CHANGED:${changedVar.name}`);
+          }
+          return next;
+        });
+      },
+      getVariable: (id) => {
+        const v = appVariables.find(v => v.id === id || v.name === id);
+        return v ? v.value : null;
+      },
+      getEventParameter: (name) => {
+        if (!name || name === 'parameter' || name === 'output') {
+          if (payload.record) return payload.record;
+          if (payload.data) return payload.data;
+          return payload.value || payload.result || payload;
+        }
+        return payload[name];
+      },
+      createRecord: async (tableId, data) => {
+        const { addTableRecord, resolveTableIdReference } = await import('../utils/supabaseTablesDB');
+        const resolvedTableId = await resolveTableIdReference(tableId);
+        const result = await addTableRecord(resolvedTableId, data);
+        if (result) {
+          executeBlocklyLogic(`TABLE_EVENT:${resolvedTableId}:CREATED`, { record: result });
+          executeBlocklyLogic(`TABLE_EVENT:${tableId}:CREATED`, { record: result });
+        }
+        return result;
+      },
+      updateRecord: async (tableId, id, data) => {
+        const { updateTableRecord, resolveTableIdReference } = await import('../utils/supabaseTablesDB');
+        const resolvedTableId = await resolveTableIdReference(tableId);
+        const result = await updateTableRecord(resolvedTableId, id, data);
+        if (result) {
+          executeBlocklyLogic(`TABLE_EVENT:${resolvedTableId}:UPDATED`, { record: result });
+          executeBlocklyLogic(`TABLE_EVENT:${tableId}:UPDATED`, { record: result });
+        }
+        return result;
+      },
+      deleteRecord: async (tableId, id) => {
+        const { deleteTableRecord, resolveTableIdReference } = await import('../utils/supabaseTablesDB');
+        const resolvedTableId = await resolveTableIdReference(tableId);
+        return await deleteTableRecord(resolvedTableId, id);
+      },
+      loadRecord: async (placeholderId, recordId) => {
+        const { getTableRecords, resolveTableIdReference } = await import('../utils/supabaseTablesDB');
+        const rp = recordPlaceholders.find(p => p.id === placeholderId || p.name === placeholderId);
+        if (!rp) return null;
+        const resolvedTableId = await resolveTableIdReference(rp.tableId);
+        const records = await getTableRecords(resolvedTableId);
+        const record = records.find(r => r.recordId === recordId || r.id === recordId);
+        if (record) {
+          setRecordPlaceholderData(prev => ({ ...prev, [rp.id]: record }));
+          executeBlocklyLogic(`PLACEHOLDER_LOADED:${rp.id}`, { record });
+        }
+        return record;
+      },
+      clearPlaceholder: (placeholderId) => {
+        const rp = recordPlaceholders.find(p => p.id === placeholderId || p.name === placeholderId);
+        if (rp) setRecordPlaceholderData(prev => ({ ...prev, [rp.id]: null }));
+      },
+      getPlaceholderField: (placeholderId, fieldName) => {
+        const rp = recordPlaceholders.find(p => p.id === placeholderId || p.name === placeholderId);
+        if (!rp) return null;
+        const record = recordPlaceholderData[rp.id];
+        return record ? record[fieldName] : null;
+      },
+      runQuery: async (tableId, queryName) => {
+        const { queryTableRecords, getTableRecords, resolveTableIdReference } = await import('../utils/supabaseTablesDB');
+        const resolvedTableId = await resolveTableIdReference(tableId);
+        // Simplified query handling for now
+        return await getTableRecords(resolvedTableId);
+      },
+      setWidgetProperty: (compId, prop, val) => {
+        // 1. Reactive visibility update
+        if (prop === 'visible') {
+          setVisibilityMap(prev => ({ ...prev, [compId]: val }));
+        }
+
+        // 2. Persistent config update (for other props like color, label)
+        setSelectedApp(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            config: {
+              ...prev.config,
+              steps: (prev.config.steps || []).map(s => ({
+                ...s,
+                components: (s.components || []).map(c => {
+                  if (c.id !== compId) return c;
+                  return { ...c, props: { ...c.props, [prop]: val } };
+                })
+              })),
+              baseComponents: (prev.config.baseComponents || []).map(c => {
+                if (c.id !== compId) return c;
+                return { ...c, props: { ...c.props, [prop]: val } };
+              })
+            }
+          };
+        });
+      },
+      getWidgetProperty: (compId, prop) => {
+        const baseComps = selectedApp?.config?.baseComponents || [];
+        const stepComps = currentStep?.components || [];
+        const comp = [...baseComps, ...stepComps].find(c => c.id === compId);
+        if (!comp) return null;
+        if (prop === 'visible') return visibilityMap[compId] !== false;
+        return comp.props[prop];
+      },
+      callWidgetMethod: (compId, methodId, args = []) => {
+        console.log(`[Runtime] Calling method ${methodId} on ${compId}`, args);
+        const input = document.getElementById(`input-${compId}`);
+        if (input) {
+          if (methodId === 'RequestFocus') input.focus();
+          else if (methodId === 'HideKeyboard') input.blur();
+          else if (methodId === 'MoveCursorToEnd') {
+            const len = (input.value || '').length;
+            input.setSelectionRange(len, len);
+            input.focus();
+          }
+          else if (methodId === 'Clear') {
+            input.value = '';
+            // Trigger React update via manual event if needed, but usually logic handles this via setVariable
+          }
+          else if (methodId === 'DisplayDropdown' || methodId === 'LaunchPicker') {
+            if (typeof input.showPicker === 'function') input.showPicker();
+            else input.click();
+          }
+        }
+      },
+      showToast: (message, type = 'success') => {
+        if (type === 'error') toast.error(message);
+        else toast.success(message);
+      },
+      showAlert: (msg) => alert(msg),
+      confirm: (msg) => window.confirm(msg),
+      logInfo: (msg) => console.info(`[Blockly Info] ${msg}`),
+      logWarning: (msg) => console.warn(`[Blockly Warning] ${msg}`),
+      logError: (msg) => console.error(`[Blockly Error] ${msg}`),
+      appContext: {
+        user: 'Operator',
+        station: 'Station 1',
+        app_name: selectedApp?.name || '',
+        step_name: currentStep?.title || ''
+      },
+      _currentBlockId: null // For tracing
+    };
+
+    const runMatchingBlocks = (codeStr, sourceId = 'Global/Screen') => {
+      if (!codeStr) return;
+      const lines = codeStr.split('\n');
+      let capturing = false;
+      let capturedCode = '';
+
+      for (const line of lines) {
+        if (line.startsWith(`// TRIGGER: ${triggerKey}`)) {
+          capturing = true;
+          continue;
+        }
+        if (capturing) {
+          if (line.startsWith('// TRIGGER:')) break;
+          capturedCode += line + '\n';
+        }
+      }
+
+      if (capturedCode) {
+        console.log(`[Blockly Runtime] Executing ${triggerKey} from ${sourceId}`);
+        try {
+          const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
+          const run = new AsyncFunction('context', capturedCode);
+          run(runtimeContext).catch(e => {
+            console.error(`[Blockly Runtime] Error (${sourceId}):`, e);
+            setBlocklyRuntimeError({ message: e.message, sourceId });
+          });
+        } catch (e) {
+          console.error(`[Blockly Runtime] Parse Error (${sourceId}):`, e);
+        }
+      }
+    };
+
+    runMatchingBlocks(globalLogicCode, 'Global');
+    runMatchingBlocks(stepLogic, 'Screen');
+    if (currentStep?.components) {
+      currentStep.components.forEach(comp => {
+        if (comp.logic?.code) runMatchingBlocks(comp.logic.code, `Widget:${comp.id}`);
+      });
+    }
+    if (selectedApp.config?.baseComponents) {
+      selectedApp.config.baseComponents.forEach(comp => {
+        if (comp.logic?.code) runMatchingBlocks(comp.logic.code, `BaseWidget:${comp.id}`);
+      });
     }
   };
 
@@ -2271,6 +2538,15 @@ const LiveTerminal = () => {
     const record = generateCompletionRecord('SAVED');
     if (record) await saveCompletion(record);
     alert('App data saved successfully.');
+  };
+
+  const handlePrevStep = async () => {
+    const activeSteps = selectedApp ? (selectedApp.config?.steps || []) : (selectedManual?.content?.steps || []);
+    if (currentStepIndex > 0) {
+      const exitStep = activeSteps[currentStepIndex];
+      await fireStepTriggers(exitStep, 'ON_STEP_EXIT');
+      setCurrentStepIndex(prev => prev - 1);
+    }
   };
 
   const handleNextStep = async () => {
@@ -3066,7 +3342,7 @@ const LiveTerminal = () => {
         }}>
           <button
             disabled={currentStepIndex === 0}
-            onClick={() => setCurrentStepIndex(prev => Math.max(0, prev - 1))}
+            onClick={handlePrevStep}
             style={{
               flex: 1, padding: '14px', borderRadius: '10px',
               backgroundColor: '#f1f5f9', color: '#475569',
@@ -3386,6 +3662,7 @@ const LiveTerminal = () => {
                               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                                 <Barcode size={24} color="#3b82f6" />
                                 <input
+                                  id={`input-${comp.id}`}
                                   autoFocus={comp.props.autoFocus}
                                   value={barcodeValues[comp.id] || ''}
                                   onChange={e => {
@@ -3704,6 +3981,7 @@ const LiveTerminal = () => {
                             <div>
                               <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}{comp.props.required ? ' *' : ''}</div>
                               <input
+                                id={`input-${comp.id}`}
                                 type="text"
                                 value={textInputValues[comp.id] != null ? textInputValues[comp.id] : (resolvedProps.defaultValue || '')}
                                 onChange={async e => {
@@ -3727,6 +4005,7 @@ const LiveTerminal = () => {
                             <div>
                               <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{comp.props.label}{comp.props.required ? ' *' : ''}</div>
                               <textarea
+                                id={`input-${comp.id}`}
                                 value={textAreaValues[comp.id] != null ? textAreaValues[comp.id] : (comp.props.defaultValue || '')}
                                 onChange={e => {
                                   const val = e.target.value;
@@ -3750,6 +4029,7 @@ const LiveTerminal = () => {
                             <div>
                               <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}{comp.props.required ? ' *' : ''}</div>
                               <select
+                                id={`input-${comp.id}`}
                                 value={dropdownValues[comp.id] != null ? dropdownValues[comp.id] : (resolvedProps.defaultValue || '')}
                                 onChange={e => {
                                   const val = e.target.value;
@@ -5000,7 +5280,12 @@ const LiveTerminal = () => {
 
                       const err = validationErrors[comp.id];
                       return (
-                        <div key={comp.id || idx} ref={(el) => { if (comp?.id) widgetContainerRefs.current[comp.id] = el; }} style={containerStyle}>
+                        <div 
+                          key={comp.id || idx} 
+                          ref={(el) => { if (comp?.id) widgetContainerRefs.current[comp.id] = el; }} 
+                          className={comp.props?.isBlinking ? 'animate-blink' : ''}
+                          style={containerStyle}
+                        >
                           <div style={{
                             border: err ? '2px solid #ef4444' : 'none',
                             borderRadius: '8px',
@@ -5304,7 +5589,7 @@ const LiveTerminal = () => {
       }}>
         <div style={{ display: 'flex', gap: '12px' }}>
           <button
-            onClick={() => setCurrentStepIndex(prev => Math.max(0, prev - 1))}
+            onClick={handlePrevStep}
             disabled={currentStepIndex === 0}
             style={{
               backgroundColor: '#475569',

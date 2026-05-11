@@ -5706,13 +5706,19 @@ const AppBuilder = () => {
         }
     };
 
-    const handleUpdateWidgetLogic = (compId, xml, code) => {
+    const handleUpdateWidgetLogic = async (compId, xml, code) => {
         if (!compId) return;
-        setSteps(prev => prev.map(s => ({
+        const nextSteps = steps.map(s => ({
             ...s,
-            components: s.components.map(c => c.id === compId ? { ...c, logic: { xml, code } } : c)
-        })));
-        setBaseComponents(prev => prev.map(c => c.id === compId ? { ...c, logic: { xml, code } } : c));
+            components: (s.components || []).map(c => c.id === compId ? { ...c, logic: { xml, code } } : c)
+        }));
+        const nextBase = baseComponents.map(c => c.id === compId ? { ...c, logic: { xml, code } } : c);
+
+        setSteps(nextSteps);
+        setBaseComponents(nextBase);
+
+        // Persistent save
+        await handleSave(true, { steps: nextSteps, baseComponents: nextBase });
     };
 
     const onWidgetInteraction = (comp, eventId, payload = {}) => {
@@ -6708,7 +6714,7 @@ const AppBuilder = () => {
         setTriggerEditor({ isOpen: true, sourceType: 'STEP', sourceId: currentStepId, trigger: newTrig });
     };
 
-    const handleSave = async (silent = false) => {
+    const handleSave = async (silent = false, overrides = {}) => {
         if (!silent) setIsSaving(true);
         try {
             const saved = await saveFrontlineApp({
@@ -6716,13 +6722,14 @@ const AppBuilder = () => {
                 name: appName,
                 category: appCategory,
                 config: {
-                    steps,
-                    baseComponents,
-                    appTriggers,
-                    appVariables,
-                    appFunctions,
-                    appTables,
-                    recordPlaceholders,
+                    steps: overrides.steps || steps,
+                    baseComponents: overrides.baseComponents || baseComponents,
+                    appTriggers: overrides.appTriggers || appTriggers,
+                    appVariables: overrides.appVariables || appVariables,
+                    appFunctions: overrides.appFunctions || appFunctions,
+                    appTables: overrides.appTables || appTables,
+                    recordPlaceholders: overrides.recordPlaceholders || recordPlaceholders,
+                    globalLogic: overrides.globalLogic || globalLogic,
                     materialId,
                     productImage,
                     iotConfig,
@@ -7038,6 +7045,7 @@ const AppBuilder = () => {
         setAppFunctions(config.appFunctions || []);
         setAppTables(app.config.appTables || []);
         setRecordPlaceholders(app.config.recordPlaceholders || []);
+        setGlobalLogic(app.config.globalLogic || { xml: null, code: '' });
         setRecordPlaceholderData({});
         setMaterialId(app.config.materialId || '');
         setProductImage(app.config.productImage || '');
@@ -11073,9 +11081,15 @@ const AppBuilder = () => {
                             runtimeError={blocklyRuntimeError}
                             activeLogicScopeId={activeLogicScopeId}
                             globalLogic={globalLogic}
-                            onUpdateGlobalLogic={(xml, code) => setGlobalLogic({ xml, code })}
-                            onUpdateStepLogic={(stepId, xml, code) => {
-                                setSteps(prev => prev.map(s => s.id === stepId ? { ...s, logic: { xml, code } } : s));
+                            onUpdateGlobalLogic={async (xml, code) => {
+                                const nextLogic = { xml, code };
+                                setGlobalLogic(nextLogic);
+                                await handleSave(true, { globalLogic: nextLogic });
+                            }}
+                            onUpdateStepLogic={async (stepId, xml, code) => {
+                                const nextSteps = steps.map(s => s.id === stepId ? { ...s, logic: { xml, code } } : s);
+                                setSteps(nextSteps);
+                                await handleSave(true, { steps: nextSteps });
                             }}
                             onUpdateWidgetLogic={handleUpdateWidgetLogic}
                             onCreateWidgetFromAi={async (widgetSpec = {}) => {
