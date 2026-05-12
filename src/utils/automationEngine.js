@@ -601,6 +601,17 @@ class AutomationEngine {
         console.log(`[AutomationEngine] OBD2 Clear DTC`);
         return obd2Service.clearDTC();
 
+      case 'MACHINE_COMMAND': {
+        const topic = this.resolveValue(action.topicPath, eventData) || action.topic;
+        const payload = this.resolveValue(action.payloadPath, eventData) || action.payload || action.data;
+        console.log(`[AutomationEngine] Publishing Machine Command to ${topic}:`, payload);
+        
+        return import('./iotConnector').then(iot => {
+          iot.default.publish(topic, typeof payload === 'object' ? JSON.stringify(payload) : String(payload));
+          return { success: true, topic, payload };
+        });
+      }
+
       default:
         console.warn(`[AutomationEngine] Unknown action type: ${action.type}`);
     }

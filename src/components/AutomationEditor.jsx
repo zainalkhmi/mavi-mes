@@ -227,7 +227,52 @@ const AutomationEditor = () => {
   const [clipboard, setClipboard] = useState(null);
   const edgeUpdateSuccessful = useRef(true);
   const reactFlowWrapper = useRef(null);
+  const [reactFlowInstance, setReactFlowInstance] = useState(null);
   const { project, setViewport } = useReactFlow();
+
+  const onInit = (instance) => setReactFlowInstance(instance);
+
+  const onDragStart = (event, nodeType, data = {}) => {
+    event.dataTransfer.setData('application/reactflow', nodeType);
+    event.dataTransfer.setData('application/reactflow-data', JSON.stringify(data));
+    event.dataTransfer.effectAllowed = 'move';
+  };
+
+  const onDragOver = useCallback((event) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const onDrop = useCallback(
+    (event) => {
+      event.preventDefault();
+
+      const reactFlowBounds = reactFlowWrapper.current.getBoundingClientRect();
+      const type = event.dataTransfer.getData('application/reactflow');
+      const rawData = event.dataTransfer.getData('application/reactflow-data');
+      const data = rawData ? JSON.parse(rawData) : {};
+
+      // check if the dropped element is valid
+      if (typeof type === 'undefined' || !type) {
+        return;
+      }
+
+      const position = reactFlowInstance.project({
+        x: event.clientX - reactFlowBounds.left,
+        y: event.clientY - reactFlowBounds.top,
+      });
+
+      const newNode = {
+        id: `node_${Date.now()}`,
+        type,
+        position,
+        data: { ...data, label: data.label || `${type} node` },
+      };
+
+      setNodes((nds) => nds.concat(newNode));
+    },
+    [reactFlowInstance]
+  );
 
   // Load automations list when manager opens
   useEffect(() => {
@@ -520,9 +565,115 @@ const AutomationEditor = () => {
     );
   };
 
+  const SidebarPalette = () => {
+    const [draggedCategory, setDraggedCategory] = useState('triggers');
+
+    const categories = [
+      { id: 'triggers', label: 'Triggers', icon: Zap, color: '#3b82f6' },
+      { id: 'actions', label: 'Actions', icon: Play, color: '#10b981' },
+      { id: 'logic', label: 'Logic', icon: Layers, color: '#f59e0b' },
+      { id: 'ai', label: 'AI', icon: Sparkles, color: '#a855f7' },
+      { id: 'iot', label: 'IoT & Sensors', icon: Cpu, color: '#6366f1' },
+    ];
+
+    const nodesByCategory = {
+      triggers: [
+        { type: 'event', label: 'Timer Event', icon: Clock, data: { triggerType: 'TIMER', label: 'When timer fires...' } },
+        { type: 'event', label: 'Table Event', icon: Database, data: { triggerType: 'TABLE_ROW_ADDED', label: 'When record is created...' } },
+        { type: 'event', label: 'Machine Event', icon: Cpu, data: { triggerType: 'MACHINE_TRIGGER', label: 'When machine outputs...' } },
+        { type: 'event', label: 'Webhook', icon: Link2, data: { triggerType: 'WEBHOOK', label: 'When webhook received...' } },
+      ],
+      actions: [
+        { type: 'action', label: 'Log Message', icon: Clipboard, data: { type: 'LOG_MESSAGE', label: 'Log Message' } },
+        { type: 'action', label: 'Update Table', icon: Database, data: { type: 'UPDATE_RECORD', label: 'Update Record' } },
+        { type: 'action', label: 'Create Record', icon: Plus, data: { type: 'CREATE_RECORD', label: 'Create Record' } },
+        { type: 'action', label: 'Notification', icon: Mail, data: { type: 'SEND_NOTIFICATION', label: 'Notification' } },
+        { type: 'action', label: 'HTTP Request', icon: ExternalLink, data: { type: 'HTTP_REQUEST', label: 'HTTP Connector' } },
+      ],
+      logic: [
+        { type: 'decision', label: 'Decision (IF)', icon: AlertCircle, data: { label: 'IF Condition' } },
+        { type: 'loop', label: 'Loop (For Each)', icon: RefreshCw, data: { label: 'Iterate List' } },
+      ],
+      ai: [
+        { type: 'action', label: 'Summarize', icon: Sparkles, data: { type: 'AI_SUMMARIZE', label: 'AI: Summarize' } },
+        { type: 'action', label: 'Extract Data', icon: Sparkles, data: { type: 'AI_EXTRACT', label: 'AI: Extract' } },
+        { type: 'action', label: 'Anomaly', icon: AlertTriangle, data: { type: 'AI_ANOMALY_DETECTION', label: 'AI: Detect Anomaly' } },
+      ],
+      iot: [
+        { type: 'event', label: 'OBD2 Trigger', icon: Car, data: { triggerType: 'OBD2_TRIGGER', label: 'When engine data...' } },
+        { type: 'action', label: 'Machine Cmd', icon: Cpu, data: { type: 'MACHINE_COMMAND', label: 'Machine Command' } },
+      ]
+    };
+
+    return (
+      <div style={{ width: '260px', backgroundColor: 'white', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '20px', borderBottom: '1px solid #f1f5f9' }}>
+          <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: '#1e293b' }}>Node Palette</h3>
+          <p style={{ margin: '4px 0 0 0', fontSize: '0.7rem', color: '#64748b' }}>Drag nodes to the canvas</p>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
+          {categories.map(cat => (
+            <div key={cat.id} style={{ marginBottom: '15px' }}>
+              <div style={{
+                fontSize: '0.65rem',
+                fontWeight: 800,
+                color: cat.color,
+                textTransform: 'uppercase',
+                marginBottom: '8px',
+                padding: '0 10px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}>
+                <cat.icon size={12} /> {cat.label}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '6px' }}>
+                {nodesByCategory[cat.id].map((node, i) => (
+                  <div
+                    key={i}
+                    draggable
+                    onDragStart={(e) => onDragStart(e, node.type, node.data)}
+                    style={{
+                      padding: '10px 12px',
+                      backgroundColor: 'white',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      color: '#475569',
+                      cursor: 'grab',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.borderColor = cat.color;
+                      e.currentTarget.style.backgroundColor = `${cat.color}05`;
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.borderColor = '#e2e8f0';
+                      e.currentTarget.style.backgroundColor = 'white';
+                    }}
+                  >
+                    <div style={{ color: cat.color }}><node.icon size={14} /></div>
+                    {node.label}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={{ display: 'flex', height: '100%', backgroundColor: '#f8fafc' }}>
-      {/* Left: Main Area */}
+      {/* Left: Sidebar Palette */}
+      <SidebarPalette />
+
+      {/* Center: Main Area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         {/* Header */}
         <header style={{
@@ -630,7 +781,7 @@ const AutomationEditor = () => {
         </header>
 
         {/* Workspace */}
-        <div style={{ flex: 1, position: 'relative' }}>
+        <div style={{ flex: 1, position: 'relative' }} ref={reactFlowWrapper}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -644,6 +795,9 @@ const AutomationEditor = () => {
             onNodeContextMenu={onNodeContextMenu}
             onPaneContextMenu={onPaneContextMenu}
             onPaneClick={onPaneClick}
+            onInit={onInit}
+            onDrop={onDrop}
+            onDragOver={onDragOver}
             nodeTypes={nodeTypes}
             fitView
           >
@@ -769,13 +923,21 @@ const AutomationEditor = () => {
 
         {activeTab === 'EDIT' ? (
           selectedNode ? (
-            <div style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>Logic Editor</h3>
-                <button onClick={() => setSelectedNode(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={20} /></button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+                    <Settings2 size={20} />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#1e293b' }}>Logic Editor</h3>
+                    <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 600 }}>{selectedNode.type.toUpperCase()} / {selectedNode.id}</div>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedNode(null)} style={{ background: '#f1f5f9', border: 'none', color: '#94a3b8', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={18} /></button>
               </div>
 
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 <div>
                   <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Label</label>
                   <input
@@ -1070,6 +1232,38 @@ const AutomationEditor = () => {
                             <Sparkles size={12} /> AI Note
                           </div>
                           This action will use the default AI Assistant connector configured in Integrations.
+                        </div>
+                      </div>
+                    )}
+                    {selectedNode.data.type === 'MACHINE_COMMAND' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                        <div>
+                          <label style={{ fontSize: '0.65rem', color: '#64748b' }}>MQTT Topic</label>
+                          <input
+                            placeholder="factory/line1/actuator"
+                            value={selectedNode.data.topic || ''}
+                            onChange={(e) => {
+                              const topic = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, topic } } : n));
+                            }}
+                            style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', marginTop: '4px' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '0.65rem', color: '#64748b' }}>Payload (JSON or String)</label>
+                          <textarea
+                            placeholder='e.g. {"state": "ON"}'
+                            value={typeof selectedNode.data.data === 'string' ? selectedNode.data.data : JSON.stringify(selectedNode.data.data || {})}
+                            onChange={(e) => {
+                              try {
+                                const val = JSON.parse(e.target.value);
+                                setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, data: val } } : n));
+                              } catch (err) {
+                                setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, data: e.target.value } } : n));
+                              }
+                            }}
+                            style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', marginTop: '4px', minHeight: '80px', fontFamily: 'monospace', fontSize: '0.8rem' }}
+                          />
                         </div>
                       </div>
                     )}
