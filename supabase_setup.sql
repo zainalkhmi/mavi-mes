@@ -253,8 +253,11 @@ CREATE TABLE IF NOT EXISTS public.chat_messages (
     sender_name TEXT NOT NULL,
     station_id TEXT NOT NULL,
     target_station_id TEXT, -- NULL means broadcast to everyone
+    target_user_id TEXT,    -- For private user-to-user chat
     content TEXT NOT NULL,
-    type TEXT DEFAULT 'TEXT', -- TEXT, ALERT, IMAGE
+    type TEXT DEFAULT 'TEXT', -- TEXT, ALERT, IMAGE, VIDEO, FILE
+    is_read BOOLEAN DEFAULT FALSE,
+    read_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 

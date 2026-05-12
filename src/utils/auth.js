@@ -10,9 +10,9 @@ const USERS_STORAGE_KEY = 'mavi_mes_users_list';
 
 // Preconfigured factory users (fallback if DB is empty)
 const DEFAULT_USERS = [
-    { id: 'usr-admin', username: 'admin', password: '123', name: 'System Admin', role: 'ADMIN' },
-    { id: 'usr-eng', username: 'engineer', password: '123', name: 'Manufacturing Engineer', role: 'ENGINEER' },
-    { id: 'usr-operator', username: 'operator', password: '123', name: 'Station Operator', role: 'OPERATOR' }
+    { id: 'usr-admin', username: 'admin', password: '123', name: 'System Admin', role: 'ADMIN', assignedStation: 'ALL', assignedApp: 'ALL' },
+    { id: 'usr-eng', username: 'engineer', password: '123', name: 'Manufacturing Engineer', role: 'ENGINEER', assignedStation: 'ALL', assignedApp: 'ALL' },
+    { id: 'usr-operator', username: 'operator', password: '123', name: 'Station Operator', role: 'OPERATOR', assignedStation: 'NONE', assignedApp: 'NONE' }
 ];
 
 /**

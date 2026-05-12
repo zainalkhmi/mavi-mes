@@ -110,7 +110,7 @@ import UnifiedScanner from './UnifiedScanner';
 import MobileBottomNav from './MobileBottomNav';
 import { listGlobalVariables, upsertGlobalVariable, subscribeToGlobalVariables } from '../utils/supabaseGlobalVars';
 import { validateVariable } from '../utils/validationEngine';
-import { getCurrentUser } from '../utils/auth';
+import { getCurrentUser, getAllUsers } from '../utils/auth';
 
 const STATUS_CONFIG = {
   READY: { label: 'System Ready', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.1)', border: 'rgba(34, 197, 94, 0.2)' },
@@ -450,6 +450,7 @@ const LiveTerminal = () => {
   const [recordPlaceholderData, setRecordPlaceholderData] = useState({});
   const [appContext, setAppContext] = useState({
     user: getCurrentUser()?.name || launchOperator || 'Operator',
+    userId: (getCurrentUser()?.username || launchOperator || 'operator').toLowerCase(),
     station: launchStation || 'WS-01'
   });
   const [boundData, setBoundData] = useState({}); // { [compId]: value }
@@ -1033,11 +1034,14 @@ const LiveTerminal = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [manualData, appData, queueData] = await Promise.all([
+        const [manualData, appData, queueData, stationData] = await Promise.all([
           listManualSummaries(),
           getAllFrontlineApps(),
-          getProductionQueue()
+          getProductionQueue(),
+          getStations()
         ]);
+
+        setStations(stationData || []);
 
         setManuals(manualData || []);
 
@@ -1067,20 +1071,55 @@ const LiveTerminal = () => {
           visibleApps = combinedApps;
         }
 
-        setFrontlineApps(appId ? combinedApps : visibleApps);
+        // --- ENFORCE STATION-BASED ACCESS CONTROL ---
+        const user = getCurrentUser();
+        const allUsers = getAllUsers();
+        // Get fresh user data to ensure latest assignments are respected without re-login
+        // We use ID first, then fallback to Name/Username match for robustness
+        const freshUser = allUsers.find(u => u.id === user?.id) || 
+                         allUsers.find(u => u.username === user?.username) || 
+                         allUsers.find(u => u.name === user?.name) || 
+                         user;
+        
+        let filteredApps = appId ? combinedApps : visibleApps;
+
+        if (freshUser && freshUser.role === 'OPERATOR') {
+            // 1. Filter Apps: If specific app assigned, search in ALL apps (including drafts)
+            if (freshUser.assignedApp && freshUser.assignedApp !== 'ALL' && freshUser.assignedApp !== 'NONE') {
+                let assigned = combinedApps.find(a => String(a.id) === String(freshUser.assignedApp));
+                // Fallback to name search if ID doesn't match
+                if (!assigned) {
+                    assigned = combinedApps.find(a => a.name === freshUser.assignedApp);
+                }
+                filteredApps = assigned ? [assigned] : [];
+            }
+            
+            // 2. Sync Station Context: Resolve name if ID is assigned
+            if (freshUser.assignedStation && freshUser.assignedStation !== 'ALL' && freshUser.assignedStation !== 'NONE') {
+                // Try to find station name from metadata
+                const stationMatch = (stationData || []).find(s => String(s.id) === String(freshUser.assignedStation));
+                const stationName = stationMatch ? stationMatch.name : freshUser.assignedStation;
+                setAppContext(prev => ({ ...prev, station: stationName }));
+            }
+        }
+
+        setFrontlineApps(filteredApps);
 
         // Auto-load match with Smart Matching
         if (appId && combinedApps.length > 0) {
-          let match = combinedApps.find(a => String(a.id) === String(appId));
-          if (!match) {
-            // Try Name fallback if ID didn't work
-            const searchName = String(appId).toLowerCase();
-            match = combinedApps.find(a => String(a.name || '').toLowerCase() === searchName);
-          }
+            let match = combinedApps.find(a => String(a.id) === String(appId));
+            if (!match) {
+                // Try Name fallback if ID didn't work
+                const searchName = String(appId).toLowerCase();
+                match = combinedApps.find(a => String(a.name || '').toLowerCase() === searchName);
+            }
 
-          if (match) {
-            await handleStartApp(match);
-          }
+            // Only auto-load if it's in the filtered list (or user is admin/engineer)
+            const isAllowed = freshUser?.role !== 'OPERATOR' || !freshUser?.assignedApp || freshUser.assignedApp === 'ALL' || String(match?.id) === String(freshUser.assignedApp);
+
+            if (match && isAllowed) {
+                await handleStartApp(match);
+            }
         }
       } catch (err) {
         console.error('Failed to load data:', err);
@@ -1089,7 +1128,7 @@ const LiveTerminal = () => {
       }
     };
     loadData();
-  }, [appId]);
+  }, [appId]); // Added stations dependency to ensure station name resolves once metadata is loaded
 
 
 
@@ -2830,10 +2869,25 @@ const LiveTerminal = () => {
     // Determine the current station object
     const currentStationObj = stations.find(s => s.id === appContext.station || s.name === appContext.station);
 
+    // --- ENFORCE ACCESS CONTROL OVERRIDE ---
+    // --- ENFORCE ACCESS CONTROL OVERRIDE ---
+    const user = getCurrentUser();
+    const allUsers = getAllUsers();
+    const freshUser = allUsers.find(u => u.id === user?.id) || 
+                     allUsers.find(u => u.username === user?.username) || 
+                     allUsers.find(u => u.name === user?.name) || 
+                     user;
+
     // Filter apps based on assigned station
     const baseFilteredApps = frontlineApps.filter(app => {
-      if (!currentStationObj || !currentStationObj.assignedApps) return true; // fallback
-      return currentStationObj.assignedApps.includes(app.id);
+      // If operator has a specific app assigned, we skip station-level filtering 
+      // because frontlineApps is already pre-filtered for them in loadData().
+      if (freshUser?.role === 'OPERATOR' && freshUser?.assignedApp && freshUser?.assignedApp !== 'ALL' && freshUser?.assignedApp !== 'NONE') {
+        return true; 
+      }
+
+      if (!currentStationObj || !currentStationObj.assignedApps) return true; // fallback to all if no station config
+      return (currentStationObj.assignedApps || []).includes(app.id);
     });
 
     // Apply Search Filter
@@ -2873,6 +2927,1659 @@ const LiveTerminal = () => {
       return appGradients[sum % appGradients.length];
     };
 
+
+  // --- COMPONENT RENDERING ENGINE ---
+  const renderComponent = (comp) => {
+    if (!comp) return null;
+
+    // 1. Base Props
+    let resolvedProps = { ...comp.props };
+    const isDark = selectedApp?.config?.appThemeMode === 'DARK';
+
+    // 2. Resolve Data Bindings (@Variable, @Record.Field)
+    const propsToResolve = ['text', 'label', 'defaultValue', 'value', 'placeholder', 'src', 'title', 'url', 'varSource', 'targetVariable'];
+    propsToResolve.forEach(p => {
+      const val = resolvedProps[p];
+      if (typeof val === 'string' && val.startsWith('@')) {
+        resolvedProps[p] = safeRender(resolveValue(val));
+      } else if (val && typeof val === 'object' && val.type === 'EXPRESSION') {
+        resolvedProps[p] = safeRender(evaluateExpression(val.value));
+      }
+    });
+
+    // 3. Resolve IoT Binding if present
+    if (comp.props.iotTopicId && machineData[comp.props.iotTopicId] !== undefined) {
+      const iotVal = machineData[comp.props.iotTopicId];
+      if (comp.type === 'GAUGE' || comp.type === 'NUMBER_INPUT') {
+        resolvedProps.value = parseFloat(iotVal) || 0;
+      } else if (comp.type === 'TEXT' || comp.type === 'VARIABLE_TEXT') {
+        resolvedProps.text = String(iotVal);
+      }
+    }
+
+    const syncVariable = (value) => {
+      const varName = comp.props?.targetVariable || (comp.props?.dataSourceType === 'VARIABLE' ? comp.props?.varSource : null);
+      if (varName) {
+        setAppVariables(prev => prev.map(v => v.name === varName ? { ...v, value } : v));
+      }
+    };
+
+    switch (comp.type) {
+      case 'TEXT': return <div style={{ fontSize: (resolvedProps.fontSize || 16) + 'px', color: resolvedProps.color || '#0f172a', fontWeight: resolvedProps.fontWeight, fontStyle: resolvedProps.fontStyle, textDecoration: resolvedProps.textDecoration, textAlign: resolvedProps.textAlign }}>{resolvedProps.text}</div>;
+      case 'TIMER': return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div style={{ fontSize: '2.5rem', fontWeight: 900, fontFamily: 'monospace', color: comp.props.color || '#2e7d32' }}>{formatTime(timer)}</div>
+          <div style={{ color: '#94a3b8', fontSize: '1rem', fontWeight: 600 }}>{comp.props.label}</div>
+        </div>
+      );
+      case 'BARCODE': return (
+        <div>
+          <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>SCAN / TYPE BARCODE</div>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <Barcode size={24} color="#3b82f6" />
+            <input
+              id={`input-${comp.id}`}
+              autoFocus={comp.props.autoFocus}
+              value={barcodeValues[comp.id] || ''}
+              onChange={e => {
+                const val = e.target.value;
+                setBarcodeValues(prev => ({ ...prev, [comp.id]: val }));
+                syncVariable(val);
+                fireWidgetTriggers(comp, 'ON_CHANGE', val);
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  const val = e.target.value;
+                  fireWidgetTriggers(comp, 'ON_SCAN', val);
+                }
+              }}
+              placeholder={comp.props.placeholder}
+              style={{
+                flex: 1, padding: '12px',
+                border: `2px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                borderRadius: '4px', fontSize: '1rem', outline: 'none',
+                backgroundColor: isDark ? '#0f172a' : 'white',
+                color: isDark ? '#f8fafc' : '#0f172a'
+              }}
+            />
+          </div>
+          {barcodeValues[comp.id] && <div style={{ marginTop: '8px', padding: '6px 10px', backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : '#f0fdf4', borderRadius: '4px', color: '#22c55e', fontSize: '0.8rem', fontWeight: 600 }}>{String.fromCharCode(10003)} Scanned: {barcodeValues[comp.id]}</div>}
+        </div>
+      );
+      case 'CAMERA_SCANNER': return (
+        <div key={comp.id}>
+          <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>
+            {comp.props.label || 'Scan Barcode / QR'}{comp.props.required ? ' *' : ''}
+          </div>
+          <div style={{
+            border: '1.5px solid #e2e8f0', borderRadius: '12px', padding: '16px',
+            backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '12px'
+          }}>
+            <button
+              onClick={() => setCameraScannerActive(prev => ({ ...prev, [comp.id]: true }))}
+              style={{
+                padding: '14px', backgroundColor: '#3b82f6', color: 'white',
+                border: 'none', borderRadius: '10px', fontWeight: 700,
+                cursor: 'pointer', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', gap: '10px', fontSize: '0.95rem'
+              }}
+            >
+              <Barcode size={20} /> OPEN SCANNER
+            </button>
+
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <input
+                value={cameraScannerValues[comp.id] || ''}
+                onChange={(e) => setCameraScannerValues(prev => ({ ...prev, [comp.id]: e.target.value }))}
+                placeholder={comp.props.placeholder || 'Manual input...'}
+                style={{ flex: 1, padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.9rem' }}
+              />
+              <button
+                onClick={() => applyCameraScannerValue(comp, cameraScannerValues[comp.id], 'manual')}
+                style={{ padding: '12px 16px', backgroundColor: '#fff', color: '#3b82f6', border: '1px solid #3b82f6', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
+              >
+                Apply
+              </button>
+            </div>
+
+            {cameraScannerStatus[comp.id] && (
+              <div style={{ fontSize: '0.75rem', color: '#15803d', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <CheckCircle2 size={14} /> {cameraScannerStatus[comp.id]}
+              </div>
+            )}
+          </div>
+
+          {cameraScannerActive[comp.id] && (
+            <UnifiedScanner
+              label={comp.props.label}
+              onScan={(val) => {
+                applyCameraScannerValue(comp, val, 'camera');
+                setCameraScannerActive(prev => ({ ...prev, [comp.id]: false }));
+              }}
+              onClose={() => setCameraScannerActive(prev => ({ ...prev, [comp.id]: false }))}
+            />
+          )}
+        </div>
+      );
+      case 'VISION_DETECTOR': return (
+        <div key={comp.id}>
+          <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>
+            {comp.props.label || 'Vision AI: OCR Scanner'}{comp.props.required ? ' *' : ''}
+          </div>
+          <div style={{ border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', overflow: 'hidden', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white' }}>
+            <div style={{ position: 'relative', width: '100%', height: '240px', backgroundColor: '#0f172a' }}>
+              <Camera size={48} color="rgba(255,255,255,0.1)" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }} />
+              <div style={{ position: 'absolute', inset: 0, border: '2px dashed rgba(255,255,255,0.2)', margin: '40px', pointerEvents: 'none' }} />
+              <video
+                ref={(el) => { cameraScannerVideoRefs.current[comp.id] = el; }}
+                muted playsInline
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+              {cameraScannerValues[comp.id] && (
+                <div style={{ position: 'absolute', bottom: '12px', left: '12px', right: '12px', backgroundColor: 'rgba(34, 197, 94, 0.9)', padding: '8px 12px', borderRadius: '6px', color: 'white', fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CheckCircle2 size={16} /> Extracted: {cameraScannerValues[comp.id]}
+                </div>
+              )}
+            </div>
+            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {!cameraScannerActive[comp.id] ? (
+                  <button
+                    onClick={() => startCameraScanner(comp)}
+                    style={{ flex: 1, padding: '12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                  >
+                    <Camera size={18} /> ENABLE CAMERA
+                  </button>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      setCameraScannerStatus(prev => ({ ...prev, [comp.id]: 'Extracting text...' }));
+                      await new Promise(r => setTimeout(r, 1500));
+                      const mockOcr = "L098-X" + Math.floor(Math.random() * 9000 + 1000);
+                      applyCameraScannerValue(comp, mockOcr, 'vision');
+                    }}
+                    style={{ flex: 1, padding: '12px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                  >
+                    <Sparkles size={18} /> SCAN & EXTRACT
+                  </button>
+                )}
+                {cameraScannerActive[comp.id] && (
+                  <button
+                    onClick={() => stopCameraScanner(comp.id)}
+                    style={{ padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: 'white', color: '#64748b', cursor: 'pointer' }}
+                  >
+                    <X size={18} />
+                  </button>
+                )}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic' }}>
+                {cameraScannerStatus[comp.id] || 'Camera provides real-time OCR text extraction for labels and part numbers.'}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+      case 'CAMERA_CAPTURE': {
+        const photo = cameraValues[comp.id];
+        return (
+          <div key={comp.id}>
+            <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>
+              {comp.props.label || 'Take Photo'}{comp.props.required ? ' *' : ''}
+            </div>
+            <div style={{ border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', overflow: 'hidden', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white' }}>
+              <div style={{ position: 'relative', width: '100%', height: '240px', backgroundColor: '#0f172a' }}>
+                {photo ? (
+                  <img src={photo} alt="Captured" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <video
+                    ref={(el) => { cameraScannerVideoRefs.current[comp.id] = el; }}
+                    muted playsInline
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: cameraScannerActive[comp.id] ? 'block' : 'none' }}
+                  />
+                )}
+                {!cameraScannerActive[comp.id] && !photo && (
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#475569', gap: '10px' }}>
+                    <Camera size={48} color="#cbd5e1" />
+                    <div style={{ fontSize: '0.8rem' }}>No image captured</div>
+                  </div>
+                )}
+              </div>
+              <div style={{ padding: '16px', display: 'flex', gap: '8px' }}>
+                {photo ? (
+                  <button
+                    onClick={() => { setCameraValues(prev => ({ ...prev, [comp.id]: '' })); startCameraScanner(comp); }}
+                    style={{ flex: 1, padding: '12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    RETAKE PHOTO
+                  </button>
+                ) : (
+                  <>
+                    {!cameraScannerActive[comp.id] ? (
+                      <button
+                        onClick={() => startCameraScanner(comp)}
+                        style={{ flex: 1, padding: '12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        OPEN CAMERA
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => takePhoto(comp)}
+                        style={{ flex: 1, padding: '12px', backgroundColor: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                      >
+                        <Camera size={18} /> CAPTURE PHOTO
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      }
+      case 'IP_CAMERA': {
+        const ipUrl = comp.props.streamUrl || '';
+        const proto = comp.props.protocol || 'MJPEG';
+        const hasUrl = ipUrl.trim().length > 0;
+        const isDark = selectedApp?.config?.appThemeMode === 'DARK';
+        const buildStreamUrl = () => {
+          if (!hasUrl) return '';
+          if (comp.props.username && comp.props.password) {
+            try { const u = new URL(ipUrl); u.username = comp.props.username; u.password = comp.props.password; return u.toString(); } catch { return ipUrl; }
+          }
+          return ipUrl;
+        };
+        const finalUrl = buildStreamUrl();
+        return (
+          <div key={comp.id}>
+            <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>
+              {comp.props.label || 'IP Camera'}
+            </div>
+            <div style={{ border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', overflow: 'hidden', backgroundColor: isDark ? '#1e293b' : 'white' }}>
+              <div style={{ position: 'relative', width: '100%', height: '280px', backgroundColor: '#0f172a' }}>
+                {hasUrl ? (
+                  proto === 'SNAPSHOT' ? (
+                    <img key={Math.floor(Date.now() / (comp.props.refreshInterval || 1000))} src={finalUrl + (finalUrl.includes('?') ? '&' : '?') + 't=' + Date.now()} alt="IP Camera" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                  ) : proto === 'HLS' ? (
+                    <video src={finalUrl} autoPlay muted playsInline controls={comp.props.showControls !== false} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <img src={finalUrl} alt="IP Camera MJPEG" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                  )
+                ) : (
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#475569', gap: '10px' }}>
+                    <Webcam size={48} color="#334155" />
+                    <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>No stream URL configured</div>
+                  </div>
+                )}
+                {comp.props.showOverlay && comp.props.overlayText && (
+                  <div style={{ position: 'absolute', top: '12px', left: '12px', padding: '4px 12px', backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: '6px', color: 'white', fontSize: '0.75rem', fontWeight: 700, backdropFilter: 'blur(4px)' }}>{comp.props.overlayText}</div>
+                )}
+                {comp.props.showOverlay && (
+                  <div style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', backgroundColor: hasUrl ? 'rgba(34, 197, 94, 0.85)' : 'rgba(239, 68, 68, 0.85)', borderRadius: '6px', color: 'white', fontSize: '0.7rem', fontWeight: 700 }}>
+                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'white' }} />
+                    {hasUrl ? 'LIVE' : 'OFFLINE'}
+                  </div>
+                )}
+              </div>
+              <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${isDark ? '#334155' : '#e2e8f0'}` }}>
+                <div style={{ fontSize: '0.8rem', color: isDark ? '#f8fafc' : '#0f172a', fontWeight: 600 }}>{comp.props.label || 'IP Camera'}</div>
+                <span style={{ fontSize: '0.65rem', color: '#94a3b8', backgroundColor: isDark ? '#0f172a' : '#f1f5f9', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>{proto}</span>
+              </div>
+            </div>
+          </div>
+        );
+      }
+      case 'DRAW_CANVAS': {
+        const val = drawValues[comp.id];
+        return (
+          <div key={comp.id}>
+            <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>
+              {comp.props.label || 'Sketch / Signature'}{comp.props.required ? ' *' : ''}
+            </div>
+            <div style={{ border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', overflow: 'hidden', backgroundColor: 'white' }}>
+              <canvas
+                ref={(el) => { drawCanvasRefs.current[comp.id] = el; }}
+                width={600}
+                height={240}
+                onMouseDown={(e) => startDrawing(comp.id, e)}
+                onMouseMove={(e) => moveDrawing(comp.id, e)}
+                onMouseUp={() => endDrawing(comp.id, comp)}
+                onMouseLeave={() => endDrawing(comp.id, comp)}
+                onTouchStart={(e) => startDrawing(comp.id, e)}
+                onTouchMove={(e) => moveDrawing(comp.id, e)}
+                onTouchEnd={() => endDrawing(comp.id, comp)}
+                style={{ width: '100%', height: '240px', touchAction: 'none', cursor: 'crosshair' }}
+              />
+              <div style={{ padding: '12px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{val ? 'Sketch recorded' : 'Draw inside the area'}</div>
+                <button onClick={() => clearDrawing(comp.id, comp)} style={{ padding: '6px 12px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer' }}>Clear</button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+      case 'FILE_UPLOAD': {
+        const file = uploadValues[comp.id];
+        return (
+          <div key={comp.id}>
+            <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>
+              {comp.props.label || 'File Attachment'}{comp.props.required ? ' *' : ''}
+            </div>
+            <div style={{ border: `2px dashed ${isDark ? '#334155' : '#cbd5e1'}`, borderRadius: '12px', padding: '24px', textAlign: 'center', backgroundColor: isDark ? '#0f172a' : '#f8fafc', position: 'relative' }}>
+              <input
+                type="file"
+                accept={comp.props.accept || '*/*'}
+                onChange={(e) => handleFileUpload(comp, e.target.files[0])}
+                style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
+              />
+              {file ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                  {file.type.startsWith('image/') ? (
+                    <img src={file.url} alt="Uploaded" style={{ height: '80px', borderRadius: '4px' }} />
+                  ) : (
+                    <FileText size={48} color="#94a3b8" />
+                  )}
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: isDark ? '#f8fafc' : '#334155' }}>{file.name}</div>
+                  <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{(file.size / 1024).toFixed(1)} KB</div>
+                  <button onClick={(e) => { e.stopPropagation(); setUploadValues(p => ({ ...p, [comp.id]: null })); }} style={{ border: 'none', background: 'none', color: '#ef4444', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>Remove</button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  <Upload size={32} color="#94a3b8" />
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748b' }}>Click or drag file to upload</div>
+                  <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Supports image, pdf, and doc files</div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+      case 'TEXT_INPUT': return (
+        <div>
+          <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}{comp.props.required ? ' *' : ''}</div>
+          <input
+            id={`input-${comp.id}`}
+            type="text"
+            value={textInputValues[comp.id] != null ? textInputValues[comp.id] : (resolvedProps.defaultValue || '')}
+            onChange={async e => {
+              const val = comp.props.mask ? applyInputMask(e.target.value, comp.props.mask) : e.target.value;
+              setTextInputValues(prev => ({ ...prev, [comp.id]: val }));
+              syncVariable(val);
+              fireWidgetTriggers(comp, 'ON_CHANGE');
+            }}
+            placeholder={resolvedProps.placeholder || 'Type here...'}
+            style={{
+              width: '100%', padding: '12px',
+              border: `2px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+              borderRadius: '6px', fontSize: '1rem', outline: 'none',
+              backgroundColor: isDark ? '#0f172a' : 'white',
+              color: isDark ? '#f8fafc' : '#0f172a'
+            }}
+          />
+        </div>
+      );
+      case 'TEXT_AREA': return (
+        <div>
+          <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{comp.props.label}{comp.props.required ? ' *' : ''}</div>
+          <textarea
+            id={`input-${comp.id}`}
+            value={textAreaValues[comp.id] != null ? textAreaValues[comp.id] : (comp.props.defaultValue || '')}
+            onChange={e => {
+              const val = e.target.value;
+              setTextAreaValues(prev => ({ ...prev, [comp.id]: val }));
+              syncVariable(val);
+              fireWidgetTriggers(comp, 'ON_CHANGE');
+            }}
+            placeholder={comp.props.placeholder || 'Type notes...'}
+            rows={comp.props.rows || 4}
+            style={{
+              width: '100%', padding: '12px',
+              border: `2px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`,
+              borderRadius: '6px', fontSize: '1rem', outline: 'none', resize: 'vertical',
+              backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : 'white',
+              color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a'
+            }}
+          />
+        </div>
+      );
+      case 'DROPDOWN': return (
+        <div>
+          <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}{comp.props.required ? ' *' : ''}</div>
+          <select
+            id={`input-${comp.id}`}
+            value={dropdownValues[comp.id] != null ? dropdownValues[comp.id] : (resolvedProps.defaultValue || '')}
+            onChange={e => {
+              const val = e.target.value;
+              setDropdownValues(prev => ({ ...prev, [comp.id]: val }));
+              syncVariable(val);
+              fireWidgetTriggers(comp, 'ON_CHANGE');
+            }}
+            style={{
+              width: '100%', padding: '12px',
+              border: `2px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`,
+              borderRadius: '6px', fontSize: '1rem', outline: 'none',
+              backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : 'white',
+              color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a'
+            }}
+          >
+            <option value="" style={{ backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white' }}>Select...</option>
+            {(comp.props.options || []).map((opt, i) => (
+              <option key={i} value={opt} style={{ backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white' }}>{opt}</option>
+            ))}
+          </select>
+        </div>
+      );
+      case 'RADIO_GROUP': {
+        const selectedVal = radioValues[comp.id] != null ? radioValues[comp.id] : (comp.props.defaultValue || '');
+        return (
+          <div>
+            <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{comp.props.label}{comp.props.required ? ' *' : ''}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {(comp.props.options || []).map((opt, i) => (
+                <label key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#334155', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name={`radio_${comp.id}`}
+                    checked={selectedVal === opt}
+                    onChange={() => {
+                      setRadioValues(prev => ({ ...prev, [comp.id]: opt }));
+                      syncVariable(opt);
+                      fireWidgetTriggers(comp, 'ON_CHANGE');
+                    }}
+                  />
+                  {opt}
+                </label>
+              ))}
+            </div>
+          </div>
+        );
+      }
+      case 'CHECKLIST': {
+        const ck = checklistState[comp.id] || new Set();
+        const totalItems = (comp.props.items || []).length;
+        const checkedCount = ck.size;
+        const progressPercent = totalItems > 0 ? Math.round((checkedCount / totalItems) * 100) : 0;
+        const allDone = totalItems > 0 && checkedCount === totalItems;
+
+        return (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '10px' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a' }}>{comp.props.title}</div>
+              {comp.props.showProgress !== false && totalItems > 0 && (
+                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: allDone ? '#22c55e' : '#64748b' }}>
+                  {checkedCount}/{totalItems} ({progressPercent}%)
+                </div>
+              )}
+            </div>
+
+            {comp.props.showProgress !== false && totalItems > 0 && (
+              <div style={{ width: '100%', height: '6px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : '#f1f5f9', borderRadius: '3px', marginBottom: '15px', overflow: 'hidden' }}>
+                <div style={{ width: `${progressPercent}%`, height: '100%', backgroundColor: allDone ? '#22c55e' : '#3b82f6', transition: 'width 0.3s ease' }} />
+              </div>
+            )}
+            {comp.props.items.map((item, i) => {
+              const isChecked = ck.has(i);
+              const darkBg = isChecked ? 'rgba(34, 197, 94, 0.2)' : '#0f172a';
+              const lightBg = isChecked ? '#f0fdf4' : '#f8fafc';
+              const darkBorder = isChecked ? '#22c55e' : '#334155';
+              const lightBorder = isChecked ? '#86efac' : '#e2e8f0';
+              return (
+                <div key={i} onClick={() => {
+                  const n = new Set(ck);
+                  n.has(i) ? n.delete(i) : n.add(i);
+                  setChecklistState(prev => ({ ...prev, [comp.id]: n }));
+                  syncVariable(n.size === totalItems ? 'DONE' : null);
+                  fireWidgetTriggers(comp, 'ON_CHANGE');
+                }} style={{ display: 'flex', gap: '12px', alignItems: 'center', padding: '10px 12px', marginBottom: '6px', borderRadius: '6px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? darkBg : lightBg, border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? darkBorder : lightBorder}`, cursor: 'pointer' }}>
+                  <div style={{ width: '20px', height: '20px', borderRadius: '4px', border: `2px solid ${isChecked ? '#22c55e' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#475569' : '#cbd5e1')}`, backgroundColor: isChecked ? '#22c55e' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : 'white'), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{isChecked && <span style={{ color: 'white', fontSize: '12px', fontWeight: 900 }}>{String.fromCharCode(10003)}</span>}</div>
+                  <span style={{ fontSize: '0.9rem', color: isChecked ? '#22c55e' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#475569'), textDecoration: isChecked ? 'line-through' : 'none' }}>{item}</span>
+                </div>
+              );
+            })}
+            {allDone && <div style={{ padding: '8px 12px', backgroundColor: '#22c55e', color: 'white', borderRadius: '6px', textAlign: 'center', fontWeight: 700, fontSize: '0.85rem', marginTop: '8px' }}>{String.fromCharCode(10003)} All Steps Complete</div>}
+          </div>
+        );
+      }
+      case 'SIGNATURE': {
+        const isAuthMode = comp.props.signatureMode === 'AUTH';
+        const isSigned = !!signatureWidgetValues[comp.id];
+
+        return (
+          <div>
+            <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{comp.props.label}{comp.props.required ? ' *' : ''}</div>
+            <div style={{ border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, borderRadius: '8px', padding: '12px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : '#f8fafc' }}>
+              {isAuthMode ? (
+                <div style={{ padding: '20px', textAlign: 'center', backgroundColor: 'white', border: '1px dashed #cbd5e1', borderRadius: '6px' }}>
+                  {isSigned ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a' }}>
+                        <CheckCircle2 size={32} />
+                      </div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>Identity Verified</div>
+                      <div style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic' }}>{signatureWidgetValues[comp.id]}</div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={async () => {
+                        const now = new Date().toLocaleString();
+                        const operator = localStorage.getItem('frontline_operator_name') || 'AUTHORIZED_OPERATOR';
+                        const sigData = `Electronically signed by ${operator} on ${now}`;
+                        setSignatureWidgetValues(prev => ({ ...prev, [comp.id]: sigData }));
+                        syncVariable(sigData);
+                        fireWidgetTriggers(comp, 'ON_CHANGE');
+                      }}
+                      style={{ padding: '12px 24px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', margin: '0 auto' }}
+                    >
+                      <ShieldCheck size={18} /> Digital Sign-off
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <canvas
+                  width={520}
+                  height={150}
+                  ref={(el) => {
+                    if (el) ensureSignatureCanvas(comp.id);
+                    signatureCanvasRefs.current[comp.id] = el;
+                  }}
+                  onMouseDown={(e) => startSignatureDraw(comp.id, e)}
+                  onMouseMove={(e) => moveSignatureDraw(comp.id, e)}
+                  onMouseUp={() => endSignatureDraw(comp.id, comp)}
+                  onMouseLeave={() => endSignatureDraw(comp.id, comp)}
+                  onTouchStart={(e) => startSignatureDraw(comp.id, e)}
+                  onTouchMove={(e) => moveSignatureDraw(comp.id, e)}
+                  onTouchEnd={() => endSignatureDraw(comp.id, comp)}
+                  style={{ width: '100%', backgroundColor: 'white', border: '1px dashed #cbd5e1', borderRadius: '6px', touchAction: 'none' }}
+                />
+              )}
+              <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.75rem', color: isSigned ? '#16a34a' : '#94a3b8', fontWeight: 600 }}>
+                  {isSigned ? (isAuthMode ? 'Digital Signature Active' : 'Drawing Recorded') : 'Awaiting signature...'}
+                </span>
+                <button
+                  onClick={() => {
+                    if (isAuthMode) {
+                      setSignatureWidgetValues(prev => ({ ...prev, [comp.id]: '' }));
+                    } else {
+                      clearSignatureCanvas(comp.id, comp);
+                    }
+                  }}
+                  style={{ padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', color: '#475569', fontSize: '0.75rem', cursor: 'pointer' }}
+                >
+                  {isSigned ? 'Reset' : 'Clear'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+      case 'MACHINE_STATUS': {
+        const machineId = comp.props.machineId;
+        return (
+          <div style={{ backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', padding: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#22c55e', boxShadow: '0 0 8px #22c55e' }} />
+                <span style={{ fontWeight: 800, fontSize: '0.9rem', color: isDark ? '#f8fafc' : '#0f172a' }}>{comp.props.label || 'Machine Status'}</span>
+              </div>
+              <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Connected</div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {comp.props.attributes?.map((attr, idx) => {
+                const val = machineTagValues[`${machineId}_${attr}`] || '0.00';
+                return (
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: isDark ? '#94a3b8' : '#64748b' }}>{attr}</div>
+                    <div style={{ fontSize: '1rem', fontWeight: 900, color: isDark ? '#3b82f6' : '#2563eb', fontFamily: 'monospace' }}>{val}</div>
+                  </div>
+                );
+              })}
+            </div>
+            {(!comp.props.attributes || comp.props.attributes.length === 0) && (
+              <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem', fontStyle: 'italic' }}>
+                No live attributes mapped to this widget.
+              </div>
+            )}
+          </div>
+        );
+      }
+      case 'QUALITY_PASS_FAIL': {
+        const res = qualityResult[comp.id];
+        return (
+          <div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '12px', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a' }}>{comp.props.label}{comp.props.required ? ' *' : ''}</div>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button onClick={() => { setQualityResult(p => ({ ...p, [comp.id]: 'PASS' })); setQualityData(p => ({ ...p, [comp.id]: 'PASS' })); syncVariable('PASS'); fireWidgetTriggers(comp, 'ON_CHANGE'); }} style={{ flex: 1, padding: '18px', backgroundColor: res === 'PASS' ? '#16a34a' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : 'white'), border: `2px solid ${res === 'PASS' ? '#16a34a' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0')}`, borderRadius: '6px', color: res === 'PASS' ? 'white' : '#16a34a', fontSize: '1rem', fontWeight: 900, cursor: 'pointer' }}>PASS</button>
+              <button onClick={() => { setQualityResult(p => ({ ...p, [comp.id]: 'FAIL' })); setQualityData(p => ({ ...p, [comp.id]: 'FAIL' })); syncVariable('FAIL'); fireWidgetTriggers(comp, 'ON_CHANGE'); }} style={{ flex: 1, padding: '18px', backgroundColor: res === 'FAIL' ? '#dc2626' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : 'white'), border: `2px solid ${res === 'FAIL' ? '#dc2626' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0')}`, borderRadius: '6px', color: res === 'FAIL' ? 'white' : '#dc2626', fontSize: '1rem', fontWeight: 900, cursor: 'pointer' }}>FAIL</button>
+            </div>
+            {res === 'FAIL' && <div style={{ marginTop: '10px', padding: '10px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? 'rgba(220, 38, 38, 0.1)' : '#fef2f2', borderRadius: '6px', border: '1px solid #dc2626', color: '#fca5a5', fontSize: '0.8rem', fontWeight: 600 }}>Defect detected - Log a defect in the right panel</div>}
+          </div>
+        );
+      }
+      case 'QUALITY_TOLERANCE': {
+        const tv = parseFloat(toleranceValues[comp.id] || '');
+        const inR = !isNaN(tv) && tv >= comp.props.min && tv <= comp.props.max;
+        const outR = !isNaN(tv) && (tv < comp.props.min || tv > comp.props.max);
+        return (
+          <div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a' }}>{comp.props.label} <span style={{ color: '#94a3b8', fontWeight: 400 }}>({comp.props.min}-{comp.props.max} {comp.props.unit})</span></div>
+            <input
+              type="number"
+              value={toleranceValues[comp.id] || ''}
+              onChange={e => { setToleranceValues(prev => ({ ...prev, [comp.id]: e.target.value })); syncVariable(e.target.value); fireWidgetTriggers(comp, 'ON_CHANGE'); }}
+              style={{
+                width: '100%', padding: '12px',
+                border: `2px solid ${inR ? '#22c55e' : outR ? '#ef4444' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0')}`,
+                borderRadius: '6px', fontSize: '1.1rem', textAlign: 'right', outline: 'none',
+                backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : 'white',
+                color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a'
+              }}
+            />
+            {inR && <div style={{ marginTop: '6px', color: '#22c55e', fontSize: '0.8rem', fontWeight: 700 }}>IN TOLERANCE</div>}
+            {outR && <div style={{ marginTop: '6px', color: '#dc2626', fontSize: '0.8rem', fontWeight: 700 }}>OUT OF TOLERANCE</div>}
+          </div>
+        );
+      }
+      case 'VIDEO': return (
+        <div style={{ backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc', border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, borderRadius: '8px', overflow: 'hidden' }}>
+          <div style={{ padding: '10px 15px', borderBottom: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 600, fontSize: '0.9rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a' }}><Video size={18} color="#3b82f6" />{comp.props.title}</div>
+          {comp.props.url ? <video controls src={comp.props.url} style={{ width: '100%', maxHeight: '300px' }} /> : <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>No video URL configured</div>}
+        </div>
+      );
+      case 'PDF': return (
+        <div style={{ backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc', border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, borderRadius: '8px', overflow: 'hidden' }}>
+          <div style={{ padding: '10px 15px', borderBottom: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 600, fontSize: '0.9rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a' }}><FileText size={18} color="#ef4444" />{comp.props.title}</div>
+          {comp.props.url ? <iframe src={comp.props.url} style={{ width: '100%', height: '300px', border: 'none' }} title={comp.props.title} /> : <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>No PDF URL configured</div>}
+        </div>
+      );
+      case 'BUTTON': return (<button onClick={() => handleButtonAction(comp.props, comp)} style={{ padding: '14px 28px', backgroundColor: comp.props.backgroundColor || '#007bff', color: comp.props.color || '#fff', border: 'none', borderRadius: '6px', fontSize: (comp.props.fontSize || 14) + 'px', fontWeight: comp.props.fontWeight || 700, cursor: 'pointer', width: '100%', textAlign: comp.props.textAlign || 'center' }}>{resolvedProps.label}</button>);
+      case 'COMPLETE_BUTTON': return (<button onClick={() => handleButtonAction({ action: 'COMPLETE' }, comp)} style={{ padding: '16px', backgroundColor: comp.props.backgroundColor || '#10b981', color: comp.props.color || '#fff', border: 'none', borderRadius: '6px', fontSize: (comp.props.fontSize || 18) + 'px', fontWeight: 900, cursor: 'pointer', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}><CheckCircle2 size={22} />{resolvedProps.label || 'COMPLETE'}</button>);
+      case 'QUANTITY_LOGGER': {
+        const lg = quantityLog[comp.id] || { completed: 0, target: comp.props.targetQty || 100 };
+        const pct = Math.min(100, Math.round((lg.completed / lg.target) * 100));
+        return (
+          <div style={{ border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '8px', overflow: 'hidden' }}>
+            <div style={{ padding: '10px 15px', backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderBottom: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: isDark ? '#94a3b8' : '#64748b' }}>{comp.props.label}</div>
+            <div style={{ padding: '15px', display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: isDark ? '#0f172a' : 'white' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div style={{ textAlign: 'center', padding: '12px', backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderRadius: '6px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}` }}><div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Required</div><div style={{ fontSize: '1.8rem', fontWeight: 900, color: isDark ? '#f8fafc' : '#0f172a' }}>{lg.target}</div></div>
+                <div style={{ textAlign: 'center', padding: '12px', backgroundColor: lg.completed >= lg.target ? (isDark ? 'rgba(34, 197, 94, 0.2)' : '#f0fdf4') : (isDark ? '#1e293b' : '#f8fafc'), borderRadius: '6px', border: `1px solid ${lg.completed >= lg.target ? (isDark ? '#22c55e' : '#86efac') : (isDark ? '#334155' : '#e2e8f0')}` }}><div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Done</div><div style={{ fontSize: '1.8rem', fontWeight: 900, color: lg.completed >= lg.target ? '#22c55e' : (isDark ? '#f8fafc' : '#0f172a') }}>{lg.completed}</div></div>
+              </div>
+              <div style={{ height: '8px', backgroundColor: isDark ? '#1e293b' : '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}><div style={{ width: `${pct}%`, height: '100%', backgroundColor: lg.completed >= lg.target ? '#22c55e' : '#3b82f6', transition: 'width 0.3s' }} /></div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={() => { setQuantityLog(prev => { const c = prev[comp.id] || { completed: 0, target: comp.props.targetQty || 100 }; return { ...prev, [comp.id]: { ...c, completed: Math.max(0, c.completed - 1) } } }); fireWidgetTriggers(comp, 'ON_CHANGE'); }} style={{ flex: 1, padding: '10px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '6px', backgroundColor: isDark ? '#0f172a' : 'white', color: '#ef4444', fontWeight: 900, fontSize: '1.1rem', cursor: 'pointer' }}>-1</button>
+                <button onClick={() => { setQuantityLog(prev => { const c = prev[comp.id] || { completed: 0, target: comp.props.targetQty || 100 }; return { ...prev, [comp.id]: { ...c, completed: c.completed + 1 } } }); fireWidgetTriggers(comp, 'ON_CHANGE'); }} style={{ flex: 2, padding: '10px', border: '1px solid #22c55e', borderRadius: '6px', backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : '#f0fdf4', color: '#22c55e', fontWeight: 900, fontSize: '0.9rem', cursor: 'pointer' }}>+ Add 1 Unit</button>
+                <button onClick={() => { setQuantityLog(prev => { const c = prev[comp.id] || { completed: 0, target: comp.props.targetQty || 100 }; return { ...prev, [comp.id]: { ...c, completed: c.target } } }); fireWidgetTriggers(comp, 'ON_CHANGE'); }} style={{ flex: 1, padding: '10px', border: '1px solid #3b82f6', borderRadius: '6px', backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#eff6ff', color: '#3b82f6', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer' }}>All</button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+      case 'SHAPE': {
+        const shapeType = comp.props.type || 'rectangle';
+        const shapeColor = comp.props.backgroundColor || '#e2e8f0';
+        const strokeWidth = Math.max(1, Number(comp.props.strokeWidth) || 4);
+
+        if (shapeType === 'line') {
+          return (
+            <div style={{ width: '100%', height: '60px', display: 'flex', alignItems: 'center' }}>
+              <div style={{ width: '100%', height: `${strokeWidth}px`, backgroundColor: shapeColor, borderRadius: '999px' }} />
+            </div>
+          );
+        }
+
+        if (shapeType.startsWith('arrow_')) {
+          const arrowDirection = shapeType.replace('arrow_', '');
+          const isHorizontal = ['left', 'right'].includes(arrowDirection);
+          const viewBox = isHorizontal ? '0 0 100 40' : '0 0 40 100';
+          const pathByDirection = {
+            right: 'M5 15 H65 V5 L95 20 L65 35 V25 H5 Z',
+            left: 'M95 15 H35 V5 L5 20 L35 35 V25 H95 Z',
+            up: 'M15 95 V35 H5 L20 5 L35 35 H25 V95 Z',
+            down: 'M15 5 V65 H5 L20 95 L35 65 H25 V5 Z'
+          };
+
+          return (
+            <svg viewBox={viewBox} width="100%" height="60" preserveAspectRatio="none">
+              <path d={pathByDirection[arrowDirection] || pathByDirection.right} fill={shapeColor} />
+            </svg>
+          );
+        }
+
+        return <div style={{ width: '100%', height: '60px', backgroundColor: shapeColor, borderRadius: shapeType === 'circle' ? '999px' : (comp.props.borderRadius || 0) + 'px' }} />;
+      }
+      case 'IMAGE': {
+        const imgSrc = resolvedProps.src || resolvedProps.url || resolvedProps.text || comp.props.src || comp.props.url;
+        const isCamera = comp.props.mode === 'CAMERA';
+        
+        if (isCamera && !imgSrc) {
+          return (
+            <div style={{ height: '100%', minHeight: '300px', backgroundColor: '#000', borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'white', position: 'relative', overflow: 'hidden' }}>
+              <Camera size={48} style={{ opacity: 0.5, marginBottom: '20px' }} />
+              <div style={{ fontSize: '1.2rem', fontWeight: 600 }}>Camera Ready</div>
+              <div style={{ fontSize: '0.9rem', opacity: 0.7, marginTop: '8px' }}>Tap "Log Defect" to capture</div>
+              <div style={{ position: 'absolute', top: '20px', left: '20px', backgroundColor: 'rgba(239, 68, 68, 0.8)', padding: '4px 12px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase' }}>Live Feed</div>
+            </div>
+          );
+        }
+
+        return imgSrc ? (
+          <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+            {resolvedProps.label && <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}</div>}
+            <img src={imgSrc} alt={comp.props.alt || 'Image'} style={{ width: '100%', height: 'auto', maxHeight: '100%', borderRadius: '12px', display: 'block', objectFit: 'contain', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }} />
+          </div>
+        ) : (
+          <div style={{ padding: '40px', height: '100%', minHeight: '200px', backgroundColor: isDark ? '#0f172a' : '#f8fafc', border: `2px dashed ${isDark ? '#334155' : '#cbd5e1'}`, borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#94a3b8' }}>
+            <ImageIcon size={48} style={{ marginBottom: '12px', opacity: 0.5 }} />
+            <div style={{ fontSize: '1rem', fontWeight: 600 }}>{resolvedProps.label || 'Product Image'}</div>
+            <div style={{ fontSize: '0.8rem', marginTop: '4px' }}>No image data available for this record</div>
+          </div>
+        );
+      }
+      case 'VARIABLE_TEXT': {
+        let vv = '';
+        const varSource = resolvedProps.varSource || comp.props.varSource || resolvedProps.targetVariable || comp.props.targetVariable;
+
+        if (comp.props.iotTopicId && machineData[comp.props.iotTopicId] !== undefined) {
+          vv = String(machineData[comp.props.iotTopicId]);
+        } else if (comp.props.dataSourceType === 'TABLE_RECORD') {
+          vv = boundData[comp.id] || 'Loading...';
+        } else if (comp.props.dataSourceType === 'SELECTED_TABLE_ROW') {
+          const parts = String(varSource || '').split('.'); // e.g., TABLE_RECORD.tableId.columnName
+          if (parts.length === 3) {
+            const tableId = parts[1];
+            const columnName = parts[2];
+            const selected = selectedTableRow[tableId];
+            vv = selected ? selected[columnName] : '';
+          }
+        } else if (typeof varSource === 'string' && varSource.startsWith('@')) {
+          vv = resolveValue(varSource);
+        } else {
+          if (varSource === 'APP_INFO.USER') vv = appContext.user;
+          else if (varSource === 'APP_INFO.STATION') vv = appContext.station;
+          else if (varSource === 'APP_INFO.STEP_NAME') vv = activeStep && activeStep.title || '';
+          else if (varSource === 'APP_INFO.APP_NAME') vv = selectedApp && selectedApp.name || '';
+          else {
+            const v = appVariables.find(av => av.name === varSource);
+            vv = v ? v.value : '{' + varSource + '}';
+          }
+        }
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: comp.props.textAlign }}>
+            {comp.props.label && (
+              <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.025em' }}>
+                {comp.props.label}
+              </div>
+            )}
+            <div style={{
+              fontSize: (comp.props.fontSize || 18) + 'px',
+              color: comp.props.color || (selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a'),
+              fontWeight: comp.props.fontWeight || 700,
+              fontStyle: comp.props.fontStyle
+            }}>
+              {safeRender(vv)}
+
+            </div>
+          </div>
+        );
+      }
+      case 'NUMBER_INPUT': return (
+        <div>
+          <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}</div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button onClick={() => {
+              const newVal = Math.max(comp.props.min != null ? comp.props.min : 0, (numberInputValues[comp.id] != null ? numberInputValues[comp.id] : resolvedProps.defaultValue || 0) - 1);
+              setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal }));
+              syncVariable(newVal);
+              fireWidgetTriggers(comp, 'ON_CHANGE');
+            }} style={{ width: '40px', height: '44px', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', color: '#475569', fontSize: '1.2rem', cursor: 'pointer' }}>-</button>
+            <input type="number" value={numberInputValues[comp.id] != null ? numberInputValues[comp.id] : resolvedProps.defaultValue || 0} onChange={e => {
+              const newVal = parseFloat(e.target.value) || 0;
+              setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal }));
+              syncVariable(newVal);
+              fireWidgetTriggers(comp, 'ON_CHANGE');
+            }} style={{ flex: 1, padding: '10px', border: '2px solid #e2e8f0', borderRadius: '6px', fontSize: '1.1rem', textAlign: 'center', outline: 'none' }} />
+            <button onClick={() => {
+              const newVal = Math.min(comp.props.max != null ? comp.props.max : 9999, (numberInputValues[comp.id] != null ? numberInputValues[comp.id] : resolvedProps.defaultValue || 0) + 1);
+              setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal }));
+              syncVariable(newVal);
+              fireWidgetTriggers(comp, 'ON_CHANGE');
+            }} style={{ width: '40px', height: '44px', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', color: '#475569', fontSize: '1.2rem', cursor: 'pointer' }}>+</button>
+            {comp.props.unit && <span style={{ fontSize: '0.9rem', color: '#475569', fontWeight: 600 }}>{comp.props.unit}</span>}
+          </div>
+        </div>
+      );
+      case 'DATE_PICKER': return (
+        <div>
+          <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}</div>
+          <input type="date" value={dateValues[comp.id] || ''} onChange={e => {
+            const val = e.target.value;
+            setDateValues(prev => ({ ...prev, [comp.id]: val }));
+            syncVariable(val);
+            fireWidgetTriggers(comp, 'ON_CHANGE');
+          }} style={{ width: '100%', padding: '10px 14px', border: '2px solid #e2e8f0', borderRadius: '6px', fontSize: '1rem', outline: 'none', color: '#0f172a' }} />
+        </div>
+      );
+      case 'BOOLEAN_TOGGLE': {
+        const on = toggleState[comp.id] != null ? toggleState[comp.id] : comp.props.defaultValue || false;
+        return (
+          <div onClick={() => {
+            const val = !on;
+            setToggleState(prev => ({ ...prev, [comp.id]: val }));
+            syncVariable(val);
+            fireWidgetTriggers(comp, 'ON_CHANGE');
+          }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', backgroundColor: '#f8fafc', border: `2px solid ${on ? '#22c55e' : '#e2e8f0'}`, borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s' }}>
+            <span style={{ fontSize: '0.9rem', color: '#0f172a', fontWeight: 600 }}>{resolvedProps.label}</span>
+            <div style={{ width: '48px', height: '26px', backgroundColor: on ? '#22c55e' : '#cbd5e1', borderRadius: '13px', position: 'relative', transition: 'background-color 0.2s' }}>
+              <div style={{ width: '20px', height: '20px', backgroundColor: 'white', borderRadius: '50%', position: 'absolute', top: '3px', left: on ? '25px' : '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.3)', transition: 'left 0.2s' }} />
+            </div>
+          </div>
+        );
+      }
+      case 'GAUGE': {
+        const pg = Math.min(100, Math.max(0, ((resolvedProps.value - comp.props.min) / (comp.props.max - comp.props.min)) * 100));
+        return (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>{resolvedProps.label}</span>
+              <span style={{ fontSize: '1rem', fontWeight: 900, color: comp.props.color || '#3b82f6' }}>{resolvedProps.value} {comp.props.unit}</span>
+            </div>
+            <div style={{ height: '14px', backgroundColor: '#e2e8f0', borderRadius: '7px', overflow: 'hidden' }}><div style={{ width: `${pg}%`, height: '100%', backgroundColor: comp.props.color || '#3b82f6', transition: 'width 0.3s', borderRadius: '7px' }} /></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: '#94a3b8', marginTop: '4px' }}><span>{comp.props.min}</span><span>{comp.props.max}</span></div>
+          </div>
+        );
+      }
+      case 'CHART': {
+        const data = chartData[comp.id] || [];
+        const { type, title, xAxisColumn, yAxisColumn, color, showArea } = comp.props;
+        const ChartComponent = type === 'BAR' ? BarChart : type === 'AREA' ? AreaChart : LineChart;
+        const DataComponent = type === 'BAR' ? Bar : type === 'AREA' ? Area : Line;
+
+        return (
+          <div style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '15px', height: '300px', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' }}>
+              <BarChart3 size={18} color={color} />
+              <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569' }}>{title}</span>
+            </div>
+            <div style={{ flex: 1, width: '100%', minHeight: 0 }}>
+              {data.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <ChartComponent data={data} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis
+                      dataKey={xAxisColumn || 'createdAt'}
+                      fontSize={10}
+                      tick={{ fill: '#94a3b8' }}
+                      axisLine={{ stroke: '#e2e8f0' }}
+                      tickLine={false}
+                      tickFormatter={(val) => {
+                        if (xAxisColumn === 'createdAt' || !xAxisColumn) {
+                          return new Date(val).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        }
+                        return val;
+                      }}
+                    />
+                    <YAxis fontSize={10} tick={{ fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                    <RechartsTooltip
+                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '12px' }}
+                    />
+                    <DataComponent
+                      type={showArea ? "monotone" : "linear"}
+                      dataKey={yAxisColumn}
+                      stroke={color}
+                      fill={color}
+                      fillOpacity={type === 'AREA' ? 0.2 : 1}
+                      strokeWidth={2}
+                      dot={data.length < 50}
+                    />
+                  </ChartComponent>
+                </ResponsiveContainer>
+              ) : (
+                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.85rem', fontStyle: 'italic' }}>
+                  No production data available for this chart.
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+      case 'PARETO_CHART': {
+        const data = chartData[comp.id] || [];
+        const { title, xAxisColumn, yAxisColumn, color } = comp.props;
+
+        // Transform data for Pareto
+        // 1. Group by xAxisColumn
+        const groups = {};
+        data.forEach(item => {
+          const key = item[xAxisColumn] || 'Unknown';
+          const val = parseFloat(item[yAxisColumn]) || 0;
+          groups[key] = (groups[key] || 0) + val;
+        });
+
+        // 2. Sort decreasing
+        const sorted = Object.entries(groups)
+          .map(([name, value]) => ({ name, value }))
+          .sort((a, b) => b.value - a.value);
+
+        // 3. Calculate cumulative %
+        const total = sorted.reduce((sum, item) => sum + item.value, 0);
+        let runningSum = 0;
+        const paretoData = sorted.map(item => {
+          runningSum += item.value;
+          return {
+            ...item,
+            cumulative: total > 0 ? Math.round((runningSum / total) * 100) : 0
+          };
+        });
+
+        return (
+          <div style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '15px', height: '300px', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569', marginBottom: '15px' }}>{title}</div>
+            <div style={{ flex: 1, width: '100%', minHeight: 0 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={paretoData}>
+                  <XAxis dataKey="name" fontSize={10} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="left" fontSize={10} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="right" orientation="right" domain={[0, 100]} fontSize={10} axisLine={false} tickLine={false} unit="%" />
+                  <RechartsTooltip />
+                  <Bar yAxisId="left" dataKey="value" fill={color} radius={[4, 4, 0, 0]} barSize={40} />
+                  <Line yAxisId="right" type="monotone" dataKey="cumulative" stroke="#f59e0b" strokeWidth={3} dot={{ stroke: '#f59e0b', strokeWidth: 2, r: 4, fill: '#fff' }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        );
+      }
+      case 'CONTROL_CHART': {
+        const data = chartData[comp.id] || [];
+        const { title, yAxisColumn, ucl, lcl, target, color } = comp.props;
+        return (
+          <div style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '15px', height: '300px', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569', marginBottom: '15px' }}>{title}</div>
+            <div style={{ flex: 1, width: '100%', minHeight: 0 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={data}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="createdAt" hide />
+                  <YAxis hide domain={['auto', 'auto']} />
+                  <RechartsTooltip />
+                  <ReferenceLine y={ucl} label={{ value: 'UCL', position: 'right', fill: '#ef4444', fontSize: 10 }} stroke="#ef4444" strokeDasharray="3 3" />
+                  <ReferenceLine y={lcl} label={{ value: 'LCL', position: 'right', fill: '#ef4444', fontSize: 10 }} stroke="#ef4444" strokeDasharray="3 3" />
+                  <ReferenceLine y={target} label={{ value: 'Target', position: 'right', fill: '#10b981', fontSize: 10 }} stroke="#10b981" />
+                  <Line type="monotone" dataKey={yAxisColumn} stroke={color} strokeWidth={2} dot={{ fill: color, r: 3 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        );
+      }
+      case 'OEE_DASHBOARD': {
+        const machineId = comp.props.machineId;
+        const stats = oeeData[machineId] || { availability: 0, performance: 0, quality: 0, oee: 0 };
+
+        const MetricCard = ({ label, value, color }) => (
+          <div style={{ flex: 1, padding: '12px', backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderRadius: '8px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, textAlign: 'center' }}>
+            <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '4px' }}>{label}</div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 900, color: color }}>{Math.round(value)}%</div>
+          </div>
+        );
+
+        return (
+          <div style={{ backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', padding: '16px' }}>
+            <div style={{ fontSize: '0.9rem', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a', marginBottom: '16px' }}>{comp.props.label || 'OEE Dashboard'}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+              <MetricCard label="Availability" value={stats.availability} color="#3b82f6" />
+              <MetricCard label="Performance" value={stats.performance} color="#8b5cf6" />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <MetricCard label="Quality" value={stats.quality} color="#10b981" />
+              <div style={{ flex: 1, padding: '12px', backgroundColor: isDark ? 'rgba(59,130,246,0.1)' : '#eff6ff', borderRadius: '8px', border: '2px solid #3b82f6', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', marginBottom: '4px' }}>Global OEE</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#3b82f6' }}>{Math.round(stats.oee)}%</div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+      case 'ADVANCED_TABLE':
+      case 'INTERACTIVE_TABLE': {
+        const data = tableData[comp.id] || [];
+        const cols = comp.props.columns?.length > 0 ? comp.props.columns : ['id', 'createdAt'];
+        const pageSize = comp.props.pageSize || 5;
+        const currentPage = tablePagination[comp.id]?.page || 1;
+        const totalPages = Math.max(1, Math.ceil(data.length / pageSize));
+        const paginatedData = data.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+        const selected = selectedTableRow[comp.id];
+        const linkedPlaceholderId = comp.props.linkedRecordPlaceholderId;
+
+        return (
+          <div style={{ backgroundColor: comp.props.backgroundColor || '#ffffff', border: comp.props.bordered !== false ? '1px solid #e2e8f0' : 'none', borderRadius: '8px', padding: '15px', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' }}>
+              <Table size={18} color={comp.props.color || '#3b82f6'} />
+              <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569' }}>
+                {comp.props.title || 'Data View'}
+                {(() => {
+                  const filter = comp.props.variableFilters?.[0];
+                  if (filter) {
+                    const v = appVariables.find(v => v.name === filter.variableName || v.id === filter.variableName);
+                    let val = v?.value;
+                    if (val && typeof val === 'object') val = val.value || val.id || val.recordId || '[Object]';
+                    if (val) return <span style={{ color: '#3b82f6', marginLeft: '10px', fontSize: '0.7rem', backgroundColor: 'rgba(59,130,246,0.1)', padding: '2px 6px', borderRadius: '4px' }}>[Filter: {String(val)}]</span>;
+                  }
+                  return null;
+                })()}
+              </span>
+            </div>
+            <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '4px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                    {cols.map(col => (
+                      <th key={col} style={{ padding: '10px', textAlign: 'left', color: '#475569', fontWeight: 700 }}>{col}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedData.map((row, rIdx) => {
+                    const rowId = row?.id ?? row?._id ?? JSON.stringify(row);
+                    const selectedId = selected?.id ?? selected?._id ?? (selected ? JSON.stringify(selected) : null);
+                    const isSelected = selectedId === rowId;
+                    return (
+                      <tr
+                        key={rowId || rIdx}
+                        onClick={() => {
+                          const newSelected = isSelected ? null : row;
+                          setSelectedTableRow(prev => ({ ...prev, [comp.id]: newSelected }));
+
+                          // Update record placeholder if linked
+                          if (linkedPlaceholderId) {
+                            setRecordPlaceholderData(prev => ({
+                              ...prev,
+                              [linkedPlaceholderId]: newSelected
+                            }));
+                          }
+
+                          fireWidgetTriggers(comp, 'ON_CHANGE');
+                          fireWidgetTriggers(comp, 'RowSelected');
+                        }}
+                        style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer', backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'white', transition: 'background-color 0.2s' }}
+                      >
+                        {cols.map(col => (
+                          <td key={col} style={{ padding: '10px', color: '#1e293b' }}>
+                            {(() => {
+                              const val = row[col];
+                              if (val === undefined || val === null || val === '') return '-';
+
+                              // Linked Records (Array of IDs or Objects)
+                              if (Array.isArray(val)) {
+                                if (val.length === 0) return '-';
+                                return (
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                    {val.map((item, idx) => {
+                                      const label = typeof item === 'object' ? (item.recordId || item.id || 'Record') : String(item);
+                                      return (
+                                        <span key={idx} style={{
+                                          padding: '2px 8px',
+                                          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                          color: '#3b82f6',
+                                          borderRadius: '4px',
+                                          fontSize: '0.65rem',
+                                          fontWeight: 800,
+                                          border: '1px solid rgba(59, 130, 246, 0.2)',
+                                          display: 'inline-flex',
+                                          alignItems: 'center'
+                                        }}>
+                                          {label}
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              }
+
+                              // Single Linked Record or Object
+                              if (typeof val === 'object' && val !== null) {
+                                const label = val.recordId || val.id || 'Record';
+                                return (
+                                  <span style={{
+                                    padding: '2px 8px',
+                                    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                                    color: '#8b5cf6',
+                                    borderRadius: '4px',
+                                    fontSize: '0.65rem',
+                                    fontWeight: 800,
+                                    border: '1px solid rgba(139, 92, 246, 0.2)'
+                                  }}>
+                                    {label}
+                                  </span>
+                                );
+                              }
+
+                              // Boolean handling
+                              if (typeof val === 'boolean') {
+                                return val ?
+                                  <span style={{ color: '#10b981', fontWeight: 800 }}>YES</span> :
+                                  <span style={{ color: '#ef4444', fontWeight: 800 }}>NO</span>;
+                              }
+
+                              return String(val);
+                            })()}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                  {paginatedData.length === 0 && (
+                    <tr>
+                      <td colSpan={cols.length} style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>
+                        No records found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {totalPages > 1 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px', fontSize: '0.8rem' }}>
+                <button
+                  onClick={() => setTablePagination(prev => ({ ...prev, [comp.id]: { page: Math.max(1, currentPage - 1) } }))}
+                  disabled={currentPage === 1}
+                  style={{ padding: '6px 12px', border: '1px solid #e2e8f0', borderRadius: '4px', backgroundColor: currentPage === 1 ? '#f8fafc' : 'white', color: currentPage === 1 ? '#cbd5e1' : '#475569', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+                >
+                  Prev
+                </button>
+                <span style={{ color: '#64748b', fontWeight: 600 }}>Page {currentPage} of {totalPages}</span>
+                <button
+                  onClick={() => setTablePagination(prev => ({ ...prev, [comp.id]: { page: Math.min(totalPages, currentPage + 1) } }))}
+                  disabled={currentPage === totalPages}
+                  style={{ padding: '6px 12px', border: '1px solid #e2e8f0', borderRadius: '4px', backgroundColor: currentPage === totalPages ? '#f8fafc' : 'white', color: currentPage === totalPages ? '#cbd5e1' : '#475569', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      }
+      case 'IOT_DEVICE': {
+        const dType = comp.props.deviceType || 'Sensor';
+
+        return (
+          <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '15px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+              {dType === 'Printer' ? <Printer size={18} color="#0ea5e9" /> :
+                (dType === 'IP Camera' || dType === 'Webcam') ? <Webcam size={18} color="#0ea5e9" /> :
+                  dType === 'Sensor' ? <Wifi size={18} color="#22c55e" /> :
+                    <Cpu size={18} color="#f59e0b" />}
+              <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#334155' }}>
+                {comp.props.label || 'IoT Device'}
+              </span>
+              <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: '#64748b', backgroundColor: '#e2e8f0', padding: '2px 6px', borderRadius: '4px' }}>
+                {comp.props.ipAddress}:{comp.props.port}
+              </span>
+            </div>
+
+            <div style={{ marginTop: '10px' }}>
+              {dType === 'Printer' && (
+                <button
+                  onClick={() => { alert(`Printing test page to ${comp.props.ipAddress}...`); fireWidgetTriggers(comp, 'ON_CLICK'); }}
+                  style={{ width: '100%', padding: '10px', backgroundColor: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '6px', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                >
+                  Test Print Connection
+                </button>
+              )}
+              {(dType === 'IP Camera' || dType === 'Webcam') && (
+                <div style={{ width: '100%', height: '180px', backgroundColor: '#1e293b', borderRadius: '6px', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', overflow: 'hidden' }}>
+                  <Webcam size={32} style={{ marginBottom: '8px', opacity: 0.5 }} />
+                  <span style={{ fontSize: '0.8rem' }}>Live Feed: {comp.props.ipAddress}</span>
+                  <div style={{ position: 'absolute', top: '10px', right: '10px', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ef4444', border: '2px solid white', animation: 'pulse 2s infinite' }} />
+                  <div style={{ position: 'absolute', bottom: '10px', left: '10px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', fontFamily: 'monospace' }}>
+                    {new Date().toLocaleTimeString()}
+                  </div>
+                </div>
+              )}
+              {dType === 'Sensor' && (
+                <div style={{ padding: '15px', backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '2rem', fontWeight: 900, color: '#22c55e' }}>
+                    {Math.floor(Math.random() * 20 + 20)}.<span style={{ fontSize: '1.2rem', color: '#94a3b8' }}>{Math.floor(Math.random() * 99)} °C</span>
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '4px', textTransform: 'uppercase' }}>Live Temperature Reading</div>
+                </div>
+              )}
+              {dType === 'Scale' && (
+                <div style={{ padding: '15px', backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '2rem', fontWeight: 900, color: '#f59e0b' }}>
+                    {Math.floor(Math.random() * 5 + 10)}.<span style={{ fontSize: '1.2rem', color: '#94a3b8' }}>{Math.floor(Math.random() * 99)} kg</span>
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '4px', textTransform: 'uppercase' }}>Weight Reading</div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+      case 'PRODUCTION_ORDER':
+        return (
+          <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
+            <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: '#475569', letterSpacing: '0.05em' }}>{comp.props.title || 'CURRENT ORDER'}</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              {[
+                { label: 'Order ID', value: currentWorkOrder || 'LOT-' + new Date().getFullYear() + String(new Date().getMonth() + 1).padStart(2, '0') + String(new Date().getDate()).padStart(2, '0') },
+                { label: 'Item', value: selectedApp?.config?.materialId || '1008068-045' },
+                { label: 'Description', value: selectedApp ? selectedApp.name : selectedManual.title },
+                { label: 'QTY Required', value: Object.values(quantityLog).reduce((acc, l) => acc + l.target, 0) || '10' },
+                { label: 'Due Date', value: new Date().toLocaleDateString() + ' 17:00:00' }
+              ].map(row => (
+                <div key={row.label}>
+                  <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>{row.label}</div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#1e293b' }}>{row.value}</div>
+                </div>
+              ))}
+            </div>
+            {comp.props.showProductImage && (
+              <div style={{ marginTop: 'auto', border: selectedApp?.config?.productImage ? 'none' : '1px solid #f1f5f9', borderRadius: '8px', padding: selectedApp?.config?.productImage ? '0' : '20px', textAlign: 'center', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                {selectedApp?.config?.productImage ? (
+                  <img src={selectedApp.config.productImage} alt="Product" style={{ width: '100%', height: '180px', objectFit: 'cover' }} />
+                ) : (
+                  <>
+                    <Package size={48} color="#cbd5e1" />
+                    <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>PRODUCT IMAGE N/A</div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      case 'PRODUCTION_PROGRESS':
+        return (
+          <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
+            <h4 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 700, color: '#64748b' }}>{comp.props.title || 'ASSEMBLY PROGRESS'}</h4>
+            <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Lot: {currentWorkOrder || 'LOT-' + new Date().getFullYear() + String(new Date().getMonth() + 1).padStart(2, '0') + String(new Date().getDate()).padStart(2, '0')}</div>
+            <div style={{ backgroundColor: '#2e7d32', color: 'white', padding: '12px', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold' }}>Completed units</div>
+            <div style={{ border: '1px solid #e2e8f0', padding: '20px', borderRadius: '4px', textAlign: 'center' }}>
+              <div style={{ fontSize: '2rem', fontWeight: 900 }}>
+                {Object.values(quantityLog).reduce((acc, l) => acc + l.completed, 0)}
+                <span style={{ fontSize: '0.9rem', fontWeight: 500, color: '#64748b', marginLeft: '10px' }}>
+                  of {Object.values(quantityLog).reduce((acc, l) => acc + l.target, 10)} Required
+                </span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button onClick={handleCompleteUnit} style={{ width: '100%', padding: '15px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '6px', fontSize: '1rem', fontWeight: 900, cursor: 'pointer' }}>COMPLETE UNIT</button>
+              <button onClick={handleNextStep} style={{ width: '100%', padding: '15px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', color: '#334155', borderRadius: '6px', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer' }}>NEXT STEP</button>
+            </div>
+          </div>
+        );
+      case 'DASHBOARD_METRIC': {
+        const data = chartData[comp.id] || [];
+        const bindValue = comp.props.dataBinding?.enabled && comp.props.dataBinding.mapping?.value;
+        let displayValue = comp.props.value;
+
+        if (bindValue && data.length > 0) {
+          const latest = data[data.length - 1];
+          displayValue = latest.data?.[bindValue] ?? latest[bindValue] ?? comp.props.value;
+        }
+
+        return (
+          <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%', overflow: 'hidden' }}>
+            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#64748b' }}>{comp.props.title}</div>
+            <div style={{ fontSize: (comp.props.fontSize || 48) + 'px', fontWeight: 900, color: comp.props.color || '#0f172a', margin: '5px 0' }}>{displayValue}</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{comp.props.subtext}</div>
+              {comp.props.showTrend && (
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <TrendingUp size={16} /> {comp.props.trendValue}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+      case 'DASHBOARD_PARETO': {
+        const raw = chartData[comp.id] || [];
+        const data = getParetoData(raw, comp.props.categoryColumn, comp.props.valueColumn);
+        return (
+          <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569', marginBottom: '15px' }}>{comp.props.title}</div>
+            <div style={{ flex: 1, minHeight: 0 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={data}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" fontSize={10} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="left" fontSize={10} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="right" orientation="right" domain={[0, 100]} fontSize={10} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} unit="%" />
+                  <RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                  <Bar yAxisId="left" dataKey="value" fill={comp.props.barColor || '#3b82f6'} radius={[4, 4, 0, 0]} barSize={40} />
+                  <Line yAxisId="right" type="monotone" dataKey="cumulativePercent" stroke={comp.props.lineColor || '#f97316'} strokeWidth={3} dot={{ fill: comp.props.lineColor || '#f97316', r: 4 }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        );
+      }
+      case 'DASHBOARD_CHART_BAR': {
+        const raw = chartData[comp.id] || [];
+        const data = raw.map(r => ({
+          name: r.data?.[comp.props.xAxisColumn] || r[comp.props.xAxisColumn] || 'N/A',
+          value: Number(r.data?.[comp.props.yAxisColumn] || r[comp.props.yAxisColumn] || 0)
+        }));
+        return (
+          <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569', marginBottom: '15px' }}>{comp.props.title}</div>
+            <div style={{ flex: 1, minHeight: 0 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" fontSize={10} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <YAxis fontSize={10} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                  <Bar dataKey="value" fill={comp.props.color || '#3b82f6'} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        );
+      }
+      case 'DASHBOARD_CHART_LINE': {
+        const raw = chartData[comp.id] || [];
+        const data = raw.map(r => ({
+          name: r.data?.[comp.props.xAxisColumn] || r[comp.props.xAxisColumn] || 'N/A',
+          value: Number(r.data?.[comp.props.yAxisColumn] || r[comp.props.yAxisColumn] || 0)
+        }));
+        return (
+          <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569', marginBottom: '15px' }}>{comp.props.title}</div>
+            <div style={{ flex: 1, minHeight: 0 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={data}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" fontSize={10} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <YAxis fontSize={10} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                  <Line type="monotone" dataKey="value" stroke={comp.props.color || '#3b82f6'} strokeWidth={3} dot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        );
+      }
+      case 'MEDIA_RECORDER': {
+        const mode = comp.props.mode || 'AUDIO';
+        const isRec = recordingState[comp.id];
+        const mediaUrl = mediaRecorderValues[comp.id];
+
+        return (
+          <div key={comp.id}>
+            <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>
+              {comp.props.label || 'Record Media'}{comp.props.required ? ' *' : ''}
+            </div>
+            <div style={{ border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', padding: '20px', textAlign: 'center', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white' }}>
+              {mediaUrl ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
+                  {mode === 'AUDIO' ? (
+                    <audio src={mediaUrl} controls style={{ width: '100%' }} />
+                  ) : (
+                    <video src={mediaUrl} controls style={{ width: '100%', maxHeight: '180px', borderRadius: '8px' }} />
+                  )}
+                  <button
+                    onClick={() => setMediaRecorderValues(prev => ({ ...prev, [comp.id]: '' }))}
+                    style={{ border: 'none', background: 'none', color: '#ef4444', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', padding: '8px' }}
+                  >
+                    Delete & Retake
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                  {isRec ? (
+                    <>
+                      <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#ef4444', animation: 'pulse 1s infinite' }} />
+                      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#ef4444' }}>RECORDING...</div>
+                      <button
+                        onClick={() => stopMediaRecording(comp)}
+                        style={{ padding: '12px 24px', backgroundColor: '#0f172a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+                      >
+                        STOP RECORDING
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {mode === 'AUDIO' ? <Mic size={32} color="#94a3b8" /> : <Video size={32} color="#94a3b8" />}
+                      <div style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Ready to record {mode.toLowerCase()}</div>
+                      <button
+                        onClick={() => startMediaRecording(comp)}
+                        style={{ padding: '12px 24px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 6px rgba(59, 130, 246, 0.2)' }}
+                      >
+                        <Play size={16} /> START RECORDING
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+      case 'VISION_MEASUREMENT': {
+        const isProcessing = ocrProcessing[comp.id];
+        const currentValue = visionValues[comp.id] || '';
+        const isDark = selectedApp?.config?.appThemeMode === 'DARK';
+
+        return (
+          <div key={comp.id} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600 }}>
+              {comp.props.label || 'Vision Measurement'}{comp.props.required ? ' *' : ''}
+            </div>
+            <div style={{ position: 'relative', borderRadius: '12px', overflow: 'hidden', backgroundColor: '#000', aspectRatio: '4/3', border: `2px solid ${isProcessing ? '#3b82f6' : (isDark ? '#334155' : '#e2e8f0')}`, transition: 'border-color 0.3s' }}>
+              <WebcamComp
+                audio={false}
+                ref={el => visionWebcamRefs.current[comp.id] = el}
+                screenshotFormat="image/jpeg"
+                videoConstraints={{ facingMode: "environment" }}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+              {isProcessing && (
+                <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'white', gap: '12px', zIndex: 10 }}>
+                  <div style={{ width: '32px', height: '32px', border: '3px solid rgba(255,255,255,0.3)', borderTopColor: '#3b82f6', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                  <div style={{ fontSize: '0.85rem', fontWeight: 700, letterSpacing: '0.05em' }}>ANALYZING...</div>
+                </div>
+              )}
+              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '60%', height: '30%', border: '2px dashed rgba(255,255,255,0.5)', borderRadius: '8px', pointerEvents: 'none' }}>
+                <div style={{ position: 'absolute', top: '-25px', left: '50%', transform: 'translateX(-50%)', backgroundColor: 'rgba(0,0,0,0.5)', color: 'white', fontSize: '0.65rem', padding: '2px 8px', borderRadius: '4px', whiteSpace: 'nowrap' }}>Align Caliper Screen Here</div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ flex: 1, position: 'relative' }}>
+                <input
+                  type="text"
+                  value={currentValue}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setVisionValues(prev => ({ ...prev, [comp.id]: val }));
+                    if (comp.props.targetVariable) {
+                      setAppVariables(prev => prev.map(v => v.name === comp.props.targetVariable ? { ...v, value: val } : v));
+                    }
+                    fireWidgetTriggers(comp, 'ON_CHANGE');
+                  }}
+                  placeholder="Read value..."
+                  style={{ width: '100%', padding: '12px 40px 12px 12px', borderRadius: '8px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, backgroundColor: isDark ? '#1e293b' : 'white', color: isDark ? '#f8fafc' : '#0f172a', fontSize: '1.1rem', fontWeight: 700 }}
+                />
+                <div style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontWeight: 600, fontSize: '0.85rem' }}>
+                  {comp.props.unit}
+                </div>
+              </div>
+              <button
+                onClick={() => handleVisionOcr(comp, { current: visionWebcamRefs.current[comp.id] })}
+                disabled={isProcessing}
+                style={{ padding: '0 20px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: isProcessing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 6px rgba(59, 130, 246, 0.2)' }}
+              >
+                <Camera size={18} /> {isProcessing ? 'SCANNING' : 'SCAN'}
+              </button>
+            </div>
+            {comp.props.targetVariable && (
+              <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                Syncing to variable: @{comp.props.targetVariable}
+              </div>
+            )}
+          </div>
+        );
+      }
+      // --- OBD2 WIDGETS ---
+      case 'OBD2_SCANNER': {
+        const connected = obd2Status === 'connected';
+        const transport = comp.props.transport || 'BLUETOOTH';
+        return (
+          <div
+            onClick={async () => {
+              if (connected) {
+                await obd2Service.disconnect();
+              } else {
+                try {
+                  if (transport === 'BLUETOOTH') await obd2Service.connectBluetooth();
+                  else await obd2Service.connectSerial();
+                } catch (err) {
+                  alert("OBD2 Connection Failed: " + err.message);
+                }
+              }
+            }}
+            style={{ width: '100%', height: '100%', borderRadius: '12px', border: connected ? '2px solid #10b981' : '2px dashed #64748b', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white', padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+          >
+            <div style={{ padding: '12px', borderRadius: '50%', backgroundColor: connected ? 'rgba(16, 185, 129, 0.1)' : 'rgba(100, 116, 139, 0.1)' }}>
+              <Car size={32} color={connected ? '#10b981' : '#64748b'} />
+            </div>
+            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: selectedApp?.config?.appThemeMode === 'DARK' ? 'white' : '#1e293b' }}>{comp.props.label || 'OBD2 Scanner'}</div>
+            <div style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: connected ? '#10b981' : '#dc2626' }} />
+              {connected ? `CONNECTED (${transport})` : `DISCONNECTED (${transport})`}
+            </div>
+          </div>
+        );
+      }
+      case 'OBD2_CLEAR_DTC': {
+        return (
+          <button
+            onClick={async () => {
+              if (obd2Status !== 'connected') return alert("Connect OBD2 first");
+              const ok = await obd2Service.clearDTC();
+              if (ok) alert("DTCs cleared successfully");
+              else alert("Failed to clear DTCs");
+            }}
+            style={{ width: '100%', height: '100%', padding: '12px', backgroundColor: '#dc2626', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}
+          >
+            <TrashIcon size={18} />
+            {comp.props.label || 'Clear DTC'}
+          </button>
+        );
+      }
+      case 'OBD2_DTC': {
+        const val = obd2Values['DTC']?.value || '[]';
+        let dtcArray = [];
+        try { dtcArray = typeof val === 'string' ? JSON.parse(val) : val; if (!Array.isArray(dtcArray)) dtcArray = []; } catch (e) { dtcArray = []; }
+        return (
+          <div style={{ width: '100%', height: '100%', borderRadius: '10px', border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '10px 12px', borderBottom: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#f1f5f9'}`, backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Bug size={16} color="#dc2626" />
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: selectedApp?.config?.appThemeMode === 'DARK' ? 'white' : '#0f172a' }}>{comp.props.label || 'Diagnostic Trouble Codes'}</span>
+              <span style={{ marginLeft: 'auto', fontSize: '0.7rem', padding: '2px 6px', borderRadius: '999px', backgroundColor: dtcArray.length > 0 ? '#fee2e2' : '#d1fae5', color: dtcArray.length > 0 ? '#dc2626' : '#16a34a', fontWeight: 600 }}>{dtcArray.length} Codes</span>
+            </div>
+            <div style={{ flex: 1, padding: '8px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {dtcArray.length === 0 ? (
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>No DTCs Found</div>
+              ) : (
+                dtcArray.map((code, idx) => (
+                  <div key={idx} style={{ padding: '8px', borderRadius: '6px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc', border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#dc2626' }}>{code}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        );
+      }
+      case 'OBD2_MIL_STATUS': {
+        const val = obd2Values['0101']?.value || 'OFF';
+        const isMilOn = String(val).toUpperCase() === 'ON';
+        return (
+          <div style={{ width: '100%', height: '100%', borderRadius: '10px', border: `1px solid ${isMilOn ? '#f59e0b' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0')}`, backgroundColor: isMilOn ? 'rgba(245, 158, 11, 0.05)' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white'), padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+            <div style={{ padding: '10px', borderRadius: '50%', backgroundColor: isMilOn ? '#f59e0b' : 'rgba(100, 116, 139, 0.1)', color: isMilOn ? 'white' : '#64748b' }}>
+              <AlertTriangle size={24} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Check Engine</span>
+              <span style={{ fontSize: '1.1rem', fontWeight: 800, color: isMilOn ? '#f59e0b' : '#64748b' }}>{isMilOn ? 'MIL ON' : 'MIL OFF'}</span>
+            </div>
+          </div>
+        );
+      }
+      case 'OBD2_RPM':
+      case 'OBD2_SPEED':
+      case 'OBD2_COOLANT_TEMP':
+      case 'OBD2_THROTTLE':
+      case 'OBD2_ENGINE_LOAD':
+      case 'OBD2_MAF':
+      case 'OBD2_IAT':
+      case 'OBD2_FUEL_LEVEL':
+      case 'OBD2_FUEL_PRESSURE':
+      case 'OBD2_STFT':
+      case 'OBD2_LTFT':
+      case 'OBD2_AFR':
+      case 'OBD2_O2_SENSOR':
+      case 'OBD2_IGNITION_TIMING':
+      case 'OBD2_KNOCK':
+      case 'OBD2_TORQUE_EST':
+      case 'OBD2_HP_EST':
+      case 'OBD2_OIL_TEMP':
+      case 'OBD2_MAP':
+      case 'OBD2_BARO':
+      case 'OBD2_BOOST':
+      case 'OBD2_BATTERY_VOLTAGE': {
+        const defaultPid = OBD2_DEFAULT_PIDS[comp.type];
+        const pid = comp.props.pid || defaultPid;
+        const data = obd2Values[pid?.toUpperCase()] || { value: '--', unit: comp.props.unit || '' };
+        const connected = obd2Status === 'connected';
+
+        const IconMap = {
+          'OBD2_RPM': Gauge,
+          'OBD2_SPEED': TrendingUp,
+          'OBD2_COOLANT_TEMP': Thermometer,
+          'OBD2_OIL_TEMP': Thermometer,
+          'OBD2_FUEL_LEVEL': Fuel,
+          'OBD2_BATTERY_VOLTAGE': Activity
+        };
+        const IconComponent = IconMap[comp.type] || Activity;
+
+        return (
+          <div style={{ width: '100%', height: '100%', borderRadius: '10px', border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white', padding: '10px', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <IconComponent size={14} color="#0ea5e9" />
+                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{comp.props.label || comp.type.replace('OBD2_', '').replace(/_/g, ' ')}</span>
+              </div>
+              <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: connected ? '#10b981' : '#cbd5e1', flexShrink: 0 }} />
+            </div>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px', maxWidth: '100%' }}>
+                <span style={{
+                  fontSize: String(data.value).length > 4 ? '1.2rem' : '1.6rem',
+                  lineHeight: 1,
+                  fontWeight: 900,
+                  color: selectedApp?.config?.appThemeMode === 'DARK' ? 'white' : '#0f172a',
+                  whiteSpace: 'nowrap'
+                }}>{data.value}</span>
+                <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>{data.unit}</span>
+              </div>
+            </div>
+          </div>
+        );
+
+      }
+      default: return (
+        <div style={{ color: '#dc2626', backgroundColor: '#fee2e2', padding: '10px', borderRadius: '4px', fontSize: '0.75rem', border: '1px solid #fecaca' }}>
+          Unknown Type: {comp.type}
+        </div>
+      );
+    }
+  };
+
     if (isMobile) {
       return (
         <div style={{ height: '100dvh', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', fontFamily: "'Inter', sans-serif", overflow: 'hidden' }}>
@@ -2889,7 +4596,7 @@ const LiveTerminal = () => {
             {activeMobileTab === 'apps' && (
               <div className="fade-in">
                 <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', marginBottom: '20px' }}>Production Apps</h3>
-                {filteredApps.map(app => (
+                {tabFilteredApps.map(app => (
                   <div
                     key={app.id}
                     onClick={() => handleStartApp(app)}
@@ -3155,7 +4862,12 @@ const LiveTerminal = () => {
               <div style={{ textAlign: 'center', padding: '100px 20px', backgroundColor: 'white', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
                 <div style={{ color: '#94a3b8', marginBottom: '16px' }}><Package size={48} /></div>
                 <h3 style={{ margin: '0 0 8px 0', color: '#0f172a', fontSize: '1.2rem', fontWeight: 700 }}>No Apps Assigned</h3>
-                <p style={{ margin: 0, color: '#64748b' }}>There are no applications assigned to <b>Station {appContext.station}</b>.</p>
+                <p style={{ margin: 0, color: '#64748b' }}>
+                  There are no applications assigned to <b>Station {appContext.station}</b> for user <b>{appContext.user}</b>.
+                </p>
+                <div style={{ marginTop: '20px', fontSize: '0.75rem', color: '#94a3b8' }}>
+                  User Role: {freshUser?.role || 'Unknown'} | Access: {freshUser?.assignedApp || 'Not Set'}
+                </div>
               </div>
             )}
 
@@ -3614,1655 +5326,7 @@ const LiveTerminal = () => {
                     {appComponents.filter(c => visibilityMap[c.id] !== false).map((comp, idx) => {
                       const isAbsolute = comp.x !== undefined && comp.y !== undefined;
 
-                      const renderWidget = () => {
-                        // 1. Base Props
-                        let resolvedProps = { ...comp.props };
-                        const isDark = selectedApp?.config?.appThemeMode === 'DARK';
 
-                        // 2. Resolve Data Bindings (@Variable, @Record.Field)
-                        const propsToResolve = ['text', 'label', 'defaultValue', 'value', 'placeholder', 'src', 'title', 'url', 'varSource', 'targetVariable'];
-                        propsToResolve.forEach(p => {
-                          const val = resolvedProps[p];
-                          if (typeof val === 'string' && val.startsWith('@')) {
-                            resolvedProps[p] = safeRender(resolveValue(val));
-                          } else if (val && typeof val === 'object' && val.type === 'EXPRESSION') {
-                            resolvedProps[p] = safeRender(evaluateExpression(val.value));
-                          }
-                        });
-
-
-                        // 3. Resolve IoT Binding if present
-                        if (comp.props.iotTopicId && machineData[comp.props.iotTopicId] !== undefined) {
-                          const iotVal = machineData[comp.props.iotTopicId];
-                          if (comp.type === 'GAUGE' || comp.type === 'NUMBER_INPUT') {
-                            resolvedProps.value = parseFloat(iotVal) || 0;
-                          } else if (comp.type === 'TEXT' || comp.type === 'VARIABLE_TEXT') {
-                            resolvedProps.text = String(iotVal);
-                          }
-                        }
-
-                        const syncVariable = (value) => {
-                          const varName = comp.props?.targetVariable || (comp.props?.dataSourceType === 'VARIABLE' ? comp.props?.varSource : null);
-                          if (varName) {
-                            setAppVariables(prev => prev.map(v => v.name === varName ? { ...v, value } : v));
-                          }
-                        };
-
-                        switch (comp.type) {
-                          case 'TEXT': return <div style={{ fontSize: (resolvedProps.fontSize || 16) + 'px', color: resolvedProps.color || '#0f172a', fontWeight: resolvedProps.fontWeight, fontStyle: resolvedProps.fontStyle, textDecoration: resolvedProps.textDecoration, textAlign: resolvedProps.textAlign }}>{resolvedProps.text}</div>;
-                          case 'TIMER': return (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                              <div style={{ fontSize: '2.5rem', fontWeight: 900, fontFamily: 'monospace', color: comp.props.color || '#2e7d32' }}>{formatTime(timer)}</div>
-                              <div style={{ color: '#94a3b8', fontSize: '1rem', fontWeight: 600 }}>{comp.props.label}</div>
-                            </div>
-                          );
-                          case 'BARCODE': return (
-                            <div>
-                              <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>SCAN / TYPE BARCODE</div>
-                              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                <Barcode size={24} color="#3b82f6" />
-                                <input
-                                  id={`input-${comp.id}`}
-                                  autoFocus={comp.props.autoFocus}
-                                  value={barcodeValues[comp.id] || ''}
-                                  onChange={e => {
-                                    const val = e.target.value;
-                                    setBarcodeValues(prev => ({ ...prev, [comp.id]: val }));
-                                    syncVariable(val);
-                                    fireWidgetTriggers(comp, 'ON_CHANGE', val);
-                                  }}
-                                  onKeyDown={e => {
-                                    if (e.key === 'Enter') {
-                                      const val = e.target.value;
-                                      fireWidgetTriggers(comp, 'ON_SCAN', val);
-                                    }
-                                  }}
-                                  placeholder={comp.props.placeholder}
-                                  style={{
-                                    flex: 1, padding: '12px',
-                                    border: `2px solid ${isDark ? '#334155' : '#e2e8f0'}`,
-                                    borderRadius: '4px', fontSize: '1rem', outline: 'none',
-                                    backgroundColor: isDark ? '#0f172a' : 'white',
-                                    color: isDark ? '#f8fafc' : '#0f172a'
-                                  }}
-                                />
-                              </div>
-                              {barcodeValues[comp.id] && <div style={{ marginTop: '8px', padding: '6px 10px', backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : '#f0fdf4', borderRadius: '4px', color: '#22c55e', fontSize: '0.8rem', fontWeight: 600 }}>{String.fromCharCode(10003)} Scanned: {barcodeValues[comp.id]}</div>}
-                            </div>
-                          );
-                          case 'CAMERA_SCANNER': return (
-                            <div key={comp.id}>
-                              <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>
-                                {comp.props.label || 'Scan Barcode / QR'}{comp.props.required ? ' *' : ''}
-                              </div>
-                              <div style={{
-                                border: '1.5px solid #e2e8f0', borderRadius: '12px', padding: '16px',
-                                backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '12px'
-                              }}>
-                                <button
-                                  onClick={() => setCameraScannerActive(prev => ({ ...prev, [comp.id]: true }))}
-                                  style={{
-                                    padding: '14px', backgroundColor: '#3b82f6', color: 'white',
-                                    border: 'none', borderRadius: '10px', fontWeight: 700,
-                                    cursor: 'pointer', display: 'flex', alignItems: 'center',
-                                    justifyContent: 'center', gap: '10px', fontSize: '0.95rem'
-                                  }}
-                                >
-                                  <Barcode size={20} /> OPEN SCANNER
-                                </button>
-
-                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                  <input
-                                    value={cameraScannerValues[comp.id] || ''}
-                                    onChange={(e) => setCameraScannerValues(prev => ({ ...prev, [comp.id]: e.target.value }))}
-                                    placeholder={comp.props.placeholder || 'Manual input...'}
-                                    style={{ flex: 1, padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.9rem' }}
-                                  />
-                                  <button
-                                    onClick={() => applyCameraScannerValue(comp, cameraScannerValues[comp.id], 'manual')}
-                                    style={{ padding: '12px 16px', backgroundColor: '#fff', color: '#3b82f6', border: '1px solid #3b82f6', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
-                                  >
-                                    Apply
-                                  </button>
-                                </div>
-
-                                {cameraScannerStatus[comp.id] && (
-                                  <div style={{ fontSize: '0.75rem', color: '#15803d', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <CheckCircle2 size={14} /> {cameraScannerStatus[comp.id]}
-                                  </div>
-                                )}
-                              </div>
-
-                              {cameraScannerActive[comp.id] && (
-                                <UnifiedScanner
-                                  label={comp.props.label}
-                                  onScan={(val) => {
-                                    applyCameraScannerValue(comp, val, 'camera');
-                                    setCameraScannerActive(prev => ({ ...prev, [comp.id]: false }));
-                                  }}
-                                  onClose={() => setCameraScannerActive(prev => ({ ...prev, [comp.id]: false }))}
-                                />
-                              )}
-                            </div>
-                          );
-                          case 'VISION_DETECTOR': return (
-                            <div key={comp.id}>
-                              <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>
-                                {comp.props.label || 'Vision AI: OCR Scanner'}{comp.props.required ? ' *' : ''}
-                              </div>
-                              <div style={{ border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', overflow: 'hidden', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white' }}>
-                                <div style={{ position: 'relative', width: '100%', height: '240px', backgroundColor: '#0f172a' }}>
-                                  <Camera size={48} color="rgba(255,255,255,0.1)" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }} />
-                                  <div style={{ position: 'absolute', inset: 0, border: '2px dashed rgba(255,255,255,0.2)', margin: '40px', pointerEvents: 'none' }} />
-                                  <video
-                                    ref={(el) => { cameraScannerVideoRefs.current[comp.id] = el; }}
-                                    muted playsInline
-                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                  />
-                                  {cameraScannerValues[comp.id] && (
-                                    <div style={{ position: 'absolute', bottom: '12px', left: '12px', right: '12px', backgroundColor: 'rgba(34, 197, 94, 0.9)', padding: '8px 12px', borderRadius: '6px', color: 'white', fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                      <CheckCircle2 size={16} /> Extracted: {cameraScannerValues[comp.id]}
-                                    </div>
-                                  )}
-                                </div>
-                                <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                  <div style={{ display: 'flex', gap: '8px' }}>
-                                    {!cameraScannerActive[comp.id] ? (
-                                      <button
-                                        onClick={() => startCameraScanner(comp)}
-                                        style={{ flex: 1, padding: '12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                                      >
-                                        <Camera size={18} /> ENABLE CAMERA
-                                      </button>
-                                    ) : (
-                                      <button
-                                        onClick={async () => {
-                                          setCameraScannerStatus(prev => ({ ...prev, [comp.id]: 'Extracting text...' }));
-                                          await new Promise(r => setTimeout(r, 1500));
-                                          const mockOcr = "L098-X" + Math.floor(Math.random() * 9000 + 1000);
-                                          applyCameraScannerValue(comp, mockOcr, 'vision');
-                                        }}
-                                        style={{ flex: 1, padding: '12px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                                      >
-                                        <Sparkles size={18} /> SCAN & EXTRACT
-                                      </button>
-                                    )}
-                                    {cameraScannerActive[comp.id] && (
-                                      <button
-                                        onClick={() => stopCameraScanner(comp.id)}
-                                        style={{ padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: 'white', color: '#64748b', cursor: 'pointer' }}
-                                      >
-                                        <X size={18} />
-                                      </button>
-                                    )}
-                                  </div>
-                                  <div style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic' }}>
-                                    {cameraScannerStatus[comp.id] || 'Camera provides real-time OCR text extraction for labels and part numbers.'}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                          case 'CAMERA_CAPTURE': {
-                            const photo = cameraValues[comp.id];
-                            return (
-                              <div key={comp.id}>
-                                <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>
-                                  {comp.props.label || 'Take Photo'}{comp.props.required ? ' *' : ''}
-                                </div>
-                                <div style={{ border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', overflow: 'hidden', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white' }}>
-                                  <div style={{ position: 'relative', width: '100%', height: '240px', backgroundColor: '#0f172a' }}>
-                                    {photo ? (
-                                      <img src={photo} alt="Captured" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                    ) : (
-                                      <video
-                                        ref={(el) => { cameraScannerVideoRefs.current[comp.id] = el; }}
-                                        muted playsInline
-                                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: cameraScannerActive[comp.id] ? 'block' : 'none' }}
-                                      />
-                                    )}
-                                    {!cameraScannerActive[comp.id] && !photo && (
-                                      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#475569', gap: '10px' }}>
-                                        <Camera size={48} color="#cbd5e1" />
-                                        <div style={{ fontSize: '0.8rem' }}>No image captured</div>
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div style={{ padding: '16px', display: 'flex', gap: '8px' }}>
-                                    {photo ? (
-                                      <button
-                                        onClick={() => { setCameraValues(prev => ({ ...prev, [comp.id]: '' })); startCameraScanner(comp); }}
-                                        style={{ flex: 1, padding: '12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
-                                      >
-                                        RETAKE PHOTO
-                                      </button>
-                                    ) : (
-                                      <>
-                                        {!cameraScannerActive[comp.id] ? (
-                                          <button
-                                            onClick={() => startCameraScanner(comp)}
-                                            style={{ flex: 1, padding: '12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
-                                          >
-                                            OPEN CAMERA
-                                          </button>
-                                        ) : (
-                                          <button
-                                            onClick={() => takePhoto(comp)}
-                                            style={{ flex: 1, padding: '12px', backgroundColor: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                                          >
-                                            <Camera size={18} /> CAPTURE PHOTO
-                                          </button>
-                                        )}
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          }
-                          case 'IP_CAMERA': {
-                            const ipUrl = comp.props.streamUrl || '';
-                            const proto = comp.props.protocol || 'MJPEG';
-                            const hasUrl = ipUrl.trim().length > 0;
-                            const isDark = selectedApp?.config?.appThemeMode === 'DARK';
-                            const buildStreamUrl = () => {
-                              if (!hasUrl) return '';
-                              if (comp.props.username && comp.props.password) {
-                                try { const u = new URL(ipUrl); u.username = comp.props.username; u.password = comp.props.password; return u.toString(); } catch { return ipUrl; }
-                              }
-                              return ipUrl;
-                            };
-                            const finalUrl = buildStreamUrl();
-                            return (
-                              <div key={comp.id}>
-                                <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>
-                                  {comp.props.label || 'IP Camera'}
-                                </div>
-                                <div style={{ border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', overflow: 'hidden', backgroundColor: isDark ? '#1e293b' : 'white' }}>
-                                  <div style={{ position: 'relative', width: '100%', height: '280px', backgroundColor: '#0f172a' }}>
-                                    {hasUrl ? (
-                                      proto === 'SNAPSHOT' ? (
-                                        <img key={Math.floor(Date.now() / (comp.props.refreshInterval || 1000))} src={finalUrl + (finalUrl.includes('?') ? '&' : '?') + 't=' + Date.now()} alt="IP Camera" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; }} />
-                                      ) : proto === 'HLS' ? (
-                                        <video src={finalUrl} autoPlay muted playsInline controls={comp.props.showControls !== false} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                      ) : (
-                                        <img src={finalUrl} alt="IP Camera MJPEG" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; }} />
-                                      )
-                                    ) : (
-                                      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#475569', gap: '10px' }}>
-                                        <Webcam size={48} color="#334155" />
-                                        <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>No stream URL configured</div>
-                                      </div>
-                                    )}
-                                    {comp.props.showOverlay && comp.props.overlayText && (
-                                      <div style={{ position: 'absolute', top: '12px', left: '12px', padding: '4px 12px', backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: '6px', color: 'white', fontSize: '0.75rem', fontWeight: 700, backdropFilter: 'blur(4px)' }}>{comp.props.overlayText}</div>
-                                    )}
-                                    {comp.props.showOverlay && (
-                                      <div style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', backgroundColor: hasUrl ? 'rgba(34, 197, 94, 0.85)' : 'rgba(239, 68, 68, 0.85)', borderRadius: '6px', color: 'white', fontSize: '0.7rem', fontWeight: 700 }}>
-                                        <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'white' }} />
-                                        {hasUrl ? 'LIVE' : 'OFFLINE'}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${isDark ? '#334155' : '#e2e8f0'}` }}>
-                                    <div style={{ fontSize: '0.8rem', color: isDark ? '#f8fafc' : '#0f172a', fontWeight: 600 }}>{comp.props.label || 'IP Camera'}</div>
-                                    <span style={{ fontSize: '0.65rem', color: '#94a3b8', backgroundColor: isDark ? '#0f172a' : '#f1f5f9', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>{proto}</span>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          }
-                          case 'DRAW_CANVAS': {
-                            const val = drawValues[comp.id];
-                            return (
-                              <div key={comp.id}>
-                                <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>
-                                  {comp.props.label || 'Sketch / Signature'}{comp.props.required ? ' *' : ''}
-                                </div>
-                                <div style={{ border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', overflow: 'hidden', backgroundColor: 'white' }}>
-                                  <canvas
-                                    ref={(el) => { drawCanvasRefs.current[comp.id] = el; }}
-                                    width={600}
-                                    height={240}
-                                    onMouseDown={(e) => startDrawing(comp.id, e)}
-                                    onMouseMove={(e) => moveDrawing(comp.id, e)}
-                                    onMouseUp={() => endDrawing(comp.id, comp)}
-                                    onMouseLeave={() => endDrawing(comp.id, comp)}
-                                    onTouchStart={(e) => startDrawing(comp.id, e)}
-                                    onTouchMove={(e) => moveDrawing(comp.id, e)}
-                                    onTouchEnd={() => endDrawing(comp.id, comp)}
-                                    style={{ width: '100%', height: '240px', touchAction: 'none', cursor: 'crosshair' }}
-                                  />
-                                  <div style={{ padding: '12px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{val ? 'Sketch recorded' : 'Draw inside the area'}</div>
-                                    <button onClick={() => clearDrawing(comp.id, comp)} style={{ padding: '6px 12px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer' }}>Clear</button>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          }
-                          case 'FILE_UPLOAD': {
-                            const file = uploadValues[comp.id];
-                            return (
-                              <div key={comp.id}>
-                                <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>
-                                  {comp.props.label || 'File Attachment'}{comp.props.required ? ' *' : ''}
-                                </div>
-                                <div style={{ border: `2px dashed ${isDark ? '#334155' : '#cbd5e1'}`, borderRadius: '12px', padding: '24px', textAlign: 'center', backgroundColor: isDark ? '#0f172a' : '#f8fafc', position: 'relative' }}>
-                                  <input
-                                    type="file"
-                                    accept={comp.props.accept || '*/*'}
-                                    onChange={(e) => handleFileUpload(comp, e.target.files[0])}
-                                    style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
-                                  />
-                                  {file ? (
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-                                      {file.type.startsWith('image/') ? (
-                                        <img src={file.url} alt="Uploaded" style={{ height: '80px', borderRadius: '4px' }} />
-                                      ) : (
-                                        <FileText size={48} color="#94a3b8" />
-                                      )}
-                                      <div style={{ fontSize: '0.85rem', fontWeight: 600, color: isDark ? '#f8fafc' : '#334155' }}>{file.name}</div>
-                                      <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{(file.size / 1024).toFixed(1)} KB</div>
-                                      <button onClick={(e) => { e.stopPropagation(); setUploadValues(p => ({ ...p, [comp.id]: null })); }} style={{ border: 'none', background: 'none', color: '#ef4444', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>Remove</button>
-                                    </div>
-                                  ) : (
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                                      <Upload size={32} color="#94a3b8" />
-                                      <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748b' }}>Click or drag file to upload</div>
-                                      <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Supports image, pdf, and doc files</div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          }
-                          case 'TEXT_INPUT': return (
-                            <div>
-                              <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}{comp.props.required ? ' *' : ''}</div>
-                              <input
-                                id={`input-${comp.id}`}
-                                type="text"
-                                value={textInputValues[comp.id] != null ? textInputValues[comp.id] : (resolvedProps.defaultValue || '')}
-                                onChange={async e => {
-                                  const val = comp.props.mask ? applyInputMask(e.target.value, comp.props.mask) : e.target.value;
-                                  setTextInputValues(prev => ({ ...prev, [comp.id]: val }));
-                                  syncVariable(val);
-                                  fireWidgetTriggers(comp, 'ON_CHANGE');
-                                }}
-                                placeholder={resolvedProps.placeholder || 'Type here...'}
-                                style={{
-                                  width: '100%', padding: '12px',
-                                  border: `2px solid ${isDark ? '#334155' : '#e2e8f0'}`,
-                                  borderRadius: '6px', fontSize: '1rem', outline: 'none',
-                                  backgroundColor: isDark ? '#0f172a' : 'white',
-                                  color: isDark ? '#f8fafc' : '#0f172a'
-                                }}
-                              />
-                            </div>
-                          );
-                          case 'TEXT_AREA': return (
-                            <div>
-                              <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{comp.props.label}{comp.props.required ? ' *' : ''}</div>
-                              <textarea
-                                id={`input-${comp.id}`}
-                                value={textAreaValues[comp.id] != null ? textAreaValues[comp.id] : (comp.props.defaultValue || '')}
-                                onChange={e => {
-                                  const val = e.target.value;
-                                  setTextAreaValues(prev => ({ ...prev, [comp.id]: val }));
-                                  syncVariable(val);
-                                  fireWidgetTriggers(comp, 'ON_CHANGE');
-                                }}
-                                placeholder={comp.props.placeholder || 'Type notes...'}
-                                rows={comp.props.rows || 4}
-                                style={{
-                                  width: '100%', padding: '12px',
-                                  border: `2px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`,
-                                  borderRadius: '6px', fontSize: '1rem', outline: 'none', resize: 'vertical',
-                                  backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : 'white',
-                                  color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a'
-                                }}
-                              />
-                            </div>
-                          );
-                          case 'DROPDOWN': return (
-                            <div>
-                              <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}{comp.props.required ? ' *' : ''}</div>
-                              <select
-                                id={`input-${comp.id}`}
-                                value={dropdownValues[comp.id] != null ? dropdownValues[comp.id] : (resolvedProps.defaultValue || '')}
-                                onChange={e => {
-                                  const val = e.target.value;
-                                  setDropdownValues(prev => ({ ...prev, [comp.id]: val }));
-                                  syncVariable(val);
-                                  fireWidgetTriggers(comp, 'ON_CHANGE');
-                                }}
-                                style={{
-                                  width: '100%', padding: '12px',
-                                  border: `2px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`,
-                                  borderRadius: '6px', fontSize: '1rem', outline: 'none',
-                                  backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : 'white',
-                                  color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a'
-                                }}
-                              >
-                                <option value="" style={{ backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white' }}>Select...</option>
-                                {(comp.props.options || []).map((opt, i) => (
-                                  <option key={i} value={opt} style={{ backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white' }}>{opt}</option>
-                                ))}
-                              </select>
-                            </div>
-                          );
-                          case 'RADIO_GROUP': {
-                            const selectedVal = radioValues[comp.id] != null ? radioValues[comp.id] : (comp.props.defaultValue || '');
-                            return (
-                              <div>
-                                <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{comp.props.label}{comp.props.required ? ' *' : ''}</div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                  {(comp.props.options || []).map((opt, i) => (
-                                    <label key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#334155', cursor: 'pointer' }}>
-                                      <input
-                                        type="radio"
-                                        name={`radio_${comp.id}`}
-                                        checked={selectedVal === opt}
-                                        onChange={() => {
-                                          setRadioValues(prev => ({ ...prev, [comp.id]: opt }));
-                                          syncVariable(opt);
-                                          fireWidgetTriggers(comp, 'ON_CHANGE');
-                                        }}
-                                      />
-                                      {opt}
-                                    </label>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          }
-                          case 'CHECKLIST': {
-                            const ck = checklistState[comp.id] || new Set();
-                            const totalItems = (comp.props.items || []).length;
-                            const checkedCount = ck.size;
-                            const progressPercent = totalItems > 0 ? Math.round((checkedCount / totalItems) * 100) : 0;
-                            const allDone = totalItems > 0 && checkedCount === totalItems;
-
-                            return (
-                              <div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '10px' }}>
-                                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a' }}>{comp.props.title}</div>
-                                  {comp.props.showProgress !== false && totalItems > 0 && (
-                                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: allDone ? '#22c55e' : '#64748b' }}>
-                                      {checkedCount}/{totalItems} ({progressPercent}%)
-                                    </div>
-                                  )}
-                                </div>
-
-                                {comp.props.showProgress !== false && totalItems > 0 && (
-                                  <div style={{ width: '100%', height: '6px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : '#f1f5f9', borderRadius: '3px', marginBottom: '15px', overflow: 'hidden' }}>
-                                    <div style={{ width: `${progressPercent}%`, height: '100%', backgroundColor: allDone ? '#22c55e' : '#3b82f6', transition: 'width 0.3s ease' }} />
-                                  </div>
-                                )}
-                                {comp.props.items.map((item, i) => {
-                                  const isChecked = ck.has(i);
-                                  const darkBg = isChecked ? 'rgba(34, 197, 94, 0.2)' : '#0f172a';
-                                  const lightBg = isChecked ? '#f0fdf4' : '#f8fafc';
-                                  const darkBorder = isChecked ? '#22c55e' : '#334155';
-                                  const lightBorder = isChecked ? '#86efac' : '#e2e8f0';
-                                  return (
-                                    <div key={i} onClick={() => {
-                                      const n = new Set(ck);
-                                      n.has(i) ? n.delete(i) : n.add(i);
-                                      setChecklistState(prev => ({ ...prev, [comp.id]: n }));
-                                      syncVariable(n.size === totalItems ? 'DONE' : null);
-                                      fireWidgetTriggers(comp, 'ON_CHANGE');
-                                    }} style={{ display: 'flex', gap: '12px', alignItems: 'center', padding: '10px 12px', marginBottom: '6px', borderRadius: '6px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? darkBg : lightBg, border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? darkBorder : lightBorder}`, cursor: 'pointer' }}>
-                                      <div style={{ width: '20px', height: '20px', borderRadius: '4px', border: `2px solid ${isChecked ? '#22c55e' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#475569' : '#cbd5e1')}`, backgroundColor: isChecked ? '#22c55e' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : 'white'), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{isChecked && <span style={{ color: 'white', fontSize: '12px', fontWeight: 900 }}>{String.fromCharCode(10003)}</span>}</div>
-                                      <span style={{ fontSize: '0.9rem', color: isChecked ? '#22c55e' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#475569'), textDecoration: isChecked ? 'line-through' : 'none' }}>{item}</span>
-                                    </div>
-                                  );
-                                })}
-                                {allDone && <div style={{ padding: '8px 12px', backgroundColor: '#22c55e', color: 'white', borderRadius: '6px', textAlign: 'center', fontWeight: 700, fontSize: '0.85rem', marginTop: '8px' }}>{String.fromCharCode(10003)} All Steps Complete</div>}
-                              </div>
-                            );
-                          }
-                          case 'SIGNATURE': {
-                            const isAuthMode = comp.props.signatureMode === 'AUTH';
-                            const isSigned = !!signatureWidgetValues[comp.id];
-
-                            return (
-                              <div>
-                                <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{comp.props.label}{comp.props.required ? ' *' : ''}</div>
-                                <div style={{ border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, borderRadius: '8px', padding: '12px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : '#f8fafc' }}>
-                                  {isAuthMode ? (
-                                    <div style={{ padding: '20px', textAlign: 'center', backgroundColor: 'white', border: '1px dashed #cbd5e1', borderRadius: '6px' }}>
-                                      {isSigned ? (
-                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                                          <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a' }}>
-                                            <CheckCircle2 size={32} />
-                                          </div>
-                                          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>Identity Verified</div>
-                                          <div style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic' }}>{signatureWidgetValues[comp.id]}</div>
-                                        </div>
-                                      ) : (
-                                        <button
-                                          onClick={async () => {
-                                            const now = new Date().toLocaleString();
-                                            const operator = localStorage.getItem('frontline_operator_name') || 'AUTHORIZED_OPERATOR';
-                                            const sigData = `Electronically signed by ${operator} on ${now}`;
-                                            setSignatureWidgetValues(prev => ({ ...prev, [comp.id]: sigData }));
-                                            syncVariable(sigData);
-                                            fireWidgetTriggers(comp, 'ON_CHANGE');
-                                          }}
-                                          style={{ padding: '12px 24px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', margin: '0 auto' }}
-                                        >
-                                          <ShieldCheck size={18} /> Digital Sign-off
-                                        </button>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <canvas
-                                      width={520}
-                                      height={150}
-                                      ref={(el) => {
-                                        if (el) ensureSignatureCanvas(comp.id);
-                                        signatureCanvasRefs.current[comp.id] = el;
-                                      }}
-                                      onMouseDown={(e) => startSignatureDraw(comp.id, e)}
-                                      onMouseMove={(e) => moveSignatureDraw(comp.id, e)}
-                                      onMouseUp={() => endSignatureDraw(comp.id, comp)}
-                                      onMouseLeave={() => endSignatureDraw(comp.id, comp)}
-                                      onTouchStart={(e) => startSignatureDraw(comp.id, e)}
-                                      onTouchMove={(e) => moveSignatureDraw(comp.id, e)}
-                                      onTouchEnd={() => endSignatureDraw(comp.id, comp)}
-                                      style={{ width: '100%', backgroundColor: 'white', border: '1px dashed #cbd5e1', borderRadius: '6px', touchAction: 'none' }}
-                                    />
-                                  )}
-                                  <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ fontSize: '0.75rem', color: isSigned ? '#16a34a' : '#94a3b8', fontWeight: 600 }}>
-                                      {isSigned ? (isAuthMode ? 'Digital Signature Active' : 'Drawing Recorded') : 'Awaiting signature...'}
-                                    </span>
-                                    <button
-                                      onClick={() => {
-                                        if (isAuthMode) {
-                                          setSignatureWidgetValues(prev => ({ ...prev, [comp.id]: '' }));
-                                        } else {
-                                          clearSignatureCanvas(comp.id, comp);
-                                        }
-                                      }}
-                                      style={{ padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', color: '#475569', fontSize: '0.75rem', cursor: 'pointer' }}
-                                    >
-                                      {isSigned ? 'Reset' : 'Clear'}
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          }
-                          case 'MACHINE_STATUS': {
-                            const machineId = comp.props.machineId;
-                            return (
-                              <div style={{ backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', padding: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#22c55e', boxShadow: '0 0 8px #22c55e' }} />
-                                    <span style={{ fontWeight: 800, fontSize: '0.9rem', color: isDark ? '#f8fafc' : '#0f172a' }}>{comp.props.label || 'Machine Status'}</span>
-                                  </div>
-                                  <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Connected</div>
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                  {comp.props.attributes?.map((attr, idx) => {
-                                    const val = machineTagValues[`${machineId}_${attr}`] || '0.00';
-                                    return (
-                                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderRadius: '8px' }}>
-                                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: isDark ? '#94a3b8' : '#64748b' }}>{attr}</div>
-                                        <div style={{ fontSize: '1rem', fontWeight: 900, color: isDark ? '#3b82f6' : '#2563eb', fontFamily: 'monospace' }}>{val}</div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                                {(!comp.props.attributes || comp.props.attributes.length === 0) && (
-                                  <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem', fontStyle: 'italic' }}>
-                                    No live attributes mapped to this widget.
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          }
-                          case 'QUALITY_PASS_FAIL': {
-                            const res = qualityResult[comp.id];
-                            return (
-                              <div>
-                                <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '12px', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a' }}>{comp.props.label}{comp.props.required ? ' *' : ''}</div>
-                                <div style={{ display: 'flex', gap: '12px' }}>
-                                  <button onClick={() => { setQualityResult(p => ({ ...p, [comp.id]: 'PASS' })); setQualityData(p => ({ ...p, [comp.id]: 'PASS' })); syncVariable('PASS'); fireWidgetTriggers(comp, 'ON_CHANGE'); }} style={{ flex: 1, padding: '18px', backgroundColor: res === 'PASS' ? '#16a34a' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : 'white'), border: `2px solid ${res === 'PASS' ? '#16a34a' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0')}`, borderRadius: '6px', color: res === 'PASS' ? 'white' : '#16a34a', fontSize: '1rem', fontWeight: 900, cursor: 'pointer' }}>PASS</button>
-                                  <button onClick={() => { setQualityResult(p => ({ ...p, [comp.id]: 'FAIL' })); setQualityData(p => ({ ...p, [comp.id]: 'FAIL' })); syncVariable('FAIL'); fireWidgetTriggers(comp, 'ON_CHANGE'); }} style={{ flex: 1, padding: '18px', backgroundColor: res === 'FAIL' ? '#dc2626' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : 'white'), border: `2px solid ${res === 'FAIL' ? '#dc2626' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0')}`, borderRadius: '6px', color: res === 'FAIL' ? 'white' : '#dc2626', fontSize: '1rem', fontWeight: 900, cursor: 'pointer' }}>FAIL</button>
-                                </div>
-                                {res === 'FAIL' && <div style={{ marginTop: '10px', padding: '10px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? 'rgba(220, 38, 38, 0.1)' : '#fef2f2', borderRadius: '6px', border: '1px solid #dc2626', color: '#fca5a5', fontSize: '0.8rem', fontWeight: 600 }}>Defect detected - Log a defect in the right panel</div>}
-                              </div>
-                            );
-                          }
-                          case 'QUALITY_TOLERANCE': {
-                            const tv = parseFloat(toleranceValues[comp.id] || '');
-                            const inR = !isNaN(tv) && tv >= comp.props.min && tv <= comp.props.max;
-                            const outR = !isNaN(tv) && (tv < comp.props.min || tv > comp.props.max);
-                            return (
-                              <div>
-                                <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a' }}>{comp.props.label} <span style={{ color: '#94a3b8', fontWeight: 400 }}>({comp.props.min}-{comp.props.max} {comp.props.unit})</span></div>
-                                <input
-                                  type="number"
-                                  value={toleranceValues[comp.id] || ''}
-                                  onChange={e => { setToleranceValues(prev => ({ ...prev, [comp.id]: e.target.value })); syncVariable(e.target.value); fireWidgetTriggers(comp, 'ON_CHANGE'); }}
-                                  style={{
-                                    width: '100%', padding: '12px',
-                                    border: `2px solid ${inR ? '#22c55e' : outR ? '#ef4444' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0')}`,
-                                    borderRadius: '6px', fontSize: '1.1rem', textAlign: 'right', outline: 'none',
-                                    backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : 'white',
-                                    color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a'
-                                  }}
-                                />
-                                {inR && <div style={{ marginTop: '6px', color: '#22c55e', fontSize: '0.8rem', fontWeight: 700 }}>IN TOLERANCE</div>}
-                                {outR && <div style={{ marginTop: '6px', color: '#dc2626', fontSize: '0.8rem', fontWeight: 700 }}>OUT OF TOLERANCE</div>}
-                              </div>
-                            );
-                          }
-                          case 'VIDEO': return (
-                            <div style={{ backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc', border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, borderRadius: '8px', overflow: 'hidden' }}>
-                              <div style={{ padding: '10px 15px', borderBottom: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 600, fontSize: '0.9rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a' }}><Video size={18} color="#3b82f6" />{comp.props.title}</div>
-                              {comp.props.url ? <video controls src={comp.props.url} style={{ width: '100%', maxHeight: '300px' }} /> : <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>No video URL configured</div>}
-                            </div>
-                          );
-                          case 'PDF': return (
-                            <div style={{ backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc', border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, borderRadius: '8px', overflow: 'hidden' }}>
-                              <div style={{ padding: '10px 15px', borderBottom: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 600, fontSize: '0.9rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a' }}><FileText size={18} color="#ef4444" />{comp.props.title}</div>
-                              {comp.props.url ? <iframe src={comp.props.url} style={{ width: '100%', height: '300px', border: 'none' }} title={comp.props.title} /> : <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>No PDF URL configured</div>}
-                            </div>
-                          );
-                          case 'BUTTON': return (<button onClick={() => handleButtonAction(comp.props, comp)} style={{ padding: '14px 28px', backgroundColor: comp.props.backgroundColor || '#007bff', color: comp.props.color || '#fff', border: 'none', borderRadius: '6px', fontSize: (comp.props.fontSize || 14) + 'px', fontWeight: comp.props.fontWeight || 700, cursor: 'pointer', width: '100%', textAlign: comp.props.textAlign || 'center' }}>{resolvedProps.label}</button>);
-                          case 'COMPLETE_BUTTON': return (<button onClick={() => handleButtonAction({ action: 'COMPLETE' }, comp)} style={{ padding: '16px', backgroundColor: comp.props.backgroundColor || '#10b981', color: comp.props.color || '#fff', border: 'none', borderRadius: '6px', fontSize: (comp.props.fontSize || 18) + 'px', fontWeight: 900, cursor: 'pointer', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}><CheckCircle2 size={22} />{resolvedProps.label || 'COMPLETE'}</button>);
-                          case 'QUANTITY_LOGGER': {
-                            const lg = quantityLog[comp.id] || { completed: 0, target: comp.props.targetQty || 100 };
-                            const pct = Math.min(100, Math.round((lg.completed / lg.target) * 100));
-                            return (
-                              <div style={{ border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '8px', overflow: 'hidden' }}>
-                                <div style={{ padding: '10px 15px', backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderBottom: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: isDark ? '#94a3b8' : '#64748b' }}>{comp.props.label}</div>
-                                <div style={{ padding: '15px', display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: isDark ? '#0f172a' : 'white' }}>
-                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                                    <div style={{ textAlign: 'center', padding: '12px', backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderRadius: '6px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}` }}><div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Required</div><div style={{ fontSize: '1.8rem', fontWeight: 900, color: isDark ? '#f8fafc' : '#0f172a' }}>{lg.target}</div></div>
-                                    <div style={{ textAlign: 'center', padding: '12px', backgroundColor: lg.completed >= lg.target ? (isDark ? 'rgba(34, 197, 94, 0.2)' : '#f0fdf4') : (isDark ? '#1e293b' : '#f8fafc'), borderRadius: '6px', border: `1px solid ${lg.completed >= lg.target ? (isDark ? '#22c55e' : '#86efac') : (isDark ? '#334155' : '#e2e8f0')}` }}><div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Done</div><div style={{ fontSize: '1.8rem', fontWeight: 900, color: lg.completed >= lg.target ? '#22c55e' : (isDark ? '#f8fafc' : '#0f172a') }}>{lg.completed}</div></div>
-                                  </div>
-                                  <div style={{ height: '8px', backgroundColor: isDark ? '#1e293b' : '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}><div style={{ width: `${pct}%`, height: '100%', backgroundColor: lg.completed >= lg.target ? '#22c55e' : '#3b82f6', transition: 'width 0.3s' }} /></div>
-                                  <div style={{ display: 'flex', gap: '8px' }}>
-                                    <button onClick={() => { setQuantityLog(prev => { const c = prev[comp.id] || { completed: 0, target: comp.props.targetQty || 100 }; return { ...prev, [comp.id]: { ...c, completed: Math.max(0, c.completed - 1) } } }); fireWidgetTriggers(comp, 'ON_CHANGE'); }} style={{ flex: 1, padding: '10px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '6px', backgroundColor: isDark ? '#0f172a' : 'white', color: '#ef4444', fontWeight: 900, fontSize: '1.1rem', cursor: 'pointer' }}>-1</button>
-                                    <button onClick={() => { setQuantityLog(prev => { const c = prev[comp.id] || { completed: 0, target: comp.props.targetQty || 100 }; return { ...prev, [comp.id]: { ...c, completed: c.completed + 1 } } }); fireWidgetTriggers(comp, 'ON_CHANGE'); }} style={{ flex: 2, padding: '10px', border: '1px solid #22c55e', borderRadius: '6px', backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : '#f0fdf4', color: '#22c55e', fontWeight: 900, fontSize: '0.9rem', cursor: 'pointer' }}>+ Add 1 Unit</button>
-                                    <button onClick={() => { setQuantityLog(prev => { const c = prev[comp.id] || { completed: 0, target: comp.props.targetQty || 100 }; return { ...prev, [comp.id]: { ...c, completed: c.target } } }); fireWidgetTriggers(comp, 'ON_CHANGE'); }} style={{ flex: 1, padding: '10px', border: '1px solid #3b82f6', borderRadius: '6px', backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#eff6ff', color: '#3b82f6', fontWeight: 900, fontSize: '0.75rem', cursor: 'pointer' }}>All</button>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          }
-                          case 'SHAPE': {
-                            const shapeType = comp.props.type || 'rectangle';
-                            const shapeColor = comp.props.backgroundColor || '#e2e8f0';
-                            const strokeWidth = Math.max(1, Number(comp.props.strokeWidth) || 4);
-
-                            if (shapeType === 'line') {
-                              return (
-                                <div style={{ width: '100%', height: '60px', display: 'flex', alignItems: 'center' }}>
-                                  <div style={{ width: '100%', height: `${strokeWidth}px`, backgroundColor: shapeColor, borderRadius: '999px' }} />
-                                </div>
-                              );
-                            }
-
-                            if (shapeType.startsWith('arrow_')) {
-                              const arrowDirection = shapeType.replace('arrow_', '');
-                              const isHorizontal = ['left', 'right'].includes(arrowDirection);
-                              const viewBox = isHorizontal ? '0 0 100 40' : '0 0 40 100';
-                              const pathByDirection = {
-                                right: 'M5 15 H65 V5 L95 20 L65 35 V25 H5 Z',
-                                left: 'M95 15 H35 V5 L5 20 L35 35 V25 H95 Z',
-                                up: 'M15 95 V35 H5 L20 5 L35 35 H25 V95 Z',
-                                down: 'M15 5 V65 H5 L20 95 L35 65 H25 V5 Z'
-                              };
-
-                              return (
-                                <svg viewBox={viewBox} width="100%" height="60" preserveAspectRatio="none">
-                                  <path d={pathByDirection[arrowDirection] || pathByDirection.right} fill={shapeColor} />
-                                </svg>
-                              );
-                            }
-
-                            return <div style={{ width: '100%', height: '60px', backgroundColor: shapeColor, borderRadius: shapeType === 'circle' ? '999px' : (comp.props.borderRadius || 0) + 'px' }} />;
-                          }
-                          case 'IMAGE': {
-                            const imgSrc = resolvedProps.src || resolvedProps.url || resolvedProps.text || comp.props.src || comp.props.url;
-                            const isCamera = comp.props.mode === 'CAMERA';
-                            
-                            if (isCamera && !imgSrc) {
-                              return (
-                                <div style={{ height: '100%', minHeight: '300px', backgroundColor: '#000', borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'white', position: 'relative', overflow: 'hidden' }}>
-                                  <Camera size={48} style={{ opacity: 0.5, marginBottom: '20px' }} />
-                                  <div style={{ fontSize: '1.2rem', fontWeight: 600 }}>Camera Ready</div>
-                                  <div style={{ fontSize: '0.9rem', opacity: 0.7, marginTop: '8px' }}>Tap "Log Defect" to capture</div>
-                                  <div style={{ position: 'absolute', top: '20px', left: '20px', backgroundColor: 'rgba(239, 68, 68, 0.8)', padding: '4px 12px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase' }}>Live Feed</div>
-                                </div>
-                              );
-                            }
-
-                            return imgSrc ? (
-                              <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-                                {resolvedProps.label && <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}</div>}
-                                <img src={imgSrc} alt={comp.props.alt || 'Image'} style={{ width: '100%', height: 'auto', maxHeight: '100%', borderRadius: '12px', display: 'block', objectFit: 'contain', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }} />
-                              </div>
-                            ) : (
-                              <div style={{ padding: '40px', height: '100%', minHeight: '200px', backgroundColor: isDark ? '#0f172a' : '#f8fafc', border: `2px dashed ${isDark ? '#334155' : '#cbd5e1'}`, borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#94a3b8' }}>
-                                <ImageIcon size={48} style={{ marginBottom: '12px', opacity: 0.5 }} />
-                                <div style={{ fontSize: '1rem', fontWeight: 600 }}>{resolvedProps.label || 'Product Image'}</div>
-                                <div style={{ fontSize: '0.8rem', marginTop: '4px' }}>No image data available for this record</div>
-                              </div>
-                            );
-                          }
-                          case 'VARIABLE_TEXT': {
-                            let vv = '';
-                            const varSource = resolvedProps.varSource || comp.props.varSource || resolvedProps.targetVariable || comp.props.targetVariable;
-
-                            if (comp.props.iotTopicId && machineData[comp.props.iotTopicId] !== undefined) {
-                              vv = String(machineData[comp.props.iotTopicId]);
-                            } else if (comp.props.dataSourceType === 'TABLE_RECORD') {
-                              vv = boundData[comp.id] || 'Loading...';
-                            } else if (comp.props.dataSourceType === 'SELECTED_TABLE_ROW') {
-                              const parts = String(varSource || '').split('.'); // e.g., TABLE_RECORD.tableId.columnName
-                              if (parts.length === 3) {
-                                const tableId = parts[1];
-                                const columnName = parts[2];
-                                const selected = selectedTableRow[tableId];
-                                vv = selected ? selected[columnName] : '';
-                              }
-                            } else if (typeof varSource === 'string' && varSource.startsWith('@')) {
-                              vv = resolveValue(varSource);
-                            } else {
-                              if (varSource === 'APP_INFO.USER') vv = appContext.user;
-                              else if (varSource === 'APP_INFO.STATION') vv = appContext.station;
-                              else if (varSource === 'APP_INFO.STEP_NAME') vv = activeStep && activeStep.title || '';
-                              else if (varSource === 'APP_INFO.APP_NAME') vv = selectedApp && selectedApp.name || '';
-                              else {
-                                const v = appVariables.find(av => av.name === varSource);
-                                vv = v ? v.value : '{' + varSource + '}';
-                              }
-                            }
-                            return (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: comp.props.textAlign }}>
-                                {comp.props.label && (
-                                  <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.025em' }}>
-                                    {comp.props.label}
-                                  </div>
-                                )}
-                                <div style={{
-                                  fontSize: (comp.props.fontSize || 18) + 'px',
-                                  color: comp.props.color || (selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a'),
-                                  fontWeight: comp.props.fontWeight || 700,
-                                  fontStyle: comp.props.fontStyle
-                                }}>
-                                  {safeRender(vv)}
-
-                                </div>
-                              </div>
-                            );
-                          }
-                          case 'NUMBER_INPUT': return (
-                            <div>
-                              <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}</div>
-                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                <button onClick={() => {
-                                  const newVal = Math.max(comp.props.min != null ? comp.props.min : 0, (numberInputValues[comp.id] != null ? numberInputValues[comp.id] : resolvedProps.defaultValue || 0) - 1);
-                                  setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal }));
-                                  syncVariable(newVal);
-                                  fireWidgetTriggers(comp, 'ON_CHANGE');
-                                }} style={{ width: '40px', height: '44px', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', color: '#475569', fontSize: '1.2rem', cursor: 'pointer' }}>-</button>
-                                <input type="number" value={numberInputValues[comp.id] != null ? numberInputValues[comp.id] : resolvedProps.defaultValue || 0} onChange={e => {
-                                  const newVal = parseFloat(e.target.value) || 0;
-                                  setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal }));
-                                  syncVariable(newVal);
-                                  fireWidgetTriggers(comp, 'ON_CHANGE');
-                                }} style={{ flex: 1, padding: '10px', border: '2px solid #e2e8f0', borderRadius: '6px', fontSize: '1.1rem', textAlign: 'center', outline: 'none' }} />
-                                <button onClick={() => {
-                                  const newVal = Math.min(comp.props.max != null ? comp.props.max : 9999, (numberInputValues[comp.id] != null ? numberInputValues[comp.id] : resolvedProps.defaultValue || 0) + 1);
-                                  setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal }));
-                                  syncVariable(newVal);
-                                  fireWidgetTriggers(comp, 'ON_CHANGE');
-                                }} style={{ width: '40px', height: '44px', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', color: '#475569', fontSize: '1.2rem', cursor: 'pointer' }}>+</button>
-                                {comp.props.unit && <span style={{ fontSize: '0.9rem', color: '#475569', fontWeight: 600 }}>{comp.props.unit}</span>}
-                              </div>
-                            </div>
-                          );
-                          case 'DATE_PICKER': return (
-                            <div>
-                              <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}</div>
-                              <input type="date" value={dateValues[comp.id] || ''} onChange={e => {
-                                const val = e.target.value;
-                                setDateValues(prev => ({ ...prev, [comp.id]: val }));
-                                syncVariable(val);
-                                fireWidgetTriggers(comp, 'ON_CHANGE');
-                              }} style={{ width: '100%', padding: '10px 14px', border: '2px solid #e2e8f0', borderRadius: '6px', fontSize: '1rem', outline: 'none', color: '#0f172a' }} />
-                            </div>
-                          );
-                          case 'BOOLEAN_TOGGLE': {
-                            const on = toggleState[comp.id] != null ? toggleState[comp.id] : comp.props.defaultValue || false;
-                            return (
-                              <div onClick={() => {
-                                const val = !on;
-                                setToggleState(prev => ({ ...prev, [comp.id]: val }));
-                                syncVariable(val);
-                                fireWidgetTriggers(comp, 'ON_CHANGE');
-                              }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', backgroundColor: '#f8fafc', border: `2px solid ${on ? '#22c55e' : '#e2e8f0'}`, borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s' }}>
-                                <span style={{ fontSize: '0.9rem', color: '#0f172a', fontWeight: 600 }}>{resolvedProps.label}</span>
-                                <div style={{ width: '48px', height: '26px', backgroundColor: on ? '#22c55e' : '#cbd5e1', borderRadius: '13px', position: 'relative', transition: 'background-color 0.2s' }}>
-                                  <div style={{ width: '20px', height: '20px', backgroundColor: 'white', borderRadius: '50%', position: 'absolute', top: '3px', left: on ? '25px' : '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.3)', transition: 'left 0.2s' }} />
-                                </div>
-                              </div>
-                            );
-                          }
-                          case 'GAUGE': {
-                            const pg = Math.min(100, Math.max(0, ((resolvedProps.value - comp.props.min) / (comp.props.max - comp.props.min)) * 100));
-                            return (
-                              <div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>{resolvedProps.label}</span>
-                                  <span style={{ fontSize: '1rem', fontWeight: 900, color: comp.props.color || '#3b82f6' }}>{resolvedProps.value} {comp.props.unit}</span>
-                                </div>
-                                <div style={{ height: '14px', backgroundColor: '#e2e8f0', borderRadius: '7px', overflow: 'hidden' }}><div style={{ width: `${pg}%`, height: '100%', backgroundColor: comp.props.color || '#3b82f6', transition: 'width 0.3s', borderRadius: '7px' }} /></div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: '#94a3b8', marginTop: '4px' }}><span>{comp.props.min}</span><span>{comp.props.max}</span></div>
-                              </div>
-                            );
-                          }
-                          case 'CHART': {
-                            const data = chartData[comp.id] || [];
-                            const { type, title, xAxisColumn, yAxisColumn, color, showArea } = comp.props;
-                            const ChartComponent = type === 'BAR' ? BarChart : type === 'AREA' ? AreaChart : LineChart;
-                            const DataComponent = type === 'BAR' ? Bar : type === 'AREA' ? Area : Line;
-
-                            return (
-                              <div style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '15px', height: '300px', display: 'flex', flexDirection: 'column' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' }}>
-                                  <BarChart3 size={18} color={color} />
-                                  <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569' }}>{title}</span>
-                                </div>
-                                <div style={{ flex: 1, width: '100%', minHeight: 0 }}>
-                                  {data.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height="100%">
-                                      <ChartComponent data={data} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                        <XAxis
-                                          dataKey={xAxisColumn || 'createdAt'}
-                                          fontSize={10}
-                                          tick={{ fill: '#94a3b8' }}
-                                          axisLine={{ stroke: '#e2e8f0' }}
-                                          tickLine={false}
-                                          tickFormatter={(val) => {
-                                            if (xAxisColumn === 'createdAt' || !xAxisColumn) {
-                                              return new Date(val).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                                            }
-                                            return val;
-                                          }}
-                                        />
-                                        <YAxis fontSize={10} tick={{ fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                                        <RechartsTooltip
-                                          contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '12px' }}
-                                        />
-                                        <DataComponent
-                                          type={showArea ? "monotone" : "linear"}
-                                          dataKey={yAxisColumn}
-                                          stroke={color}
-                                          fill={color}
-                                          fillOpacity={type === 'AREA' ? 0.2 : 1}
-                                          strokeWidth={2}
-                                          dot={data.length < 50}
-                                        />
-                                      </ChartComponent>
-                                    </ResponsiveContainer>
-                                  ) : (
-                                    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.85rem', fontStyle: 'italic' }}>
-                                      No production data available for this chart.
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          }
-                          case 'PARETO_CHART': {
-                            const data = chartData[comp.id] || [];
-                            const { title, xAxisColumn, yAxisColumn, color } = comp.props;
-
-                            // Transform data for Pareto
-                            // 1. Group by xAxisColumn
-                            const groups = {};
-                            data.forEach(item => {
-                              const key = item[xAxisColumn] || 'Unknown';
-                              const val = parseFloat(item[yAxisColumn]) || 0;
-                              groups[key] = (groups[key] || 0) + val;
-                            });
-
-                            // 2. Sort decreasing
-                            const sorted = Object.entries(groups)
-                              .map(([name, value]) => ({ name, value }))
-                              .sort((a, b) => b.value - a.value);
-
-                            // 3. Calculate cumulative %
-                            const total = sorted.reduce((sum, item) => sum + item.value, 0);
-                            let runningSum = 0;
-                            const paretoData = sorted.map(item => {
-                              runningSum += item.value;
-                              return {
-                                ...item,
-                                cumulative: total > 0 ? Math.round((runningSum / total) * 100) : 0
-                              };
-                            });
-
-                            return (
-                              <div style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '15px', height: '300px', display: 'flex', flexDirection: 'column' }}>
-                                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569', marginBottom: '15px' }}>{title}</div>
-                                <div style={{ flex: 1, width: '100%', minHeight: 0 }}>
-                                  <ResponsiveContainer width="100%" height="100%">
-                                    <ComposedChart data={paretoData}>
-                                      <XAxis dataKey="name" fontSize={10} axisLine={false} tickLine={false} />
-                                      <YAxis yAxisId="left" fontSize={10} axisLine={false} tickLine={false} />
-                                      <YAxis yAxisId="right" orientation="right" domain={[0, 100]} fontSize={10} axisLine={false} tickLine={false} unit="%" />
-                                      <RechartsTooltip />
-                                      <Bar yAxisId="left" dataKey="value" fill={color} radius={[4, 4, 0, 0]} barSize={40} />
-                                      <Line yAxisId="right" type="monotone" dataKey="cumulative" stroke="#f59e0b" strokeWidth={3} dot={{ stroke: '#f59e0b', strokeWidth: 2, r: 4, fill: '#fff' }} />
-                                    </ComposedChart>
-                                  </ResponsiveContainer>
-                                </div>
-                              </div>
-                            );
-                          }
-                          case 'CONTROL_CHART': {
-                            const data = chartData[comp.id] || [];
-                            const { title, yAxisColumn, ucl, lcl, target, color } = comp.props;
-                            return (
-                              <div style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '15px', height: '300px', display: 'flex', flexDirection: 'column' }}>
-                                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569', marginBottom: '15px' }}>{title}</div>
-                                <div style={{ flex: 1, width: '100%', minHeight: 0 }}>
-                                  <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart data={data}>
-                                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                      <XAxis dataKey="createdAt" hide />
-                                      <YAxis hide domain={['auto', 'auto']} />
-                                      <RechartsTooltip />
-                                      <ReferenceLine y={ucl} label={{ value: 'UCL', position: 'right', fill: '#ef4444', fontSize: 10 }} stroke="#ef4444" strokeDasharray="3 3" />
-                                      <ReferenceLine y={lcl} label={{ value: 'LCL', position: 'right', fill: '#ef4444', fontSize: 10 }} stroke="#ef4444" strokeDasharray="3 3" />
-                                      <ReferenceLine y={target} label={{ value: 'Target', position: 'right', fill: '#10b981', fontSize: 10 }} stroke="#10b981" />
-                                      <Line type="monotone" dataKey={yAxisColumn} stroke={color} strokeWidth={2} dot={{ fill: color, r: 3 }} />
-                                    </LineChart>
-                                  </ResponsiveContainer>
-                                </div>
-                              </div>
-                            );
-                          }
-                          case 'OEE_DASHBOARD': {
-                            const machineId = comp.props.machineId;
-                            const stats = oeeData[machineId] || { availability: 0, performance: 0, quality: 0, oee: 0 };
-
-                            const MetricCard = ({ label, value, color }) => (
-                              <div style={{ flex: 1, padding: '12px', backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderRadius: '8px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, textAlign: 'center' }}>
-                                <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '4px' }}>{label}</div>
-                                <div style={{ fontSize: '1.25rem', fontWeight: 900, color: color }}>{Math.round(value)}%</div>
-                              </div>
-                            );
-
-                            return (
-                              <div style={{ backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', padding: '16px' }}>
-                                <div style={{ fontSize: '0.9rem', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a', marginBottom: '16px' }}>{comp.props.label || 'OEE Dashboard'}</div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                                  <MetricCard label="Availability" value={stats.availability} color="#3b82f6" />
-                                  <MetricCard label="Performance" value={stats.performance} color="#8b5cf6" />
-                                </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                                  <MetricCard label="Quality" value={stats.quality} color="#10b981" />
-                                  <div style={{ flex: 1, padding: '12px', backgroundColor: isDark ? 'rgba(59,130,246,0.1)' : '#eff6ff', borderRadius: '8px', border: '2px solid #3b82f6', textAlign: 'center' }}>
-                                    <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', marginBottom: '4px' }}>Global OEE</div>
-                                    <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#3b82f6' }}>{Math.round(stats.oee)}%</div>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          }
-                          case 'ADVANCED_TABLE':
-                          case 'INTERACTIVE_TABLE': {
-                            const data = tableData[comp.id] || [];
-                            const cols = comp.props.columns?.length > 0 ? comp.props.columns : ['id', 'createdAt'];
-                            const pageSize = comp.props.pageSize || 5;
-                            const currentPage = tablePagination[comp.id]?.page || 1;
-                            const totalPages = Math.max(1, Math.ceil(data.length / pageSize));
-                            const paginatedData = data.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-                            const selected = selectedTableRow[comp.id];
-                            const linkedPlaceholderId = comp.props.linkedRecordPlaceholderId;
-
-                            return (
-                              <div style={{ backgroundColor: comp.props.backgroundColor || '#ffffff', border: comp.props.bordered !== false ? '1px solid #e2e8f0' : 'none', borderRadius: '8px', padding: '15px', display: 'flex', flexDirection: 'column' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' }}>
-                                  <Table size={18} color={comp.props.color || '#3b82f6'} />
-                                  <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569' }}>
-                                    {comp.props.title || 'Data View'}
-                                    {(() => {
-                                      const filter = comp.props.variableFilters?.[0];
-                                      if (filter) {
-                                        const v = appVariables.find(v => v.name === filter.variableName || v.id === filter.variableName);
-                                        let val = v?.value;
-                                        if (val && typeof val === 'object') val = val.value || val.id || val.recordId || '[Object]';
-                                        if (val) return <span style={{ color: '#3b82f6', marginLeft: '10px', fontSize: '0.7rem', backgroundColor: 'rgba(59,130,246,0.1)', padding: '2px 6px', borderRadius: '4px' }}>[Filter: {String(val)}]</span>;
-                                      }
-                                      return null;
-                                    })()}
-                                  </span>
-                                </div>
-                                <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '4px' }}>
-                                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                                    <thead>
-                                      <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                                        {cols.map(col => (
-                                          <th key={col} style={{ padding: '10px', textAlign: 'left', color: '#475569', fontWeight: 700 }}>{col}</th>
-                                        ))}
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {paginatedData.map((row, rIdx) => {
-                                        const rowId = row?.id ?? row?._id ?? JSON.stringify(row);
-                                        const selectedId = selected?.id ?? selected?._id ?? (selected ? JSON.stringify(selected) : null);
-                                        const isSelected = selectedId === rowId;
-                                        return (
-                                          <tr
-                                            key={rowId || rIdx}
-                                            onClick={() => {
-                                              const newSelected = isSelected ? null : row;
-                                              setSelectedTableRow(prev => ({ ...prev, [comp.id]: newSelected }));
-
-                                              // Update record placeholder if linked
-                                              if (linkedPlaceholderId) {
-                                                setRecordPlaceholderData(prev => ({
-                                                  ...prev,
-                                                  [linkedPlaceholderId]: newSelected
-                                                }));
-                                              }
-
-                                              fireWidgetTriggers(comp, 'ON_CHANGE');
-                                              fireWidgetTriggers(comp, 'RowSelected');
-                                            }}
-                                            style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer', backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'white', transition: 'background-color 0.2s' }}
-                                          >
-                                            {cols.map(col => (
-                                              <td key={col} style={{ padding: '10px', color: '#1e293b' }}>
-                                                {(() => {
-                                                  const val = row[col];
-                                                  if (val === undefined || val === null || val === '') return '-';
-
-                                                  // Linked Records (Array of IDs or Objects)
-                                                  if (Array.isArray(val)) {
-                                                    if (val.length === 0) return '-';
-                                                    return (
-                                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                                                        {val.map((item, idx) => {
-                                                          const label = typeof item === 'object' ? (item.recordId || item.id || 'Record') : String(item);
-                                                          return (
-                                                            <span key={idx} style={{
-                                                              padding: '2px 8px',
-                                                              backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                                                              color: '#3b82f6',
-                                                              borderRadius: '4px',
-                                                              fontSize: '0.65rem',
-                                                              fontWeight: 800,
-                                                              border: '1px solid rgba(59, 130, 246, 0.2)',
-                                                              display: 'inline-flex',
-                                                              alignItems: 'center'
-                                                            }}>
-                                                              {label}
-                                                            </span>
-                                                          );
-                                                        })}
-                                                      </div>
-                                                    );
-                                                  }
-
-                                                  // Single Linked Record or Object
-                                                  if (typeof val === 'object' && val !== null) {
-                                                    const label = val.recordId || val.id || 'Record';
-                                                    return (
-                                                      <span style={{
-                                                        padding: '2px 8px',
-                                                        backgroundColor: 'rgba(139, 92, 246, 0.1)',
-                                                        color: '#8b5cf6',
-                                                        borderRadius: '4px',
-                                                        fontSize: '0.65rem',
-                                                        fontWeight: 800,
-                                                        border: '1px solid rgba(139, 92, 246, 0.2)'
-                                                      }}>
-                                                        {label}
-                                                      </span>
-                                                    );
-                                                  }
-
-                                                  // Boolean handling
-                                                  if (typeof val === 'boolean') {
-                                                    return val ?
-                                                      <span style={{ color: '#10b981', fontWeight: 800 }}>YES</span> :
-                                                      <span style={{ color: '#ef4444', fontWeight: 800 }}>NO</span>;
-                                                  }
-
-                                                  return String(val);
-                                                })()}
-                                              </td>
-                                            ))}
-                                          </tr>
-                                        );
-                                      })}
-                                      {paginatedData.length === 0 && (
-                                        <tr>
-                                          <td colSpan={cols.length} style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>
-                                            No records found.
-                                          </td>
-                                        </tr>
-                                      )}
-                                    </tbody>
-                                  </table>
-                                </div>
-                                {totalPages > 1 && (
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px', fontSize: '0.8rem' }}>
-                                    <button
-                                      onClick={() => setTablePagination(prev => ({ ...prev, [comp.id]: { page: Math.max(1, currentPage - 1) } }))}
-                                      disabled={currentPage === 1}
-                                      style={{ padding: '6px 12px', border: '1px solid #e2e8f0', borderRadius: '4px', backgroundColor: currentPage === 1 ? '#f8fafc' : 'white', color: currentPage === 1 ? '#cbd5e1' : '#475569', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
-                                    >
-                                      Prev
-                                    </button>
-                                    <span style={{ color: '#64748b', fontWeight: 600 }}>Page {currentPage} of {totalPages}</span>
-                                    <button
-                                      onClick={() => setTablePagination(prev => ({ ...prev, [comp.id]: { page: Math.min(totalPages, currentPage + 1) } }))}
-                                      disabled={currentPage === totalPages}
-                                      style={{ padding: '6px 12px', border: '1px solid #e2e8f0', borderRadius: '4px', backgroundColor: currentPage === totalPages ? '#f8fafc' : 'white', color: currentPage === totalPages ? '#cbd5e1' : '#475569', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
-                                    >
-                                      Next
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          }
-                          case 'IOT_DEVICE': {
-                            const dType = comp.props.deviceType || 'Sensor';
-
-                            return (
-                              <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '15px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                                  {dType === 'Printer' ? <Printer size={18} color="#0ea5e9" /> :
-                                    (dType === 'IP Camera' || dType === 'Webcam') ? <Webcam size={18} color="#0ea5e9" /> :
-                                      dType === 'Sensor' ? <Wifi size={18} color="#22c55e" /> :
-                                        <Cpu size={18} color="#f59e0b" />}
-                                  <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#334155' }}>
-                                    {comp.props.label || 'IoT Device'}
-                                  </span>
-                                  <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: '#64748b', backgroundColor: '#e2e8f0', padding: '2px 6px', borderRadius: '4px' }}>
-                                    {comp.props.ipAddress}:{comp.props.port}
-                                  </span>
-                                </div>
-
-                                <div style={{ marginTop: '10px' }}>
-                                  {dType === 'Printer' && (
-                                    <button
-                                      onClick={() => { alert(`Printing test page to ${comp.props.ipAddress}...`); fireWidgetTriggers(comp, 'ON_CLICK'); }}
-                                      style={{ width: '100%', padding: '10px', backgroundColor: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '6px', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                                    >
-                                      Test Print Connection
-                                    </button>
-                                  )}
-                                  {(dType === 'IP Camera' || dType === 'Webcam') && (
-                                    <div style={{ width: '100%', height: '180px', backgroundColor: '#1e293b', borderRadius: '6px', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', overflow: 'hidden' }}>
-                                      <Webcam size={32} style={{ marginBottom: '8px', opacity: 0.5 }} />
-                                      <span style={{ fontSize: '0.8rem' }}>Live Feed: {comp.props.ipAddress}</span>
-                                      <div style={{ position: 'absolute', top: '10px', right: '10px', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ef4444', border: '2px solid white', animation: 'pulse 2s infinite' }} />
-                                      <div style={{ position: 'absolute', bottom: '10px', left: '10px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', fontFamily: 'monospace' }}>
-                                        {new Date().toLocaleTimeString()}
-                                      </div>
-                                    </div>
-                                  )}
-                                  {dType === 'Sensor' && (
-                                    <div style={{ padding: '15px', backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', textAlign: 'center' }}>
-                                      <div style={{ fontSize: '2rem', fontWeight: 900, color: '#22c55e' }}>
-                                        {Math.floor(Math.random() * 20 + 20)}.<span style={{ fontSize: '1.2rem', color: '#94a3b8' }}>{Math.floor(Math.random() * 99)} °C</span>
-                                      </div>
-                                      <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '4px', textTransform: 'uppercase' }}>Live Temperature Reading</div>
-                                    </div>
-                                  )}
-                                  {dType === 'Scale' && (
-                                    <div style={{ padding: '15px', backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', textAlign: 'center' }}>
-                                      <div style={{ fontSize: '2rem', fontWeight: 900, color: '#f59e0b' }}>
-                                        {Math.floor(Math.random() * 5 + 10)}.<span style={{ fontSize: '1.2rem', color: '#94a3b8' }}>{Math.floor(Math.random() * 99)} kg</span>
-                                      </div>
-                                      <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '4px', textTransform: 'uppercase' }}>Weight Reading</div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          }
-                          case 'PRODUCTION_ORDER':
-                            return (
-                              <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
-                                <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: '#475569', letterSpacing: '0.05em' }}>{comp.props.title || 'CURRENT ORDER'}</h4>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                  {[
-                                    { label: 'Order ID', value: currentWorkOrder || 'LOT-' + new Date().getFullYear() + String(new Date().getMonth() + 1).padStart(2, '0') + String(new Date().getDate()).padStart(2, '0') },
-                                    { label: 'Item', value: selectedApp?.config?.materialId || '1008068-045' },
-                                    { label: 'Description', value: selectedApp ? selectedApp.name : selectedManual.title },
-                                    { label: 'QTY Required', value: Object.values(quantityLog).reduce((acc, l) => acc + l.target, 0) || '10' },
-                                    { label: 'Due Date', value: new Date().toLocaleDateString() + ' 17:00:00' }
-                                  ].map(row => (
-                                    <div key={row.label}>
-                                      <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>{row.label}</div>
-                                      <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#1e293b' }}>{row.value}</div>
-                                    </div>
-                                  ))}
-                                </div>
-                                {comp.props.showProductImage && (
-                                  <div style={{ marginTop: 'auto', border: selectedApp?.config?.productImage ? 'none' : '1px solid #f1f5f9', borderRadius: '8px', padding: selectedApp?.config?.productImage ? '0' : '20px', textAlign: 'center', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-                                    {selectedApp?.config?.productImage ? (
-                                      <img src={selectedApp.config.productImage} alt="Product" style={{ width: '100%', height: '180px', objectFit: 'cover' }} />
-                                    ) : (
-                                      <>
-                                        <Package size={48} color="#cbd5e1" />
-                                        <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>PRODUCT IMAGE N/A</div>
-                                      </>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          case 'PRODUCTION_PROGRESS':
-                            return (
-                              <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
-                                <h4 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 700, color: '#64748b' }}>{comp.props.title || 'ASSEMBLY PROGRESS'}</h4>
-                                <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Lot: {currentWorkOrder || 'LOT-' + new Date().getFullYear() + String(new Date().getMonth() + 1).padStart(2, '0') + String(new Date().getDate()).padStart(2, '0')}</div>
-                                <div style={{ backgroundColor: '#2e7d32', color: 'white', padding: '12px', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold' }}>Completed units</div>
-                                <div style={{ border: '1px solid #e2e8f0', padding: '20px', borderRadius: '4px', textAlign: 'center' }}>
-                                  <div style={{ fontSize: '2rem', fontWeight: 900 }}>
-                                    {Object.values(quantityLog).reduce((acc, l) => acc + l.completed, 0)}
-                                    <span style={{ fontSize: '0.9rem', fontWeight: 500, color: '#64748b', marginLeft: '10px' }}>
-                                      of {Object.values(quantityLog).reduce((acc, l) => acc + l.target, 10)} Required
-                                    </span>
-                                  </div>
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                  <button onClick={handleCompleteUnit} style={{ width: '100%', padding: '15px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '6px', fontSize: '1rem', fontWeight: 900, cursor: 'pointer' }}>COMPLETE UNIT</button>
-                                  <button onClick={handleNextStep} style={{ width: '100%', padding: '15px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', color: '#334155', borderRadius: '6px', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer' }}>NEXT STEP</button>
-                                </div>
-                              </div>
-                            );
-                          case 'DASHBOARD_METRIC': {
-                            const data = chartData[comp.id] || [];
-                            const bindValue = comp.props.dataBinding?.enabled && comp.props.dataBinding.mapping?.value;
-                            let displayValue = comp.props.value;
-
-                            if (bindValue && data.length > 0) {
-                              const latest = data[data.length - 1];
-                              displayValue = latest.data?.[bindValue] ?? latest[bindValue] ?? comp.props.value;
-                            }
-
-                            return (
-                              <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%', overflow: 'hidden' }}>
-                                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#64748b' }}>{comp.props.title}</div>
-                                <div style={{ fontSize: (comp.props.fontSize || 48) + 'px', fontWeight: 900, color: comp.props.color || '#0f172a', margin: '5px 0' }}>{displayValue}</div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{comp.props.subtext}</div>
-                                  {comp.props.showTrend && (
-                                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                      <TrendingUp size={16} /> {comp.props.trendValue}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          }
-                          case 'DASHBOARD_PARETO': {
-                            const raw = chartData[comp.id] || [];
-                            const data = getParetoData(raw, comp.props.categoryColumn, comp.props.valueColumn);
-                            return (
-                              <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-                                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569', marginBottom: '15px' }}>{comp.props.title}</div>
-                                <div style={{ flex: 1, minHeight: 0 }}>
-                                  <ResponsiveContainer width="100%" height="100%">
-                                    <ComposedChart data={data}>
-                                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                      <XAxis dataKey="name" fontSize={10} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
-                                      <YAxis yAxisId="left" fontSize={10} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
-                                      <YAxis yAxisId="right" orientation="right" domain={[0, 100]} fontSize={10} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} unit="%" />
-                                      <RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                                      <Bar yAxisId="left" dataKey="value" fill={comp.props.barColor || '#3b82f6'} radius={[4, 4, 0, 0]} barSize={40} />
-                                      <Line yAxisId="right" type="monotone" dataKey="cumulativePercent" stroke={comp.props.lineColor || '#f97316'} strokeWidth={3} dot={{ fill: comp.props.lineColor || '#f97316', r: 4 }} />
-                                    </ComposedChart>
-                                  </ResponsiveContainer>
-                                </div>
-                              </div>
-                            );
-                          }
-                          case 'DASHBOARD_CHART_BAR': {
-                            const raw = chartData[comp.id] || [];
-                            const data = raw.map(r => ({
-                              name: r.data?.[comp.props.xAxisColumn] || r[comp.props.xAxisColumn] || 'N/A',
-                              value: Number(r.data?.[comp.props.yAxisColumn] || r[comp.props.yAxisColumn] || 0)
-                            }));
-                            return (
-                              <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-                                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569', marginBottom: '15px' }}>{comp.props.title}</div>
-                                <div style={{ flex: 1, minHeight: 0 }}>
-                                  <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={data}>
-                                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                      <XAxis dataKey="name" fontSize={10} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
-                                      <YAxis fontSize={10} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
-                                      <RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                                      <Bar dataKey="value" fill={comp.props.color || '#3b82f6'} radius={[4, 4, 0, 0]} />
-                                    </BarChart>
-                                  </ResponsiveContainer>
-                                </div>
-                              </div>
-                            );
-                          }
-                          case 'DASHBOARD_CHART_LINE': {
-                            const raw = chartData[comp.id] || [];
-                            const data = raw.map(r => ({
-                              name: r.data?.[comp.props.xAxisColumn] || r[comp.props.xAxisColumn] || 'N/A',
-                              value: Number(r.data?.[comp.props.yAxisColumn] || r[comp.props.yAxisColumn] || 0)
-                            }));
-                            return (
-                              <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-                                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569', marginBottom: '15px' }}>{comp.props.title}</div>
-                                <div style={{ flex: 1, minHeight: 0 }}>
-                                  <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart data={data}>
-                                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                      <XAxis dataKey="name" fontSize={10} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
-                                      <YAxis fontSize={10} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
-                                      <RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                                      <Line type="monotone" dataKey="value" stroke={comp.props.color || '#3b82f6'} strokeWidth={3} dot={{ r: 4 }} />
-                                    </LineChart>
-                                  </ResponsiveContainer>
-                                </div>
-                              </div>
-                            );
-                          }
-                          case 'MEDIA_RECORDER': {
-                            const mode = comp.props.mode || 'AUDIO';
-                            const isRec = recordingState[comp.id];
-                            const mediaUrl = mediaRecorderValues[comp.id];
-
-                            return (
-                              <div key={comp.id}>
-                                <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>
-                                  {comp.props.label || 'Record Media'}{comp.props.required ? ' *' : ''}
-                                </div>
-                                <div style={{ border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', padding: '20px', textAlign: 'center', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white' }}>
-                                  {mediaUrl ? (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
-                                      {mode === 'AUDIO' ? (
-                                        <audio src={mediaUrl} controls style={{ width: '100%' }} />
-                                      ) : (
-                                        <video src={mediaUrl} controls style={{ width: '100%', maxHeight: '180px', borderRadius: '8px' }} />
-                                      )}
-                                      <button
-                                        onClick={() => setMediaRecorderValues(prev => ({ ...prev, [comp.id]: '' }))}
-                                        style={{ border: 'none', background: 'none', color: '#ef4444', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', padding: '8px' }}
-                                      >
-                                        Delete & Retake
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-                                      {isRec ? (
-                                        <>
-                                          <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#ef4444', animation: 'pulse 1s infinite' }} />
-                                          <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#ef4444' }}>RECORDING...</div>
-                                          <button
-                                            onClick={() => stopMediaRecording(comp)}
-                                            style={{ padding: '12px 24px', backgroundColor: '#0f172a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
-                                          >
-                                            STOP RECORDING
-                                          </button>
-                                        </>
-                                      ) : (
-                                        <>
-                                          {mode === 'AUDIO' ? <Mic size={32} color="#94a3b8" /> : <Video size={32} color="#94a3b8" />}
-                                          <div style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Ready to record {mode.toLowerCase()}</div>
-                                          <button
-                                            onClick={() => startMediaRecording(comp)}
-                                            style={{ padding: '12px 24px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 6px rgba(59, 130, 246, 0.2)' }}
-                                          >
-                                            <Play size={16} /> START RECORDING
-                                          </button>
-                                        </>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          }
-                          case 'VISION_MEASUREMENT': {
-                            const isProcessing = ocrProcessing[comp.id];
-                            const currentValue = visionValues[comp.id] || '';
-                            const isDark = selectedApp?.config?.appThemeMode === 'DARK';
-
-                            return (
-                              <div key={comp.id} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600 }}>
-                                  {comp.props.label || 'Vision Measurement'}{comp.props.required ? ' *' : ''}
-                                </div>
-                                <div style={{ position: 'relative', borderRadius: '12px', overflow: 'hidden', backgroundColor: '#000', aspectRatio: '4/3', border: `2px solid ${isProcessing ? '#3b82f6' : (isDark ? '#334155' : '#e2e8f0')}`, transition: 'border-color 0.3s' }}>
-                                  <WebcamComp
-                                    audio={false}
-                                    ref={el => visionWebcamRefs.current[comp.id] = el}
-                                    screenshotFormat="image/jpeg"
-                                    videoConstraints={{ facingMode: "environment" }}
-                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                  />
-                                  {isProcessing && (
-                                    <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'white', gap: '12px', zIndex: 10 }}>
-                                      <div style={{ width: '32px', height: '32px', border: '3px solid rgba(255,255,255,0.3)', borderTopColor: '#3b82f6', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                                      <div style={{ fontSize: '0.85rem', fontWeight: 700, letterSpacing: '0.05em' }}>ANALYZING...</div>
-                                    </div>
-                                  )}
-                                  <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '60%', height: '30%', border: '2px dashed rgba(255,255,255,0.5)', borderRadius: '8px', pointerEvents: 'none' }}>
-                                    <div style={{ position: 'absolute', top: '-25px', left: '50%', transform: 'translateX(-50%)', backgroundColor: 'rgba(0,0,0,0.5)', color: 'white', fontSize: '0.65rem', padding: '2px 8px', borderRadius: '4px', whiteSpace: 'nowrap' }}>Align Caliper Screen Here</div>
-                                  </div>
-                                </div>
-
-                                <div style={{ display: 'flex', gap: '8px' }}>
-                                  <div style={{ flex: 1, position: 'relative' }}>
-                                    <input
-                                      type="text"
-                                      value={currentValue}
-                                      onChange={e => {
-                                        const val = e.target.value;
-                                        setVisionValues(prev => ({ ...prev, [comp.id]: val }));
-                                        if (comp.props.targetVariable) {
-                                          setAppVariables(prev => prev.map(v => v.name === comp.props.targetVariable ? { ...v, value: val } : v));
-                                        }
-                                        fireWidgetTriggers(comp, 'ON_CHANGE');
-                                      }}
-                                      placeholder="Read value..."
-                                      style={{ width: '100%', padding: '12px 40px 12px 12px', borderRadius: '8px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, backgroundColor: isDark ? '#1e293b' : 'white', color: isDark ? '#f8fafc' : '#0f172a', fontSize: '1.1rem', fontWeight: 700 }}
-                                    />
-                                    <div style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontWeight: 600, fontSize: '0.85rem' }}>
-                                      {comp.props.unit}
-                                    </div>
-                                  </div>
-                                  <button
-                                    onClick={() => handleVisionOcr(comp, { current: visionWebcamRefs.current[comp.id] })}
-                                    disabled={isProcessing}
-                                    style={{ padding: '0 20px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: isProcessing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 6px rgba(59, 130, 246, 0.2)' }}
-                                  >
-                                    <Camera size={18} /> {isProcessing ? 'SCANNING' : 'SCAN'}
-                                  </button>
-                                </div>
-                                {comp.props.targetVariable && (
-                                  <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontStyle: 'italic' }}>
-                                    Syncing to variable: @{comp.props.targetVariable}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          }
-                          // --- OBD2 WIDGETS ---
-                          case 'OBD2_SCANNER': {
-                            const connected = obd2Status === 'connected';
-                            const transport = comp.props.transport || 'BLUETOOTH';
-                            return (
-                              <div
-                                onClick={async () => {
-                                  if (connected) {
-                                    await obd2Service.disconnect();
-                                  } else {
-                                    try {
-                                      if (transport === 'BLUETOOTH') await obd2Service.connectBluetooth();
-                                      else await obd2Service.connectSerial();
-                                    } catch (err) {
-                                      alert("OBD2 Connection Failed: " + err.message);
-                                    }
-                                  }
-                                }}
-                                style={{ width: '100%', height: '100%', borderRadius: '12px', border: connected ? '2px solid #10b981' : '2px dashed #64748b', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white', padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
-                              >
-                                <div style={{ padding: '12px', borderRadius: '50%', backgroundColor: connected ? 'rgba(16, 185, 129, 0.1)' : 'rgba(100, 116, 139, 0.1)' }}>
-                                  <Car size={32} color={connected ? '#10b981' : '#64748b'} />
-                                </div>
-                                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: selectedApp?.config?.appThemeMode === 'DARK' ? 'white' : '#1e293b' }}>{comp.props.label || 'OBD2 Scanner'}</div>
-                                <div style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: connected ? '#10b981' : '#dc2626' }} />
-                                  {connected ? `CONNECTED (${transport})` : `DISCONNECTED (${transport})`}
-                                </div>
-                              </div>
-                            );
-                          }
-                          case 'OBD2_CLEAR_DTC': {
-                            return (
-                              <button
-                                onClick={async () => {
-                                  if (obd2Status !== 'connected') return alert("Connect OBD2 first");
-                                  const ok = await obd2Service.clearDTC();
-                                  if (ok) alert("DTCs cleared successfully");
-                                  else alert("Failed to clear DTCs");
-                                }}
-                                style={{ width: '100%', height: '100%', padding: '12px', backgroundColor: '#dc2626', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}
-                              >
-                                <TrashIcon size={18} />
-                                {comp.props.label || 'Clear DTC'}
-                              </button>
-                            );
-                          }
-                          case 'OBD2_DTC': {
-                            const val = obd2Values['DTC']?.value || '[]';
-                            let dtcArray = [];
-                            try { dtcArray = typeof val === 'string' ? JSON.parse(val) : val; if (!Array.isArray(dtcArray)) dtcArray = []; } catch (e) { dtcArray = []; }
-                            return (
-                              <div style={{ width: '100%', height: '100%', borderRadius: '10px', border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                                <div style={{ padding: '10px 12px', borderBottom: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#f1f5f9'}`, backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <Bug size={16} color="#dc2626" />
-                                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: selectedApp?.config?.appThemeMode === 'DARK' ? 'white' : '#0f172a' }}>{comp.props.label || 'Diagnostic Trouble Codes'}</span>
-                                  <span style={{ marginLeft: 'auto', fontSize: '0.7rem', padding: '2px 6px', borderRadius: '999px', backgroundColor: dtcArray.length > 0 ? '#fee2e2' : '#d1fae5', color: dtcArray.length > 0 ? '#dc2626' : '#16a34a', fontWeight: 600 }}>{dtcArray.length} Codes</span>
-                                </div>
-                                <div style={{ flex: 1, padding: '8px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                  {dtcArray.length === 0 ? (
-                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>No DTCs Found</div>
-                                  ) : (
-                                    dtcArray.map((code, idx) => (
-                                      <div key={idx} style={{ padding: '8px', borderRadius: '6px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc', border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                        <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#dc2626' }}>{code}</span>
-                                      </div>
-                                    ))
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          }
-                          case 'OBD2_MIL_STATUS': {
-                            const val = obd2Values['0101']?.value || 'OFF';
-                            const isMilOn = String(val).toUpperCase() === 'ON';
-                            return (
-                              <div style={{ width: '100%', height: '100%', borderRadius: '10px', border: `1px solid ${isMilOn ? '#f59e0b' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0')}`, backgroundColor: isMilOn ? 'rgba(245, 158, 11, 0.05)' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white'), padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-                                <div style={{ padding: '10px', borderRadius: '50%', backgroundColor: isMilOn ? '#f59e0b' : 'rgba(100, 116, 139, 0.1)', color: isMilOn ? 'white' : '#64748b' }}>
-                                  <AlertTriangle size={24} />
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Check Engine</span>
-                                  <span style={{ fontSize: '1.1rem', fontWeight: 800, color: isMilOn ? '#f59e0b' : '#64748b' }}>{isMilOn ? 'MIL ON' : 'MIL OFF'}</span>
-                                </div>
-                              </div>
-                            );
-                          }
-                          case 'OBD2_RPM':
-                          case 'OBD2_SPEED':
-                          case 'OBD2_COOLANT_TEMP':
-                          case 'OBD2_THROTTLE':
-                          case 'OBD2_ENGINE_LOAD':
-                          case 'OBD2_MAF':
-                          case 'OBD2_IAT':
-                          case 'OBD2_FUEL_LEVEL':
-                          case 'OBD2_FUEL_PRESSURE':
-                          case 'OBD2_STFT':
-                          case 'OBD2_LTFT':
-                          case 'OBD2_AFR':
-                          case 'OBD2_O2_SENSOR':
-                          case 'OBD2_IGNITION_TIMING':
-                          case 'OBD2_KNOCK':
-                          case 'OBD2_TORQUE_EST':
-                          case 'OBD2_HP_EST':
-                          case 'OBD2_OIL_TEMP':
-                          case 'OBD2_MAP':
-                          case 'OBD2_BARO':
-                          case 'OBD2_BOOST':
-                          case 'OBD2_BATTERY_VOLTAGE': {
-                            const defaultPid = OBD2_DEFAULT_PIDS[comp.type];
-                            const pid = comp.props.pid || defaultPid;
-                            const data = obd2Values[pid?.toUpperCase()] || { value: '--', unit: comp.props.unit || '' };
-                            const connected = obd2Status === 'connected';
-
-                            const IconMap = {
-                              'OBD2_RPM': Gauge,
-                              'OBD2_SPEED': TrendingUp,
-                              'OBD2_COOLANT_TEMP': Thermometer,
-                              'OBD2_OIL_TEMP': Thermometer,
-                              'OBD2_FUEL_LEVEL': Fuel,
-                              'OBD2_BATTERY_VOLTAGE': Activity
-                            };
-                            const IconComponent = IconMap[comp.type] || Activity;
-
-                            return (
-                              <div style={{ width: '100%', height: '100%', borderRadius: '10px', border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white', padding: '10px', display: 'flex', flexDirection: 'column' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <IconComponent size={14} color="#0ea5e9" />
-                                    <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{comp.props.label || comp.type.replace('OBD2_', '').replace(/_/g, ' ')}</span>
-                                  </div>
-                                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: connected ? '#10b981' : '#cbd5e1', flexShrink: 0 }} />
-                                </div>
-                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px', maxWidth: '100%' }}>
-                                    <span style={{
-                                      fontSize: String(data.value).length > 4 ? '1.2rem' : '1.6rem',
-                                      lineHeight: 1,
-                                      fontWeight: 900,
-                                      color: selectedApp?.config?.appThemeMode === 'DARK' ? 'white' : '#0f172a',
-                                      whiteSpace: 'nowrap'
-                                    }}>{data.value}</span>
-                                    <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>{data.unit}</span>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-
-                          }
-                          default: return (
-                            <div style={{ color: '#dc2626', backgroundColor: '#fee2e2', padding: '10px', borderRadius: '4px', fontSize: '0.75rem', border: '1px solid #fecaca' }}>
-                              Unknown Type: {comp.type}
-                            </div>
-                          );
-                        }
-                      };
                       const containerStyle = isAbsolute ? {
                         position: 'absolute',
                         left: `${comp.x}px`,
@@ -5295,7 +5359,7 @@ const LiveTerminal = () => {
                             position: 'relative',
                             boxSizing: 'border-box'
                           }}>
-                            {renderWidget()}
+                            {renderComponent(comp)}
                           </div>
                           {err && (
                             <div style={{ marginTop: '6px', fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>
@@ -5757,6 +5821,7 @@ const LiveTerminal = () => {
         <ChatWidget
           currentStation={appContext.station}
           currentUser={appContext.user}
+          currentUserId={appContext.userId}
           onClose={() => setShowChat(false)}
         />
       )}

@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
     Users, Plus, Search, Edit3, Trash2, X, Save, 
-    ShieldAlert, AlertCircle, ShieldCheck, Wrench, User as UserIcon
+    ShieldAlert, AlertCircle, ShieldCheck, Wrench, User as UserIcon,
+    MapPin, Layout
 } from 'lucide-react';
 import { getAllUsers, saveUser, deleteUser } from '../utils/auth';
+import { getStations, getStationGroups } from '../utils/database';
+import { getAllFrontlineApps } from '../utils/supabaseFrontlineDB';
 
 const UserManager = () => {
     const [users, setUsers] = useState([]);
@@ -13,9 +16,29 @@ const UserManager = () => {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
+    const [stations, setStations] = useState([]);
+    const [stationGroups, setStationGroups] = useState([]);
+    const [frontlineApps, setFrontlineApps] = useState([]);
+
     useEffect(() => {
         loadUsers();
+        loadMetadata();
     }, []);
+
+    const loadMetadata = async () => {
+        try {
+            const [s, g, apps] = await Promise.all([
+                getStations(),
+                getStationGroups(),
+                getAllFrontlineApps()
+            ]);
+            setStations(s);
+            setStationGroups(g);
+            setFrontlineApps(apps);
+        } catch (err) {
+            console.error('Failed to load access metadata', err);
+        }
+    };
 
     const loadUsers = () => {
         const data = getAllUsers() || [];
@@ -25,7 +48,14 @@ const UserManager = () => {
     const handleAddUser = () => {
         setError('');
         setSuccess('');
-        setCurrentUser({ username: '', password: '', name: '', role: 'OPERATOR' });
+        setCurrentUser({ 
+            username: '', 
+            password: '', 
+            name: '', 
+            role: 'OPERATOR',
+            assignedStation: 'NONE',
+            assignedApp: 'ALL'
+        });
         setIsEditing(true);
     };
 
@@ -164,6 +194,8 @@ const UserManager = () => {
                                 <th style={{ padding: '12px 16px', fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Full Name</th>
                                 <th style={{ padding: '12px 16px', fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Username / Operator ID</th>
                                 <th style={{ padding: '12px 16px', fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Assigned Role</th>
+                                <th style={{ padding: '12px 16px', fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Station / Group</th>
+                                <th style={{ padding: '12px 16px', fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>App Access</th>
                                 <th style={{ padding: '12px 16px', fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', textAlign: 'right' }}>Actions</th>
                             </tr>
                         </thead>
@@ -187,6 +219,19 @@ const UserManager = () => {
                                             }}>
                                                 {badge.icon} {u.role}
                                             </span>
+                                        </td>
+                                        <td style={{ padding: '12px 16px', color: '#475569', fontSize: '0.85rem' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <MapPin size={14} color="#64748b" />
+                                                {u.assignedStation === 'ALL' ? 'All Stations' : (u.assignedStation || 'None')}
+                                            </div>
+                                        </td>
+                                        <td style={{ padding: '12px 16px', color: '#475569', fontSize: '0.85rem' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <Layout size={14} color="#64748b" />
+                                                {u.assignedApp === 'ALL' ? 'All Applications' : 
+                                                 (frontlineApps.find(a => a.id === u.assignedApp)?.name || 'Restricted')}
+                                            </div>
                                         </td>
                                         <td style={{ padding: '12px 16px', textAlign: 'right' }}>
                                             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
@@ -267,6 +312,38 @@ const UserManager = () => {
                                     <option value="ENGINEER">ENGINEER - App Building & Configuration</option>
                                     <option value="ADMIN">ADMIN - Global System Access</option>
                                 </select>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '8px' }}>Station Binding</label>
+                                    <select
+                                        value={currentUser.assignedStation}
+                                        onChange={(e) => setCurrentUser({...currentUser, assignedStation: e.target.value})}
+                                        style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--border-color)', outline: 'none', appearance: 'none', boxSizing: 'border-box' }}
+                                    >
+                                        <option value="ALL">All Stations (Global Access)</option>
+                                        <option value="NONE">No Assigned Station</option>
+                                        <optgroup label="Workstations">
+                                            {stations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                        </optgroup>
+                                        <optgroup label="Station Groups">
+                                            {stationGroups.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
+                                        </optgroup>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '8px' }}>App Specific Access</label>
+                                    <select
+                                        value={currentUser.assignedApp}
+                                        onChange={(e) => setCurrentUser({...currentUser, assignedApp: e.target.value})}
+                                        style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--border-color)', outline: 'none', appearance: 'none', boxSizing: 'border-box' }}
+                                    >
+                                        <option value="ALL">All Applications (Full Library)</option>
+                                        {frontlineApps.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                                    </select>
+                                </div>
                             </div>
                         </div>
 
