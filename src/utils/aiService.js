@@ -132,7 +132,7 @@ async function callAnthropic(file, settings) {
 }
 
 export const processDocument = async (file, connector) => {
-    const settings = connector?.aiSettings;
+    const settings = connector?.aiSettings || connector?.config;
     if (!settings) throw new Error('AI Settings are missing.');
 
     const provider = normalizeProvider(settings.provider);
@@ -190,7 +190,7 @@ export const processDocument = async (file, connector) => {
  * Generic Chat Completion for various AI providers
  */
 export const getChatCompletion = async (messages, connector) => {
-    const settings = connector?.aiSettings;
+    const settings = connector?.aiSettings || connector?.config;
     if (!settings) throw new Error('AI Settings are missing.');
 
     let provider = normalizeProvider(settings.provider);
@@ -293,6 +293,148 @@ Be concise and helpful. Respond in the user's language (default to Indonesian if
     ];
 
     return await getChatCompletion(messages, connector);
+};
+
+/**
+ * Enhanced AI Architect Engine for Mavi-MES
+ * Includes Planning System, Session Memory, and Layout Intelligence
+ */
+export const getBuilderCopilotAdvice = async (userInput, messageHistory, context, connector) => {
+  const settings = connector?.aiSettings || connector?.config;
+  if (!connector || !settings?.apiKey) {
+    throw new Error('AI Connector not configured');
+  }
+
+  // Design System Tokens
+  const designSystem = {
+    colors: {
+      primary: '#3b82f6', success: '#10b981', warning: '#f59e0b', danger: '#ef4444',
+      bgPanel: '#ffffff', textPrimary: '#1e293b', border: '#e2e8f0'
+    },
+    spacing: { gap: 16, padding: 20 },
+    radius: { md: '12px', lg: '20px' }
+  };
+
+  const systemPrompt = `
+ROLE: You are the "Mavi Multi-Agent Orchestrator". 
+You coordinate three specialized internal agents to build industrial MES solutions.
+
+1. 🏗️ PLANNER AGENT:
+   - Analyzes user intent (Intent Mapping).
+   - Breaks down the request into UI, Logic, and Data tasks.
+   - Coordinates the other agents.
+
+2. 🎨 UI/UX AGENT:
+   - Designs professional, responsive industrial interfaces.
+   - Uses modern layout props: { layout: { type: "flex", direction: "column", gap: 16 } }.
+   - Ensures visual consistency with the Design System: ${JSON.stringify(designSystem.colors)}.
+
+3. 🗄️ DATABASE AGENT:
+   - Designs normalized table schemas (CREATE_TABLE).
+   - Maps UI components to data fields (recordPlaceholders).
+   - Manages app variables and state.
+
+WORKFLOW:
+1. [INTERNAL THOUGHT] Analyze intent.
+2. [PLAN] Create a step-by-step strategy in <ai_plan>.
+3. [EXECUTE] Generate precise commands in <builder_cmds>.
+
+COMMANDS:
+- ADD_WIDGET: { type, payload: { type, props, x, y, w, h } }
+- UPDATE_WIDGET: { type, widgetId, payload: { props } }
+- DELETE_WIDGET: { type, widgetId }
+- CREATE_TABLE: { type, payload: { name, columns: [{ name, type }] } }
+- CREATE_VARIABLE: { type, payload: { name, type, defaultValue } }
+- CREATE_TRIGGER: { type, payload: { event, actions: [...] } }
+
+INTERACTIVE_TABLE SPECIAL PROPS:
+- columns: Array of { header: string, key: string }
+- enableFilter: boolean (Add search bar)
+- enableExport: boolean (Add download CSV button)
+- title: string (Custom header title)
+- pageSize: number (Rows per page)
+
+GUIDELINES:
+- Be AGENTIC: Take action immediately. Don't just explain.
+- Be SEMANTIC: "Scan barcode" means a scanner + a result variable + a lookup trigger.
+- Be SELF-HEALING: If you add a widget that needs a variable, create that variable in the same command list.
+
+CONTEXT:
+- Screen: ${context.currentStepName || 'Unknown'}
+- Existing Tables: ${JSON.stringify(context.tables || [])}
+- Existing Variables: ${JSON.stringify(context.variables || [])}
+
+OUTPUT FORMAT:
+Indonesian rationale first, then:
+<ai_plan>
+[Step-by-step technical plan]
+</ai_plan>
+
+<builder_cmds>
+{
+  "commands": [ ... ]
+}
+</builder_cmds>
+`;
+
+    const messages = [
+        { role: 'system', content: systemPrompt },
+        ...messageHistory.map(m => ({ role: m.role, content: m.content })),
+        { role: 'user', content: userInput }
+    ];
+
+    return await getChatCompletion(messages, connector);
+};
+
+/**
+ * Specialized Vision Advice for App Builder (Images to App)
+ */
+export const getBuilderVisionAdvice = async (file, context, connector) => {
+    const settings = connector?.aiSettings || connector?.config;
+    if (!settings) throw new Error('AI Settings are missing.');
+
+    const systemPrompt = `You are the Mavi MES Vision Engineer. Analyze the provided image (mockup, whiteboard, or screenshot) and convert it into a Mavi MES application structure.
+
+Output MUST be a JSON object inside <builder_cmds> tags following this structure:
+<builder_cmds>
+{
+  "commands": [
+    {
+      "type": "SET_APP_NAME",
+      "payload": "New App Name"
+    },
+    {
+      "type": "ADD_STEP",
+      "payload": { "title": "Step 1", "components": [...] }
+    }
+  ]
+}
+</builder_cmds>
+
+Canvas size is 1000x600. Map visual elements to coordinates accurately.
+Identify: Buttons, Labels, Inputs, Images, Tables.`;
+
+    // We use the existing processDocument logic but with a specialized prompt
+    const base64Data = await fileToBase64(file);
+    const mimeType = file.type;
+    const provider = normalizeProvider(settings.provider);
+    const modelId = settings.modelId;
+
+    if (provider === 'gemini') {
+        const cleanModelId = modelId.includes('/') ? modelId.split('/').pop() : modelId;
+        const url = `https://generativelanguage.googleapis.com/v1/models/${cleanModelId}:generateContent?key=${settings.apiKey}`;
+        const payload = {
+            contents: [{ role: 'user', parts: [{ text: systemPrompt }, { inline_data: { mime_type: mimeType, data: base64Data } }] }],
+            generationConfig: { temperature: 0.1 }
+        };
+        const response = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
+        if (!response.ok) throw new Error('Gemini Vision Error');
+        const result = await response.json();
+        return result.candidates[0].content.parts[0].text;
+    }
+
+    // Fallback to callOpenAI or others if implemented...
+    throw new Error('Vision provider not fully optimized for Builder yet.');
 };
 
 /**

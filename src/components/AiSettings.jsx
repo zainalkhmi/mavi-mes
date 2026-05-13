@@ -48,23 +48,24 @@ const AiSettings = () => {
       const aiConn = all.find(c => c.type === 'AI_ASSISTANT');
       if (aiConn) {
         setConnectorId(aiConn.id);
-        setDbSettings(aiConn.aiSettings);
-        setActiveProvider(aiConn.aiSettings?.provider || 'Gemini');
-        setApiKey(aiConn.aiSettings?.apiKey || '');
-        setBaseUrl(aiConn.aiSettings?.baseUrl || '');
-        const mid = aiConn.aiSettings?.modelId || 'gemini-1.5-flash-002';
+        const aiSettings = aiConn.aiSettings || aiConn.config || {};
+        setDbSettings(aiSettings);
+        setActiveProvider(aiSettings.provider || 'Gemini');
+        setApiKey(aiSettings.apiKey || '');
+        setBaseUrl(aiSettings.baseUrl || '');
+        const mid = aiSettings.modelId || 'gemini-1.5-flash-002';
         setModelId(mid);
         setAvailableModels([{ id: mid, name: mid }]);
         
         // Load the config cache if it exists
-        if (aiConn.aiSettings?.configCache) {
-          setConfigs(aiConn.aiSettings.configCache);
+        if (aiSettings.configCache) {
+          setConfigs(aiSettings.configCache);
         } else {
           // Initialize with current active configuration
           setConfigs({
-            [aiConn.aiSettings?.provider || 'Gemini']: {
-              apiKey: aiConn.aiSettings?.apiKey || '',
-              baseUrl: aiConn.aiSettings?.baseUrl || '',
+            [aiSettings.provider || 'Gemini']: {
+              apiKey: aiSettings.apiKey || '',
+              baseUrl: aiSettings.baseUrl || '',
               modelId: mid,
               availableModels: [{ id: mid, name: mid }]
             }
@@ -196,34 +197,41 @@ const AiSettings = () => {
   };
 
   const handleSave = async () => {
-    setIsSaving(true);
-    const payload = {
-      id: connectorId || `conn_ai_${Date.now()}`,
-      name: 'Global AI Assistant',
-      type: 'AI_ASSISTANT',
-      description: `Global AI configuration via ${activeProvider}`,
-      aiSettings: {
-        provider: activeProvider,
-        modelId: modelId,
-        apiKey: apiKey.trim(),
-        baseUrl: baseUrl.trim(),
-        basePrompt: dbSettings?.basePrompt || 'You are a professional MES assistant helping frontline operators and engineers.',
-        configCache: {
-          ...configs,
-          [activeProvider]: {
-            apiKey: apiKey.trim(),
-            baseUrl: baseUrl.trim(),
-            modelId,
-            availableModels
+    try {
+      setIsSaving(true);
+      const payload = {
+        id: connectorId,
+        name: 'Global AI Assistant',
+        type: 'AI_ASSISTANT',
+        // Use 'config' to match existing schema, database.js will handle snake_case if we want to move to ai_settings
+        config: {
+          provider: activeProvider,
+          modelId: modelId,
+          apiKey: apiKey.trim(),
+          baseUrl: baseUrl.trim(),
+          basePrompt: dbSettings?.basePrompt || 'You are a professional MES assistant helping frontline operators and engineers.',
+          configCache: {
+            ...configs,
+            [activeProvider]: {
+              apiKey: apiKey.trim(),
+              baseUrl: baseUrl.trim(),
+              modelId,
+              availableModels
+            }
           }
         }
-      }
-    };
+      };
 
-    await saveIntegrationConnector(payload);
-    setDbSettings(payload.aiSettings);
-    setIsSaving(false);
-    // Success feedback could be added here
+      const saved = await saveIntegrationConnector(payload);
+      if (saved && saved.id) setConnectorId(saved.id);
+      setDbSettings(payload.aiSettings);
+      alert('AI Configuration saved successfully!');
+    } catch (err) {
+      console.error('Failed to save AI configuration:', err);
+      alert('Failed to save configuration. Check console for details.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (

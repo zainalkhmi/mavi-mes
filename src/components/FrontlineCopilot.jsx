@@ -52,7 +52,8 @@ const FrontlineCopilot = ({ isOpen, onClose, appContext, selectedApp }) => {
       
       let responseContent = "Maaf, saya sedang dalam mode simulasi. Harap konfigurasi konektor AI di modul Integrasi.";
       
-      if (!aiConnector || !aiConnector.aiSettings?.apiKey) {
+      const settings = aiConnector?.aiSettings || aiConnector?.config;
+      if (!aiConnector || !settings?.apiKey) {
         responseContent = "Konektor AI belum dikonfigurasi sepenuhnya. Buka 'Integrations' lalu tambah konektor 'AI Assistant' dengan API Key Anda.";
       } else {
         // Simulated smart response
@@ -107,7 +108,7 @@ const FrontlineCopilot = ({ isOpen, onClose, appContext, selectedApp }) => {
           <div>
             <div style={{ fontSize: '0.95rem', fontWeight: 800 }}>Frontline Copilot</div>
             <div style={{ fontSize: '0.65rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <BrainCircuit size={10} /> {aiConnector ? `${aiConnector.aiSettings?.provider} (${aiConnector.aiSettings?.modelId})` : 'System Simulation'}
+              <BrainCircuit size={10} /> {aiConnector ? `${aiConnector.aiSettings?.provider || aiConnector.config?.provider || ''} (${aiConnector.aiSettings?.modelId || aiConnector.config?.modelId || ''})` : 'System Simulation'}
             </div>
           </div>
         </div>

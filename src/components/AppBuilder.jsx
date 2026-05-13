@@ -228,6 +228,7 @@ import {
 } from '../utils/database';
 import AppDiagram from './AppDiagram';
 import BlocklyEditor from './BlocklyEditor';
+import BuilderCopilot from './BuilderCopilot';
 import { uploadManualImage, isSupabaseReady } from '../utils/supabaseManualDB';
 import iotConnector from '../utils/iotConnector';
 import { logEvent, AUDIT_EVENTS } from '../utils/auditLog';
@@ -823,8 +824,13 @@ const COMPONENT_TYPES = {
         icon: Table,
         defaultProps: {
             tableId: '',
+            title: 'Data Table',
             dataSourceMode: 'TABLE', // TABLE | TABLE_QUERY | VARIABLE
             dataSourceVar: '',
+            columns: [], // { header, key, format }
+            enableFilter: true,
+            enableExport: false,
+            pageSize: 10,
             linkedRecordPlaceholderId: '',
             triggers: [],
             visibilityCondition: null,
@@ -1882,6 +1888,8 @@ const AppBuilder = () => {
     const [selectionBox, setSelectionBox] = useState(null); // { x1, y1, x2, y2 }
     const [proUiDialog, setProUiDialog] = useState(null); // PRO UI Dialog state
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+    const [ghostWidgets, setGhostWidgets] = useState([]); // Stage widgets for preview
 
     // --- Preview Mode States (Interactive Widgets) ---
     const [previewTimer, setPreviewTimer] = useState(0);
@@ -1937,11 +1945,74 @@ const AppBuilder = () => {
 
     const [appTriggers, setAppTriggers] = useState([]);
     const [appVariables, setAppVariables] = useState([]);
-    const [appFunctions, setAppFunctions] = useState([]); // New: reusable logic units
+    const [appFunctions, setAppFunctions] = useState([]); 
     const [tables, setTables] = useState([]);
-    const [appTables, setAppTables] = useState([]); // Selected tables for this app
-    const [recordPlaceholders, setRecordPlaceholders] = useState([]); // { id, name, tableId }
-    const [recordPlaceholderData, setRecordPlaceholderData] = useState({}); // { [placeholderId]: recordData }
+    const [appTables, setAppTables] = useState([]); 
+    const [recordPlaceholders, setRecordPlaceholders] = useState([]); 
+    const [recordPlaceholderData, setRecordPlaceholderData] = useState({}); 
+
+    // --- History / Undo Stack ---
+    const [builderStack, setBuilderStack] = useState({ undo: [], redo: [] });
+
+    const saveToHistory = () => {
+        const state = {
+            baseComponents: JSON.parse(JSON.stringify(baseComponents)),
+            steps: JSON.parse(JSON.stringify(steps)),
+            appTriggers: JSON.parse(JSON.stringify(appTriggers)),
+            appVariables: JSON.parse(JSON.stringify(appVariables)),
+            appName: appName
+        };
+        setBuilderStack(prev => ({
+            undo: [state, ...prev.undo].slice(0, 50),
+            redo: []
+        }));
+    };
+
+    const undo = () => {
+        if (builderStack.undo.length === 0) return;
+        const currentState = {
+            baseComponents: JSON.parse(JSON.stringify(baseComponents)),
+            steps: JSON.parse(JSON.stringify(steps)),
+            appTriggers: JSON.parse(JSON.stringify(appTriggers)),
+            appVariables: JSON.parse(JSON.stringify(appVariables)),
+            appName: appName
+        };
+        const prevState = builderStack.undo[0];
+        
+        setBaseComponents(prevState.baseComponents);
+        setSteps(prevState.steps);
+        setAppTriggers(prevState.appTriggers);
+        setAppVariables(prevState.appVariables);
+        setAppName(prevState.appName);
+
+        setBuilderStack(prev => ({
+            undo: prev.undo.slice(1),
+            redo: [currentState, ...prev.redo]
+        }));
+    };
+
+    const redo = () => {
+        if (builderStack.redo.length === 0) return;
+        const currentState = {
+            baseComponents: JSON.parse(JSON.stringify(baseComponents)),
+            steps: JSON.parse(JSON.stringify(steps)),
+            appTriggers: JSON.parse(JSON.stringify(appTriggers)),
+            appVariables: JSON.parse(JSON.stringify(appVariables)),
+            appName: appName
+        };
+        const nextState = builderStack.redo[0];
+
+        setBaseComponents(nextState.baseComponents);
+        setSteps(nextState.steps);
+        setAppTriggers(nextState.appTriggers);
+        setAppVariables(nextState.appVariables);
+        setAppName(nextState.appName);
+
+        setBuilderStack(prev => ({
+            undo: [currentState, ...prev.undo],
+            redo: prev.redo.slice(1)
+        }));
+    };
 
     // --- Query & Aggregation Editor State ---
     const [queryEditor, setQueryEditor] = useState({
@@ -2012,6 +2083,125 @@ const AppBuilder = () => {
             setSelectedCompIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
         } else {
             setSelectedCompIds([id]);
+        }
+    };
+
+    const stageAiCommand = (command) => {
+        const { type, payload } = command;
+        if (type === 'ADD_WIDGET') {
+            const ghost = {
+                ...payload,
+                id: 'ghost_preview',
+                isGhost: true,
+                props: {
+                    ...(COMPONENT_TYPES[payload.type]?.defaultProps || {}),
+                    ...(payload.props || {}),
+                    opacity: 0.5
+                }
+            };
+            setGhostWidgets([ghost]);
+        }
+    };
+
+    const clearGhostWidgets = () => setGhostWidgets([]);
+
+    const handleAiCommand = (command) => {
+        clearGhostWidgets();
+        saveToHistory();
+        const { type, payload, widgetId } = command;
+        console.log('[Copilot] Executing Command:', type, payload);
+
+        switch (type) {
+            case 'ADD_WIDGET': {
+                const newComp = {
+                    id: `w_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    displayName: payload.displayName || payload.type,
+                    ...payload,
+                    props: {
+                        ...(COMPONENT_TYPES[payload.type]?.defaultProps || {}),
+                        ...(payload.props || {})
+                    }
+                };
+                if (currentStepId === 'BASE') {
+                    setBaseComponents(prev => [...prev, newComp]);
+                } else {
+                    setSteps(prev => prev.map(s => s.id === currentStepId ? { ...s, components: [...s.components, newComp] } : s));
+                }
+                setRecentlyAddedCompId(newComp.id);
+                setSelectedCompIds([newComp.id]);
+                break;
+            }
+            case 'UPDATE_WIDGET': {
+                const targetId = widgetId || payload?.id;
+                if (!targetId) return;
+                const updateFn = (c) => c.id === targetId ? { ...c, ...payload, props: { ...c.props, ...(payload.props || {}) } } : c;
+                if (currentStepId === 'BASE') {
+                    setBaseComponents(prev => prev.map(updateFn));
+                } else {
+                    setSteps(prev => prev.map(s => ({ ...s, components: s.components.map(updateFn) })));
+                }
+                break;
+            }
+            case 'DELETE_WIDGET': {
+                const targetId = widgetId || payload?.id;
+                if (!targetId) return;
+                if (currentStepId === 'BASE') {
+                    setBaseComponents(prev => prev.filter(c => c.id !== targetId));
+                } else {
+                    setSteps(prev => prev.map(s => ({ ...s, components: s.components.filter(c => c.id !== targetId) })));
+                }
+                if (selectedCompIds.includes(targetId)) {
+                    setSelectedCompIds(prev => prev.filter(id => id !== targetId));
+                }
+                break;
+            }
+            case 'SET_APP_NAME':
+                setAppName(payload);
+                break;
+            case 'ADD_STEP': {
+                const newStep = {
+                    id: `screen_${Date.now()}`,
+                    title: payload.title || 'New Screen',
+                    stepType: 'Screen',
+                    cycleTimeSeconds: 60,
+                    components: payload.components || [],
+                    triggers: [],
+                    logic: { xml: null, code: '' }
+                };
+                setSteps(prev => [...prev, newStep]);
+                setCurrentStepId(newStep.id);
+                break;
+            }
+            case 'CREATE_TABLE':
+                if (createLocalTable) {
+                    createLocalTable(payload.name, payload.columns || []).then(() => {
+                        alert(`Table "${payload.name}" created!`);
+                        getLocalTables().then(setTables);
+                    });
+                }
+                break;
+            case 'CREATE_TRIGGER': {
+                const newTrigger = {
+                    id: `t_${Date.now()}`,
+                    ...payload
+                };
+                setAppTriggers(prev => [...prev, newTrigger]);
+                break;
+            }
+            case 'CREATE_VARIABLE': {
+                const newVar = {
+                    id: `v_${Date.now()}`,
+                    name: payload.name,
+                    type: payload.type || 'TEXT',
+                    defaultValue: payload.defaultValue ?? '',
+                    value: payload.defaultValue ?? '',
+                    persisted: payload.persisted || false
+                };
+                setAppVariables(prev => [...prev, newVar]);
+                break;
+            }
+            default:
+                console.warn('Unknown AI Command:', type);
         }
     };
 
@@ -3387,7 +3577,7 @@ const AppBuilder = () => {
             setSteps(nextSteps);
         }
     }, [steps, baseComponents]);
-    // --- Builder Polish State ---
+    //     // --- Builder Polish State ---
     const [snapToGrid, setSnapToGrid] = useState(false);
     const [showGrid, setShowGrid] = useState(false);
 
@@ -7106,7 +7296,8 @@ const AppBuilder = () => {
             // 1. Get AI Connector
             const aiConnector = await getPrimaryAiConnector();
 
-            if (!aiConnector || !aiConnector.aiSettings?.apiKey) {
+            const settings = aiConnector?.aiSettings || aiConnector?.config;
+            if (!aiConnector || !settings?.apiKey) {
                 throw new Error('AI Assistant connector is not configured. Please go to Integrations and add an AI Assistant with a valid API Key.');
             }
 
@@ -9139,31 +9330,101 @@ const AppBuilder = () => {
                         onWidgetInteraction(comp, 'ON_CHANGE', { row, rowId, linkedPlaceholderId });
                     };
 
+                    const filteredRows = rows.filter(row => {
+                        if (!comp.props.enableFilter || !previewFormValues[`${comp.id}__search`]) return true;
+                        const search = String(previewFormValues[`${comp.id}__search`]).toLowerCase();
+                        return Object.values(row).some(val => String(val).toLowerCase().includes(search));
+                    });
+
                     return (
-                        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', padding: '5px', backgroundColor: comp.props.backgroundColor || '#ffffff', border: comp.props.bordered !== false ? '1px solid #cbd5e1' : 'none', borderRadius: '4px', overflow: 'hidden' }}>
-                            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-tertiary)', marginBottom: '8px', padding: '5px', borderBottom: '1px solid var(--border-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                                <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                    <Table size={14} color={comp.props.color || '#3b82f6'} />
-                                    {comp.props.title || (comp.type === 'ADVANCED_TABLE' ? 'Advanced Table' : 'Interactive Table')}
-                                </span>
-                                {!isSelectable && (
-                                    <span style={{ fontSize: '0.62rem', color: '#b45309', fontWeight: 700 }}>Set Linked Record to enable row selection</span>
-                                )}
+                        <div style={{ 
+                            width: '100%', height: '100%', display: 'flex', flexDirection: 'column', 
+                            padding: '12px', backgroundColor: comp.props.backgroundColor || '#ffffff', 
+                            border: comp.props.bordered !== false ? '1px solid #e2e8f0' : 'none', 
+                            borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' 
+                        }}>
+                            <div style={{ 
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
+                                marginBottom: '12px', paddingBottom: '10px', borderBottom: '1px solid #f1f5f9' 
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div style={{ 
+                                        width: '32px', height: '32px', borderRadius: '8px', 
+                                        backgroundColor: '#eff6ff', display: 'flex', 
+                                        alignItems: 'center', justifyContent: 'center' 
+                                    }}>
+                                        <Table size={18} color="#3b82f6" />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#1e293b' }}>
+                                            {comp.props.title || 'Data Table'}
+                                        </span>
+                                        {!isSelectable && (
+                                            <span style={{ fontSize: '0.65rem', color: '#64748b' }}>View-only mode</span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    {comp.props.enableFilter && (
+                                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                            <Search size={14} style={{ position: 'absolute', left: '10px', color: '#94a3b8' }} />
+                                            <input 
+                                                type="text" 
+                                                placeholder="Search data..."
+                                                value={previewFormValues[`${comp.id}__search`] || ''}
+                                                onChange={(e) => setPreviewFormValues(prev => ({ ...prev, [`${comp.id}__search`]: e.target.value }))}
+                                                style={{ 
+                                                    padding: '6px 10px 6px 30px', fontSize: '0.75rem', 
+                                                    borderRadius: '8px', border: '1px solid #e2e8f0',
+                                                    width: '180px', outline: 'none'
+                                                }}
+                                            />
+                                        </div>
+                                    )}
+                                    {comp.props.enableExport && (
+                                        <button 
+                                            style={{ 
+                                                padding: '6px 12px', fontSize: '0.75rem', fontWeight: 600,
+                                                borderRadius: '8px', border: '1px solid #e2e8f0',
+                                                backgroundColor: '#fff', color: '#1e293b', cursor: 'pointer',
+                                                display: 'flex', alignItems: 'center', gap: '6px'
+                                            }}
+                                        >
+                                            <Download size={14} /> Export
+                                        </button>
+                                    )}
+                                </div>
                             </div>
-                            <div style={{ flex: 1, backgroundColor: 'var(--bg-secondary)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                                <div style={{ display: 'flex', borderBottom: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-tertiary)' }}>
-                                    {resolvedColumns.map((col, idx) => (
-                                        <div key={idx} style={{ flex: 1, padding: '8px', fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-quaternary)' }}>{col}</div>
-                                    ))}
+                            
+                            <div style={{ flex: 1, backgroundColor: '#f8fafc', borderRadius: '8px', overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '1px solid #f1f5f9' }}>
+                                <div style={{ 
+                                    display: 'flex', backgroundColor: '#fff', 
+                                    borderBottom: '2px solid #f1f5f9' 
+                                }}>
+                                    {resolvedColumns.map((col, idx) => {
+                                        const header = typeof col === 'object' ? col.header : col;
+                                        return (
+                                            <div key={idx} style={{ 
+                                                flex: 1, padding: '12px 10px', fontSize: '0.7rem', 
+                                                fontWeight: 700, color: '#64748b', textTransform: 'uppercase',
+                                                letterSpacing: '0.025em'
+                                            }}>{header}</div>
+                                        );
+                                    })}
                                 </div>
                                 <div style={{ flex: 1, overflowY: 'auto' }}>
                                     {loading && (
-                                        <div style={{ padding: '10px', fontSize: '0.72rem', color: 'var(--text-quaternary)' }}>Loading rows...</div>
+                                        <div style={{ padding: '20px', textAlign: 'center' }}>
+                                            <div className="spinner" style={{ margin: '0 auto 10px' }} />
+                                            <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Fetching data...</span>
+                                        </div>
                                     )}
-                                    {!loading && rows.length === 0 && (
-                                        <div style={{ padding: '10px', fontSize: '0.72rem', color: 'var(--text-quaternary)' }}>No rows found</div>
+                                    {!loading && filteredRows.length === 0 && (
+                                        <div style={{ padding: '40px 20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>
+                                            No matching records found
+                                        </div>
                                     )}
-                                    {!loading && rows.map((row, rIdx) => {
+                                    {!loading && filteredRows.map((row, rIdx) => {
                                         const rowId = row?.id ?? row?._id ?? JSON.stringify(row);
                                         const isSelected = selectedRowId !== undefined && String(selectedRowId) === String(rowId);
                                         return (
@@ -9172,16 +9433,27 @@ const AppBuilder = () => {
                                                 onClick={() => handleRowSelect(row)}
                                                 style={{
                                                     display: 'flex',
-                                                    borderBottom: '1px solid var(--border-secondary)',
+                                                    borderBottom: '1px solid #f1f5f9',
                                                     cursor: isSelectable && viewMode === 'PREVIEW' ? 'pointer' : 'default',
-                                                    backgroundColor: isSelected ? '#dbeafe' : 'transparent'
+                                                    backgroundColor: isSelected ? '#eff6ff' : (rIdx % 2 === 0 ? '#fff' : '#f8fafc'),
+                                                    transition: 'background-color 0.2s'
                                                 }}
+                                                onMouseEnter={(e) => { if (viewMode === 'PREVIEW' && isSelectable) e.currentTarget.style.backgroundColor = isSelected ? '#eff6ff' : '#f1f5f9' }}
+                                                onMouseLeave={(e) => { if (viewMode === 'PREVIEW' && isSelectable) e.currentTarget.style.backgroundColor = isSelected ? '#eff6ff' : (rIdx % 2 === 0 ? '#fff' : '#f8fafc') }}
                                             >
-                                                {resolvedColumns.map((col, cIdx) => (
-                                                    <div key={cIdx} style={{ flex: 1, padding: '8px', fontSize: '0.72rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                        {row?.[col] !== undefined && row?.[col] !== null ? String(row[col]) : ''}
-                                                    </div>
-                                                ))}
+                                                {resolvedColumns.map((col, cIdx) => {
+                                                    const key = typeof col === 'object' ? col.key : col;
+                                                    const value = row?.[key];
+                                                    return (
+                                                        <div key={cIdx} style={{ 
+                                                            flex: 1, padding: '12px 10px', fontSize: '0.8rem', 
+                                                            color: isSelected ? '#1e40af' : '#475569', 
+                                                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' 
+                                                        }}>
+                                                            {value !== undefined && value !== null ? String(value) : '-'}
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         );
                                     })}
@@ -21686,6 +21958,15 @@ const AppBuilder = () => {
                             <Bell size={18} /> {notifierState.message}
                             <style>{`
                                 @keyframes slideUp { from { transform: translate(-50%, 20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+                                 @keyframes ghostPulse {
+                                     0% { border-color: rgba(59, 130, 246, 0.4); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.2); }
+                                     50% { border-color: rgba(59, 130, 246, 0.8); box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.1); }
+                                     100% { border-color: rgba(59, 130, 246, 0.4); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.2); }
+                                 }
+                                 .ghost-widget-preview {
+                                     animation: ghostPulse 2s infinite ease-in-out;
+                                     transition: all 0.3s ease;
+                                 }
                              `}</style>
                         </div>
                     ) : (
@@ -21817,7 +22098,56 @@ const AppBuilder = () => {
                     </div>
                 </div>
             )}
+
+            <BuilderCopilot 
+                isOpen={isCopilotOpen} 
+                onClose={() => setIsCopilotOpen(false)}
+                onApplyCommand={handleAiCommand}
+                onHoverCommand={stageAiCommand}
+                onLeaveCommand={clearGhostWidgets}
+                onUndo={undo}
+                onRedo={redo}
+                canUndo={builderStack.undo.length > 0}
+                canRedo={builderStack.redo.length > 0}
+                context={{
+                    currentStepName: currentStep?.title,
+                    widgets: currentStep?.components,
+                    variables: appVariables,
+                    triggers: appTriggers,
+                    tables: tables
+                }}
+            />
+
+            {/* AI Toggle Button */}
+            {copilotEnabled && !isCopilotOpen && (
+                <button
+                    onClick={() => setIsCopilotOpen(true)}
+                    style={{
+                        position: 'fixed',
+                        bottom: '24px',
+                        right: '24px',
+                        width: '56px',
+                        height: '56px',
+                        borderRadius: '28px',
+                        backgroundColor: '#3b82f6',
+                        color: 'white',
+                        border: 'none',
+                        boxShadow: '0 10px 15px -3px rgba(59, 130, 246, 0.4)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        zIndex: 999,
+                        transition: 'transform 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                >
+                    <Wand2 size={24} />
+                </button>
+            )}
         </div>
+
     );
 };
 

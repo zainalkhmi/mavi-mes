@@ -4,10 +4,12 @@ import * as supabaseCompletionsDB from './supabaseCompletionsDB.js';
 import * as supabaseTranslations from './supabaseTranslationDB.js';
 
 const camelToSnake = (obj) => {
+    if (!obj || typeof obj !== 'object' || obj instanceof Date) return obj;
+    if (Array.isArray(obj)) return obj.map(camelToSnake);
     const snake = {};
     Object.keys(obj).forEach(key => {
         const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-        snake[snakeKey] = obj[key];
+        snake[snakeKey] = camelToSnake(obj[key]);
     });
     return snake;
 };
@@ -171,31 +173,44 @@ export async function deleteInterface(id) {
 // ── Integration Connectors ────────────────────────────────────────────────────
 export async function getIntegrationConnectors() {
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase.from('integration_connectors').select('*').order('name');
-    if (error) return [];
-    return data || [];
+    const { data, error } = await supabase.from('integration_connectors').select('*');
+    if (error) {
+        console.error('[Supabase] getIntegrationConnectors error:', error);
+        return [];
+    }
+    return snakeToCamel(data || []);
 }
 
 export async function saveIntegrationConnector(connector) {
     const supabase = getSupabaseClient();
-    const payload = { ...connector, updated_at: new Date().toISOString() };
+    const payload = camelToSnake({ ...connector, updated_at: new Date().toISOString() });
+    const id = connector.id;
     delete payload.id;
 
-    if (connector.id && String(connector.id).includes('-')) {
-        const { data, error } = await supabase.from('integration_connectors').update(payload).eq('id', connector.id).select().single();
-        if (error) throw error;
-        return data;
+    if (id && String(id).includes('-')) {
+        const { data, error } = await supabase.from('integration_connectors').update(payload).eq('id', id).select().single();
+        if (error) {
+            console.error('[Supabase] saveIntegrationConnector (update) error:', error);
+            throw error;
+        }
+        return snakeToCamel(data);
     } else {
         const { data, error } = await supabase.from('integration_connectors').insert({ ...payload, created_at: new Date().toISOString() }).select().single();
-        if (error) throw error;
-        return data;
+        if (error) {
+            console.error('[Supabase] saveIntegrationConnector (insert) error:', error);
+            throw error;
+        }
+        return snakeToCamel(data);
     }
 }
 
 export async function deleteIntegrationConnector(id) {
     const supabase = getSupabaseClient();
     const { error } = await supabase.from('integration_connectors').delete().eq('id', id);
-    if (error) throw error;
+    if (error) {
+        console.error('[Supabase] deleteIntegrationConnector error:', error);
+        throw error;
+    }
     return true;
 }
 
@@ -208,7 +223,7 @@ export async function getPrimaryAiConnector() {
     const { data, error } = await supabase
         .from('integration_connectors')
         .select('*')
-        .eq('type', 'AI')
+        .eq('type', 'AI_ASSISTANT')
         .limit(1)
         .maybeSingle();
     
@@ -216,7 +231,7 @@ export async function getPrimaryAiConnector() {
         console.warn('[Supabase] Failed to fetch AI connector:', error);
         return null;
     }
-    return data;
+    return snakeToCamel(data);
 }
 
 // ── Edge Devices ──────────────────────────────────────────────────────────────

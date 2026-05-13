@@ -29,7 +29,8 @@ const AiAnalysisInsight = ({ isOpen, onClose, data, config }) => {
       const connector = await getPrimaryAiConnector();
       setAiConnector(connector);
       
-      if (!connector || !connector.aiSettings) {
+      const settings = connector?.aiSettings || connector?.config;
+      if (!connector || !settings) {
         throw new Error('AI Settings not found. Please configure AI in System Settings.');
       }
 
@@ -173,7 +174,7 @@ const AiAnalysisInsight = ({ isOpen, onClose, data, config }) => {
         <div style={{ padding: '20px 32px', borderTop: '1px solid #f1f5f9', backgroundColor: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 600 }}>
             <Activity size={14} />
-            Powered by {aiConnector?.aiSettings?.provider || 'Advanced AI'}
+            Powered by {aiConnector?.aiSettings?.provider || aiConnector?.config?.provider || 'Advanced AI'}
           </div>
           <div style={{ display: 'flex', gap: '12px' }}>
              <button 

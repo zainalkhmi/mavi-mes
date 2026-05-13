@@ -95,16 +95,17 @@ const AiLogicAdvisor = ({ isOpen, onClose, context, onApplyXml, onApplySuggestio
     setIsLoading(true);
 
     try {
-      if (!aiConnector || !aiConnector.aiSettings) {
+      const settings = aiConnector?.aiSettings || aiConnector?.config;
+      if (!aiConnector || !settings) {
         throw new Error('AI Connector belum dikonfigurasi. Buka Integrations > AI Settings.');
       }
 
-      const provider = aiConnector.aiSettings?.provider || '';
+      const provider = settings.provider || '';
       const needsApiKey = !isProviderWithoutApiKey(provider);
-      if (needsApiKey && !aiConnector.aiSettings?.apiKey) {
+      if (needsApiKey && !settings.apiKey) {
         throw new Error(`API Key untuk provider "${provider || 'AI'}" belum diisi.`);
       }
-      if (!aiConnector.aiSettings?.modelId) {
+      if (!settings.modelId) {
         throw new Error('Model AI belum dipilih di AI Settings.');
       }
 
