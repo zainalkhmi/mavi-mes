@@ -1940,7 +1940,7 @@ const LiveTerminal = () => {
                     case 'CHECKBOX': val = checkboxValues[comp.id]; break;
                     case 'DROPDOWN': val = dropdownValues[comp.id]; break;
                     case 'SLIDER': val = sliderValues[comp.id]; break;
-                    case 'DATE_PICKER': val = datePickerValues[comp.id]; break;
+                    case 'DATE_PICKER': val = dateValues[comp.id]; break;
                     case 'TIME_PICKER': val = timePickerValues[comp.id]; break;
                     case 'TOGGLE': val = toggleValues[comp.id]; break;
                     case 'SIGNATURE': val = signatureValues[comp.id]; break;
@@ -2382,8 +2382,8 @@ const LiveTerminal = () => {
       case 'RADIO_GROUP': currentValue = radioValues[comp.id] ?? comp.props.defaultValue; break;
       case 'MULTI_SELECT': currentValue = multiSelectValues[comp.id] || comp.props.defaultValues; break;
       case 'NUMBER_INPUT': currentValue = numberInputValues[comp.id] ?? comp.props.defaultValue; break;
-      case 'DATE_PICKER': currentValue = dateValues[comp.id]; break;
-      case 'DATETIME_PICKER': currentValue = dateTimeValues[comp.id]; break;
+      case 'DATE_PICKER': currentValue = dateValues[comp.id] ?? comp.props.defaultValue; break;
+      case 'DATETIME_PICKER': currentValue = dateTimeValues[comp.id] ?? comp.props.defaultValue; break;
       case 'DRAW_CANVAS': currentValue = drawValues[comp.id]; break;
       case 'SIGNATURE': currentValue = signatureWidgetValues[comp.id]; break;
       case 'QUALITY_PASS_FAIL': currentValue = qualityResult[comp.id]; break;
@@ -3297,7 +3297,7 @@ const LiveTerminal = () => {
             }}
           >
             <option value="" style={{ backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white' }}>Select...</option>
-            {(comp.props.options || []).map((opt, i) => (
+            {(comp.props.options || comp.props.elements || []).map((opt, i) => (
               <option key={i} value={opt} style={{ backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white' }}>{opt}</option>
             ))}
           </select>
@@ -3667,7 +3667,7 @@ const LiveTerminal = () => {
               syncVariable(newVal);
               fireWidgetTriggers(comp, 'ON_CHANGE');
             }} style={{ width: '40px', height: '44px', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', color: '#475569', fontSize: '1.2rem', cursor: 'pointer' }}>-</button>
-            <input type="number" value={numberInputValues[comp.id] != null ? numberInputValues[comp.id] : resolvedProps.defaultValue || 0} onChange={e => {
+            <input type="number" value={numberInputValues[comp.id] != null ? numberInputValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : (resolvedProps.defaultValue || 0))} onChange={e => {
               const newVal = parseFloat(e.target.value) || 0;
               setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal }));
               syncVariable(newVal);
@@ -3686,9 +3686,20 @@ const LiveTerminal = () => {
       case 'DATE_PICKER': return (
         <div>
           <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}</div>
-          <input type="date" value={dateValues[comp.id] || ''} onChange={e => {
+          <input type="date" value={dateValues[comp.id] || resolvedProps.value || resolvedProps.defaultValue || ''} onChange={e => {
             const val = e.target.value;
             setDateValues(prev => ({ ...prev, [comp.id]: val }));
+            syncVariable(val);
+            fireWidgetTriggers(comp, 'ON_CHANGE');
+          }} style={{ width: '100%', padding: '10px 14px', border: '2px solid #e2e8f0', borderRadius: '6px', fontSize: '1rem', outline: 'none', color: '#0f172a' }} />
+        </div>
+      );
+      case 'DATETIME_PICKER': return (
+        <div>
+          <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}</div>
+          <input type="datetime-local" value={dateTimeValues[comp.id] || resolvedProps.value || resolvedProps.defaultValue || ''} onChange={e => {
+            const val = e.target.value;
+            setDateTimeValues(prev => ({ ...prev, [comp.id]: val }));
             syncVariable(val);
             fireWidgetTriggers(comp, 'ON_CHANGE');
           }} style={{ width: '100%', padding: '10px 14px', border: '2px solid #e2e8f0', borderRadius: '6px', fontSize: '1rem', outline: 'none', color: '#0f172a' }} />

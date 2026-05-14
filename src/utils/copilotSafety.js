@@ -8,6 +8,9 @@ const ALLOWED_COMMAND_TYPES = new Set([
     'CREATE_TRIGGER',
     'UPDATE_TRIGGER',
     'DELETE_TRIGGER',
+    'CREATE_RECORD_PLACEHOLDER',
+    'UPDATE_RECORD_PLACEHOLDER',
+    'DELETE_RECORD_PLACEHOLDER',
     'CREATE_TABLE',
     'UPDATE_TABLE',
     'DELETE_TABLE',
@@ -38,6 +41,9 @@ const REQUIRED_FIELDS_BY_TYPE = {
     CREATE_TRIGGER: ['payload.event'],
     UPDATE_TRIGGER: ['triggerId'],
     DELETE_TRIGGER: ['triggerId'],
+    CREATE_RECORD_PLACEHOLDER: ['payload.name'],
+    UPDATE_RECORD_PLACEHOLDER: ['placeholderId'],
+    DELETE_RECORD_PLACEHOLDER: ['placeholderId'],
     CREATE_TABLE: ['payload.name'],
     UPDATE_TABLE: ['tableId'],
     DELETE_TABLE: ['tableId'],
@@ -122,26 +128,40 @@ export const sanitizeCopilotCommands = (commandData, context = {}, options = {})
                 return null;
             }
 
+            const strictReferenceCheck = options.strictReferenceCheck === true;
+
             // Context-aware referential checks (non-fatal if context empty)
             if (contextIndex.widgetIds.size > 0 && hasValue(normalized.widgetId) && !contextIndex.widgetIds.has(normalized.widgetId)) {
-                blockedCount += 1;
-                warnings.push(`[${COPILOT_SAFETY_ERROR_CODES.WIDGET_NOT_FOUND}] Command #${cmdIndex + 1} blocked: widgetId '${normalized.widgetId}' not found in current context.`);
-                return null;
+                if (strictReferenceCheck) {
+                    blockedCount += 1;
+                    warnings.push(`[${COPILOT_SAFETY_ERROR_CODES.WIDGET_NOT_FOUND}] Command #${cmdIndex + 1} blocked: widgetId '${normalized.widgetId}' not found in current context.`);
+                    return null;
+                }
+                warnings.push(`[${COPILOT_SAFETY_ERROR_CODES.WIDGET_NOT_FOUND}] Command #${cmdIndex + 1}: widgetId '${normalized.widgetId}' not found in current context. Command allowed (non-strict reference mode).`);
             }
             if (contextIndex.variableNames.size > 0 && hasValue(normalized.variableName) && !contextIndex.variableNames.has(normalized.variableName)) {
-                blockedCount += 1;
-                warnings.push(`[${COPILOT_SAFETY_ERROR_CODES.VARIABLE_NOT_FOUND}] Command #${cmdIndex + 1} blocked: variable '${normalized.variableName}' not found in current context.`);
-                return null;
+                if (strictReferenceCheck) {
+                    blockedCount += 1;
+                    warnings.push(`[${COPILOT_SAFETY_ERROR_CODES.VARIABLE_NOT_FOUND}] Command #${cmdIndex + 1} blocked: variable '${normalized.variableName}' not found in current context.`);
+                    return null;
+                }
+                warnings.push(`[${COPILOT_SAFETY_ERROR_CODES.VARIABLE_NOT_FOUND}] Command #${cmdIndex + 1}: variable '${normalized.variableName}' not found in current context. Command allowed (non-strict reference mode).`);
             }
             if (contextIndex.stepIds.size > 0 && hasValue(normalized.stepId) && !contextIndex.stepIds.has(normalized.stepId)) {
-                blockedCount += 1;
-                warnings.push(`[${COPILOT_SAFETY_ERROR_CODES.STEP_NOT_FOUND}] Command #${cmdIndex + 1} blocked: stepId '${normalized.stepId}' not found in current context.`);
-                return null;
+                if (strictReferenceCheck) {
+                    blockedCount += 1;
+                    warnings.push(`[${COPILOT_SAFETY_ERROR_CODES.STEP_NOT_FOUND}] Command #${cmdIndex + 1} blocked: stepId '${normalized.stepId}' not found in current context.`);
+                    return null;
+                }
+                warnings.push(`[${COPILOT_SAFETY_ERROR_CODES.STEP_NOT_FOUND}] Command #${cmdIndex + 1}: stepId '${normalized.stepId}' not found in current context. Command allowed (non-strict reference mode).`);
             }
             if (contextIndex.tableIds.size > 0 && hasValue(normalized.tableId) && !contextIndex.tableIds.has(normalized.tableId)) {
-                blockedCount += 1;
-                warnings.push(`[${COPILOT_SAFETY_ERROR_CODES.TABLE_NOT_FOUND}] Command #${cmdIndex + 1} blocked: tableId '${normalized.tableId}' not found in current context.`);
-                return null;
+                if (strictReferenceCheck) {
+                    blockedCount += 1;
+                    warnings.push(`[${COPILOT_SAFETY_ERROR_CODES.TABLE_NOT_FOUND}] Command #${cmdIndex + 1} blocked: tableId '${normalized.tableId}' not found in current context.`);
+                    return null;
+                }
+                warnings.push(`[${COPILOT_SAFETY_ERROR_CODES.TABLE_NOT_FOUND}] Command #${cmdIndex + 1}: tableId '${normalized.tableId}' not found in current context. Command allowed (non-strict reference mode).`);
             }
 
             if (!normalized.payload && !normalized.widgetId && !normalized.variableName && !normalized.stepId) {

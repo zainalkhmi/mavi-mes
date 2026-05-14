@@ -42,7 +42,7 @@ export async function getAllFrontlineApps() {
             .order('name');
 
         if (error) throw error;
-        
+
         return (data || []).map(app => {
             if (app.config?.iotConfig?.brokerUrl) {
                 let url = app.config.iotConfig.brokerUrl;
@@ -173,6 +173,21 @@ export async function approveApp(appId, operatorId) {
 
 export async function deleteFrontlineApp(id) {
     const supabase = getSupabaseClient();
+
+    // Delete child rows first to avoid FK violations (e.g. completions_app_id_fkey)
+    const { error: completionsError } = await supabase
+        .from('completions')
+        .delete()
+        .eq('app_id', id);
+    if (completionsError) throw completionsError;
+
+    // Also clear queue rows referencing this app (if any)
+    const { error: queueError } = await supabase
+        .from('production_queue')
+        .delete()
+        .eq('app_id', id);
+    if (queueError) throw queueError;
+
     const { error } = await supabase
         .from('frontline_apps')
         .delete()
