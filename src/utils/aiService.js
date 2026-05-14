@@ -7,6 +7,11 @@ const SYSTEM_PROMPT = `
 You are a Manufacturing Systems Engineer specializing in Digital Work Instructions and MES (Manufacturing Execution Systems).
 Analyze the provided document (SOP, PDF, or Image) and extract the manufacturing process into a structured digital application.
 
+VALID COMPONENT TYPES (USE ONLY THESE):
+TEXT, IMAGE, CHECKLIST, BUTTON, TEXT_INPUT, TEXT_AREA, DROPDOWN, SIGNATURE, 
+QUALITY_PASS_FAIL, CAMERA_CAPTURE, RADIO_GROUP, CHECKBOX, GAUGE, INTERACTIVE_TABLE,
+SHAPE_RECTANGLE, NUMBER_INPUT, VARIABLE_TEXT, SLIDER, DATE_PICKER, DATETIME_PICKER
+
 Output MUST be a valid JSON object following this schema:
 {
   "name": "Descriptive App Name",
@@ -17,7 +22,7 @@ Output MUST be a valid JSON object following this schema:
       "cycleTimeSeconds": number (default 60),
       "components": [
         {
-          "type": "TEXT" | "IMAGE" | "CHECKLIST" | "BUTTON" | "TEXT_INPUT" | "DROPDOWN" | "SIGNATURE" | "QUALITY_PASS_FAIL" | "CAMERA_CAPTURE",
+          "type": "<VALID_TYPE_FROM_LIST_ABOVE>",
           "x": number (0-1000),
           "y": number (0-600),
           "w": number,
@@ -315,6 +320,29 @@ export const getBuilderCopilotAdvice = async (userInput, messageHistory, context
     radius: { md: '12px', lg: '20px' }
   };
 
+  // Build a compact type catalog for the AI from the actual COMPONENT_TYPES
+  const VALID_WIDGET_TYPES = [
+    // UI
+    'BUTTON', 'TEXT', 'TEXT_INPUT', 'TEXT_AREA', 'PASSWORD_TEXT', 'CHECKBOX', 'BOOLEAN_TOGGLE',
+    'SLIDER', 'DROPDOWN', 'MULTI_SELECT', 'LIST_PICKER', 'LIST_VIEW', 'RADIO_GROUP',
+    'DATE_PICKER', 'DATETIME_PICKER', 'IMAGE', 'EMBED_WEB', 'VIDEO_PLAYER',
+    'FILE_PICKER', 'IMAGE_PICKER', 'SIGNATURE_PAD', 'SIGNATURE', 'NOTIFIER', 'CUSTOM_WIDGET',
+    'VARIABLE_TEXT',
+    // Quality & Inspection
+    'CHECKLIST', 'QUALITY_TOLERANCE', 'QUALITY_PASS_FAIL', 'CAMERA_CAPTURE',
+    // Data
+    'INTERACTIVE_TABLE', 'TABLE_AGGREGATION', 'RECORD_DISPLAY',
+    // Charts
+    'CHART', 'GAUGE', 'DIAL_GAUGE', 'GAUGE_CIRCULAR', 'ANALYTIC',
+    // Shapes
+    'SHAPE_CIRCLE', 'SHAPE_RECTANGLE', 'SHAPE_SQUARE', 'SHAPE_LINE',
+    // Embedded
+    'VIDEO', 'DOCUMENT', 'AI_CHAT', 'CAD_VIEWER', 'WEBPAGE', 'GRID',
+    'MACHINE_ATTRIBUTE', 'MACHINE_STATUS', 'BARCODE', 'STEP_TIME',
+    // Measurement
+    'VISION_MEASUREMENT', 'MEASUREMENT_WIDGET', 'NUMBER_INPUT',
+  ];
+
   const systemPrompt = `
 ROLE: You are the "Mavi Multi-Agent Orchestrator". 
 You coordinate three specialized internal agents to build industrial MES solutions.
@@ -326,13 +354,36 @@ You coordinate three specialized internal agents to build industrial MES solutio
 
 2. 🎨 UI/UX AGENT:
    - Designs professional, responsive industrial interfaces.
-   - Uses modern layout props: { layout: { type: "flex", direction: "column", gap: 16 } }.
-   - Ensures visual consistency with the Design System: ${JSON.stringify(designSystem.colors)}.
+   - Uses the Design System colors: ${JSON.stringify(designSystem.colors)}.
 
 3. 🗄️ DATABASE AGENT:
    - Designs normalized table schemas (CREATE_TABLE).
    - Maps UI components to data fields (recordPlaceholders).
    - Manages app variables and state.
+
+═══════════════════════════════════════
+⚠️ CRITICAL: VALID WIDGET TYPES (USE ONLY THESE)
+═══════════════════════════════════════
+${VALID_WIDGET_TYPES.join(', ')}
+
+🚫 NEVER USE THESE INVALID TYPES (use the mapping instead):
+- "Panel" → use SHAPE_RECTANGLE (with props: { backgroundColor, borderRadius })
+- "TextInput" → use TEXT_INPUT
+- "TextArea" → use TEXT_AREA
+- "Label" → use TEXT
+- "Flex" / "Container" / "Box" / "Div" → use SHAPE_RECTANGLE
+- "Table" / "DataTable" → use INTERACTIVE_TABLE
+- "Input" → use TEXT_INPUT
+- "Select" → use DROPDOWN
+- "Switch" → use BOOLEAN_TOGGLE
+- "Toggle" → use BOOLEAN_TOGGLE
+- "NumberInput" → use NUMBER_INPUT
+- "Radio" → use RADIO_GROUP
+- "Check" → use CHECKBOX
+- "Chart" / "BarChart" / "LineChart" → use CHART
+- "Progress" / "ProgressBar" → use GAUGE
+- "Scan" / "Scanner" / "BarcodeScanner" → use BARCODE_SCANNER
+═══════════════════════════════════════
 
 WORKFLOW:
 1. [INTERNAL THOUGHT] Analyze intent.
@@ -340,29 +391,41 @@ WORKFLOW:
 3. [EXECUTE] Generate precise commands in <builder_cmds>.
 
 COMMANDS:
-- ADD_WIDGET: { type, payload: { type, props, x, y, w, h } }
-- UPDATE_WIDGET: { type, widgetId, payload: { props } }
-- DELETE_WIDGET: { type, widgetId }
-- CREATE_TABLE: { type, payload: { name, columns: [{ name, type }] } }
-- CREATE_VARIABLE: { type, payload: { name, type, defaultValue } }
-- CREATE_TRIGGER: { type, payload: { event, actions: [...] } }
+- ADD_WIDGET: { type: "ADD_WIDGET", payload: { type: "<VALID_TYPE>", displayName: "...", x, y, w, h, props: {...} } }
+- UPDATE_WIDGET: { type: "UPDATE_WIDGET", widgetId: "...", payload: { props: {...} } }
+- DELETE_WIDGET: { type: "DELETE_WIDGET", widgetId: "..." }
+- CREATE_TABLE: { type: "CREATE_TABLE", payload: { name: "...", columns: [{ name, type }] } }
+- CREATE_VARIABLE: { type: "CREATE_VARIABLE", payload: { name: "...", type: "TEXT|NUMBER|BOOLEAN", defaultValue: ... } }
+- CREATE_TRIGGER: { type: "CREATE_TRIGGER", payload: { event: "...", actions: [...] } }
+- CREATE_RECORD_PLACEHOLDER: { type: "CREATE_RECORD_PLACEHOLDER", payload: { name: "...", tableId: "..." } }
+- CREATE_FUNCTION: { type: "CREATE_FUNCTION", payload: { name: "...", logic: { xml: null, code: "..." } } }
 
-INTERACTIVE_TABLE SPECIAL PROPS:
-- columns: Array of { header: string, key: string }
-- enableFilter: boolean (Add search bar)
-- enableExport: boolean (Add download CSV button)
-- title: string (Custom header title)
-- pageSize: number (Rows per page)
+WIDGET PROP REFERENCE:
+- TEXT: { text, fontSize, color, fontWeight, textAlign }
+- TEXT_INPUT: { label, placeholder, hint, required }
+- TEXT_AREA: { label, placeholder, hint }
+- BUTTON: { label, text, backgroundColor, color, fontSize, action }
+- DROPDOWN: { label, elements: ["opt1","opt2"], prompt }
+- IMAGE: { src, picture, alt }
+- INTERACTIVE_TABLE: { tableId, title, columns: [{header,key}], enableFilter, enableExport, pageSize }
+- CHECKLIST: { title, items: ["item1","item2"] }
+- GAUGE: { value, min, max, unit, label, color }
+- SHAPE_RECTANGLE: { backgroundColor, borderRadius, borderWidth, bordercolor }
+- CHART: { type: "Line|Bar|Pie", description }
+
+Canvas size: 1000x600. Default widget sizes: TEXT(200x40), BUTTON(160x40), TEXT_INPUT(300x60), INTERACTIVE_TABLE(500x300).
 
 GUIDELINES:
 - Be AGENTIC: Take action immediately. Don't just explain.
-- Be SEMANTIC: "Scan barcode" means a scanner + a result variable + a lookup trigger.
-- Be SELF-HEALING: If you add a widget that needs a variable, create that variable in the same command list.
+- Be SEMANTIC: "Scan barcode" means BARCODE_SCANNER + a result variable + a lookup trigger.
+- Be SELF-HEALING: If you add a widget that needs a variable, create it too.
+- ALWAYS use types from the VALID_WIDGET_TYPES list. Never invent new types.
 
 CONTEXT:
 - Screen: ${context.currentStepName || 'Unknown'}
-- Existing Tables: ${JSON.stringify(context.tables || [])}
-- Existing Variables: ${JSON.stringify(context.variables || [])}
+- Existing Widgets: ${JSON.stringify((context.widgets || []).map(w => ({ id: w.id, type: w.type, name: w.displayName })))}
+- Existing Tables: ${JSON.stringify((context.tables || []).map(t => t.name || t.id))}
+- Existing Variables: ${JSON.stringify((context.variables || []).map(v => ({ name: v.name, type: v.type })))}
 
 OUTPUT FORMAT:
 Indonesian rationale first, then:
@@ -395,6 +458,21 @@ export const getBuilderVisionAdvice = async (file, context, connector) => {
 
     const systemPrompt = `You are the Mavi MES Vision Engineer. Analyze the provided image (mockup, whiteboard, or screenshot) and convert it into a Mavi MES application structure.
 
+VALID WIDGET TYPES (USE ONLY THESE):
+BUTTON, TEXT, TEXT_INPUT, TEXT_AREA, CHECKBOX, BOOLEAN_TOGGLE, SLIDER, DROPDOWN,
+MULTI_SELECT, LIST_PICKER, LIST_VIEW, RADIO_GROUP, DATE_PICKER, DATETIME_PICKER,
+IMAGE, SIGNATURE, CHECKLIST, QUALITY_TOLERANCE, QUALITY_PASS_FAIL, CAMERA_CAPTURE,
+INTERACTIVE_TABLE, CHART, GAUGE, SHAPE_RECTANGLE, SHAPE_CIRCLE, BARCODE,
+NUMBER_INPUT, VARIABLE_TEXT, CUSTOM_WIDGET
+
+TYPE ALIASES (use the correct type instead):
+- Panel/Container/Box/Card → SHAPE_RECTANGLE
+- Input/TextInput → TEXT_INPUT
+- Label/Heading → TEXT
+- Table/DataTable → INTERACTIVE_TABLE
+- Select → DROPDOWN
+- Switch/Toggle → BOOLEAN_TOGGLE
+
 Output MUST be a JSON object inside <builder_cmds> tags following this structure:
 <builder_cmds>
 {
@@ -412,7 +490,7 @@ Output MUST be a JSON object inside <builder_cmds> tags following this structure
 </builder_cmds>
 
 Canvas size is 1000x600. Map visual elements to coordinates accurately.
-Identify: Buttons, Labels, Inputs, Images, Tables.`;
+Identify: Buttons (BUTTON), Labels (TEXT), Inputs (TEXT_INPUT), Images (IMAGE), Tables (INTERACTIVE_TABLE).`;
 
     // We use the existing processDocument logic but with a specialized prompt
     const base64Data = await fileToBase64(file);

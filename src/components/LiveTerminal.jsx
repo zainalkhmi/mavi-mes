@@ -2804,131 +2804,6 @@ const LiveTerminal = () => {
     }
   };
 
-  // --- INITIALIZATION / LOADING VIEW ---
-  if (loading) {
-    return (
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' }}>
-        <div style={{ padding: '40px', textAlign: 'center' }}>
-          <div style={{
-            width: '40px', height: '40px', border: '3px solid #e2e8f0', borderTop: '3px solid #3b82f6',
-            borderRadius: '50%', animation: 'mavi-spin 1s linear infinite', margin: '0 auto 20px'
-          }}></div>
-          <style>{`@keyframes mavi-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
-          <p style={{ color: '#64748b', fontSize: '0.9rem', fontWeight: 600 }}>Launching App...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // --- APP NOT FOUND ERROR ---
-  if (appId && !selectedApp) {
-    return (
-      <div style={{ height: '100%', display: 'grid', placeItems: 'center', backgroundColor: '#f8fafc', padding: '40px' }}>
-        <div style={{ textAlign: 'center', maxWidth: '600px', width: '100%' }}>
-          <div style={{ fontSize: '3rem', marginBottom: '20px' }}>ℹ️</div>
-          <h2 style={{ color: '#001e3c', margin: '0 0 10px 0' }}>Select Your App</h2>
-          <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '30px' }}>
-            We found {frontlineApps.length} app(s) in your local memory. Please select the one you want to run:
-          </p>
-
-          <div style={{ display: 'grid', gap: '12px', marginBottom: '30px' }}>
-            {frontlineApps.map(a => (
-              <button
-                key={a.id}
-                onClick={() => handleStartApp(a)}
-                style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 25px',
-                  backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', cursor: 'pointer',
-                  textAlign: 'left', transition: 'all 0.2s'
-                }}
-                onMouseOver={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
-                onMouseOut={(e) => e.currentTarget.style.borderColor = '#e2e8f0'}
-              >
-                <div>
-                  <div style={{ fontWeight: 700, color: '#001e3c' }}>{a.name}</div>
-                  <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>ID: {a.id}</div>
-                </div>
-                <div style={{ color: '#3b82f6', fontWeight: 700 }}>Launch →</div>
-              </button>
-            ))}
-          </div>
-
-          <button
-            onClick={() => window.location.href = '/terminal'}
-            style={{ padding: '10px 20px', backgroundColor: 'transparent', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
-          >
-            Back to Selection
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // --- SELECTION VIEW ---
-  if (!selectedManual && !selectedApp) {
-    // Determine the current station object
-    const currentStationObj = stations.find(s => s.id === appContext.station || s.name === appContext.station);
-
-    // --- ENFORCE ACCESS CONTROL OVERRIDE ---
-    // --- ENFORCE ACCESS CONTROL OVERRIDE ---
-    const user = getCurrentUser();
-    const allUsers = getAllUsers();
-    const freshUser = allUsers.find(u => u.id === user?.id) || 
-                     allUsers.find(u => u.username === user?.username) || 
-                     allUsers.find(u => u.name === user?.name) || 
-                     user;
-
-    // Filter apps based on assigned station
-    const baseFilteredApps = frontlineApps.filter(app => {
-      // If operator has a specific app assigned, we skip station-level filtering 
-      // because frontlineApps is already pre-filtered for them in loadData().
-      if (freshUser?.role === 'OPERATOR' && freshUser?.assignedApp && freshUser?.assignedApp !== 'ALL' && freshUser?.assignedApp !== 'NONE') {
-        return true; 
-      }
-
-      if (!currentStationObj || !currentStationObj.assignedApps) return true; // fallback to all if no station config
-      return (currentStationObj.assignedApps || []).includes(app.id);
-    });
-
-    // Apply Search Filter
-    const searchFilteredApps = baseFilteredApps.filter(app =>
-      app.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-    // Apply Tab Filter
-    const tabFilteredApps = searchFilteredApps.filter(app => {
-      if (terminalTab === 'Favorites') return favoriteApps.includes(app.id);
-      if (terminalTab === 'Recent') return recentApps.includes(app.id);
-      return true; // 'All'
-    });
-
-    // Group apps dynamically
-    const appGroups = {};
-    tabFilteredApps.forEach(app => {
-      const category = app.category || 'Custom Apps';
-      if (!appGroups[category]) appGroups[category] = [];
-      appGroups[category].push(app);
-    });
-
-
-    // App Gradients
-    const appGradients = [
-      'linear-gradient(135deg, #001e3c 0%, #004282 100%)',
-      'linear-gradient(135deg, #0f172a 0%, #334155 100%)',
-      'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
-      'linear-gradient(135deg, #064e3b 0%, #10b981 100%)',
-      'linear-gradient(135deg, #7f1d1d 0%, #ef4444 100%)',
-      'linear-gradient(135deg, #4c1d95 0%, #8b5cf6 100%)'
-    ];
-
-    const getAppGradient = (name) => {
-      if (!name) return appGradients[0];
-      const sum = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-      return appGradients[sum % appGradients.length];
-    };
-
-
-  // --- COMPONENT RENDERING ENGINE ---
   const renderComponent = (comp) => {
     if (!comp) return null;
 
@@ -3581,13 +3456,13 @@ const LiveTerminal = () => {
       }
       case 'VIDEO': return (
         <div style={{ backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc', border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, borderRadius: '8px', overflow: 'hidden' }}>
-          <div style={{ padding: '10px 15px', borderBottom: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 600, fontSize: '0.9rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a' }}><Video size={18} color="#3b82f6" />{comp.props.title}</div>
+          <div style={{ padding: '10px 15px', borderBottom: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 600, fontSize: '0.9rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a' }}><Video size={18} color="#3b82f6" />{safeRender(comp.props.title)}</div>
           {comp.props.url ? <video controls src={comp.props.url} style={{ width: '100%', maxHeight: '300px' }} /> : <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>No video URL configured</div>}
         </div>
       );
       case 'PDF': return (
         <div style={{ backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc', border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, borderRadius: '8px', overflow: 'hidden' }}>
-          <div style={{ padding: '10px 15px', borderBottom: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 600, fontSize: '0.9rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a' }}><FileText size={18} color="#ef4444" />{comp.props.title}</div>
+          <div style={{ padding: '10px 15px', borderBottom: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 600, fontSize: '0.9rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a' }}><FileText size={18} color="#ef4444" />{safeRender(comp.props.title)}</div>
           {comp.props.url ? <iframe src={comp.props.url} style={{ width: '100%', height: '300px', border: 'none' }} title={comp.props.title} /> : <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>No PDF URL configured</div>}
         </div>
       );
@@ -3744,7 +3619,7 @@ const LiveTerminal = () => {
               syncVariable(newVal);
               fireWidgetTriggers(comp, 'ON_CHANGE');
             }} style={{ width: '40px', height: '44px', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', color: '#475569', fontSize: '1.2rem', cursor: 'pointer' }}>+</button>
-            {comp.props.unit && <span style={{ fontSize: '0.9rem', color: '#475569', fontWeight: 600 }}>{comp.props.unit}</span>}
+            {comp.props.unit && <span style={{ fontSize: '0.9rem', color: '#475569', fontWeight: 600 }}>{safeRender(comp.props.unit)}</span>}
           </div>
         </div>
       );
@@ -3784,7 +3659,7 @@ const LiveTerminal = () => {
               <span style={{ fontSize: '1rem', fontWeight: 900, color: comp.props.color || '#3b82f6' }}>{resolvedProps.value} {comp.props.unit}</span>
             </div>
             <div style={{ height: '14px', backgroundColor: '#e2e8f0', borderRadius: '7px', overflow: 'hidden' }}><div style={{ width: `${pg}%`, height: '100%', backgroundColor: comp.props.color || '#3b82f6', transition: 'width 0.3s', borderRadius: '7px' }} /></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: '#94a3b8', marginTop: '4px' }}><span>{comp.props.min}</span><span>{comp.props.max}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: '#94a3b8', marginTop: '4px' }}><span>{safeRender(comp.props.min)}</span><span>{safeRender(comp.props.max)}</span></div>
           </div>
         );
       }
@@ -4404,7 +4279,7 @@ const LiveTerminal = () => {
                   style={{ width: '100%', padding: '12px 40px 12px 12px', borderRadius: '8px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, backgroundColor: isDark ? '#1e293b' : 'white', color: isDark ? '#f8fafc' : '#0f172a', fontSize: '1.1rem', fontWeight: 700 }}
                 />
                 <div style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontWeight: 600, fontSize: '0.85rem' }}>
-                  {comp.props.unit}
+                  {safeRender(comp.props.unit)}
                 </div>
               </div>
               <button
@@ -4579,6 +4454,131 @@ const LiveTerminal = () => {
       );
     }
   };
+  // --- INITIALIZATION / LOADING VIEW ---
+  if (loading) {
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' }}>
+        <div style={{ padding: '40px', textAlign: 'center' }}>
+          <div style={{
+            width: '40px', height: '40px', border: '3px solid #e2e8f0', borderTop: '3px solid #3b82f6',
+            borderRadius: '50%', animation: 'mavi-spin 1s linear infinite', margin: '0 auto 20px'
+          }}></div>
+          <style>{`@keyframes mavi-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+          <p style={{ color: '#64748b', fontSize: '0.9rem', fontWeight: 600 }}>Launching App...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // --- APP NOT FOUND ERROR ---
+  if (appId && !selectedApp) {
+    return (
+      <div style={{ height: '100%', display: 'grid', placeItems: 'center', backgroundColor: '#f8fafc', padding: '40px' }}>
+        <div style={{ textAlign: 'center', maxWidth: '600px', width: '100%' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '20px' }}>ℹ️</div>
+          <h2 style={{ color: '#001e3c', margin: '0 0 10px 0' }}>Select Your App</h2>
+          <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '30px' }}>
+            We found {frontlineApps.length} app(s) in your local memory. Please select the one you want to run:
+          </p>
+
+          <div style={{ display: 'grid', gap: '12px', marginBottom: '30px' }}>
+            {frontlineApps.map(a => (
+              <button
+                key={a.id}
+                onClick={() => handleStartApp(a)}
+                style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 25px',
+                  backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', cursor: 'pointer',
+                  textAlign: 'left', transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
+                onMouseOut={(e) => e.currentTarget.style.borderColor = '#e2e8f0'}
+              >
+                <div>
+                  <div style={{ fontWeight: 700, color: '#001e3c' }}>{a.name}</div>
+                  <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>ID: {a.id}</div>
+                </div>
+                <div style={{ color: '#3b82f6', fontWeight: 700 }}>Launch →</div>
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => window.location.href = '/terminal'}
+            style={{ padding: '10px 20px', backgroundColor: 'transparent', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
+          >
+            Back to Selection
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // --- SELECTION VIEW ---
+  if (!selectedManual && !selectedApp) {
+    // Determine the current station object
+    const currentStationObj = stations.find(s => s.id === appContext.station || s.name === appContext.station);
+
+    // --- ENFORCE ACCESS CONTROL OVERRIDE ---
+    // --- ENFORCE ACCESS CONTROL OVERRIDE ---
+    const user = getCurrentUser();
+    const allUsers = getAllUsers();
+    const freshUser = allUsers.find(u => u.id === user?.id) || 
+                     allUsers.find(u => u.username === user?.username) || 
+                     allUsers.find(u => u.name === user?.name) || 
+                     user;
+
+    // Filter apps based on assigned station
+    const baseFilteredApps = frontlineApps.filter(app => {
+      // If operator has a specific app assigned, we skip station-level filtering 
+      // because frontlineApps is already pre-filtered for them in loadData().
+      if (freshUser?.role === 'OPERATOR' && freshUser?.assignedApp && freshUser?.assignedApp !== 'ALL' && freshUser?.assignedApp !== 'NONE') {
+        return true; 
+      }
+
+      if (!currentStationObj || !currentStationObj.assignedApps) return true; // fallback to all if no station config
+      return (currentStationObj.assignedApps || []).includes(app.id);
+    });
+
+    // Apply Search Filter
+    const searchFilteredApps = baseFilteredApps.filter(app =>
+      app.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    // Apply Tab Filter
+    const tabFilteredApps = searchFilteredApps.filter(app => {
+      if (terminalTab === 'Favorites') return favoriteApps.includes(app.id);
+      if (terminalTab === 'Recent') return recentApps.includes(app.id);
+      return true; // 'All'
+    });
+
+    // Group apps dynamically
+    const appGroups = {};
+    tabFilteredApps.forEach(app => {
+      const category = app.category || 'Custom Apps';
+      if (!appGroups[category]) appGroups[category] = [];
+      appGroups[category].push(app);
+    });
+
+
+    // App Gradients
+    const appGradients = [
+      'linear-gradient(135deg, #001e3c 0%, #004282 100%)',
+      'linear-gradient(135deg, #0f172a 0%, #334155 100%)',
+      'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
+      'linear-gradient(135deg, #064e3b 0%, #10b981 100%)',
+      'linear-gradient(135deg, #7f1d1d 0%, #ef4444 100%)',
+      'linear-gradient(135deg, #4c1d95 0%, #8b5cf6 100%)'
+    ];
+
+    const getAppGradient = (name) => {
+      if (!name) return appGradients[0];
+      const sum = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+      return appGradients[sum % appGradients.length];
+    };
+
+
+  // --- COMPONENT RENDERING ENGINE ---
 
     if (isMobile) {
       return (

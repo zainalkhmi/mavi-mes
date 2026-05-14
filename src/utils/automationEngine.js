@@ -17,6 +17,7 @@ class AutomationEngine {
     this.MAX_RECURSION_DEPTH = 25;
     this.lastExecutions = {}; // { triggerId_autoId: timestamp }
     this.listeners = [];
+    this.machineTriggerLogState = { minuteKey: null, count: 0 };
     this.SYSTEM_VARIABLES = {
       SYS_USER: 'Operator-01',
       SYS_STATION: 'Station-A',
@@ -56,7 +57,7 @@ class AutomationEngine {
       if (!auto.active && auto.type !== 'function') return;
 
       const triggerList = auto.triggers || (auto.trigger ? [auto.trigger] : []);
-      
+
       triggerList.forEach(trigger => {
         if (trigger.type !== 'TIMER') return;
 
@@ -73,7 +74,7 @@ class AutomationEngine {
           if (timestamp - lastRun >= intervalMs) {
             shouldRun = true;
           }
-        } 
+        }
         // 2. Check for Schedule-based triggers (Legacy format)
         else if (trigger.schedule) {
           const { frequency, time } = trigger.schedule;
@@ -101,10 +102,10 @@ class AutomationEngine {
     try {
       const savedAutos = localStorage.getItem('mes_automations');
       const savedFunctions = localStorage.getItem('mes_functions');
-      
+
       const autos = savedAutos ? JSON.parse(savedAutos) : [];
       const fns = savedFunctions ? JSON.parse(savedFunctions) : [];
-      
+
       // Map functions to common automation format
       const mappedFns = fns.map(f => ({
         ...f,
@@ -132,8 +133,57 @@ class AutomationEngine {
 
   // Trigger an event
   trigger(eventType, eventData) {
-    console.log(`[AutomationEngine] Triggering event: ${eventType}`, eventData);
-    
+    if (eventType === 'MACHINE_TRIGGER') {
+      const now = new Date();
+      const minuteKey = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()} ${now.getHours()}:${now.getMinutes()}`;
+      if (this.machineTriggerLogState.minuteKey !== minuteKey) {
+        this.machineTriggerLogState.minuteKey = minuteKey;
+        this.machineTriggerLogState.count = 0;
+      }
+      this.machineTriggerLogState.count += 1;
+
+      // Log only first 5 events/minute verbosely, then summarize every 50 events.
+      if (this.machineTriggerLogState.count <= 5) {
+        console.log(`[AutomationEngine] Triggering event: ${eventType}`, eventData);
+      } else if (this.machineTriggerLogState.count % 50 === 0) {
+        console.log(`[AutomationEngine] Triggering event: ${eventType} (throttled summary)`, {
+          countThisMinute: this.machineTriggerLogState.count,
+          lastEvent: eventData
+        });
+      }
+    } else {
+      console.log(`[AutomationEngine] Triggering event: ${eventType}`, eventData);
+    }
+
+    // Rate limiting for high-frequency events to prevent UI thread saturation
+    if (eventType === 'MACHINE_TRIGGER') {
+      const now = Date.now();
+      const lastTrigger = this.lastTriggerTimes?.[eventData.topic] || 0;
+      if (now - lastTrigger < 100) { // Throttle to 10Hz max per topic
+        return;
+      }
+      if (!this.lastTriggerTimes) this.lastTriggerTimes = {};
+      this.lastTriggerTimes[eventData.topic] = now;
+
+      // Payload Sanitization: Ensure nested objects are stringified for safe UI rendering
+      if (eventData && typeof eventData.payload === 'object' && eventData.payload !== null) {
+        try {
+          // Check if payload contains complex nested objects
+          const keys = Object.keys(eventData.payload);
+          const hasNested = keys.some(k => typeof eventData.payload[k] === 'object' && eventData.payload[k] !== null);
+          
+          if (hasNested) {
+            // If it has nested objects, stringify the payload for safety
+            // but keep the original for logic blocks if needed (internal data)
+            eventData._rawPayload = eventData.payload;
+            eventData.payload = JSON.stringify(eventData.payload);
+          }
+        } catch (e) {
+          console.warn('[AutomationEngine] Failed to sanitize payload:', e);
+        }
+      }
+    }
+
     // Notify external listeners (e.g. AppBuilder Blockly runtime)
     this.listeners.forEach(listener => {
       try {
@@ -145,9 +195,9 @@ class AutomationEngine {
 
     const relevantAutomations = this.automations.filter(auto => {
       if (!auto.active && auto.type !== 'function') return false; // Functions are active if they exist
-      
+
       const triggerList = auto.triggers || (auto.trigger ? [auto.trigger] : []);
-      
+
       const hasMatchingTrigger = triggerList.some(t => {
         if (t.type !== eventType) return false;
 
@@ -208,10 +258,10 @@ class AutomationEngine {
   async execute(automation, eventData) {
     const runId = `run_${Date.now()}`;
     const startTime = Date.now();
-    
+
     this.activeRuns++;
     console.log(`[AutomationEngine] Executing automation: ${automation.name} (Active: ${this.activeRuns})`);
-    
+
     let status = 'SUCCESS';
     let errorMessage = null;
     let result = null;
@@ -220,7 +270,7 @@ class AutomationEngine {
       // Use Promise.race to enforce timeout
       result = await Promise.race([
         this.runLogic(automation, eventData),
-        new Promise((_, reject) => 
+        new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Execution Timeout')), this.EXECUTION_TIMEOUT_MS)
         )
       ]);
@@ -232,7 +282,7 @@ class AutomationEngine {
     } finally {
       this.activeRuns--;
       const duration = Date.now() - startTime;
-      
+
       // Save to Execution History
       this.saveExecutionLog({
         id: runId,
@@ -275,8 +325,8 @@ class AutomationEngine {
   }
 
   logToDatabase(message) {
-    addTableRecord('SystemLogs', { 
-      message, 
+    addTableRecord('SystemLogs', {
+      message,
       timestamp: new Date().toISOString(),
       source: 'AutomationEngine'
     }).catch(e => console.error('Failed to log to DB:', e));
@@ -288,10 +338,10 @@ class AutomationEngine {
     if (!startNode) return;
 
     let currentNode = this.getNextNode(automation, startNode.id);
-    
+
     while (currentNode) {
       console.log(`[AutomationEngine] Executing node: ${currentNode.id} (${currentNode.type})`);
-      
+
       if (currentNode.type === 'action') {
         try {
           const result = await this.runAction(currentNode.data, eventData);
@@ -305,7 +355,7 @@ class AutomationEngine {
         try {
           const result = this.evaluateExpression(currentNode.data.expression, eventData);
           if (currentNode.data.outputVar) {
-             eventData[currentNode.data.outputVar] = result;
+            eventData[currentNode.data.outputVar] = result;
           }
           console.log(`[AutomationEngine] Expression result: ${result}`);
           currentNode = this.getNextNode(automation, currentNode.id, 'success');
@@ -329,7 +379,7 @@ class AutomationEngine {
   async executeLoop(automation, loopNode, eventData) {
     const listPath = loopNode.data.listPath;
     const list = this.resolveValue(listPath, eventData) || [];
-    
+
     if (!Array.isArray(list)) {
       console.warn(`[AutomationEngine] Loop target at ${listPath} is not an array:`, list);
       return;
@@ -356,11 +406,11 @@ class AutomationEngine {
 
       // Execute the "body" of the loop
       let innerNode = this.getNextNode(automation, loopNode.id, 'body');
-      
+
       // We process the body until it hits a node that doesn't exist or we hit the loop node again (implicit boundary)
       while (innerNode && innerNode.id !== loopNode.id) {
         console.log(`[AutomationEngine]   Loop execution node: ${innerNode.id} (${innerNode.type})`);
-        
+
         if (innerNode.type === 'action') {
           try {
             await this.runAction(innerNode.data, iterationContext);
@@ -387,7 +437,7 @@ class AutomationEngine {
   }
 
   getNextNode(automation, nodeId, sourceHandle) {
-    const edge = automation.edges.find(e => 
+    const edge = automation.edges.find(e =>
       e.source === nodeId && (!sourceHandle || e.sourceHandle === sourceHandle)
     );
     if (!edge) return null;
@@ -399,7 +449,7 @@ class AutomationEngine {
 
     const context = { ...this.SYSTEM_VARIABLES, ...eventData, SYS_TIME: new Date().toLocaleTimeString() };
     const { field, operator, value } = condition;
-    
+
     // Resolve value from eventData if it's a dynamic path (e.g., "record.quantity")
     const actualValue = this.resolveValue(field, context);
     const targetValue = value;
@@ -420,11 +470,11 @@ class AutomationEngine {
 
   evaluateExpression(expression, eventData) {
     if (!expression) return null;
-    
+
     // Create a safe sandbox with inputs, variables, and system variables
-    const context = { 
-      ...this.SYSTEM_VARIABLES, 
-      ...eventData, 
+    const context = {
+      ...this.SYSTEM_VARIABLES,
+      ...eventData,
       SYS_TIME: new Date().toLocaleTimeString(),
       Math: Math
     };
@@ -456,7 +506,7 @@ class AutomationEngine {
       case 'ADD_RECORD':
         console.log(`[AutomationEngine] Creating record in ${targetTable}`, action.data);
         return addTableRecord(targetTable, action.data);
-      
+
       case 'UPDATE_RECORD':
         const recordId = this.resolveValue(action.recordIdPath, eventData) || action.recordId;
         console.log(`[AutomationEngine] Updating record ${recordId} in ${targetTable}`, action.data);
@@ -467,9 +517,9 @@ class AutomationEngine {
         const { sourceTable, sourceRecordId: rawSourceId, sourceField, targetTable: targetTableId, targetRecordId: rawTargetId, targetField } = action;
         const sId = this.resolveValue(action.sourceRecordIdPath, eventData) || rawSourceId;
         const tId = this.resolveValue(action.targetRecordIdPath, eventData) || rawTargetId;
-        
+
         console.log(`[AutomationEngine] ${action.type}: ${sId} <-> ${tId}`);
-        
+
         // Import dynamically to avoid circular dependencies if any
         return import('./supabaseTablesDB').then(db => {
           if (action.type === 'LINK_RECORD') {
@@ -482,8 +532,8 @@ class AutomationEngine {
 
       case 'LOG_MESSAGE':
         console.log(`[AutomationEngine] Log: ${action.message}`);
-        return addTableRecord('SystemLogs', { 
-          message: action.message, 
+        return addTableRecord('SystemLogs', {
+          message: action.message,
           timestamp: new Date().toISOString(),
           source: 'AutomationEngine'
         });
@@ -513,8 +563,8 @@ class AutomationEngine {
         const msg = this.resolveValue(action.messagePath, eventData) || action.message;
         console.log(`[AutomationEngine] SEND NOTIFICATION to ${recipient}: ${msg}`);
         // Mock notification: log to system table
-        return addTableRecord('SystemLogs', { 
-          message: `NOTIFICATION to ${recipient}: ${msg}`, 
+        return addTableRecord('SystemLogs', {
+          message: `NOTIFICATION to ${recipient}: ${msg}`,
           timestamp: new Date().toISOString(),
           source: 'AutomationEngine:Notification'
         });
@@ -525,7 +575,7 @@ class AutomationEngine {
       case 'AI_ANOMALY_DETECTION':
         const inputText = this.resolveValue(action.inputPath, eventData) || JSON.stringify(eventData.record || eventData);
         console.log(`[AutomationEngine] Executing AI Action (${action.type}) on: ${inputText}`);
-        
+
         let aiResult = "";
         try {
           const connector = await getPrimaryAiConnector();
@@ -553,11 +603,11 @@ class AutomationEngine {
         if (action.outputPath) {
           const parts = action.outputPath.split('.');
           if (parts[0] === 'record' && eventData.record) {
-             const tableId = eventData.tableId;
-             const recordId = eventData.record.id;
-             const updateData = { [parts[1]]: aiResult };
-             await updateTableRecord(tableId, recordId, updateData);
-             console.log(`[AutomationEngine] AI result saved to ${action.outputPath}`);
+            const tableId = eventData.tableId;
+            const recordId = eventData.record.id;
+            const updateData = { [parts[1]]: aiResult };
+            await updateTableRecord(tableId, recordId, updateData);
+            console.log(`[AutomationEngine] AI result saved to ${action.outputPath}`);
           }
         }
         return aiResult;
@@ -566,31 +616,31 @@ class AutomationEngine {
         const functions = JSON.parse(localStorage.getItem('mes_functions') || '[]');
         const targetFn = functions.find(f => f.name === action.functionName || f.id === action.functionId);
         if (targetFn) {
-           console.log(`[AutomationEngine] Running function: ${targetFn.name}`);
-           // Resolve input values for the function based on its contract
-           const inputValues = {};
-           if (action.inputs && targetFn.inputs) {
-             targetFn.inputs.forEach(contractInput => {
-               const value = this.resolveValue(action.inputs[contractInput.name], eventData);
-               inputValues[contractInput.name] = value;
-             });
-           }
-           return this.executeGraph(targetFn, { ...eventData, ...inputValues });
+          console.log(`[AutomationEngine] Running function: ${targetFn.name}`);
+          // Resolve input values for the function based on its contract
+          const inputValues = {};
+          if (action.inputs && targetFn.inputs) {
+            targetFn.inputs.forEach(contractInput => {
+              const value = this.resolveValue(action.inputs[contractInput.name], eventData);
+              inputValues[contractInput.name] = value;
+            });
+          }
+          return this.executeGraph(targetFn, { ...eventData, ...inputValues });
         } else {
-           console.error(`[AutomationEngine] Function not found: ${action.functionName}`);
-           return null;
+          console.error(`[AutomationEngine] Function not found: ${action.functionName}`);
+          return null;
         }
 
       case 'OBD2_CONNECT':
         const transport = (action.transport || 'BLUETOOTH').toUpperCase();
         console.log(`[AutomationEngine] OBD2 Connect via ${transport}`);
-          if (transport === 'SERIAL') {
-            return obd2Service.connectSerial(Number(action.baudRate) || 38400);
-          } else if (transport === 'WIFI') {
-            return obd2Service.connectWiFi(action.ipAddress || '192.168.0.10', Number(action.port) || 35000);
-          } else {
-            return obd2Service.connectBluetooth();
-          }
+        if (transport === 'SERIAL') {
+          return obd2Service.connectSerial(Number(action.baudRate) || 38400);
+        } else if (transport === 'WIFI') {
+          return obd2Service.connectWiFi(action.ipAddress || '192.168.0.10', Number(action.port) || 35000);
+        } else {
+          return obd2Service.connectBluetooth();
+        }
 
       case 'OBD2_READ_PID':
         const pid = action.pid || '010C';
@@ -605,7 +655,7 @@ class AutomationEngine {
         const topic = this.resolveValue(action.topicPath, eventData) || action.topic;
         const payload = this.resolveValue(action.payloadPath, eventData) || action.payload || action.data;
         console.log(`[AutomationEngine] Publishing Machine Command to ${topic}:`, payload);
-        
+
         return import('./iotConnector').then(iot => {
           iot.default.publish(topic, typeof payload === 'object' ? JSON.stringify(payload) : String(payload));
           return { success: true, topic, payload };

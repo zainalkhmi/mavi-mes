@@ -19,19 +19,46 @@ const BuilderCopilot = ({
   canUndo,
   canRedo
 }) => {
-  const [messages, setMessages] = useState([
-    { 
+  const STORAGE_KEY = 'mavi_copilot_history';
+
+  const loadMessages = () => {
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map(m => ({ ...m, timestamp: new Date(m.timestamp) }));
+        }
+      }
+    } catch (e) { /* ignore parse errors */ }
+    return [{ 
       role: 'assistant', 
       content: 'Halo! Saya Mavi Builder Copilot. Saya bisa membantu Anda memasang komponen, membuat tabel, atau membangun aplikasi dari gambar. Apa yang ingin Anda buat hari ini?', 
       timestamp: new Date() 
-    }
-  ]);
+    }];
+  };
+
+  const [messages, setMessages] = useState(loadMessages);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [aiConnector, setAiConnector] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // Persist messages to sessionStorage on every change
+  useEffect(() => {
+    try {
+      // Strip image blob URLs (they can't be serialized) and keep last 50 messages
+      const toSave = messages.slice(-50).map(m => ({
+        role: m.role,
+        content: m.content,
+        timestamp: m.timestamp,
+        isError: m.isError || false
+      }));
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    } catch (e) { /* storage full or unavailable */ }
+  }, [messages]);
 
   useEffect(() => {
     const loadAiConfig = async () => {
@@ -353,7 +380,7 @@ const BuilderCopilot = ({
                         )}
                         {cmd.type === 'CREATE_TRIGGER' && (
                           <div style={{ fontSize: '0.7rem', color: '#64748b', padding: '4px 8px', backgroundColor: '#ffffff', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                            Event: {cmd.payload?.event} {cmd.payload?.variableName ? `(${cmd.payload.variableName})` : ''}
+                            Event: {typeof cmd.payload?.event === 'object' ? (cmd.payload?.event?.eventName || cmd.payload?.event?.type || JSON.stringify(cmd.payload?.event)) : cmd.payload?.event} {cmd.payload?.variableName ? `(${cmd.payload.variableName})` : ''}
                           </div>
                         )}
                       </div>

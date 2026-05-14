@@ -1945,11 +1945,11 @@ const AppBuilder = () => {
 
     const [appTriggers, setAppTriggers] = useState([]);
     const [appVariables, setAppVariables] = useState([]);
-    const [appFunctions, setAppFunctions] = useState([]); 
+    const [appFunctions, setAppFunctions] = useState([]);
     const [tables, setTables] = useState([]);
-    const [appTables, setAppTables] = useState([]); 
-    const [recordPlaceholders, setRecordPlaceholders] = useState([]); 
-    const [recordPlaceholderData, setRecordPlaceholderData] = useState({}); 
+    const [appTables, setAppTables] = useState([]);
+    const [recordPlaceholders, setRecordPlaceholders] = useState([]);
+    const [recordPlaceholderData, setRecordPlaceholderData] = useState({});
 
     // --- History / Undo Stack ---
     const [builderStack, setBuilderStack] = useState({ undo: [], redo: [] });
@@ -1978,7 +1978,7 @@ const AppBuilder = () => {
             appName: appName
         };
         const prevState = builderStack.undo[0];
-        
+
         setBaseComponents(prevState.baseComponents);
         setSteps(prevState.steps);
         setAppTriggers(prevState.appTriggers);
@@ -2113,12 +2113,71 @@ const AppBuilder = () => {
 
         switch (type) {
             case 'ADD_WIDGET': {
+                // --- AI Type Normalization Layer ---
+                // The AI may output types like "Panel", "TextInput" etc.
+                // that don't exist in COMPONENT_TYPES. Normalize them here.
+                const AI_TYPE_ALIASES = {
+                    'Panel': 'SHAPE_RECTANGLE', 'panel': 'SHAPE_RECTANGLE',
+                    'Container': 'SHAPE_RECTANGLE', 'container': 'SHAPE_RECTANGLE',
+                    'Box': 'SHAPE_RECTANGLE', 'box': 'SHAPE_RECTANGLE',
+                    'Div': 'SHAPE_RECTANGLE', 'div': 'SHAPE_RECTANGLE',
+                    'Flex': 'SHAPE_RECTANGLE', 'flex': 'SHAPE_RECTANGLE',
+                    'Card': 'SHAPE_RECTANGLE', 'card': 'SHAPE_RECTANGLE',
+                    'Frame': 'SHAPE_RECTANGLE', 'frame': 'SHAPE_RECTANGLE',
+                    'Section': 'SHAPE_RECTANGLE', 'section': 'SHAPE_RECTANGLE',
+                    'TextInput': 'TEXT_INPUT', 'textInput': 'TEXT_INPUT', 'textinput': 'TEXT_INPUT', 'Input': 'TEXT_INPUT', 'input': 'TEXT_INPUT',
+                    'TextArea': 'TEXT_AREA', 'textarea': 'TEXT_AREA', 'Textarea': 'TEXT_AREA',
+                    'Label': 'TEXT', 'label': 'TEXT', 'Heading': 'TEXT', 'heading': 'TEXT', 'Title': 'TEXT', 'Paragraph': 'TEXT',
+                    'Table': 'INTERACTIVE_TABLE', 'table': 'INTERACTIVE_TABLE', 'DataTable': 'INTERACTIVE_TABLE', 'dataTable': 'INTERACTIVE_TABLE',
+                    'Select': 'DROPDOWN', 'select': 'DROPDOWN', 'Spinner': 'DROPDOWN',
+                    'Switch': 'BOOLEAN_TOGGLE', 'switch': 'BOOLEAN_TOGGLE', 'Toggle': 'BOOLEAN_TOGGLE', 'toggle': 'BOOLEAN_TOGGLE',
+                    'NumberInput': 'NUMBER_INPUT', 'numberInput': 'NUMBER_INPUT', 'number_input': 'NUMBER_INPUT',
+                    'Radio': 'RADIO_GROUP', 'radio': 'RADIO_GROUP', 'RadioGroup': 'RADIO_GROUP',
+                    'Check': 'CHECKBOX', 'check': 'CHECKBOX', 'Checkbox': 'CHECKBOX',
+                    'BarChart': 'CHART', 'LineChart': 'CHART', 'PieChart': 'CHART',
+                    'Progress': 'GAUGE', 'ProgressBar': 'GAUGE', 'progress': 'GAUGE',
+                    'Scanner': 'BARCODE_SCANNER', 'BarcodeScanner': 'BARCODE_SCANNER', 'Scan': 'BARCODE_SCANNER',
+                    'Signature': 'SIGNATURE', 'signature': 'SIGNATURE',
+                    'Camera': 'CAMERA_CAPTURE', 'camera': 'CAMERA_CAPTURE',
+                    'Video': 'VIDEO', 'video': 'VIDEO',
+                    'Document': 'DOCUMENT', 'document': 'DOCUMENT',
+                    'Webpage': 'WEBPAGE', 'webpage': 'WEBPAGE', 'WebView': 'EMBED_WEB', 'webview': 'EMBED_WEB',
+                    'Checklist': 'CHECKLIST', 'checklist': 'CHECKLIST',
+                    'Chart': 'CHART', 'chart': 'CHART',
+                    'Gauge': 'GAUGE', 'gauge': 'GAUGE',
+                    'Grid': 'GRID', 'grid': 'GRID',
+                    'Slider': 'SLIDER', 'slider': 'SLIDER',
+                    'Button': 'BUTTON', 'button': 'BUTTON',
+                    'Image': 'IMAGE', 'image': 'IMAGE',
+                    'Text': 'TEXT', 'text': 'TEXT',
+                };
+
+                let resolvedType = payload.type;
+                if (!COMPONENT_TYPES[resolvedType]) {
+                    const aliased = AI_TYPE_ALIASES[resolvedType];
+                    if (aliased) {
+                        console.log(`[Copilot] Type normalized: "${resolvedType}" → "${aliased}"`);
+                        resolvedType = aliased;
+                    } else {
+                        // Try UPPER_SNAKE_CASE conversion as last resort
+                        const upperSnake = resolvedType.replace(/([a-z])([A-Z])/g, '$1_$2').toUpperCase();
+                        if (COMPONENT_TYPES[upperSnake]) {
+                            console.log(`[Copilot] Type auto-converted: "${resolvedType}" → "${upperSnake}"`);
+                            resolvedType = upperSnake;
+                        } else {
+                            console.warn(`[Copilot] Unknown widget type: "${resolvedType}". Defaulting to SHAPE_RECTANGLE.`);
+                            resolvedType = 'SHAPE_RECTANGLE';
+                        }
+                    }
+                }
+
                 const newComp = {
                     id: `w_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                    displayName: payload.displayName || payload.type,
+                    displayName: payload.displayName || COMPONENT_TYPES[resolvedType]?.label || resolvedType,
                     ...payload,
+                    type: resolvedType,
                     props: {
-                        ...(COMPONENT_TYPES[payload.type]?.defaultProps || {}),
+                        ...(COMPONENT_TYPES[resolvedType]?.defaultProps || {}),
                         ...(payload.props || {})
                     }
                 };
@@ -2173,12 +2232,18 @@ const AppBuilder = () => {
                 break;
             }
             case 'CREATE_TABLE':
-                if (createLocalTable) {
-                    createLocalTable(payload.name, payload.columns || []).then(() => {
-                        alert(`Table "${payload.name}" created!`);
-                        getLocalTables().then(setTables);
-                    });
-                }
+                createTable({
+                    name: payload.name,
+                    fields: (payload.columns || []).map(c => ({
+                        name: typeof c === 'string' ? c : (c.name || c.header || 'Field'),
+                        type: typeof c === 'string' ? 'text' : (c.type || 'text')
+                    }))
+                }).then(() => {
+                    console.log(`[Copilot] Table "${payload.name}" created!`);
+                    getTables().then(setTables);
+                }).catch(err => {
+                    console.error('[Copilot] Failed to create table:', err);
+                });
                 break;
             case 'CREATE_TRIGGER': {
                 const newTrigger = {
@@ -2198,6 +2263,24 @@ const AppBuilder = () => {
                     persisted: payload.persisted || false
                 };
                 setAppVariables(prev => [...prev, newVar]);
+                break;
+            }
+            case 'CREATE_RECORD_PLACEHOLDER': {
+                const newPh = {
+                    id: `ph_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    name: payload.name,
+                    tableId: payload.tableId || ''
+                };
+                setRecordPlaceholders(prev => [...prev, newPh]);
+                break;
+            }
+            case 'CREATE_FUNCTION': {
+                const newFunc = {
+                    id: `fn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    name: payload.name,
+                    logic: payload.logic || { xml: null, code: '' }
+                };
+                setAppFunctions(prev => [...prev, newFunc]);
                 break;
             }
             default:
@@ -3661,7 +3744,7 @@ const AppBuilder = () => {
 
     const handleDelete = () => {
         if (selectedCompIds.length === 0) return;
-        
+
         // Filter out locked widgets
         const idsToDelete = selectedCompIds.filter(id => {
             let comp = baseComponents.find(c => c.id === id);
@@ -3702,21 +3785,21 @@ const AppBuilder = () => {
 
     const handleToggleLock = () => {
         if (selectedCompIds.length === 0 && !contextMenu.compId) return;
-        
+
         const idsToToggle = contextMenu.compId ? [contextMenu.compId] : selectedCompIds;
-        
+
         idsToToggle.forEach(id => {
             let comp = baseComponents.find(c => c.id === id);
             if (!comp) {
                 const step = steps.find(s => s.id === currentStepId);
                 if (step) comp = step.components.find(c => c.id === id);
             }
-            
+
             if (comp) {
                 updateComponentProps(id, { locked: !comp.props?.locked });
             }
         });
-        
+
         setContextMenu({ isOpen: false, x: 0, y: 0, compId: null });
     };
 
@@ -4952,7 +5035,7 @@ const AppBuilder = () => {
 
                 for (const trig of evt.triggers) {
                     if (runtimeCtx.transitionExecuted) break;
-                    
+
                     // Notify parent AppPlayer of the trigger execution (Tulip parity)
                     if (viewMode === 'PREVIEW' || viewMode === 'RUN') {
                         window.parent.postMessage({
@@ -6785,7 +6868,7 @@ const AppBuilder = () => {
             await loadApps();
             setIsCreateDrawerOpen(false);
             loadApp(savedApp || templateApp);
-            
+
             setProUiDialog({
                 type: 'success',
                 message: 'Shopfloor Template Created Successfully!',
@@ -8953,9 +9036,11 @@ const AppBuilder = () => {
                             style={dropdownStyles}
                         >
                             {(!spSelection && comp.props.prompt) && <option value="">{comp.props.prompt}</option>}
-                            {spElements.map((opt, idx) => (
-                                <option key={`${opt}-${idx}`} value={opt}>{opt}</option>
-                            ))}
+                            {spElements.map((opt, idx) => {
+                                const optLabel = typeof opt === 'object' ? (opt.label || opt.value || JSON.stringify(opt)) : String(opt);
+                                const optValue = typeof opt === 'object' ? (opt.value || opt.label || JSON.stringify(opt)) : String(opt);
+                                return <option key={`${optValue}-${idx}`} value={optValue}>{optLabel}</option>;
+                            })}
                         </select>
                     </div>
                 );
@@ -9118,13 +9203,15 @@ const AppBuilder = () => {
                         {comp.props.label && <div style={{ marginBottom: '8px', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-quaternary)' }}>{safeRender(comp.props.label)}</div>}
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                             {multiOptions.map(opt => {
-                                const active = selectedOptions.includes(opt);
+                                const optLabel = typeof opt === 'object' ? (opt.label || opt.value || JSON.stringify(opt)) : String(opt);
+                                const optValue = typeof opt === 'object' ? (opt.value || opt.label || JSON.stringify(opt)) : String(opt);
+                                const active = selectedOptions.includes(optValue) || selectedOptions.includes(optLabel);
                                 return (
                                     <button
-                                        key={opt}
+                                        key={optValue}
                                         onClick={() => {
                                             if (viewMode !== 'PREVIEW') return;
-                                            const next = active ? selectedOptions.filter(o => o !== opt) : [...selectedOptions, opt];
+                                            const next = active ? selectedOptions.filter(o => o !== optValue && o !== optLabel) : [...selectedOptions, optValue];
                                             setPreviewFormValues(prev => ({ ...prev, [comp.id]: next }));
                                             syncInputDatasourceValue(comp, next, 'MULTI_SELECT_CHANGED');
                                             onWidgetInteraction(comp, 'ON_CHANGE');
@@ -9137,7 +9224,7 @@ const AppBuilder = () => {
                                             fontSize: '0.8rem', fontWeight: 600, cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default'
                                         }}
                                     >
-                                        {opt}
+                                        {optLabel}
                                     </button>
                                 );
                             })}
@@ -9154,9 +9241,9 @@ const AppBuilder = () => {
                             <div style={{ width: `${Math.min(100, Math.max(0, percent))}%`, height: '100%', backgroundColor: comp.props.color || '#3b82f6', transition: 'width 0.3s' }} />
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--text-quaternary)' }}>
-                            <span>{comp.props.min}</span>
+                            <span>{safeRender(comp.props.min)}</span>
                             <span style={{ fontSize: '1rem', color: 'var(--text-primary)', fontWeight: 900 }}>{gaugeVal} {comp.props.unit}</span>
-                            <span>{comp.props.max}</span>
+                            <span>{safeRender(comp.props.max)}</span>
                         </div>
                     </div>
                 );
@@ -9337,21 +9424,21 @@ const AppBuilder = () => {
                     });
 
                     return (
-                        <div style={{ 
-                            width: '100%', height: '100%', display: 'flex', flexDirection: 'column', 
-                            padding: '12px', backgroundColor: comp.props.backgroundColor || '#ffffff', 
-                            border: comp.props.bordered !== false ? '1px solid #e2e8f0' : 'none', 
-                            borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' 
+                        <div style={{
+                            width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
+                            padding: '12px', backgroundColor: comp.props.backgroundColor || '#ffffff',
+                            border: comp.props.bordered !== false ? '1px solid #e2e8f0' : 'none',
+                            borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
                         }}>
-                            <div style={{ 
-                                display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
-                                marginBottom: '12px', paddingBottom: '10px', borderBottom: '1px solid #f1f5f9' 
+                            <div style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                marginBottom: '12px', paddingBottom: '10px', borderBottom: '1px solid #f1f5f9'
                             }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <div style={{ 
-                                        width: '32px', height: '32px', borderRadius: '8px', 
-                                        backgroundColor: '#eff6ff', display: 'flex', 
-                                        alignItems: 'center', justifyContent: 'center' 
+                                    <div style={{
+                                        width: '32px', height: '32px', borderRadius: '8px',
+                                        backgroundColor: '#eff6ff', display: 'flex',
+                                        alignItems: 'center', justifyContent: 'center'
                                     }}>
                                         <Table size={18} color="#3b82f6" />
                                     </div>
@@ -9368,13 +9455,13 @@ const AppBuilder = () => {
                                     {comp.props.enableFilter && (
                                         <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                                             <Search size={14} style={{ position: 'absolute', left: '10px', color: '#94a3b8' }} />
-                                            <input 
-                                                type="text" 
+                                            <input
+                                                type="text"
                                                 placeholder="Search data..."
                                                 value={previewFormValues[`${comp.id}__search`] || ''}
                                                 onChange={(e) => setPreviewFormValues(prev => ({ ...prev, [`${comp.id}__search`]: e.target.value }))}
-                                                style={{ 
-                                                    padding: '6px 10px 6px 30px', fontSize: '0.75rem', 
+                                                style={{
+                                                    padding: '6px 10px 6px 30px', fontSize: '0.75rem',
                                                     borderRadius: '8px', border: '1px solid #e2e8f0',
                                                     width: '180px', outline: 'none'
                                                 }}
@@ -9382,8 +9469,8 @@ const AppBuilder = () => {
                                         </div>
                                     )}
                                     {comp.props.enableExport && (
-                                        <button 
-                                            style={{ 
+                                        <button
+                                            style={{
                                                 padding: '6px 12px', fontSize: '0.75rem', fontWeight: 600,
                                                 borderRadius: '8px', border: '1px solid #e2e8f0',
                                                 backgroundColor: '#fff', color: '#1e293b', cursor: 'pointer',
@@ -9395,17 +9482,17 @@ const AppBuilder = () => {
                                     )}
                                 </div>
                             </div>
-                            
+
                             <div style={{ flex: 1, backgroundColor: '#f8fafc', borderRadius: '8px', overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '1px solid #f1f5f9' }}>
-                                <div style={{ 
-                                    display: 'flex', backgroundColor: '#fff', 
-                                    borderBottom: '2px solid #f1f5f9' 
+                                <div style={{
+                                    display: 'flex', backgroundColor: '#fff',
+                                    borderBottom: '2px solid #f1f5f9'
                                 }}>
                                     {resolvedColumns.map((col, idx) => {
                                         const header = typeof col === 'object' ? col.header : col;
                                         return (
-                                            <div key={idx} style={{ 
-                                                flex: 1, padding: '12px 10px', fontSize: '0.7rem', 
+                                            <div key={idx} style={{
+                                                flex: 1, padding: '12px 10px', fontSize: '0.7rem',
                                                 fontWeight: 700, color: '#64748b', textTransform: 'uppercase',
                                                 letterSpacing: '0.025em'
                                             }}>{header}</div>
@@ -9445,10 +9532,10 @@ const AppBuilder = () => {
                                                     const key = typeof col === 'object' ? col.key : col;
                                                     const value = row?.[key];
                                                     return (
-                                                        <div key={cIdx} style={{ 
-                                                            flex: 1, padding: '12px 10px', fontSize: '0.8rem', 
-                                                            color: isSelected ? '#1e40af' : '#475569', 
-                                                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' 
+                                                        <div key={cIdx} style={{
+                                                            flex: 1, padding: '12px 10px', fontSize: '0.8rem',
+                                                            color: isSelected ? '#1e40af' : '#475569',
+                                                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
                                                         }}>
                                                             {value !== undefined && value !== null ? String(value) : '-'}
                                                         </div>
@@ -9821,7 +9908,7 @@ const AppBuilder = () => {
 
                 return (
                     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-panel)', borderRadius: '12px', border: '1px solid var(--border-primary)', padding: '15px', position: 'relative' }}>
-                        <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-quaternary)', textTransform: 'uppercase', marginBottom: '10px' }}>{comp.props.title}</div>
+                        <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-quaternary)', textTransform: 'uppercase', marginBottom: '10px' }}>{safeRender(comp.props.title)}</div>
 
                         <div style={{ position: 'relative', width: '85%', aspectRatio: '1/1' }}>
                             <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%', transform: 'rotate(0deg)' }}>
@@ -10482,7 +10569,7 @@ const AppBuilder = () => {
                             {(comp.props.items || ['Item 1', 'Item 2']).map((item, i) => (
                                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <div style={{ width: '16px', height: '16px', border: '1px solid var(--border-secondary)', borderRadius: '4px' }}></div>
-                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{item}</span>
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{typeof item === 'object' ? (item.label || item.value || JSON.stringify(item)) : item}</span>
                                 </div>
                             ))}
                         </div>
@@ -10527,7 +10614,7 @@ const AppBuilder = () => {
                             {(comp.props.options || ['Option 1', 'Option 2']).map((opt, i) => (
                                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: '2px solid var(--border-secondary)', backgroundColor: 'transparent' }}></div>
-                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>{opt}</span>
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>{typeof opt === 'object' ? (opt.label || opt.value || JSON.stringify(opt)) : opt}</span>
                                 </div>
                             ))}
                         </div>
@@ -13004,15 +13091,15 @@ const AppBuilder = () => {
                                                                                                 transition: 'all 0.2s'
                                                                                             }} />
                                                                                         </div>
-                                                                                        <span 
+                                                                                        <span
                                                                                             onClick={() => setTriggerEditor({ isOpen: true, sourceType: 'WIDGET', sourceId: selectedComp.id, trigger: trig, editIndex: fullIdx })}
-                                                                                            style={{ 
-                                                                                                fontSize: '0.7rem', 
-                                                                                                fontWeight: 600, 
-                                                                                                color: '#8b5cf6', 
-                                                                                                whiteSpace: 'nowrap', 
-                                                                                                overflow: 'hidden', 
-                                                                                                textOverflow: 'ellipsis', 
+                                                                                            style={{
+                                                                                                fontSize: '0.7rem',
+                                                                                                fontWeight: 600,
+                                                                                                color: '#8b5cf6',
+                                                                                                whiteSpace: 'nowrap',
+                                                                                                overflow: 'hidden',
+                                                                                                textOverflow: 'ellipsis',
                                                                                                 maxWidth: '100px',
                                                                                                 cursor: 'pointer',
                                                                                                 textDecoration: 'underline'
@@ -18546,23 +18633,23 @@ const AppBuilder = () => {
                                                                                             transition: 'all 0.2s'
                                                                                         }} />
                                                                                     </div>
-                                                                                    <span 
-                                                        onClick={() => setTriggerEditor({ isOpen: true, sourceType: 'STEP', sourceId: currentStepId, trigger: trig, editIndex: fullIdx })}
-                                                        style={{ 
-                                                            fontSize: '0.75rem', 
-                                                            fontWeight: 600, 
-                                                            color: '#3b82f6', 
-                                                            whiteSpace: 'nowrap', 
-                                                            overflow: 'hidden', 
-                                                            textOverflow: 'ellipsis', 
-                                                            maxWidth: '120px',
-                                                            cursor: 'pointer',
-                                                            textDecoration: 'underline'
-                                                        }}
-                                                        title="Click to rename"
-                                                    >
-                                                        {trig.name || 'Unnamed Trigger'}
-                                                    </span>
+                                                                                    <span
+                                                                                        onClick={() => setTriggerEditor({ isOpen: true, sourceType: 'STEP', sourceId: currentStepId, trigger: trig, editIndex: fullIdx })}
+                                                                                        style={{
+                                                                                            fontSize: '0.75rem',
+                                                                                            fontWeight: 600,
+                                                                                            color: '#3b82f6',
+                                                                                            whiteSpace: 'nowrap',
+                                                                                            overflow: 'hidden',
+                                                                                            textOverflow: 'ellipsis',
+                                                                                            maxWidth: '120px',
+                                                                                            cursor: 'pointer',
+                                                                                            textDecoration: 'underline'
+                                                                                        }}
+                                                                                        title="Click to rename"
+                                                                                    >
+                                                                                        {trig.name || 'Unnamed Trigger'}
+                                                                                    </span>
                                                                                 </div>
                                                                                 <div style={{ display: 'flex', gap: '6px' }}>
                                                                                     <button
@@ -21955,7 +22042,7 @@ const AppBuilder = () => {
                             boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', display: 'flex', alignItems: 'center', gap: '10px',
                             animation: 'slideUp 0.3s ease-out'
                         }}>
-                            <Bell size={18} /> {notifierState.message}
+                            <Bell size={18} /> {typeof notifierState.message === 'object' ? JSON.stringify(notifierState.message) : String(notifierState.message ?? '')}
                             <style>{`
                                 @keyframes slideUp { from { transform: translate(-50%, 20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
                                  @keyframes ghostPulse {
@@ -21979,7 +22066,7 @@ const AppBuilder = () => {
                                 <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>{notifierState.title || 'Notification'}</h3>
                             </div>
                             <div style={{ padding: '24px', fontSize: '1rem', color: 'var(--text-tertiary)', lineHeight: 1.6 }}>
-                                {notifierState.message}
+                                {typeof notifierState.message === 'object' ? JSON.stringify(notifierState.message) : String(notifierState.message ?? '')}
                                 {(notifierState.type === 'TEXT' || notifierState.type === 'PASSWORD') && (
                                     <input
                                         type={notifierState.type === 'PASSWORD' ? 'password' : 'text'}
@@ -22099,8 +22186,8 @@ const AppBuilder = () => {
                 </div>
             )}
 
-            <BuilderCopilot 
-                isOpen={isCopilotOpen} 
+            <BuilderCopilot
+                isOpen={isCopilotOpen}
                 onClose={() => setIsCopilotOpen(false)}
                 onApplyCommand={handleAiCommand}
                 onHoverCommand={stageAiCommand}
@@ -22152,6 +22239,7 @@ const AppBuilder = () => {
 };
 
 export default AppBuilder;
+
 
 
 
