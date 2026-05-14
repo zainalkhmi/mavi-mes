@@ -42,56 +42,11 @@ let _client = null;
  *   2. localStorage (supabase_storage_settings, saved by Settings UI)
  */
 function getCredentials() {
-    // Standard Vite/Vite-based frameworks environment variables
-    const envUrl = import.meta.env.VITE_SUPABASE_URL || '';
-    const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-
-    const isPlaceholder = (val) =>
-        !val ||
-        val === 'https://your-project-ref.supabase.co' ||
-        val === 'your_anon_key_here';
-
-    // Log status for easier debugging in browser console
-    if (import.meta.env.DEV) {
-        console.log('[Supabase] Env Check:', {
-            hasUrl: !!envUrl,
-            hasKey: !!envKey,
-            isUrlPlaceholder: isPlaceholder(envUrl)
-        });
-    }
-
-    if (envUrl && envKey && !isPlaceholder(envUrl) && !isPlaceholder(envKey)) {
-        return { url: envUrl.trim(), anonKey: envKey.trim() };
-    }
-
-    // Fallback to localStorage (set via Settings UI)
-    try {
-        const raw = localStorage.getItem('supabase_storage_settings');
-        if (raw) {
-            const parsed = JSON.parse(raw);
-            const localAnonKey = parsed?.anonKey || parsed?.anon_key || parsed?.apikey || parsed?.apiKey || '';
-            let rawUrl = String(parsed.url || '').trim();
-
-            // Automatic Fix: Convert Dashboard URL to API URL if user accidentally pastes it
-            if (rawUrl.includes('supabase.com/dashboard')) {
-                const match = rawUrl.match(/\/project\/([a-z0-9]+)/);
-                if (match && match[1]) {
-                    rawUrl = `https://${match[1]}.supabase.co`;
-                }
-            }
-
-            if (rawUrl && localAnonKey) {
-                return {
-                    url: rawUrl,
-                    anonKey: String(localAnonKey).trim()
-                };
-            }
-        }
-    } catch (e) {
-        console.warn('[Supabase] Failed to read localStorage:', e);
-    }
-
-    return { url: '', anonKey: '' };
+    // HARDCODED PERMANENT CREDENTIALS (as requested)
+    const url = 'https://pypjnzvsolxsddsqworw.supabase.co';
+    const anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB5cGpuenZzb2x4c2Rkc3F3b3J3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMTQ1MDQsImV4cCI6MjA5MjY5MDUwNH0.kjKlJu336ZqIOEk4SV7WhPrhsHzQv-rrKDh-oPasbAc';
+    
+    return { url, anonKey };
 }
 
 /**

@@ -1329,10 +1329,11 @@ const LiveTerminal = () => {
       rawValue = rawValue.replace(/\{\{EVENT\.PAYLOAD\}\}/g, eventPayload || '');
       rawValue = rawValue.replace(/\{\{EVENT\.VALUE\}\}/g, eventPayload || '');
 
-      // Resolve variables: {{VARIABLE.VarName}}
-      rawValue = rawValue.replace(/\{\{VARIABLE\.([a-zA-Z0-9_.]+)\}\}/g, (match, varName) => {
-        const v = appVariables.find(av => av.name === varName || av.id === varName);
-        return v ? String(v.value) : '';
+      // Resolve variables: {{VARIABLE.VarName}} - Support spaces and dots
+      rawValue = rawValue.replace(/\{\{VARIABLE\.([^}]+)\}\}/g, (match, varName) => {
+        const cleanName = varName.trim();
+        const v = appVariables.find(av => av.name === cleanName || av.id === cleanName);
+        return v ? String(v.value ?? '') : '';
       });
 
       // Resolve app info: {{APP_INFO.USER}}, etc.
@@ -1416,7 +1417,7 @@ const LiveTerminal = () => {
     return rawValue || defaultVal;
   };
 
-  const evaluateCondition = async (cond) => {
+  const evaluateCondition = async (cond, eventPayload = null) => {
     if (!cond) return true;
 
     // Support new multi-source structure
@@ -1825,12 +1826,17 @@ const LiveTerminal = () => {
 
       // Helper to run actions
       const runActions = async (actions) => {
-        if (!actions) return;
+        if (!actions || actions.length === 0) {
+          console.log('[runActions] No actions to execute');
+          return;
+        }
+        console.log(`[runActions] Executing ${actions.length} actions...`);
         for (const action of actions) {
           try {
             const act = action;
             const type = act.type;
             const payload = act.payload || act.detail || {};
+            console.log(` -> Action: ${type}`, payload);
 
             if (type === 'SET_VARIABLE' || type === 'DATA_MANIPULATION') {
               const varPath = payload.varPath || payload.target || payload.variableName || payload.variable;
@@ -1860,6 +1866,13 @@ const LiveTerminal = () => {
                   }
                 }
               }
+            } else if (type === 'SHOW_NOTIFICATION' || type === 'SHOW_MESSAGE' || type === 'DISPLAY_MESSAGE' || type === 'ALERT') {
+               const message = await resolveSourceValue(payload.valueType || payload.messageType || 'STATIC', payload.message || payload.value || payload.text || 'Notification', '', eventPayload);
+               const msgType = payload.msgType || payload.notificationType || payload.type || 'success';
+               console.log(`[Trigger] ${type}:`, message);
+               if (msgType === 'error') toast.error(message);
+               else if (msgType === 'warning') toast.error(message, { icon: '⚠️' });
+               else toast.success(message);
             } else if (type === 'PLAY_SOUND') {
               const { url } = action.payload;
               if (url) {
@@ -1966,48 +1979,76 @@ const LiveTerminal = () => {
                     const updatedData = { ...rec };
                     let fieldsFound = 0;
 
-                    // AGGRESSIVE SCAN: Search ALL components in the entire app configuration
-                    const allComps = [
-                      ...(selectedApp?.config?.baseComponents || []),
-                      ...(selectedApp?.config?.steps || []).flatMap(s => s.components || [])
-                    ];
+                    // 2. Identify all potential columns to harvest
+                    const { getTableById } = await import('../utils/supabaseTablesDB');
+                    const tableDef = await getTableById(placeholder.tableId);
+                    const columns = tableDef?.columns || [];
 
-                    const componentsToScan = allComps || [];
-                    
-                    componentsToScan.forEach(comp => {
+                    // 3. Harvest data for EACH column
+                    for (const col of columns) {
+                      const colName = col.name || col;
+                      if (['id', 'recordid', 'createdat', 'updatedat'].includes(String(colName).toLowerCase())) continue;
+
                       try {
-                        const targetVar = comp.props?.targetVariable || (comp.props?.dataSourceType === 'VARIABLE' ? comp.props?.varSource : null);
-                        
-                        if (targetVar && String(targetVar).toUpperCase().includes(placeholder.name.toUpperCase())) {
-                          const fieldName = String(targetVar).split('.')[1];
-                          if (!fieldName) return;
+                        // AGGRESSIVE SCAN: Search ALL components
+                        const allComps = [
+                          ...(selectedApp?.config?.baseComponents || []),
+                          ...(selectedApp?.config?.steps || []).flatMap(s => s.components || [])
+                        ];
 
-                          let val = undefined;
-                          const inputEl = document.getElementById(`input-${comp.id}`);
-                          if (inputEl) val = inputEl.value;
+                        allComps.forEach(comp => {
+                          const targetVar = comp.props?.targetVariable || (comp.props?.dataSourceType === 'VARIABLE' ? comp.props?.varSource : null);
+                          if (!targetVar) return;
 
-                          if (val === undefined || val === null || val === '') {
-                            if (comp.type === 'TEXT_INPUT') val = textInputValues[comp.id];
-                            else if (comp.type === 'TEXT_AREA') val = textAreaValues[comp.id];
-                            else if (comp.type === 'BARCODE') val = barcodeValues[comp.id];
-                            else if (comp.type === 'NUMBER_INPUT') val = numberInputValues[comp.id];
-                            else if (comp.type === 'DROPDOWN') val = dropdownValues[comp.id];
-                            else if (comp.type === 'CHECKBOX') val = checkboxValues[comp.id];
+                          const targetVarUpper = String(targetVar).toUpperCase();
+                          const colUpper = String(colName).toUpperCase();
+                          
+                          // Match if it ends with .COLUMN_NAME or is exactly COLUMN_NAME
+                          if (targetVarUpper.endsWith('.' + colUpper) || targetVarUpper === colUpper) {
+                            let val = undefined;
+                            const inputEl = document.getElementById(`input-${comp.id}`);
+                            if (inputEl) val = inputEl.value;
+
+                            if (val === undefined || val === null || val === '') {
+                              if (comp.type === 'TEXT_INPUT') val = textInputValues[comp.id];
+                              else if (comp.type === 'TEXT_AREA') val = textAreaValues[comp.id];
+                              else if (comp.type === 'BARCODE') val = barcodeValues[comp.id];
+                              else if (comp.type === 'NUMBER_INPUT') val = numberInputValues[comp.id];
+                              else if (comp.type === 'DROPDOWN') val = dropdownValues[comp.id];
+                              else if (comp.type === 'CHECKBOX') val = checkboxValues[comp.id];
+                              else if (comp.type === 'CHECKLIST') val = checklistState[comp.id];
+                              else if (comp.type === 'TOGGLE') val = toggleState[comp.id];
+                              else if (comp.type === 'RADIO') val = radioValues[comp.id];
+                              else if (comp.type === 'MULTI_SELECT') val = multiSelectValues[comp.id];
+                              else if (comp.type === 'QUALITY_PASS_FAIL') val = qualityResult[comp.id];
+                            }
+
+                            if (val !== undefined && val !== null && val !== '') {
+                              updatedData[colName] = val;
+                              updatedData[colName.toLowerCase()] = val;
+                              fieldsFound++;
+                            }
                           }
+                        });
 
-                          if (val === undefined || val === null || val === '') {
-                            const vObj = appVariables.find(v => String(v.name).toUpperCase() === String(targetVar).toUpperCase());
-                            if (vObj) val = vObj.value;
-                          }
-
-                          if (val !== undefined && val !== null) {
-                            updatedData[fieldName.toLowerCase()] = val;
-                            updatedData[fieldName] = val;
+                        // Fallback to global variables
+                        if (!updatedData[colName]) {
+                          const v = appVariables.find(v => {
+                            const vNameUpper = String(v.name).toUpperCase();
+                            return vNameUpper.endsWith('.' + String(colName).toUpperCase()) || vNameUpper === String(colName).toUpperCase();
+                          });
+                          if (v && v.value !== undefined && v.value !== null && v.value !== '') {
+                            updatedData[colName] = v.value;
+                            updatedData[colName.toLowerCase()] = v.value;
                             fieldsFound++;
                           }
                         }
-                      } catch (e) {}
-                    });
+                      } catch (e) {
+                        console.warn(`[Harvest] Error for column ${colName}:`, e);
+                      }
+                    }
+
+                    console.log(`[saveById] Harvested ${fieldsFound} fields from UI.`);
 
                     const { updateTableRecord, getTableRecords } = await import('../utils/supabaseTablesDB');
                     
@@ -2145,12 +2186,15 @@ const LiveTerminal = () => {
         let passed = true;
         if (clause.conditions && clause.conditions.length > 0) {
           const matchType = clause.match || 'ALL';
-          const results = await Promise.all(clause.conditions.map(evaluateCondition));
+          const results = await Promise.all(clause.conditions.map(c => evaluateCondition(c, eventPayload)));
           passed = matchType === 'ANY' ? results.some(r => r) : results.every(r => r);
         }
         if (passed) {
+          console.log(`[executeTrigger] Clause passed. Running actions...`);
           await runActions(clause.actions);
           break;
+        } else {
+          console.log(`[executeTrigger] Clause conditions not met.`);
         }
       }
 
@@ -2162,8 +2206,11 @@ const LiveTerminal = () => {
 
   // Helper: fire triggers for any widget event (Tulip-style)
   const fireWidgetTriggers = async (comp, eventId, eventPayload = null) => {
+    console.log(`[fireWidgetTriggers] Comp: ${comp?.id}, Event: ${eventId}`);
     // 1. Execute Blockly Logic (Scoped to Widget)
-    executeBlocklyLogic(`WIDGET_EVENT:${comp.id}:${eventId}`, eventPayload);
+    if (typeof executeBlocklyLogic === 'function') {
+      executeBlocklyLogic(`WIDGET_EVENT:${comp.id}:${eventId}`, eventPayload);
+    }
 
     // 2. Execute Legacy Actions Triggers
     if (!comp || !comp.props?.triggers) return;
@@ -2865,13 +2912,14 @@ const LiveTerminal = () => {
     if (label.includes('SAVE') || label.includes('SIMPAN')) {
        const triggers = comp.props?.triggers || [];
        const hasDbAction = triggers.some(t => t.actions?.some(a => 
-         ['TABLE_RECORD_SAVE', 'TABLE_RECORD_CREATE', 'TABLE_RECORD_CREATE_OR_LOAD'].includes(a.type)
+         ['TABLE_RECORD_SAVE', 'TABLE_RECORD_CREATE', 'TABLE_RECORD_CREATE_OR_LOAD', 'SAVE_APP_DATA'].includes(a.type)
        ));
        
        if (!hasDbAction) {
          const firstPlaceholder = selectedApp?.config?.recordPlaceholders?.[0];
          if (firstPlaceholder) {
            await executeTrigger({
+             enabled: true,
              actions: [{ type: 'TABLE_RECORD_SAVE', placeholderId: firstPlaceholder.id }]
            });
          }
@@ -2903,7 +2951,7 @@ const LiveTerminal = () => {
       case 'GO_TO_STEP': {
         if (props.targetStepId) {
           const goToSteps = selectedApp ? (selectedApp.config?.steps || []) : [];
-          const targetIndex = steps.findIndex(s => s.id === props.targetStepId);
+          const targetIndex = (goToSteps || []).findIndex(s => s.id === props.targetStepId);
           if (targetIndex !== -1) {
             await fireStepTriggers(goToSteps[currentStepIndex], 'ON_STEP_EXIT');
             setCurrentStepIndex(targetIndex);
@@ -2912,6 +2960,12 @@ const LiveTerminal = () => {
         }
         break;
       }
+      case 'COMPLETE_APP':
+        await handleCompleteApp();
+        break;
+      case 'CANCEL_APP':
+        await handleCancelApp();
+        break;
       case 'COMPLETE':
         if (selectedApp) {
           const appSteps = selectedApp.config?.steps || [];

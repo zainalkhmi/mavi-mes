@@ -1,9 +1,9 @@
 const SUPABASE_STORAGE_KEY = 'supabase_storage_settings';
 
 const DEFAULT_SETTINGS = {
-    enabled: false,
-    url: '',
-    anonKey: '',
+    enabled: true,
+    url: 'https://pypjnzvsolxsddsqworw.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB5cGpuenZzb2x4c2Rkc3F3b3J3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMTQ1MDQsImV4cCI6MjA5MjY5MDUwNH0.kjKlJu336ZqIOEk4SV7WhPrhsHzQv-rrKDh-oPasbAc',
     bucket: 'manual-media',
     folder: 'manuals'
 };
