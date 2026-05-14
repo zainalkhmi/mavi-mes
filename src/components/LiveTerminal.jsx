@@ -1954,19 +1954,22 @@ const LiveTerminal = () => {
 
                 const saveById = async () => {
                   try {
-                    // 1. ALWAYS CREATE A NEW RECORD (Mode Submit)
-                    await createById();
+                    // 1. CREATE IF MISSING, THEN UPDATE (One record per session/click)
                     let rec = localPlaceholderContext[placeholderId] || recordPlaceholderData[placeholderId];
+                    if (!rec || (!rec.id && !rec.recordId)) {
+                       await createById();
+                       rec = localPlaceholderContext[placeholderId] || recordPlaceholderData[placeholderId];
+                    }
 
                     if (!rec) return false;
 
                     const updatedData = { ...rec };
                     let fieldsFound = 0;
-                    const logFields = [];
 
+                    // AGGRESSIVE SCAN: Search ALL components in the entire app configuration
                     const allComps = [
                       ...(selectedApp?.config?.baseComponents || []),
-                      ...((selectedApp?.config?.steps || [])[currentStepIndex]?.components || [])
+                      ...(selectedApp?.config?.steps || []).flatMap(s => s.components || [])
                     ];
 
                     const componentsToScan = allComps || [];
@@ -2001,13 +2004,10 @@ const LiveTerminal = () => {
                             updatedData[fieldName.toLowerCase()] = val;
                             updatedData[fieldName] = val;
                             fieldsFound++;
-                            logFields.push(`${fieldName}=${val}`);
                           }
                         }
                       } catch (e) {}
                     });
-
-                    if (fieldsFound === 0) return false;
 
                     const { updateTableRecord, getTableRecords } = await import('../utils/supabaseTablesDB');
                     
@@ -2021,11 +2021,6 @@ const LiveTerminal = () => {
                     if (!dbRowId) return false;
 
                     await updateTableRecord(dbRowId, updatedData);
-                    
-                    // 2. CLEAR CONTEXT AFTER SUBMIT (Ready for next record)
-                    localPlaceholderContext[placeholderId] = null;
-                    setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: null }));
-                    
                     return true;
                   } catch (err) {
                     console.error("Save Error:", err);
@@ -2866,19 +2861,31 @@ const LiveTerminal = () => {
   const handleButtonAction = async (props, comp) => {
     const label = (comp.props?.label || comp.props?.text || 'Untitled').toUpperCase();
 
-    // 1. Automatic Save Failsafe
+    // 1. Automatic Save Failsafe (Fallback mode)
     if (label.includes('SAVE') || label.includes('SIMPAN')) {
-       const firstPlaceholder = selectedApp?.config?.recordPlaceholders?.[0];
-       if (firstPlaceholder) {
-         await executeTrigger({
-           actions: [{ type: 'TABLE_RECORD_SAVE', placeholderId: firstPlaceholder.id }]
-         });
-         return; // Skip other triggers to avoid double execution
+       const triggers = comp.props?.triggers || [];
+       const hasDbAction = triggers.some(t => t.actions?.some(a => 
+         ['TABLE_RECORD_SAVE', 'TABLE_RECORD_CREATE', 'TABLE_RECORD_CREATE_OR_LOAD'].includes(a.type)
+       ));
+       
+       if (!hasDbAction) {
+         const firstPlaceholder = selectedApp?.config?.recordPlaceholders?.[0];
+         if (firstPlaceholder) {
+           await executeTrigger({
+             actions: [{ type: 'TABLE_RECORD_SAVE', placeholderId: firstPlaceholder.id }]
+           });
+         }
        }
     }
 
-    // Execute custom triggers if any (Tulip-style)
+    // 2. Execute custom triggers if any (Tulip-style)
     await fireWidgetTriggers(comp, 'ON_CLICK');
+
+    // 2. Reset all placeholders after the button click is fully processed (Submit effect)
+    selectedApp?.config?.recordPlaceholders?.forEach(rp => {
+       localPlaceholderContext[rp.id] = null;
+       setRecordPlaceholderData(prev => ({ ...prev, [rp.id]: null }));
+    });
 
     const action = props.action;
     switch (action) {
