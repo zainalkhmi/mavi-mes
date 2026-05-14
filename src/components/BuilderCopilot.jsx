@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  MessageSquare, Send, X, Sparkles, User, Bot, Loader2, 
+import {
+  MessageSquare, Send, X, Sparkles, User, Bot, Loader2,
   Trash2, BrainCircuit, Code, PlusCircle, Image as ImageIcon,
   CheckCircle2, AlertCircle, Wand2
 } from 'lucide-react';
 import { getPrimaryAiConnector } from '../utils/database';
 import { getBuilderCopilotAdvice, getBuilderVisionAdvice } from '../utils/aiService';
+import { sanitizeCopilotCommands } from '../utils/copilotSafety';
 
-const BuilderCopilot = ({ 
-  isOpen, 
-  onClose, 
-  context, 
+const BuilderCopilot = ({
+  isOpen,
+  onClose,
+  context,
   onApplyCommand,
   onHoverCommand,
   onLeaveCommand,
@@ -31,10 +32,10 @@ const BuilderCopilot = ({
         }
       }
     } catch (e) { /* ignore parse errors */ }
-    return [{ 
-      role: 'assistant', 
-      content: 'Halo! Saya Mavi Builder Copilot. Saya bisa membantu Anda memasang komponen, membuat tabel, atau membangun aplikasi dari gambar. Apa yang ingin Anda buat hari ini?', 
-      timestamp: new Date() 
+    return [{
+      role: 'assistant',
+      content: 'Halo! Saya Mavi Builder Copilot. Saya bisa membantu Anda memasang komponen, membuat tabel, atau membangun aplikasi dari gambar. Apa yang ingin Anda buat hari ini?',
+      timestamp: new Date()
     }];
   };
 
@@ -45,6 +46,7 @@ const BuilderCopilot = ({
   const [selectedFile, setSelectedFile] = useState(null);
   const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
+  const [commandStatus, setCommandStatus] = useState({});
 
   // Persist messages to sessionStorage on every change
   useEffect(() => {
@@ -76,29 +78,61 @@ const BuilderCopilot = ({
 
   const parseCommands = (text) => {
     if (!text) return null;
+
+    // 1. Try strict tags
     const regex = /<builder_cmds>([\s\S]*?)<\/builder_cmds>/gi;
     const match = regex.exec(text);
     if (match) {
       try {
-        return JSON.parse(match[1]);
+        const jsonStr = match[1].replace(/```json/g, '').replace(/```/g, '').trim();
+        return JSON.parse(jsonStr);
       } catch (e) {
-        console.error("Failed to parse AI commands:", e);
-        return null;
+        console.error("Failed to parse AI commands from tags:", e);
       }
     }
+
+    // 2. Fallback: Try to find JSON blocks containing a "commands" array
+    try {
+      const fallbackRegex = /```(?:json)?\s*([\s\S]*?)\s*```/gi;
+      let fallbackMatch;
+      while ((fallbackMatch = fallbackRegex.exec(text)) !== null) {
+        const parsed = JSON.parse(fallbackMatch[1].trim());
+        if (parsed && Array.isArray(parsed.commands)) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error("Failed to parse AI commands from markdown blocks:", e);
+    }
+
+    // 3. Ultimate Fallback: Try extracting a raw JSON object
+    try {
+      const braceIndex = text.indexOf('{');
+      const lastBraceIndex = text.lastIndexOf('}');
+      if (braceIndex !== -1 && lastBraceIndex !== -1 && lastBraceIndex > braceIndex) {
+        const possibleJson = text.substring(braceIndex, lastBraceIndex + 1);
+        const parsed = JSON.parse(possibleJson);
+        if (parsed && Array.isArray(parsed.commands)) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      // Ignore
+    }
+
     return null;
   };
 
   const handleSend = async () => {
     if ((!input.trim() && !selectedFile) || isLoading) return;
 
-    const userMessage = { 
-      role: 'user', 
-      content: input || (selectedFile ? "Analyzing image..." : ""), 
+    const userMessage = {
+      role: 'user',
+      content: input || (selectedFile ? "Analyzing image..." : ""),
       timestamp: new Date(),
       image: selectedFile ? URL.createObjectURL(selectedFile) : null
     };
-    
+
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
@@ -118,15 +152,15 @@ const BuilderCopilot = ({
         response = await getBuilderCopilotAdvice(input, history, context, aiConnector);
       }
 
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: response, 
-        timestamp: new Date() 
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: response,
+        timestamp: new Date()
       }]);
     } catch (err) {
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: `Error: ${err.message}`, 
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `Error: ${err.message}`,
         timestamp: new Date(),
         isError: true
       }]);
@@ -161,18 +195,18 @@ const BuilderCopilot = ({
       fontFamily: 'Inter, system-ui, sans-serif'
     }}>
       {/* Header */}
-      <div style={{ 
-        padding: '20px', 
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', 
-        color: 'white', 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center' 
+      <div style={{
+        padding: '20px',
+        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+        color: 'white',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ 
-            backgroundColor: 'rgba(59, 130, 246, 0.2)', 
-            padding: '10px', 
+          <div style={{
+            backgroundColor: 'rgba(59, 130, 246, 0.2)',
+            padding: '10px',
             borderRadius: '12px',
             border: '1px solid rgba(59, 130, 246, 0.3)'
           }}>
@@ -187,7 +221,7 @@ const BuilderCopilot = ({
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <div style={{ display: 'flex', background: 'rgba(255,255,255,0.1)', borderRadius: '10px', padding: '2px' }}>
-            <button 
+            <button
               onClick={onUndo}
               disabled={!canUndo}
               title="Undo"
@@ -195,7 +229,7 @@ const BuilderCopilot = ({
             >
               <Trash2 size={16} style={{ transform: 'scaleX(-1)' }} />
             </button>
-            <button 
+            <button
               onClick={onRedo}
               disabled={!canRedo}
               title="Redo"
@@ -204,13 +238,13 @@ const BuilderCopilot = ({
               <Trash2 size={16} />
             </button>
           </div>
-          <button 
-            onClick={onClose} 
-            style={{ 
-              background: 'rgba(255,255,255,0.1)', 
-              border: 'none', 
-              color: 'white', 
-              cursor: 'pointer', 
+          <button
+            onClick={onClose}
+            style={{
+              background: 'rgba(255,255,255,0.1)',
+              border: 'none',
+              color: 'white',
+              cursor: 'pointer',
               padding: '8px',
               borderRadius: '50%',
               display: 'flex',
@@ -227,28 +261,36 @@ const BuilderCopilot = ({
       </div>
 
       {/* Messages */}
-      <div 
+      <div
         ref={scrollRef}
-        style={{ 
-          flex: 1, 
-          padding: '24px', 
-          overflowY: 'auto', 
-          display: 'flex', 
-          flexDirection: 'column', 
-          gap: '20px', 
-          backgroundColor: '#f8fafc' 
+        style={{
+          flex: 1,
+          padding: '24px',
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '20px',
+          backgroundColor: '#f8fafc'
         }}
       >
         {messages.map((msg, idx) => {
           const commandData = msg.role === 'assistant' ? parseCommands(msg.content) : null;
+          const thresholdFromSettings = Number(aiConnector?.aiSettings?.copilotSafetyThreshold ?? aiConnector?.config?.copilotSafetyThreshold);
+          const safePack = commandData
+            ? sanitizeCopilotCommands(
+              commandData,
+              context,
+              { threshold: Number.isFinite(thresholdFromSettings) ? thresholdFromSettings : undefined }
+            )
+            : null;
           const cleanContent = msg.content.replace(/<builder_cmds>[\s\S]*?<\/builder_cmds>/g, '').trim();
 
           return (
-            <div key={idx} style={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start', 
-              gap: '6px' 
+            <div key={idx} style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
+              gap: '6px'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
                 {msg.role === 'assistant' ? <Bot size={14} color="#64748b" /> : <User size={14} color="#64748b" />}
@@ -256,18 +298,18 @@ const BuilderCopilot = ({
                   {msg.role === 'user' ? 'You' : 'Copilot'}
                 </span>
               </div>
-              
+
               {msg.image && (
-                <img 
-                  src={msg.image} 
-                  alt="Uploaded context" 
-                  style={{ 
-                    maxWidth: '200px', 
-                    borderRadius: '12px', 
+                <img
+                  src={msg.image}
+                  alt="Uploaded context"
+                  style={{
+                    maxWidth: '200px',
+                    borderRadius: '12px',
                     marginBottom: '8px',
                     border: '2px solid #e2e8f0',
                     boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
-                  }} 
+                  }}
                 />
               )}
 
@@ -284,11 +326,11 @@ const BuilderCopilot = ({
                 whiteSpace: 'pre-wrap'
               }}>
                 {cleanContent}
-                
-                {commandData && commandData.commands && (
-                  <div style={{ 
-                    marginTop: '16px', 
-                    paddingTop: '16px', 
+
+                {safePack && safePack.safeCommands && (
+                  <div style={{
+                    marginTop: '16px',
+                    paddingTop: '16px',
                     borderTop: '1px solid #f1f5f9',
                     display: 'flex',
                     flexDirection: 'column',
@@ -298,93 +340,161 @@ const BuilderCopilot = ({
                       <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <Code size={14} /> AI Proposed Actions:
                       </div>
+                      <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#475569', background: '#f1f5f9', padding: '3px 8px', borderRadius: '999px', border: '1px solid #e2e8f0' }}>
+                        Safe {safePack.safeCount ?? safePack.safeCommands.length}/{safePack.totalCount ?? safePack.safeCommands.length}
+                      </div>
                       {commandData.commands.length > 1 && (
-                        <button 
-                          onClick={() => {
-                            // Apply all commands sequentially
-                            commandData.commands.forEach(cmd => onApplyCommand(cmd));
+                        <button
+                          onClick={async () => {
+                            const msgId = msg.timestamp instanceof Date ? msg.timestamp.getTime() : new Date(msg.timestamp).getTime();
+                            for (let idx = 0; idx < safePack.safeCommands.length; idx++) {
+                              const cmd = safePack.safeCommands[idx];
+                              const cmdKey = `${msgId}_${idx}`;
+                              if (commandStatus[cmdKey] === 'success') continue;
+
+                              setCommandStatus(prev => ({ ...prev, [cmdKey]: 'loading' }));
+                              try {
+                                await onApplyCommand(cmd);
+                                setCommandStatus(prev => ({ ...prev, [cmdKey]: 'success' }));
+                              } catch (e) {
+                                console.error('Apply error:', e);
+                                setCommandStatus(prev => ({ ...prev, [cmdKey]: 'error' }));
+                              }
+                            }
                           }}
+                          disabled={safePack.hardFail || safePack.safeCommands.length === 0}
                           style={{
-                            fontSize: '0.7rem', fontWeight: 800, color: '#3b82f6', background: '#eff6ff', 
+                            fontSize: '0.7rem', fontWeight: 800, color: '#3b82f6', background: '#eff6ff',
                             border: '1px solid #dbeafe', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer'
                           }}
                         >
-                          Apply All ({commandData.commands.length})
+                          {safePack.hardFail ? 'Blocked by Safety' : `Apply All (${safePack.safeCommands.length})`}
                         </button>
                       )}
                     </div>
-                    {commandData.commands.map((cmd, cIdx) => (
-                      <div key={cIdx} style={{
-                        backgroundColor: '#f1f5f9',
-                        padding: '12px',
-                        borderRadius: '12px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '8px',
-                        border: '1px solid #e2e8f0'
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <div style={{
-                              padding: '4px 8px',
-                              borderRadius: '6px',
-                              fontSize: '0.65rem',
-                              fontWeight: 800,
-                              textTransform: 'uppercase',
-                              backgroundColor: 
-                                cmd.type === 'ADD_WIDGET' ? '#ecfdf5' : 
-                                cmd.type === 'DELETE_WIDGET' ? '#fef2f2' : 
-                                cmd.type === 'CREATE_TRIGGER' ? '#fff7ed' :
-                                cmd.type === 'CREATE_VARIABLE' ? '#faf5ff' : '#eff6ff',
-                              color: 
-                                cmd.type === 'ADD_WIDGET' ? '#10b981' : 
-                                cmd.type === 'DELETE_WIDGET' ? '#ef4444' : 
-                                cmd.type === 'CREATE_TRIGGER' ? '#f97316' :
-                                cmd.type === 'CREATE_VARIABLE' ? '#a855f7' : '#3b82f6'
-                            }}>
-                              {cmd.type.replace('_', ' ')}
-                            </div>
-                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b' }}>
-                              {cmd.payload?.name || cmd.payload?.type || cmd.widgetId || 'Component'}
-                            </span>
-                          </div>
-                          <button 
-                            onClick={() => onApplyCommand(cmd)}
-                            onMouseEnter={() => onHoverCommand?.(cmd)}
-                            onMouseLeave={() => onLeaveCommand?.()}
-                            style={{
-                              padding: '6px 12px',
-                              backgroundColor: 
-                                cmd.type === 'DELETE_WIDGET' ? '#ef4444' : 
-                                cmd.type.startsWith('CREATE') ? '#3b82f6' : '#10b981',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '8px',
-                              fontSize: '0.75rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                            }}
-                          >
-                            {cmd.type === 'DELETE_WIDGET' ? <Trash2 size={12} /> : (cmd.type.startsWith('CREATE') ? <Sparkles size={12} /> : <PlusCircle size={12} />)} 
-                            {cmd.type === 'DELETE_WIDGET' ? 'Delete' : 'Apply'}
-                          </button>
+                    {safePack.hardFail && (
+                      <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', padding: '10px' }}>
+                        <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#991b1b', marginBottom: '4px' }}>
+                          HARD-FAIL SAFETY MODE
                         </div>
-                        {cmd.type === 'UPDATE_WIDGET' && cmd.payload?.props && (
-                          <div style={{ fontSize: '0.7rem', color: '#64748b', padding: '4px 8px', backgroundColor: '#ffffff', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                            Update: {Object.keys(cmd.payload.props).join(', ')}
-                          </div>
-                        )}
-                        {cmd.type === 'CREATE_TRIGGER' && (
-                          <div style={{ fontSize: '0.7rem', color: '#64748b', padding: '4px 8px', backgroundColor: '#ffffff', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                            Event: {typeof cmd.payload?.event === 'object' ? (cmd.payload?.event?.eventName || cmd.payload?.event?.type || JSON.stringify(cmd.payload?.event)) : cmd.payload?.event} {cmd.payload?.variableName ? `(${cmd.payload.variableName})` : ''}
-                          </div>
-                        )}
+                        <div style={{ fontSize: '0.72rem', color: '#991b1b' }}>
+                          Safe ratio {(safePack.safeRatio * 100).toFixed(0)}% di bawah threshold {(safePack.threshold * 100).toFixed(0)}%.
+                          Apply All diblok untuk mencegah kerusakan app.
+                        </div>
                       </div>
-                    ))}
+                    )}
+                    {safePack.warnings?.length > 0 && (
+                      <div style={{ backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '10px', padding: '10px' }}>
+                        <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#9a3412', marginBottom: '6px' }}>Safety Warnings</div>
+                        {safePack.warnings.map((w, i) => (
+                          <div key={i} style={{ fontSize: '0.72rem', color: '#9a3412' }}>• {w}</div>
+                        ))}
+                      </div>
+                    )}
+                    {safePack.safeCommands.map((cmd, cIdx) => {
+                      const msgId = msg.timestamp instanceof Date ? msg.timestamp.getTime() : new Date(msg.timestamp).getTime();
+                      const cmdKey = `${msgId}_${cIdx}`;
+                      const status = commandStatus[cmdKey];
+
+                      return (
+                        <div key={cIdx} style={{
+                          backgroundColor: '#f1f5f9',
+                          padding: '12px',
+                          borderRadius: '12px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '8px',
+                          border: '1px solid #e2e8f0'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div style={{
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                fontSize: '0.65rem',
+                                fontWeight: 800,
+                                textTransform: 'uppercase',
+                                backgroundColor:
+                                  cmd.type === 'ADD_WIDGET' ? '#ecfdf5' :
+                                    cmd.type === 'DELETE_WIDGET' ? '#fef2f2' :
+                                      cmd.type === 'CREATE_TRIGGER' ? '#fff7ed' :
+                                        cmd.type === 'CREATE_VARIABLE' ? '#faf5ff' : '#eff6ff',
+                                color:
+                                  cmd.type === 'ADD_WIDGET' ? '#10b981' :
+                                    cmd.type === 'DELETE_WIDGET' ? '#ef4444' :
+                                      cmd.type === 'CREATE_TRIGGER' ? '#f97316' :
+                                        cmd.type === 'CREATE_VARIABLE' ? '#a855f7' : '#3b82f6'
+                              }}>
+                                {cmd.type.replace('_', ' ')}
+                              </div>
+                              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b' }}>
+                                {cmd.payload?.name || cmd.payload?.type || cmd.widgetId || 'Component'}
+                              </span>
+                              {cmd._safety?.repaired && (
+                                <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#1d4ed8', background: '#dbeafe', padding: '2px 6px', borderRadius: '6px' }}>
+                                  REPAIRED
+                                </span>
+                              )}
+                            </div>
+                            <button
+                              onClick={async () => {
+                                if (status === 'success' || status === 'loading') return;
+                                setCommandStatus(prev => ({ ...prev, [cmdKey]: 'loading' }));
+                                try {
+                                  await onApplyCommand(cmd);
+                                  setCommandStatus(prev => ({ ...prev, [cmdKey]: 'success' }));
+                                } catch (e) {
+                                  console.error('Apply error:', e);
+                                  setCommandStatus(prev => ({ ...prev, [cmdKey]: 'error' }));
+                                }
+                              }}
+                              disabled={status === 'success' || status === 'loading'}
+                              onMouseEnter={() => onHoverCommand?.(cmd)}
+                              onMouseLeave={() => onLeaveCommand?.()}
+                              style={{
+                                padding: '6px 12px',
+                                backgroundColor:
+                                  status === 'success' ? '#10b981' :
+                                    status === 'error' ? '#ef4444' :
+                                      cmd.type === 'DELETE_WIDGET' ? '#ef4444' :
+                                        cmd.type.startsWith('CREATE') ? '#3b82f6' : '#10b981',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                cursor: (status === 'success' || status === 'loading') ? 'default' : 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                opacity: status === 'loading' ? 0.7 : 1
+                              }}
+                            >
+                              {status === 'loading' ? <Loader2 size={12} className="animate-spin" /> :
+                                status === 'success' ? <CheckCircle2 size={12} /> :
+                                  status === 'error' ? <AlertCircle size={12} /> :
+                                    (cmd.type === 'DELETE_WIDGET' ? <Trash2 size={12} /> : (cmd.type.startsWith('CREATE') ? <Sparkles size={12} /> : <PlusCircle size={12} />))}
+
+                              {status === 'loading' ? 'Applying...' :
+                                status === 'success' ? 'Applied' :
+                                  status === 'error' ? 'Failed' :
+                                    cmd.type === 'DELETE_WIDGET' ? 'Delete' : 'Apply'}
+                            </button>
+                          </div>
+                          {cmd.type === 'UPDATE_WIDGET' && cmd.payload?.props && (
+                            <div style={{ fontSize: '0.7rem', color: '#64748b', padding: '4px 8px', backgroundColor: '#ffffff', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                              Update: {Object.keys(cmd.payload.props).join(', ')}
+                            </div>
+                          )}
+                          {cmd.type === 'CREATE_TRIGGER' && (
+                            <div style={{ fontSize: '0.7rem', color: '#64748b', padding: '4px 8px', backgroundColor: '#ffffff', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                              Event: {typeof cmd.payload?.event === 'object' ? (cmd.payload?.event?.eventName || cmd.payload?.event?.type || JSON.stringify(cmd.payload?.event)) : cmd.payload?.event} {cmd.payload?.variableName ? `(${cmd.payload.variableName})` : ''}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -402,10 +512,10 @@ const BuilderCopilot = ({
       {/* Input Area */}
       <div style={{ padding: '24px', borderTop: '1px solid #e2e8f0', backgroundColor: '#ffffff' }}>
         {selectedFile && (
-          <div style={{ 
-            marginBottom: '12px', 
-            display: 'flex', 
-            alignItems: 'center', 
+          <div style={{
+            marginBottom: '12px',
+            display: 'flex',
+            alignItems: 'center',
             justifyContent: 'space-between',
             padding: '8px 12px',
             backgroundColor: '#eff6ff',
@@ -420,18 +530,18 @@ const BuilderCopilot = ({
             </button>
           </div>
         )}
-        
+
         <div style={{ position: 'relative', display: 'flex', gap: '10px' }}>
           <div style={{ position: 'relative', flex: 1 }}>
-            <input 
+            <input
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyPress={e => e.key === 'Enter' && handleSend()}
               placeholder="Deskripsikan apa yang ingin Anda buat..."
-              style={{ 
-                width: '100%', 
-                padding: '14px 16px', 
-                borderRadius: '16px', 
+              style={{
+                width: '100%',
+                padding: '14px 16px',
+                borderRadius: '16px',
                 border: '1.5px solid #e2e8f0',
                 backgroundColor: '#f8fafc',
                 fontSize: '0.9rem',
@@ -451,18 +561,18 @@ const BuilderCopilot = ({
               }}
             />
           </div>
-          
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileChange} 
-            style={{ display: 'none' }} 
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            style={{ display: 'none' }}
             accept="image/*"
           />
-          
-          <button 
+
+          <button
             onClick={() => fileInputRef.current.click()}
-            style={{ 
+            style={{
               backgroundColor: selectedFile ? '#3b82f6' : '#f1f5f9',
               color: selectedFile ? '#ffffff' : '#64748b',
               border: 'none',
@@ -479,10 +589,10 @@ const BuilderCopilot = ({
             <ImageIcon size={20} />
           </button>
 
-          <button 
+          <button
             onClick={handleSend}
             disabled={(!input.trim() && !selectedFile) || isLoading}
-            style={{ 
+            style={{
               backgroundColor: '#3b82f6',
               color: 'white',
               border: 'none',
@@ -501,9 +611,9 @@ const BuilderCopilot = ({
             <Send size={20} />
           </button>
         </div>
-        
+
         <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'center' }}>
-               <Sparkles size={10} color="#3b82f6" /> AI-Powered by {aiConnector?.aiSettings?.provider || aiConnector?.config?.provider || 'Mavi Brain'}
+          <Sparkles size={10} color="#3b82f6" /> AI-Powered by {aiConnector?.aiSettings?.provider || aiConnector?.config?.provider || 'Mavi Brain'}
         </div>
       </div>
     </div>

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { 
-    Save, 
-    ArrowLeft, 
-    BarChart3, 
-    TrendingUp, 
-    PieChart, 
-    Settings, 
-    Database, 
+import {
+    Save,
+    ArrowLeft,
+    BarChart3,
+    TrendingUp,
+    PieChart,
+    Settings,
+    Database,
     Layout,
     Activity,
     LineChart,
@@ -36,7 +36,7 @@ const AnalysisEditor = () => {
     const [tables, setTables] = useState([]);
     const [selectedTableFields, setSelectedTableFields] = useState([]);
     const [showDataTable, setShowDataTable] = useState(false);
-    
+
     const [analysis, setAnalysis] = useState({
         name: 'New Analysis',
         description: '',
@@ -56,10 +56,15 @@ const AnalysisEditor = () => {
             comparisonEnabled: false
         }
     });
-    
+
     const [previewData, setPreviewData] = useState({ labels: [], values: [] });
     const [fetchingPreview, setFetchingPreview] = useState(false);
     const [isAiInsightOpen, setIsAiInsightOpen] = useState(false);
+
+    const safeNum = (v, fallback = 0) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : fallback;
+    };
 
     useEffect(() => {
         loadInitialData();
@@ -83,9 +88,9 @@ const AnalysisEditor = () => {
             }
         }
     }, [
-        analysis.config.tableId, 
-        analysis.config.xAxisColumn, 
-        analysis.config.yAxisColumn, 
+        analysis.config.tableId,
+        analysis.config.xAxisColumn,
+        analysis.config.yAxisColumn,
         analysis.config.aggregation,
         analysis.config.filters,
         analysis.config.timeBucket,
@@ -142,7 +147,7 @@ const AnalysisEditor = () => {
                 return config.filters.every(f => {
                     if (!f.field) return true;
                     const val = r.data?.[f.field] || r[f.field];
-                    switch(f.operator) {
+                    switch (f.operator) {
                         case 'eq': return String(val) === String(f.value);
                         case 'neq': return String(val) !== String(f.value);
                         case 'gt': return Number(val) > Number(f.value);
@@ -158,7 +163,7 @@ const AnalysisEditor = () => {
         const groups = {};
         filtered.forEach(r => {
             let xVal = r.data?.[config.xAxisColumn] || r[config.xAxisColumn] || 'Unknown';
-            
+
             // Handle time bucket
             if (config.timeBucket && (config.xAxisColumn === 'created_at' || config.xAxisColumn === 'updated_at' || config.xAxisColumn === 'timestamp')) {
                 const date = new Date(xVal);
@@ -169,14 +174,14 @@ const AnalysisEditor = () => {
                     else if (config.timeBucket === 'MONTHLY') xVal = date.toLocaleString('default', { month: 'short' });
                 }
             }
-            
+
             if (!groups[xVal]) groups[xVal] = [];
             groups[xVal].push(r);
         });
 
         // 3. Aggregate Y-Axis
         let labels = Object.keys(groups);
-        
+
         // Sort Pareto if type is PARETO
         if (config.type === 'PARETO') {
             labels.sort((a, b) => groups[b].length - groups[a].length);
@@ -186,27 +191,30 @@ const AnalysisEditor = () => {
             const groupRecords = groups[label];
             const yVals = groupRecords.map(r => {
                 const val = r.data?.[config.yAxisColumn] || r[config.yAxisColumn];
-                return Number(val) || 0;
+                return safeNum(val, 0);
             });
-            
-            switch(config.aggregation) {
+
+            switch (config.aggregation) {
                 case 'SUM': return yVals.reduce((a, b) => a + b, 0);
                 case 'AVERAGE': return yVals.length > 0 ? yVals.reduce((a, b) => a + b, 0) / yVals.length : 0;
-                case 'MIN': return Math.min(...yVals);
-                case 'MAX': return Math.max(...yVals);
+                case 'MIN': return yVals.length > 0 ? Math.min(...yVals) : 0;
+                case 'MAX': return yVals.length > 0 ? Math.max(...yVals) : 0;
                 case 'COUNT': return groupRecords.length;
                 case 'PERCENT_SUCCESS': {
                     const successCount = groupRecords.filter(r => {
                         const val = String(r.data?.[config.yAxisColumn] || r[config.yAxisColumn] || '').toUpperCase();
                         return val === 'SUCCESS' || val === 'COMPLETED' || val === 'PASS';
                     }).length;
-                    return (successCount / groupRecords.length) * 100;
+                    return groupRecords.length > 0 ? (successCount / groupRecords.length) * 100 : 0;
                 }
                 default: return groupRecords.length;
             }
         });
 
-        return { labels, values };
+        return {
+            labels,
+            values: values.map(v => safeNum(v, 0))
+        };
     };
 
     const handleSave = async () => {
@@ -231,9 +239,9 @@ const AnalysisEditor = () => {
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc' }}>
             {/* Top Bar */}
-            <div style={{ 
-                height: '64px', backgroundColor: 'white', borderBottom: '1px solid #e2e8f0', 
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px' 
+            <div style={{
+                height: '64px', backgroundColor: 'white', borderBottom: '1px solid #e2e8f0',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px'
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                     <button onClick={() => navigate('/analytics')} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
@@ -241,7 +249,7 @@ const AnalysisEditor = () => {
                     </button>
                     <div style={{ width: '1px', height: '24px', backgroundColor: '#e2e8f0' }}></div>
                     <div>
-                        <input 
+                        <input
                             value={analysis.name}
                             onChange={(e) => setAnalysis({ ...analysis, name: e.target.value })}
                             style={{ border: 'none', fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', outline: 'none', background: 'transparent' }}
@@ -249,13 +257,13 @@ const AnalysisEditor = () => {
                         <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Standalone Analysis Editor</div>
                     </div>
                 </div>
-                <button 
+                <button
                     onClick={handleSave}
                     disabled={loading}
-                    style={{ 
-                        display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', 
-                        backgroundColor: '#4f46e5', color: 'white', border: 'none', borderRadius: '8px', 
-                        fontWeight: 700, cursor: 'pointer', transition: 'opacity 0.2s' 
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px',
+                        backgroundColor: '#4f46e5', color: 'white', border: 'none', borderRadius: '8px',
+                        fontWeight: 700, cursor: 'pointer', transition: 'opacity 0.2s'
                     }}
                 >
                     <Save size={18} /> {loading ? 'Saving...' : 'Save Analysis'}
@@ -275,7 +283,7 @@ const AnalysisEditor = () => {
                                 { id: 'cycletime', label: 'Avg Cycle Time', desc: 'Average duration per completion', config: { tableId: 'SYSTEM:COMPLETIONS', xAxisColumn: 'timestamp', yAxisColumn: 'duration', aggregation: 'AVERAGE', type: 'LINE' } },
                                 { id: 'yield', label: 'Operator Yield', desc: 'Percentage of successful completions', config: { tableId: 'SYSTEM:COMPLETIONS', xAxisColumn: 'timestamp', yAxisColumn: 'status', aggregation: 'PERCENT_SUCCESS', type: 'PIE' } }
                             ].map(s => (
-                                <button 
+                                <button
                                     key={s.id}
                                     onClick={() => {
                                         setAnalysis(prev => ({
@@ -284,8 +292,8 @@ const AnalysisEditor = () => {
                                             config: { ...prev.config, ...s.config }
                                         }));
                                     }}
-                                    style={{ 
-                                        textAlign: 'left', padding: '12px', border: '1px solid #e2e8f0', 
+                                    style={{
+                                        textAlign: 'left', padding: '12px', border: '1px solid #e2e8f0',
                                         borderRadius: '12px', backgroundColor: 'white', cursor: 'pointer',
                                         transition: 'all 0.2s'
                                     }}
@@ -311,11 +319,11 @@ const AnalysisEditor = () => {
                                 { id: 'KPI', icon: Zap, label: 'KPI' },
                                 { id: 'PARETO', icon: Target, label: 'Pareto' }
                             ].map(t => (
-                                <button 
+                                <button
                                     key={t.id}
                                     onClick={() => updateConfig({ type: t.id })}
-                                    style={{ 
-                                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', 
+                                    style={{
+                                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
                                         padding: '12px', border: analysis.config.type === t.id ? '2px solid #4f46e5' : '1px solid #e2e8f0',
                                         borderRadius: '12px', backgroundColor: analysis.config.type === t.id ? '#f5f3ff' : 'white',
                                         cursor: 'pointer', transition: 'all 0.2s'
@@ -334,7 +342,7 @@ const AnalysisEditor = () => {
                         </h4>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                             <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}>Assign Table</label>
-                            <select 
+                            <select
                                 value={analysis.config.tableId}
                                 onChange={(e) => updateConfig({ tableId: e.target.value })}
                                 style={{ padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem', outline: 'none' }}
@@ -357,7 +365,7 @@ const AnalysisEditor = () => {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                             <div>
                                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Y-Axis (Value)</label>
-                                <select 
+                                <select
                                     value={analysis.config.yAxisColumn}
                                     onChange={e => updateConfig({ yAxisColumn: e.target.value })}
                                     style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem', marginBottom: '10px' }}
@@ -366,9 +374,9 @@ const AnalysisEditor = () => {
                                     <option value="id">Record ID (Count only)</option>
                                     {selectedTableFields.map(f => <option key={f.id} value={f.id}>{f.label || f.id}</option>)}
                                 </select>
-                                
+
                                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Aggregation</label>
-                                <select 
+                                <select
                                     value={analysis.config.aggregation}
                                     onChange={(e) => updateConfig({ aggregation: e.target.value })}
                                     style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem' }}
@@ -383,7 +391,7 @@ const AnalysisEditor = () => {
                             </div>
                             <div>
                                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>X-Axis (Category / Time)</label>
-                                <select 
+                                <select
                                     value={analysis.config.xAxisColumn}
                                     onChange={e => updateConfig({ xAxisColumn: e.target.value })}
                                     style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem' }}
@@ -404,7 +412,7 @@ const AnalysisEditor = () => {
                         </h4>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                             <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}>Date Range</label>
-                            <select 
+                            <select
                                 value={analysis.config.dateRange}
                                 onChange={(e) => updateConfig({ dateRange: e.target.value })}
                                 style={{ padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem' }}
@@ -418,7 +426,7 @@ const AnalysisEditor = () => {
                             </select>
 
                             <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}>Time Bucket</label>
-                            <select 
+                            <select
                                 value={analysis.config.timeBucket}
                                 onChange={(e) => updateConfig({ timeBucket: e.target.value })}
                                 style={{ padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem' }}
@@ -436,7 +444,7 @@ const AnalysisEditor = () => {
                             <h4 style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <Filter size={14} /> Filters
                             </h4>
-                            <button 
+                            <button
                                 onClick={() => {
                                     const newFilter = { id: Date.now(), field: '', operator: 'eq', value: '' };
                                     updateConfig({ filters: [...(analysis.config.filters || []), newFilter] });
@@ -446,29 +454,29 @@ const AnalysisEditor = () => {
                                 <Plus size={12} /> Add Filter
                             </button>
                         </div>
-                        
+
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                             {(analysis.config.filters || []).map((f, idx) => (
                                 <div key={f.id} style={{ padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', position: 'relative' }}>
-                                    <button 
+                                    <button
                                         onClick={() => updateConfig({ filters: analysis.config.filters.filter(item => item.id !== f.id) })}
                                         style={{ position: 'absolute', top: '8px', right: '8px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}
                                     >
                                         <Trash2 size={12} />
                                     </button>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        <input 
-                                            placeholder="Field" 
-                                            value={f.field} 
+                                        <input
+                                            placeholder="Field"
+                                            value={f.field}
                                             onChange={e => {
                                                 const next = [...analysis.config.filters];
                                                 next[idx].field = e.target.value;
                                                 updateConfig({ filters: next });
                                             }}
-                                            style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '0.75rem' }} 
+                                            style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '0.75rem' }}
                                         />
                                         <div style={{ display: 'flex', gap: '6px' }}>
-                                            <select 
+                                            <select
                                                 value={f.operator}
                                                 onChange={e => {
                                                     const next = [...analysis.config.filters];
@@ -483,15 +491,15 @@ const AnalysisEditor = () => {
                                                 <option value="lt">&lt;</option>
                                                 <option value="contains">Contains</option>
                                             </select>
-                                            <input 
-                                                placeholder="Value" 
+                                            <input
+                                                placeholder="Value"
                                                 value={f.value}
                                                 onChange={e => {
                                                     const next = [...analysis.config.filters];
                                                     next[idx].value = e.target.value;
                                                     updateConfig({ filters: next });
                                                 }}
-                                                style={{ flex: 1, padding: '6px', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '0.75rem' }} 
+                                                style={{ flex: 1, padding: '6px', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '0.75rem' }}
                                             />
                                         </div>
                                     </div>
@@ -509,13 +517,13 @@ const AnalysisEditor = () => {
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                                 <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#1e293b', margin: 0 }}>Aggregated Data Summary</h3>
                                 <div style={{ display: 'flex', gap: '8px' }}>
-                                    <button 
+                                    <button
                                         onClick={() => setShowDataTable(!showDataTable)}
                                         style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700 }}
                                     >
                                         {showDataTable ? 'Hide Table' : 'Show Table'}
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={() => {
                                             const csv = [
                                                 ['Label', 'Value'],
@@ -583,20 +591,20 @@ const AnalysisEditor = () => {
                                 <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Real-time visualization of your configuration.</p>
                             </div>
                             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                <button 
+                                <button
                                     onClick={() => setIsAiInsightOpen(true)}
                                     disabled={!analysis.config.tableId || previewData.labels.length === 0}
-                                    style={{ 
-                                        backgroundColor: '#4f46e5', 
-                                        color: 'white', 
-                                        padding: '8px 16px', 
-                                        borderRadius: '20px', 
-                                        fontSize: '0.75rem', 
-                                        fontWeight: 800, 
-                                        border: 'none', 
+                                    style={{
+                                        backgroundColor: '#4f46e5',
+                                        color: 'white',
+                                        padding: '8px 16px',
+                                        borderRadius: '20px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 800,
+                                        border: 'none',
                                         cursor: 'pointer',
-                                        display: 'flex', 
-                                        alignItems: 'center', 
+                                        display: 'flex',
+                                        alignItems: 'center',
                                         gap: '8px',
                                         boxShadow: '0 4px 10px rgba(79, 70, 229, 0.2)',
                                         opacity: (!analysis.config.tableId || previewData.labels.length === 0) ? 0.5 : 1
@@ -643,8 +651,8 @@ const AnalysisEditor = () => {
                                 </div>
                             ) : analysis.config.type === 'PIE' ? (
                                 <div style={{ textAlign: 'center' }}>
-                                    <div style={{ 
-                                        width: '200px', height: '200px', borderRadius: '50%', 
+                                    <div style={{
+                                        width: '200px', height: '200px', borderRadius: '50%',
                                         background: `conic-gradient(#4f46e5 0% ${previewData.values[0] || 0}%, #8b5cf6 ${previewData.values[0] || 0}% ${previewData.values[0] + (previewData.values[1] || 0)}%, #c084fc ${previewData.values[0] + (previewData.values[1] || 0)}% 100%)`,
                                         margin: '0 auto 24px auto', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'
                                     }}></div>
@@ -669,9 +677,10 @@ const AnalysisEditor = () => {
                                                     strokeWidth="3"
                                                     points={previewData.values.map((v, i) => {
                                                         const x = 40 + (i * 52);
-                                                        const cumulative = previewData.values.slice(0, i + 1).reduce((a, b) => a + b, 0);
-                                                        const total = previewData.values.reduce((a, b) => a + b, 0);
-                                                        const y = 200 - (cumulative / total * 180);
+                                                        const cumulative = previewData.values.slice(0, i + 1).reduce((a, b) => safeNum(a, 0) + safeNum(b, 0), 0);
+                                                        const total = previewData.values.reduce((a, b) => safeNum(a, 0) + safeNum(b, 0), 0);
+                                                        const ratio = total > 0 ? (cumulative / total) : 0;
+                                                        const y = 200 - (ratio * 180);
                                                         return `${x},${y}`;
                                                     }).join(' ')}
                                                     style={{ filter: 'drop-shadow(0 2px 4px rgba(239, 68, 68, 0.3))' }}
@@ -681,12 +690,12 @@ const AnalysisEditor = () => {
 
                                         {/* Bar or Line visualization */}
                                         {previewData.values.slice(0, 10).map((v, i) => {
-                                            const max = Math.max(...previewData.values);
+                                            const max = Math.max(...previewData.values.map(n => safeNum(n, 0)), 0);
                                             const h = max > 0 ? (v / max * 100) : 0;
                                             return (
-                                                <div key={i} style={{ 
-                                                    width: '40px', 
-                                                    height: `${h}%`, 
+                                                <div key={i} style={{
+                                                    width: '40px',
+                                                    height: `${h}%`,
                                                     backgroundColor: analysis.config.type === 'PARETO' ? (i < 3 ? '#4f46e5' : '#94a3b8') : analysis.config.color,
                                                     borderRadius: analysis.config.type === 'LINE' ? '50%' : '6px 6px 0 0',
                                                     opacity: analysis.config.type === 'LINE' ? 0 : 0.8,
@@ -711,7 +720,7 @@ const AnalysisEditor = () => {
                                                     strokeWidth="4"
                                                     points={previewData.values.slice(0, 10).map((v, i) => {
                                                         const x = 40 + (i * 52);
-                                                        const max = Math.max(...previewData.values);
+                                                        const max = Math.max(...previewData.values.map(n => safeNum(n, 0)), 0);
                                                         const y = 200 - (max > 0 ? (v / max * 200) : 0);
                                                         return `${x},${y}`;
                                                     }).join(' ')}
@@ -719,7 +728,7 @@ const AnalysisEditor = () => {
                                             </svg>
                                         )}
                                     </div>
-                                    
+
                                     <div style={{ color: '#94a3b8', fontSize: '0.9rem', fontWeight: 600, marginTop: '20px' }}>
                                         {analysis.config.type} Analysis for {analysis.config.xAxisColumn || 'X-Axis'}
                                     </div>
@@ -734,7 +743,7 @@ const AnalysisEditor = () => {
                     {/* Metadata Panel */}
                     <div style={{ backgroundColor: 'white', borderRadius: '24px', padding: '24px', border: '1px solid #e2e8f0' }}>
                         <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '12px' }}>Description</label>
-                        <textarea 
+                        <textarea
                             value={analysis.description}
                             onChange={(e) => setAnalysis({ ...analysis, description: e.target.value })}
                             placeholder="Add a description for this analysis..."
@@ -745,7 +754,7 @@ const AnalysisEditor = () => {
             </div>
 
             {/* AI Insight Modal */}
-            <AiAnalysisInsight 
+            <AiAnalysisInsight
                 isOpen={isAiInsightOpen}
                 onClose={() => setIsAiInsightOpen(false)}
                 data={previewData}

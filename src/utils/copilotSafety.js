@@ -1,0 +1,179 @@
+const ALLOWED_COMMAND_TYPES = new Set([
+    'ADD_WIDGET',
+    'UPDATE_WIDGET',
+    'DELETE_WIDGET',
+    'CREATE_VARIABLE',
+    'UPDATE_VARIABLE',
+    'DELETE_VARIABLE',
+    'CREATE_TRIGGER',
+    'UPDATE_TRIGGER',
+    'DELETE_TRIGGER',
+    'CREATE_TABLE',
+    'UPDATE_TABLE',
+    'DELETE_TABLE',
+    'CREATE_STEP',
+    'UPDATE_STEP',
+    'DELETE_STEP'
+]);
+
+export const COPILOT_SAFETY_ERROR_CODES = {
+    MISSING_TYPE: 'E_CMD_001',
+    UNSUPPORTED_TYPE: 'E_CMD_002',
+    MISSING_REQUIRED_FIELDS: 'E_CMD_003',
+    WIDGET_NOT_FOUND: 'E_REF_001',
+    VARIABLE_NOT_FOUND: 'E_REF_002',
+    STEP_NOT_FOUND: 'E_REF_003',
+    TABLE_NOT_FOUND: 'E_REF_004'
+};
+
+export const DEFAULT_SAFE_RATIO_THRESHOLD = 0.6;
+
+const REQUIRED_FIELDS_BY_TYPE = {
+    ADD_WIDGET: ['payload.type'],
+    UPDATE_WIDGET: ['widgetId'],
+    DELETE_WIDGET: ['widgetId'],
+    CREATE_VARIABLE: ['payload.name'],
+    UPDATE_VARIABLE: ['variableName'],
+    DELETE_VARIABLE: ['variableName'],
+    CREATE_TRIGGER: ['payload.event'],
+    UPDATE_TRIGGER: ['triggerId'],
+    DELETE_TRIGGER: ['triggerId'],
+    CREATE_TABLE: ['payload.name'],
+    UPDATE_TABLE: ['tableId'],
+    DELETE_TABLE: ['tableId'],
+    CREATE_STEP: ['payload.title'],
+    UPDATE_STEP: ['stepId'],
+    DELETE_STEP: ['stepId']
+};
+
+const getByPath = (obj, path) => {
+    return path.split('.').reduce((acc, key) => (acc ? acc[key] : undefined), obj);
+};
+
+const hasValue = (v) => !(v === undefined || v === null || v === '');
+
+const buildContextIndex = (context = {}) => {
+    const widgets = Array.isArray(context?.widgets) ? context.widgets : [];
+    const variables = Array.isArray(context?.variables) ? context.variables : [];
+    const steps = Array.isArray(context?.steps) ? context.steps : [];
+    const tables = Array.isArray(context?.tables) ? context.tables : [];
+
+    return {
+        widgetIds: new Set(widgets.map(w => w?.id).filter(Boolean)),
+        variableNames: new Set(variables.map(v => v?.name).filter(Boolean)),
+        stepIds: new Set(steps.map(s => s?.id).filter(Boolean)),
+        tableIds: new Set(tables.map(t => t?.id).filter(Boolean))
+    };
+};
+
+const normalizeCommandType = (type) => {
+    if (!type) return '';
+    return String(type).trim().toUpperCase().replace(/\s+/g, '_').replace(/-/g, '_');
+};
+
+const normalizePayloadShape = (cmd) => {
+    const next = { ...cmd };
+    const payload = { ...(next.payload || {}) };
+
+    if (!next.payload && next.detail && typeof next.detail === 'object') next.payload = { ...next.detail };
+    if (!next.payload && next.data && typeof next.data === 'object') next.payload = { ...next.data };
+
+    const p = { ...(next.payload || payload) };
+
+    // trigger field normalization
+    if (p.on && !p.event) p.event = p.on;
+    if (p.detail && !p.payload && typeof p.detail === 'object') p.payload = p.detail;
+
+    next.payload = p;
+    return next;
+};
+
+export const sanitizeCopilotCommands = (commandData, context = {}, options = {}) => {
+    if (!commandData || !Array.isArray(commandData.commands)) {
+        return { safeCommands: [], warnings: ['No commands array found.'], blockedCount: 0, hardFail: true, safeRatio: 0 };
+    }
+
+    const warnings = [];
+    let blockedCount = 0;
+    const contextIndex = buildContextIndex(context);
+
+    const safeCommands = commandData.commands
+        .map((raw, cmdIndex) => {
+            const normalized = normalizePayloadShape({ ...raw, type: normalizeCommandType(raw?.type) });
+            const cmdWarnings = [];
+
+            if (!normalized.type) {
+                blockedCount += 1;
+                warnings.push(`[${COPILOT_SAFETY_ERROR_CODES.MISSING_TYPE}] Command #${cmdIndex + 1} blocked: missing type.`);
+                return null;
+            }
+
+            if (!ALLOWED_COMMAND_TYPES.has(normalized.type)) {
+                blockedCount += 1;
+                warnings.push(`[${COPILOT_SAFETY_ERROR_CODES.UNSUPPORTED_TYPE}] Command #${cmdIndex + 1} blocked: unsupported type '${normalized.type}'.`);
+                return null;
+            }
+
+            const requiredFields = REQUIRED_FIELDS_BY_TYPE[normalized.type] || [];
+            const missingFields = requiredFields.filter((fieldPath) => !hasValue(getByPath(normalized, fieldPath)));
+            if (missingFields.length > 0) {
+                blockedCount += 1;
+                warnings.push(`[${COPILOT_SAFETY_ERROR_CODES.MISSING_REQUIRED_FIELDS}] Command #${cmdIndex + 1} blocked: missing required fields (${missingFields.join(', ')}).`);
+                return null;
+            }
+
+            // Context-aware referential checks (non-fatal if context empty)
+            if (contextIndex.widgetIds.size > 0 && hasValue(normalized.widgetId) && !contextIndex.widgetIds.has(normalized.widgetId)) {
+                blockedCount += 1;
+                warnings.push(`[${COPILOT_SAFETY_ERROR_CODES.WIDGET_NOT_FOUND}] Command #${cmdIndex + 1} blocked: widgetId '${normalized.widgetId}' not found in current context.`);
+                return null;
+            }
+            if (contextIndex.variableNames.size > 0 && hasValue(normalized.variableName) && !contextIndex.variableNames.has(normalized.variableName)) {
+                blockedCount += 1;
+                warnings.push(`[${COPILOT_SAFETY_ERROR_CODES.VARIABLE_NOT_FOUND}] Command #${cmdIndex + 1} blocked: variable '${normalized.variableName}' not found in current context.`);
+                return null;
+            }
+            if (contextIndex.stepIds.size > 0 && hasValue(normalized.stepId) && !contextIndex.stepIds.has(normalized.stepId)) {
+                blockedCount += 1;
+                warnings.push(`[${COPILOT_SAFETY_ERROR_CODES.STEP_NOT_FOUND}] Command #${cmdIndex + 1} blocked: stepId '${normalized.stepId}' not found in current context.`);
+                return null;
+            }
+            if (contextIndex.tableIds.size > 0 && hasValue(normalized.tableId) && !contextIndex.tableIds.has(normalized.tableId)) {
+                blockedCount += 1;
+                warnings.push(`[${COPILOT_SAFETY_ERROR_CODES.TABLE_NOT_FOUND}] Command #${cmdIndex + 1} blocked: tableId '${normalized.tableId}' not found in current context.`);
+                return null;
+            }
+
+            if (!normalized.payload && !normalized.widgetId && !normalized.variableName && !normalized.stepId) {
+                cmdWarnings.push('Command has no payload/target; applied as-is.');
+            }
+
+            return {
+                ...normalized,
+                _safety: {
+                    repaired: JSON.stringify(raw) !== JSON.stringify(normalized),
+                    warnings: cmdWarnings
+                }
+            };
+        })
+        .filter(Boolean);
+
+    const totalCount = commandData.commands.length;
+    const safeCount = safeCommands.length;
+    const safeRatio = totalCount > 0 ? safeCount / totalCount : 0;
+    const threshold = typeof options.threshold === 'number'
+        ? Math.max(0, Math.min(1, options.threshold))
+        : DEFAULT_SAFE_RATIO_THRESHOLD;
+    const hardFail = safeRatio < threshold;
+
+    return {
+        safeCommands,
+        warnings,
+        blockedCount,
+        totalCount,
+        safeCount,
+        safeRatio,
+        hardFail,
+        threshold
+    };
+};

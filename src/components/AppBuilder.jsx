@@ -211,7 +211,8 @@ import {
     getTables,
     getTableRecords,
     queryTableRecords,
-    updateTable as updateTableDb
+    updateTable as updateTableDb,
+    resolveTableIdReference
 } from '../utils/supabaseTablesDB';
 import { getCompletionsByApp, getCompletionDetail } from '../utils/supabaseCompletionsDB';
 import {
@@ -2105,186 +2106,314 @@ const AppBuilder = () => {
 
     const clearGhostWidgets = () => setGhostWidgets([]);
 
-    const handleAiCommand = (command) => {
-        clearGhostWidgets();
-        saveToHistory();
-        const { type, payload, widgetId } = command;
-        console.log('[Copilot] Executing Command:', type, payload);
+    // ── Sanitize AI-generated widget props ──
+    // AI models often hallucinate {label, value} objects for options/items arrays,
+    // or set prop values (label, text, title) to objects. This layer normalises
+    // everything to React-safe primitives so the renderer never crashes.
+    const sanitizeAiProps = (props) => {
+        if (!props || typeof props !== 'object') return props;
+        const sanitized = { ...props };
 
-        switch (type) {
-            case 'ADD_WIDGET': {
-                // --- AI Type Normalization Layer ---
-                // The AI may output types like "Panel", "TextInput" etc.
-                // that don't exist in COMPONENT_TYPES. Normalize them here.
-                const AI_TYPE_ALIASES = {
-                    'Panel': 'SHAPE_RECTANGLE', 'panel': 'SHAPE_RECTANGLE',
-                    'Container': 'SHAPE_RECTANGLE', 'container': 'SHAPE_RECTANGLE',
-                    'Box': 'SHAPE_RECTANGLE', 'box': 'SHAPE_RECTANGLE',
-                    'Div': 'SHAPE_RECTANGLE', 'div': 'SHAPE_RECTANGLE',
-                    'Flex': 'SHAPE_RECTANGLE', 'flex': 'SHAPE_RECTANGLE',
-                    'Card': 'SHAPE_RECTANGLE', 'card': 'SHAPE_RECTANGLE',
-                    'Frame': 'SHAPE_RECTANGLE', 'frame': 'SHAPE_RECTANGLE',
-                    'Section': 'SHAPE_RECTANGLE', 'section': 'SHAPE_RECTANGLE',
-                    'TextInput': 'TEXT_INPUT', 'textInput': 'TEXT_INPUT', 'textinput': 'TEXT_INPUT', 'Input': 'TEXT_INPUT', 'input': 'TEXT_INPUT',
-                    'TextArea': 'TEXT_AREA', 'textarea': 'TEXT_AREA', 'Textarea': 'TEXT_AREA',
-                    'Label': 'TEXT', 'label': 'TEXT', 'Heading': 'TEXT', 'heading': 'TEXT', 'Title': 'TEXT', 'Paragraph': 'TEXT',
-                    'Table': 'INTERACTIVE_TABLE', 'table': 'INTERACTIVE_TABLE', 'DataTable': 'INTERACTIVE_TABLE', 'dataTable': 'INTERACTIVE_TABLE',
-                    'Select': 'DROPDOWN', 'select': 'DROPDOWN', 'Spinner': 'DROPDOWN',
-                    'Switch': 'BOOLEAN_TOGGLE', 'switch': 'BOOLEAN_TOGGLE', 'Toggle': 'BOOLEAN_TOGGLE', 'toggle': 'BOOLEAN_TOGGLE',
-                    'NumberInput': 'NUMBER_INPUT', 'numberInput': 'NUMBER_INPUT', 'number_input': 'NUMBER_INPUT',
-                    'Radio': 'RADIO_GROUP', 'radio': 'RADIO_GROUP', 'RadioGroup': 'RADIO_GROUP',
-                    'Check': 'CHECKBOX', 'check': 'CHECKBOX', 'Checkbox': 'CHECKBOX',
-                    'BarChart': 'CHART', 'LineChart': 'CHART', 'PieChart': 'CHART',
-                    'Progress': 'GAUGE', 'ProgressBar': 'GAUGE', 'progress': 'GAUGE',
-                    'Scanner': 'BARCODE_SCANNER', 'BarcodeScanner': 'BARCODE_SCANNER', 'Scan': 'BARCODE_SCANNER',
-                    'Signature': 'SIGNATURE', 'signature': 'SIGNATURE',
-                    'Camera': 'CAMERA_CAPTURE', 'camera': 'CAMERA_CAPTURE',
-                    'Video': 'VIDEO', 'video': 'VIDEO',
-                    'Document': 'DOCUMENT', 'document': 'DOCUMENT',
-                    'Webpage': 'WEBPAGE', 'webpage': 'WEBPAGE', 'WebView': 'EMBED_WEB', 'webview': 'EMBED_WEB',
-                    'Checklist': 'CHECKLIST', 'checklist': 'CHECKLIST',
-                    'Chart': 'CHART', 'chart': 'CHART',
-                    'Gauge': 'GAUGE', 'gauge': 'GAUGE',
-                    'Grid': 'GRID', 'grid': 'GRID',
-                    'Slider': 'SLIDER', 'slider': 'SLIDER',
-                    'Button': 'BUTTON', 'button': 'BUTTON',
-                    'Image': 'IMAGE', 'image': 'IMAGE',
-                    'Text': 'TEXT', 'text': 'TEXT',
-                };
+        // Flatten option/item arrays: [{label,value}] → ['label']
+        ['options', 'items', 'elements'].forEach(key => {
+            if (Array.isArray(sanitized[key])) {
+                sanitized[key] = sanitized[key].map(item => {
+                    if (item && typeof item === 'object') {
+                        return String(item.label || item.value || item.name || item.text || JSON.stringify(item));
+                    }
+                    return String(item);
+                });
+            }
+        });
 
-                let resolvedType = payload.type;
-                if (!COMPONENT_TYPES[resolvedType]) {
-                    const aliased = AI_TYPE_ALIASES[resolvedType];
-                    if (aliased) {
-                        console.log(`[Copilot] Type normalized: "${resolvedType}" → "${aliased}"`);
-                        resolvedType = aliased;
-                    } else {
-                        // Try UPPER_SNAKE_CASE conversion as last resort
-                        const upperSnake = resolvedType.replace(/([a-z])([A-Z])/g, '$1_$2').toUpperCase();
-                        if (COMPONENT_TYPES[upperSnake]) {
-                            console.log(`[Copilot] Type auto-converted: "${resolvedType}" → "${upperSnake}"`);
-                            resolvedType = upperSnake;
+        // Ensure string props are actually strings
+        ['label', 'text', 'title', 'hint', 'placeholder', 'prompt', 'defaultValue', 'unit'].forEach(key => {
+            if (sanitized[key] && typeof sanitized[key] === 'object') {
+                sanitized[key] = String(sanitized[key].label || sanitized[key].value || sanitized[key].text || JSON.stringify(sanitized[key]));
+            }
+        });
+
+        // Ensure triggers array items are safe (the original crash cause)
+        if (Array.isArray(sanitized.triggers)) {
+            sanitized.triggers = sanitized.triggers.map(t => {
+                if (t && typeof t === 'object') return t; // triggers are expected to be objects with specific keys
+                return t;
+            });
+        }
+
+        return sanitized;
+    };
+
+    const handleAiCommand = async (command) => {
+        try {
+            clearGhostWidgets();
+            saveToHistory();
+            const { type, payload, widgetId } = command;
+            console.log('[Copilot] Executing Command:', type, payload);
+
+            switch (type) {
+                case 'ADD_WIDGET': {
+                    // --- AI Type Normalization Layer ---
+                    // The AI may output types like "Panel", "TextInput" etc.
+                    // that don't exist in COMPONENT_TYPES. Normalize them here.
+                    const AI_TYPE_ALIASES = {
+                        'Panel': 'SHAPE_RECTANGLE', 'panel': 'SHAPE_RECTANGLE',
+                        'Container': 'SHAPE_RECTANGLE', 'container': 'SHAPE_RECTANGLE',
+                        'Box': 'SHAPE_RECTANGLE', 'box': 'SHAPE_RECTANGLE',
+                        'Div': 'SHAPE_RECTANGLE', 'div': 'SHAPE_RECTANGLE',
+                        'Flex': 'SHAPE_RECTANGLE', 'flex': 'SHAPE_RECTANGLE',
+                        'Card': 'SHAPE_RECTANGLE', 'card': 'SHAPE_RECTANGLE',
+                        'Frame': 'SHAPE_RECTANGLE', 'frame': 'SHAPE_RECTANGLE',
+                        'Section': 'SHAPE_RECTANGLE', 'section': 'SHAPE_RECTANGLE',
+                        'TextInput': 'TEXT_INPUT', 'textInput': 'TEXT_INPUT', 'textinput': 'TEXT_INPUT', 'Input': 'TEXT_INPUT', 'input': 'TEXT_INPUT',
+                        'TextArea': 'TEXT_AREA', 'textarea': 'TEXT_AREA', 'Textarea': 'TEXT_AREA',
+                        'Label': 'TEXT', 'label': 'TEXT', 'Heading': 'TEXT', 'heading': 'TEXT', 'Title': 'TEXT', 'Paragraph': 'TEXT',
+                        'Table': 'INTERACTIVE_TABLE', 'table': 'INTERACTIVE_TABLE', 'DataTable': 'INTERACTIVE_TABLE', 'dataTable': 'INTERACTIVE_TABLE',
+                        'Select': 'DROPDOWN', 'select': 'DROPDOWN', 'Spinner': 'DROPDOWN',
+                        'Switch': 'BOOLEAN_TOGGLE', 'switch': 'BOOLEAN_TOGGLE', 'Toggle': 'BOOLEAN_TOGGLE', 'toggle': 'BOOLEAN_TOGGLE',
+                        'NumberInput': 'NUMBER_INPUT', 'numberInput': 'NUMBER_INPUT', 'number_input': 'NUMBER_INPUT',
+                        'Radio': 'RADIO_GROUP', 'radio': 'RADIO_GROUP', 'RadioGroup': 'RADIO_GROUP',
+                        'Check': 'CHECKBOX', 'check': 'CHECKBOX', 'Checkbox': 'CHECKBOX',
+                        'BarChart': 'CHART', 'LineChart': 'CHART', 'PieChart': 'CHART',
+                        'Progress': 'GAUGE', 'ProgressBar': 'GAUGE', 'progress': 'GAUGE',
+                        'Scanner': 'BARCODE_SCANNER', 'BarcodeScanner': 'BARCODE_SCANNER', 'Scan': 'BARCODE_SCANNER',
+                        'Signature': 'SIGNATURE', 'signature': 'SIGNATURE',
+                        'Camera': 'CAMERA_CAPTURE', 'camera': 'CAMERA_CAPTURE',
+                        'Video': 'VIDEO', 'video': 'VIDEO',
+                        'Document': 'DOCUMENT', 'document': 'DOCUMENT',
+                        'Webpage': 'WEBPAGE', 'webpage': 'WEBPAGE', 'WebView': 'EMBED_WEB', 'webview': 'EMBED_WEB',
+                        'Checklist': 'CHECKLIST', 'checklist': 'CHECKLIST',
+                        'Chart': 'CHART', 'chart': 'CHART',
+                        'Gauge': 'GAUGE', 'gauge': 'GAUGE',
+                        'Grid': 'GRID', 'grid': 'GRID',
+                        'Slider': 'SLIDER', 'slider': 'SLIDER',
+                        'Button': 'BUTTON', 'button': 'BUTTON',
+                        'Image': 'IMAGE', 'image': 'IMAGE',
+                        'Text': 'TEXT', 'text': 'TEXT',
+                    };
+
+                    let resolvedType = payload.type;
+                    if (!COMPONENT_TYPES[resolvedType]) {
+                        const aliased = AI_TYPE_ALIASES[resolvedType];
+                        if (aliased) {
+                            console.log(`[Copilot] Type normalized: "${resolvedType}" → "${aliased}"`);
+                            resolvedType = aliased;
                         } else {
-                            console.warn(`[Copilot] Unknown widget type: "${resolvedType}". Defaulting to SHAPE_RECTANGLE.`);
-                            resolvedType = 'SHAPE_RECTANGLE';
+                            // Try UPPER_SNAKE_CASE conversion as last resort
+                            const upperSnake = resolvedType.replace(/([a-z])([A-Z])/g, '$1_$2').toUpperCase();
+                            if (COMPONENT_TYPES[upperSnake]) {
+                                console.log(`[Copilot] Type auto-converted: "${resolvedType}" → "${upperSnake}"`);
+                                resolvedType = upperSnake;
+                            } else {
+                                console.warn(`[Copilot] Unknown widget type: "${resolvedType}". Defaulting to SHAPE_RECTANGLE.`);
+                                resolvedType = 'SHAPE_RECTANGLE';
+                            }
                         }
                     }
-                }
 
-                const newComp = {
-                    id: `w_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                    displayName: payload.displayName || COMPONENT_TYPES[resolvedType]?.label || resolvedType,
-                    ...payload,
-                    type: resolvedType,
-                    props: {
-                        ...(COMPONENT_TYPES[resolvedType]?.defaultProps || {}),
-                        ...(payload.props || {})
+                    const newComp = {
+                        id: `w_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                        displayName: payload.displayName || COMPONENT_TYPES[resolvedType]?.label || resolvedType,
+                        ...payload,
+                        type: resolvedType,
+                        props: sanitizeAiProps({
+                            ...(COMPONENT_TYPES[resolvedType]?.defaultProps || {}),
+                            ...(payload.props || {})
+                        })
+                    };
+                    if (currentStepId === 'BASE') {
+                        setBaseComponents(prev => [...prev, newComp]);
+                    } else {
+                        setSteps(prev => prev.map(s => s.id === currentStepId ? { ...s, components: [...s.components, newComp] } : s));
                     }
-                };
-                if (currentStepId === 'BASE') {
-                    setBaseComponents(prev => [...prev, newComp]);
-                } else {
-                    setSteps(prev => prev.map(s => s.id === currentStepId ? { ...s, components: [...s.components, newComp] } : s));
+                    setRecentlyAddedCompId(newComp.id);
+                    setSelectedCompIds([newComp.id]);
+                    break;
                 }
-                setRecentlyAddedCompId(newComp.id);
-                setSelectedCompIds([newComp.id]);
-                break;
-            }
-            case 'UPDATE_WIDGET': {
-                const targetId = widgetId || payload?.id;
-                if (!targetId) return;
-                const updateFn = (c) => c.id === targetId ? { ...c, ...payload, props: { ...c.props, ...(payload.props || {}) } } : c;
-                if (currentStepId === 'BASE') {
-                    setBaseComponents(prev => prev.map(updateFn));
-                } else {
-                    setSteps(prev => prev.map(s => ({ ...s, components: s.components.map(updateFn) })));
+                case 'UPDATE_WIDGET': {
+                    const targetId = widgetId || payload?.id;
+                    if (!targetId) return;
+                    const updateFn = (c) => c.id === targetId ? { ...c, ...payload, props: sanitizeAiProps({ ...c.props, ...(payload.props || {}) }) } : c;
+                    if (currentStepId === 'BASE') {
+                        setBaseComponents(prev => prev.map(updateFn));
+                    } else {
+                        setSteps(prev => prev.map(s => ({ ...s, components: s.components.map(updateFn) })));
+                    }
+                    break;
                 }
-                break;
-            }
-            case 'DELETE_WIDGET': {
-                const targetId = widgetId || payload?.id;
-                if (!targetId) return;
-                if (currentStepId === 'BASE') {
-                    setBaseComponents(prev => prev.filter(c => c.id !== targetId));
-                } else {
-                    setSteps(prev => prev.map(s => ({ ...s, components: s.components.filter(c => c.id !== targetId) })));
+                case 'DELETE_WIDGET': {
+                    const targetId = widgetId || payload?.id;
+                    if (!targetId) return;
+                    if (currentStepId === 'BASE') {
+                        setBaseComponents(prev => prev.filter(c => c.id !== targetId));
+                    } else {
+                        setSteps(prev => prev.map(s => ({ ...s, components: s.components.filter(c => c.id !== targetId) })));
+                    }
+                    if (selectedCompIds.includes(targetId)) {
+                        setSelectedCompIds(prev => prev.filter(id => id !== targetId));
+                    }
+                    break;
                 }
-                if (selectedCompIds.includes(targetId)) {
-                    setSelectedCompIds(prev => prev.filter(id => id !== targetId));
+                case 'SET_APP_NAME':
+                    setAppName(payload);
+                    break;
+                case 'ADD_STEP': {
+                    const newStep = {
+                        id: `screen_${Date.now()}`,
+                        title: payload.title || 'New Screen',
+                        stepType: 'Screen',
+                        cycleTimeSeconds: 60,
+                        components: payload.components || [],
+                        triggers: [],
+                        logic: { xml: null, code: '' }
+                    };
+                    setSteps(prev => [...prev, newStep]);
+                    setCurrentStepId(newStep.id);
+                    break;
                 }
-                break;
-            }
-            case 'SET_APP_NAME':
-                setAppName(payload);
-                break;
-            case 'ADD_STEP': {
-                const newStep = {
-                    id: `screen_${Date.now()}`,
-                    title: payload.title || 'New Screen',
-                    stepType: 'Screen',
-                    cycleTimeSeconds: 60,
-                    components: payload.components || [],
-                    triggers: [],
-                    logic: { xml: null, code: '' }
-                };
-                setSteps(prev => [...prev, newStep]);
-                setCurrentStepId(newStep.id);
-                break;
-            }
-            case 'CREATE_TABLE':
-                createTable({
-                    name: payload.name,
-                    fields: (payload.columns || []).map(c => ({
-                        name: typeof c === 'string' ? c : (c.name || c.header || 'Field'),
-                        type: typeof c === 'string' ? 'text' : (c.type || 'text')
-                    }))
-                }).then(() => {
+                case 'CREATE_TABLE': {
+                    const tableName = typeof payload.name === 'object' ? (payload.name.label || payload.name.value || 'Table') : String(payload.name || 'Table');
+                    const createdTable = await createTable({
+                        name: tableName,
+                        fields: (payload.columns || []).map(c => {
+                            let fieldName = typeof c === 'string' ? c : (c.name || c.header || c.label || c.key || 'Field');
+                            if (typeof fieldName === 'object') fieldName = fieldName.label || fieldName.value || fieldName.name || fieldName.header || JSON.stringify(fieldName);
+
+                            let fieldType = typeof c === 'string' ? 'text' : (c.type || 'text');
+                            if (typeof fieldType === 'object') fieldType = fieldType.value || fieldType.label || 'text';
+
+                            return { name: String(fieldName), type: String(fieldType) };
+                        })
+                    });
                     console.log(`[Copilot] Table "${payload.name}" created!`);
-                    getTables().then(setTables);
-                }).catch(err => {
-                    console.error('[Copilot] Failed to create table:', err);
-                });
-                break;
-            case 'CREATE_TRIGGER': {
-                const newTrigger = {
-                    id: `t_${Date.now()}`,
-                    ...payload
-                };
-                setAppTriggers(prev => [...prev, newTrigger]);
-                break;
+
+                    // Auto-wire form submit when AI creates table inside a Form Step.
+                    // This removes dependency on explicit trigger creation for basic save flow.
+                    setSteps(prev => prev.map(s => {
+                        if (s.id !== currentStepId) return s;
+                        if (!FORM_STEP_TYPES.includes(s.stepType)) return s;
+
+                        const existing = normalizeFormSubmitConfig(s);
+                        return {
+                            ...s,
+                            formSubmit: {
+                                ...existing,
+                                enabled: true,
+                                tableId: createdTable?.id || existing.tableId || '',
+                                mode: existing.mode || 'CREATE',
+                                autoSubmitOnNext: true
+                            }
+                        };
+                    }));
+
+                    await getTables().then(setTables);
+                    break;
+                }
+                case 'CREATE_TRIGGER': {
+                    let resolvedEvent = payload.event;
+                    if (typeof resolvedEvent === 'object') {
+                        resolvedEvent = resolvedEvent.type || resolvedEvent.eventName || resolvedEvent.name || 'ON_APP_START';
+                    }
+
+                    const eventStr = String(resolvedEvent || '').toUpperCase();
+                    let normalizedEvent = eventStr;
+
+                    if (eventStr.includes('VARIABLE') || eventStr.includes('CHANGE')) {
+                        normalizedEvent = 'ON_VARIABLE_CHANGE';
+                    } else if (eventStr.includes('START') || eventStr.includes('INIT') || eventStr.includes('MOUNT')) {
+                        normalizedEvent = 'ON_APP_START';
+                    } else if (eventStr.includes('COMPLETE') || eventStr.includes('SUBMIT')) {
+                        normalizedEvent = 'ON_APP_COMPLETE';
+                    } else if (eventStr.includes('CANCEL')) {
+                        normalizedEvent = 'ON_APP_CANCEL';
+                    } else if (eventStr.includes('TIMER') || eventStr.includes('INTERVAL')) {
+                        normalizedEvent = 'TIMER';
+                    } else if (eventStr.includes('CLICK') || eventStr.includes('PRESS')) {
+                        normalizedEvent = 'ON_CLICK';
+                    }
+
+                    let watchVar = payload.watchVar || payload.variableName || payload.variable || '';
+                    if (typeof payload.event === 'object' && !watchVar) {
+                        watchVar = payload.event.variableName || payload.event.watchVar || '';
+                    }
+
+                    let clauses = payload.clauses;
+                    if (!clauses && payload.actions) {
+                        clauses = [{
+                            id: `c_${Date.now()}`,
+                            match: 'ALL',
+                            conditions: payload.conditions || [],
+                            actions: payload.actions || []
+                        }];
+                    } else if (!clauses) {
+                        clauses = [{ conditions: [], actions: [] }];
+                    }
+
+                    // Normalize action types inside clauses
+                    clauses.forEach(clause => {
+                        if (Array.isArray(clause.actions)) {
+                            clause.actions.forEach(action => {
+                                if (!action || !action.type) return;
+                                const t = String(action.type).toUpperCase();
+                                if ((t.includes('CREATE') || t.includes('INSERT')) && (t.includes('RECORD') || t.includes('ROW') || t.includes('TABLE'))) action.type = 'TABLE_RECORD_CREATE';
+                                else if ((t.includes('SAVE') || t.includes('UPDATE')) && (t.includes('RECORD') || t.includes('ROW') || t.includes('TABLE'))) action.type = 'TABLE_RECORD_SAVE';
+                                else if (t.includes('DELETE') && (t.includes('RECORD') || t.includes('ROW'))) action.type = 'TABLE_RECORD_DELETE';
+                                else if (t.includes('LOAD') && (t.includes('RECORD') || t.includes('ROW'))) action.type = 'TABLE_RECORD_LOAD';
+                                else if ((t.includes('SET') || t.includes('UPDATE') || t.includes('CHANGE')) && t.includes('VARIABLE')) action.type = 'SET_VARIABLE';
+                            });
+                        }
+                    });
+
+                    const newTrigger = {
+                        id: `t_${Date.now()}`,
+                        ...payload,
+                        event: normalizedEvent,
+                        ...(normalizedEvent === 'ON_VARIABLE_CHANGE' ? { watchVar } : {}),
+                        clauses
+                    };
+                    delete newTrigger.actions;
+                    delete newTrigger.conditions;
+
+                    setAppTriggers(prev => [...prev, newTrigger]);
+                    break;
+                }
+                case 'CREATE_VARIABLE': {
+                    const newVar = {
+                        id: `v_${Date.now()}`,
+                        name: payload.name,
+                        type: payload.type || 'TEXT',
+                        defaultValue: payload.defaultValue ?? '',
+                        value: payload.defaultValue ?? '',
+                        persisted: payload.persisted || false
+                    };
+                    setAppVariables(prev => [...prev, newVar]);
+                    break;
+                }
+                case 'CREATE_RECORD_PLACEHOLDER': {
+                    const newPh = {
+                        id: `ph_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                        name: payload.name,
+                        tableId: payload.tableId || ''
+                    };
+                    setRecordPlaceholders(prev => [...prev, newPh]);
+                    break;
+                }
+                case 'CREATE_FUNCTION': {
+                    const newFunc = {
+                        id: `fn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                        name: payload.name,
+                        logic: payload.logic || { xml: null, code: '' }
+                    };
+                    setAppFunctions(prev => [...prev, newFunc]);
+                    break;
+                }
+                default:
+                    console.warn('Unknown AI Command:', type);
             }
-            case 'CREATE_VARIABLE': {
-                const newVar = {
-                    id: `v_${Date.now()}`,
-                    name: payload.name,
-                    type: payload.type || 'TEXT',
-                    defaultValue: payload.defaultValue ?? '',
-                    value: payload.defaultValue ?? '',
-                    persisted: payload.persisted || false
-                };
-                setAppVariables(prev => [...prev, newVar]);
-                break;
-            }
-            case 'CREATE_RECORD_PLACEHOLDER': {
-                const newPh = {
-                    id: `ph_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                    name: payload.name,
-                    tableId: payload.tableId || ''
-                };
-                setRecordPlaceholders(prev => [...prev, newPh]);
-                break;
-            }
-            case 'CREATE_FUNCTION': {
-                const newFunc = {
-                    id: `fn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                    name: payload.name,
-                    logic: payload.logic || { xml: null, code: '' }
-                };
-                setAppFunctions(prev => [...prev, newFunc]);
-                break;
-            }
-            default:
-                console.warn('Unknown AI Command:', type);
+            return true;
+        } catch (err) {
+            console.error('[Copilot] Command Error:', err);
+            throw err;
         }
     };
 
@@ -4295,7 +4424,19 @@ const AppBuilder = () => {
                         ...prev,
                         [tableId]: { loading: true, error: null, rows: [] }
                     }));
-                    const rows = await getTableRecords(tableId);
+                    // Resolve table name strings (e.g. "Inspections") to UUIDs
+                    let resolvedId = tableId;
+                    try {
+                        resolvedId = await resolveTableIdReference(tableId);
+                    } catch (resolveErr) {
+                        console.warn(`[AppBuilder] Could not resolve table ref "${tableId}":`, resolveErr.message);
+                        setTableDataCache(prev => ({
+                            ...prev,
+                            [tableId]: { loading: false, error: resolveErr?.message, rows: [] }
+                        }));
+                        continue;
+                    }
+                    const rows = await getTableRecords(resolvedId);
                     setTableDataCache(prev => ({
                         ...prev,
                         [tableId]: { loading: false, error: null, rows: rows || [] }
@@ -4861,7 +5002,9 @@ const AppBuilder = () => {
                 }
                 case 'TABLE_RECORD_LOAD':
                 case 'TABLE_RECORD_CREATE':
-                case 'TABLE_RECORD_CREATE_OR_LOAD': {
+                case 'TABLE_RECORD_CREATE_OR_LOAD':
+                case 'TABLE_RECORD_SAVE':
+                case 'TABLE_RECORD_DELETE': {
                     const { placeholderId, idType, idValue } = action.payload;
                     const resolvedId = resolveValue(idValue, idType);
                     const placeholder = recordPlaceholders.find(rp => rp.id === placeholderId);
@@ -4877,21 +5020,63 @@ const AppBuilder = () => {
                         return false;
                     };
                     const handleCreate = async (id) => {
+                        const effectiveId = id || `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
                         if (viewMode === 'PREVIEW') {
-                            const newRec = { id, _simulated: true, created_at: new Date().toISOString() };
+                            const newRec = { id: effectiveId, _simulated: true, created_at: new Date().toISOString() };
                             setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: newRec }));
-                            console.log(`[Developer Mode] Simulated creation of record ${id}`);
+                            console.log(`[Developer Mode] Simulated creation of record ${effectiveId}`);
                             return true;
                         }
-                        const newRec = await addTableRecord(placeholder.tableId, { id });
+                        const newRec = await addTableRecord(placeholder.tableId, { id: effectiveId });
                         setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: newRec }));
                         return true;
                     };
+                    const handleSave = async () => {
+                        const rec = recordPlaceholderData[placeholderId];
+                        if (!rec || !rec.id) return false;
 
-                    if (action.type === 'TABLE_RECORD_LOAD') handleLoad(resolvedId);
-                    else if (action.type === 'TABLE_RECORD_CREATE') handleCreate(resolvedId);
+                        const updatedData = { ...rec };
+                        const allComps = [...baseComponents, ...(steps.find(s => s.id === currentStepId)?.components || [])];
+                        allComps.forEach(comp => {
+                            if (comp.props.targetVariable && comp.props.targetVariable.startsWith(`${placeholder.name}.`)) {
+                                const fieldName = comp.props.targetVariable.split('.')[1];
+                                if (previewFormValues[comp.id] !== undefined) {
+                                    updatedData[fieldName] = previewFormValues[comp.id];
+                                }
+                            }
+                        });
+
+                        if (viewMode === 'PREVIEW') {
+                            setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: updatedData }));
+                            console.log(`[Developer Mode] Simulated SAVE of record ${rec.id}`, updatedData);
+                            return true;
+                        }
+                        const { updateTableRecord } = await import('../utils/database');
+                        await updateTableRecord(placeholder.tableId, rec.id, updatedData);
+                        setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: updatedData }));
+                        return true;
+                    };
+                    const handleDelete = async () => {
+                        const rec = recordPlaceholderData[placeholderId];
+                        if (!rec || !rec.id) return false;
+                        if (viewMode === 'PREVIEW') {
+                            setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: null }));
+                            console.log(`[Developer Mode] Simulated DELETE of record ${rec.id}`);
+                            return true;
+                        }
+                        const { deleteTableRecord } = await import('../utils/database');
+                        await deleteTableRecord(placeholder.tableId, rec.id);
+                        setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: null }));
+                        return true;
+                    };
+
+                    if (action.type === 'TABLE_RECORD_LOAD') await handleLoad(resolvedId);
+                    else if (action.type === 'TABLE_RECORD_CREATE') await handleCreate(resolvedId);
+                    else if (action.type === 'TABLE_RECORD_SAVE') await handleSave();
+                    else if (action.type === 'TABLE_RECORD_DELETE') await handleDelete();
                     else {
-                        handleLoad(resolvedId).then(success => { if (!success) handleCreate(resolvedId); });
+                        const success = await handleLoad(resolvedId);
+                        if (!success) await handleCreate(resolvedId);
                     }
                     break;
                 }
@@ -16397,23 +16582,26 @@ const AppBuilder = () => {
                                                             <div className="prop-group" style={{ marginBottom: '10px' }}>
                                                                 <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>COLUMNS TO DISPLAY</label>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '150px', overflowY: 'auto', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-secondary)', padding: '8px', borderRadius: '4px' }}>
-                                                                    {tables.find(t => t.id === selectedComp.props.tableId)?.columns?.map(col => (
-                                                                        <div key={col} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                                            <input
-                                                                                type="checkbox"
-                                                                                id={`col-${selectedComp.id}-${col}`}
-                                                                                checked={(selectedComp.props.columns || []).includes(col)}
-                                                                                onChange={(e) => {
-                                                                                    const currentCols = selectedComp.props.columns || [];
-                                                                                    const newCols = e.target.checked
-                                                                                        ? [...currentCols, col]
-                                                                                        : currentCols.filter(c => c !== col);
-                                                                                    updateComponentProps(selectedComp.id, { columns: newCols });
-                                                                                }}
-                                                                            />
-                                                                            <label htmlFor={`col-${selectedComp.id}-${col}`} style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', cursor: 'pointer' }}>{col}</label>
-                                                                        </div>
-                                                                    ))}
+                                                                    {tables.find(t => t.id === selectedComp.props.tableId)?.columns?.map(col => {
+                                                                        const colStr = typeof col === 'object' ? (col.name || col.label || col.value || JSON.stringify(col)) : String(col);
+                                                                        return (
+                                                                            <div key={colStr} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                                <input
+                                                                                    type="checkbox"
+                                                                                    id={`col-${selectedComp.id}-${colStr}`}
+                                                                                    checked={(selectedComp.props.columns || []).includes(colStr)}
+                                                                                    onChange={(e) => {
+                                                                                        const currentCols = selectedComp.props.columns || [];
+                                                                                        const newCols = e.target.checked
+                                                                                            ? [...currentCols, colStr]
+                                                                                            : currentCols.filter(c => c !== colStr);
+                                                                                        updateComponentProps(selectedComp.id, { columns: newCols });
+                                                                                    }}
+                                                                                />
+                                                                                <label htmlFor={`col-${selectedComp.id}-${colStr}`} style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', cursor: 'pointer' }}>{colStr}</label>
+                                                                            </div>
+                                                                        );
+                                                                    })}
                                                                 </div>
                                                             </div>
                                                         )}
@@ -19837,13 +20025,36 @@ const AppBuilder = () => {
                                                             </select>
                                                         </div>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)', minWidth: '80px' }}>Record ID</label>
-                                                            <input
-                                                                value={act.payload.idValue || ''}
-                                                                onChange={(e) => updatePayload({ idValue: e.target.value })}
-                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
-                                                                placeholder="Static ID or @Var"
-                                                            />
+                                                            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)', minWidth: '80px' }}>
+                                                                {act.type === 'TABLE_RECORD_CREATE' ? 'Record ID (Opsional)' : 'Record ID'}
+                                                            </label>
+                                                            <div style={{ flex: 1, display: 'flex', gap: '4px' }}>
+                                                                <select
+                                                                    value={act.payload.idType || 'STATIC'}
+                                                                    onChange={(e) => updatePayload({ idType: e.target.value, idValue: '' })}
+                                                                    style={{ width: '120px', padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
+                                                                >
+                                                                    <option value="STATIC">Manual Text</option>
+                                                                    <option value="VARIABLE">Variable / Dropdown State</option>
+                                                                </select>
+                                                                {act.payload.idType === 'VARIABLE' ? (
+                                                                    <select
+                                                                        value={act.payload.idValue || ''}
+                                                                        onChange={(e) => updatePayload({ idValue: e.target.value })}
+                                                                        style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
+                                                                    >
+                                                                        <option value="">Select variable...</option>
+                                                                        {appVariables.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
+                                                                    </select>
+                                                                ) : (
+                                                                    <input
+                                                                        value={act.payload.idValue || ''}
+                                                                        onChange={(e) => updatePayload({ idValue: e.target.value })}
+                                                                        style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
+                                                                        placeholder={act.type === 'TABLE_RECORD_CREATE' ? 'Kosongkan untuk Auto ID' : 'Static ID'}
+                                                                    />
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 );
@@ -22239,6 +22450,8 @@ const AppBuilder = () => {
 };
 
 export default AppBuilder;
+
+
 
 
 

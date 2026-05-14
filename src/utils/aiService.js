@@ -433,6 +433,7 @@ Indonesian rationale first, then:
 [Step-by-step technical plan]
 </ai_plan>
 
+CRITICAL INSTRUCTION: You MUST ALWAYS output the <builder_cmds> JSON block after your plan. Do NOT stop after </ai_plan>.
 <builder_cmds>
 {
   "commands": [ ... ]

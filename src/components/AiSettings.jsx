@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  X, 
-  Settings, 
+import {
+  X,
+  Settings,
   Search,
   Zap,
   Save,
@@ -41,6 +41,7 @@ const AiSettings = () => {
   const [connectorId, setConnectorId] = useState(null);
   const [dbSettings, setDbSettings] = useState(null);
   const [configs, setConfigs] = useState({}); // Stores { apiKey, baseUrl, modelId, availableModels } per provider ID
+  const [copilotSafetyThreshold, setCopilotSafetyThreshold] = useState(0.6);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -56,7 +57,8 @@ const AiSettings = () => {
         const mid = aiSettings.modelId || 'gemini-1.5-flash-002';
         setModelId(mid);
         setAvailableModels([{ id: mid, name: mid }]);
-        
+        setCopilotSafetyThreshold(typeof aiSettings.copilotSafetyThreshold === 'number' ? aiSettings.copilotSafetyThreshold : 0.6);
+
         // Load the config cache if it exists
         if (aiSettings.configCache) {
           setConfigs(aiSettings.configCache);
@@ -92,9 +94,9 @@ const AiSettings = () => {
     const nextConfig = configs[newProviderId] || {
       apiKey: '',
       baseUrl: newProviderId.includes('Ollama') ? 'http://localhost:11434/v1' : '',
-      modelId: newProviderId === 'Gemini' ? 'gemini-1.5-flash-002' : 
-               newProviderId === 'OpenAI' ? 'gpt-4o' : 
-               newProviderId === 'Groq' ? 'llama3-8b-8192' : '',
+      modelId: newProviderId === 'Gemini' ? 'gemini-1.5-flash-002' :
+        newProviderId === 'OpenAI' ? 'gpt-4o' :
+          newProviderId === 'Groq' ? 'llama3-8b-8192' : '',
       availableModels: []
     };
 
@@ -125,7 +127,7 @@ const AiSettings = () => {
         const listUrl = `https://generativelanguage.googleapis.com/v1/models?key=${trimmedKey}`;
         const listResp = await fetch(listUrl);
         const listData = await listResp.json();
-        
+
         if (listResp.ok && listData.models) {
           success = true;
           models = listData.models
@@ -140,7 +142,7 @@ const AiSettings = () => {
           headers: { 'Authorization': `Bearer ${trimmedKey}` }
         });
         const listData = await listResp.json();
-        
+
         if (listResp.ok && listData.data) {
           success = true;
           models = listData.data.map(m => ({ id: m.id, name: m.id }));
@@ -210,6 +212,7 @@ const AiSettings = () => {
           apiKey: apiKey.trim(),
           baseUrl: baseUrl.trim(),
           basePrompt: dbSettings?.basePrompt || 'You are a professional MES assistant helping frontline operators and engineers.',
+          copilotSafetyThreshold: Number(copilotSafetyThreshold),
           configCache: {
             ...configs,
             [activeProvider]: {
@@ -235,33 +238,33 @@ const AiSettings = () => {
   };
 
   return (
-    <div style={{ 
-      height: '100vh', width: '100%', backgroundColor: '#f8f9fa', color: '#495057', 
-      display: 'flex', flexDirection: 'column', fontFamily: "'Inter', system-ui, sans-serif" 
+    <div style={{
+      height: '100vh', width: '100%', backgroundColor: '#f8f9fa', color: '#495057',
+      display: 'flex', flexDirection: 'column', fontFamily: "'Inter', system-ui, sans-serif"
     }}>
       {/* Odoo Navbar - Action Bar (Fixed at top) */}
-      <div style={{ 
-        padding: '16px 24px', borderBottom: '1px solid #dee2e6', display: 'flex', 
+      <div style={{
+        padding: '16px 24px', borderBottom: '1px solid #dee2e6', display: 'flex',
         justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff',
         flexShrink: 0
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button 
+          <button
             onClick={handleSave}
             disabled={isSaving}
-            style={{ 
-              padding: '8px 20px', borderRadius: '4px', backgroundColor: '#017E84', color: '#fff', 
+            style={{
+              padding: '8px 20px', borderRadius: '4px', backgroundColor: '#017E84', color: '#fff',
               border: 'none', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.1s',
               opacity: isSaving ? 0.7 : 1, boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
             }}
           >
             {isSaving ? 'Saving...' : 'SAVE'}
           </button>
-          <button 
+          <button
             onClick={() => navigate(-1)}
-            style={{ 
-              padding: '8px 20px', borderRadius: '4px', backgroundColor: '#fff', color: '#495057', 
-              border: '1px solid #dee2e6', fontSize: '0.9rem', fontWeight: 500, cursor: 'pointer' 
+            style={{
+              padding: '8px 20px', borderRadius: '4px', backgroundColor: '#fff', color: '#495057',
+              border: '1px solid #dee2e6', fontSize: '0.9rem', fontWeight: 500, cursor: 'pointer'
             }}
           >
             DISCARD
@@ -269,11 +272,11 @@ const AiSettings = () => {
           <div style={{ width: '1px', height: '24px', backgroundColor: '#dee2e6', margin: '0 8px' }}></div>
           <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#495057' }}>Settings</h1>
         </div>
-        <button 
+        <button
           onClick={() => navigate(-1)}
-          style={{ 
-            padding: '8px', borderRadius: '4px', border: 'none', backgroundColor: 'transparent', 
-            color: '#adb5bd', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' 
+          style={{
+            padding: '8px', borderRadius: '4px', border: 'none', backgroundColor: 'transparent',
+            color: '#adb5bd', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}
         >
           <X size={20} />
@@ -282,9 +285,9 @@ const AiSettings = () => {
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Left Sidebar */}
-        <div style={{ 
-          width: '280px', backgroundColor: '#f0f2f5', borderRight: '1px solid #dee2e6', 
-          display: 'flex', flexDirection: 'column', padding: '16px 0' 
+        <div style={{
+          width: '280px', backgroundColor: '#f0f2f5', borderRight: '1px solid #dee2e6',
+          display: 'flex', flexDirection: 'column', padding: '16px 0'
         }}>
           <div style={{ padding: '0 24px 16px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #dee2e6', marginBottom: '16px' }}>
             <div style={{ width: '32px', height: '32px', borderRadius: '4px', backgroundColor: '#714B67', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
@@ -297,10 +300,10 @@ const AiSettings = () => {
             {TABS.map(tab => {
               const isActive = activeTab === tab.id;
               return (
-                <button 
+                <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  style={{ 
+                  style={{
                     width: '100%', padding: '10px 24px', border: 'none', background: 'none', cursor: 'pointer',
                     display: 'flex', alignItems: 'center', gap: '12px', color: isActive ? '#017E84' : '#495057',
                     fontSize: '0.9rem', fontWeight: isActive ? 700 : 500, borderLeft: isActive ? '4px solid #017E84' : '4px solid transparent',
@@ -319,7 +322,7 @@ const AiSettings = () => {
           <div style={{ padding: '32px 48px', maxWidth: '900px' }}>
             {activeTab === 'ai' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
-                
+
                 {/* Active Info Section */}
                 <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -329,10 +332,10 @@ const AiSettings = () => {
                 </div>
 
                 {/* Status Indicator (Odoo small alert style) */}
-                <div style={{ 
-                  padding: '12px 16px', borderRadius: '4px', border: '1px solid #cce5ff', 
+                <div style={{
+                  padding: '12px 16px', borderRadius: '4px', border: '1px solid #cce5ff',
                   backgroundColor: '#f8f9fa', borderLeftWidth: '4px', borderLeftColor: '#017E84',
-                  display: 'flex', alignItems: 'center', gap: '12px' 
+                  display: 'flex', alignItems: 'center', gap: '12px'
                 }}>
                   <div style={{ color: '#017E84' }}><Cpu size={20} /></div>
                   <div style={{ fontSize: '0.9rem', color: '#495057' }}>
@@ -342,23 +345,23 @@ const AiSettings = () => {
 
                 {/* Settings Grid */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-                  
+
                   {/* Provider Row */}
                   <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: '24px' }}>
                     <div>
                       <label style={{ fontSize: '0.9rem', fontWeight: 700, color: '#495057' }}>AI Provider</label>
                       <p style={{ fontSize: '0.75rem', color: '#adb5bd', marginTop: '4px' }}>Choose your AI service provider</p>
                     </div>
-                    <div style={{ 
-                      display: 'flex', gap: '4px', padding: '4px', backgroundColor: '#f8f9fa', borderRadius: '4px', border: '1px solid #dee2e6' 
+                    <div style={{
+                      display: 'flex', gap: '4px', padding: '4px', backgroundColor: '#f8f9fa', borderRadius: '4px', border: '1px solid #dee2e6'
                     }}>
                       {PROVIDERS.map(p => {
                         const isActive = activeProvider === p.id;
                         return (
-                          <button 
+                          <button
                             key={p.id}
                             onClick={() => handleProviderSwitch(p.id)}
-                            style={{ 
+                            style={{
                               flex: 1, padding: '6px 12px', borderRadius: '3px', border: 'none',
                               backgroundColor: isActive ? '#017E84' : 'transparent', color: isActive ? '#fff' : '#495057',
                               fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.1s'
@@ -381,21 +384,21 @@ const AiSettings = () => {
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <div style={{ display: 'flex', gap: '8px' }}>
-                        <input 
+                        <input
                           type="password"
                           value={apiKey}
                           onChange={(e) => setApiKey(e.target.value)}
                           placeholder={activeProvider === 'Ollama' || activeProvider.includes('Ollama') ? "Optional" : "Paste your key here"}
-                          style={{ 
-                            flex: 1, padding: '8px 12px', borderRadius: '4px', backgroundColor: '#fff', 
+                          style={{
+                            flex: 1, padding: '8px 12px', borderRadius: '4px', backgroundColor: '#fff',
                             border: '1px solid #dee2e6', color: '#495057', fontSize: '0.9rem', outline: 'none'
                           }}
                         />
-                        <button 
+                        <button
                           onClick={handleTestConnection}
                           disabled={isTesting}
-                          style={{ 
-                            padding: '8px 16px', borderRadius: '4px', backgroundColor: '#e9ecef', color: '#495057', 
+                          style={{
+                            padding: '8px 16px', borderRadius: '4px', backgroundColor: '#e9ecef', color: '#495057',
                             border: '1px solid #dee2e6', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
                             display: 'flex', alignItems: 'center', gap: '6px'
                           }}
@@ -404,11 +407,11 @@ const AiSettings = () => {
                           {isTesting ? 'Testing...' : 'Test'}
                         </button>
                       </div>
-                      
+
                       {testResult && (
-                        <div style={{ 
-                          fontSize: '0.8rem', color: testResult.success ? '#157347' : '#bb2d3b', 
-                          display: 'flex', alignItems: 'center', gap: '6px' 
+                        <div style={{
+                          fontSize: '0.8rem', color: testResult.success ? '#157347' : '#bb2d3b',
+                          display: 'flex', alignItems: 'center', gap: '6px'
                         }}>
                           {testResult.success ? <CheckCircle2 size={14} /> : <X size={14} />}
                           {testResult.message}
@@ -424,13 +427,13 @@ const AiSettings = () => {
                         <label style={{ fontSize: '0.9rem', fontWeight: 700, color: '#495057' }}>Base URL</label>
                         <p style={{ fontSize: '0.75rem', color: '#adb5bd', marginTop: '4px' }}>Endpoint address</p>
                       </div>
-                      <input 
+                      <input
                         type="text"
                         value={baseUrl}
                         onChange={(e) => setBaseUrl(e.target.value)}
                         placeholder={activeProvider.includes('Ollama') ? "http://localhost:11434/v1" : "https://api.your-provider.com/v1"}
-                        style={{ 
-                          padding: '8px 12px', borderRadius: '4px', backgroundColor: '#fff', 
+                        style={{
+                          padding: '8px 12px', borderRadius: '4px', backgroundColor: '#fff',
                           border: '1px solid #dee2e6', color: '#495057', fontSize: '0.9rem', outline: 'none'
                         }}
                       />
@@ -444,11 +447,11 @@ const AiSettings = () => {
                       <p style={{ fontSize: '0.75rem', color: '#adb5bd', marginTop: '4px' }}>Specific model version to use</p>
                     </div>
                     <div style={{ position: 'relative' }}>
-                      <select 
+                      <select
                         value={modelId}
                         onChange={(e) => setModelId(e.target.value)}
-                        style={{ 
-                          width: '100%', padding: '8px 12px', borderRadius: '4px', backgroundColor: '#fff', 
+                        style={{
+                          width: '100%', padding: '8px 12px', borderRadius: '4px', backgroundColor: '#fff',
                           border: '1px solid #dee2e6', color: '#495057', fontSize: '0.9rem', outline: 'none',
                           appearance: 'none', cursor: 'pointer'
                         }}
@@ -461,15 +464,62 @@ const AiSettings = () => {
                           <option value={modelId}>{modelId}</option>
                         )}
                       </select>
-                      <div style={{ 
-                        position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', 
-                        pointerEvents: 'none', color: '#adb5bd' 
+                      <div style={{
+                        position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                        pointerEvents: 'none', color: '#adb5bd'
                       }}>
                         <ChevronRight size={14} style={{ transform: 'rotate(90deg)' }} />
                       </div>
                       <p style={{ fontSize: '0.7rem', color: '#adb5bd', marginTop: '4px' }}>
                         {isFetchingModels ? 'Retrieving available versions...' : availableModels.length > 0 ? `${availableModels.length} models found` : 'Verify connection to see more models'}
                       </p>
+                    </div>
+                  </div>
+
+                  {/* Copilot Safety Threshold Row */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: '24px' }}>
+                    <div>
+                      <label style={{ fontSize: '0.9rem', fontWeight: 700, color: '#495057' }}>Copilot Safety Threshold</label>
+                      <p style={{ fontSize: '0.75rem', color: '#adb5bd', marginTop: '4px' }}>Minimum rasio command aman untuk Apply All</p>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <input
+                        type="range"
+                        min="0.3"
+                        max="0.95"
+                        step="0.05"
+                        value={copilotSafetyThreshold}
+                        onChange={(e) => setCopilotSafetyThreshold(Number(e.target.value))}
+                        style={{ flex: 1 }}
+                      />
+                      <div style={{ minWidth: '56px', fontSize: '0.85rem', fontWeight: 700, color: '#017E84' }}>
+                        {(copilotSafetyThreshold * 100).toFixed(0)}%
+                      </div>
+                    </div>
+                    <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
+                      {[
+                        { label: 'Aggressive', value: 0.4 },
+                        { label: 'Balanced', value: 0.6 },
+                        { label: 'Conservative', value: 0.8 }
+                      ].map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => setCopilotSafetyThreshold(preset.value)}
+                          style={{
+                            padding: '6px 10px',
+                            borderRadius: '6px',
+                            border: Math.abs(copilotSafetyThreshold - preset.value) < 0.001 ? '1px solid #017E84' : '1px solid #dee2e6',
+                            backgroundColor: Math.abs(copilotSafetyThreshold - preset.value) < 0.001 ? '#e6f7f7' : '#fff',
+                            color: '#495057',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {preset.label} ({Math.round(preset.value * 100)}%)
+                        </button>
+                      ))}
                     </div>
                   </div>
 

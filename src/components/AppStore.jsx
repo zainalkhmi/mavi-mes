@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { 
-    Layout, Sparkles, Settings2, Package, Wrench, ArrowRight, CheckCircle2, 
-    Search, Filter, Star, Zap, Info, Rocket, Database, ShieldCheck, 
+import {
+    Layout, Sparkles, Settings2, Package, Wrench, ArrowRight, CheckCircle2,
+    Search, Filter, Star, Zap, Info, Rocket, Database, ShieldCheck,
     ChevronRight, ShoppingBag, Plus, Award, Boxes, ShieldAlert, BookOpen, X,
     List, Cpu, Settings, FileText, PlayCircle, Activity, HeartPulse,
     Image as ImageIcon
@@ -17,6 +17,7 @@ import { createAutomotiveTuneUpTemplate } from '../utils/automotiveTemplate';
 import { createDefectTrackingTemplate } from '../utils/defectTrackingTemplate';
 import { createHospitalLabTemplate } from '../utils/hospitalLabTemplate';
 import { createDiabetesManagementTemplate } from '../utils/diabetesManagementTemplate';
+import { createAssyLineProductionTemplate } from '../utils/assyLineProductionTemplate';
 
 import { saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { createTable, getTables, addTableRecord } from '../utils/database';
@@ -164,6 +165,19 @@ const AppStore = () => {
                 ],
                 mechanism: 'Integrates live ELM327 data into the app state for real-time monitoring and automated fault detection.'
             }
+        },
+        {
+            id: 'assy-line-production',
+            name: 'Hasil Produksy di Assy Line',
+            category: 'Production',
+            description: 'Form input 1-step untuk pencatatan hasil produksi assembly line secara cepat.',
+            longDescription: 'Template sederhana untuk operator line dalam mencatat hasil produksi, NG, downtime, dan status produksi dalam satu halaman.',
+            icon: <Package size={28} color="#2563eb" />,
+            bg: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+            accent: '#2563eb',
+            rating: 4.8,
+            installs: 'New',
+            features: ['1-Step Form', 'Fast Input', 'Production Logging']
         },
         {
             id: 'hospital-lab',
@@ -335,8 +349,8 @@ const AppStore = () => {
 
 
     const filteredTemplates = templates.filter(t => {
-        const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                             t.description.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            t.description.toLowerCase().includes(searchQuery.toLowerCase());
         const matchesCategory = activeCategory === 'All' || t.category === activeCategory;
         return matchesSearch && matchesCategory;
     });
@@ -344,10 +358,10 @@ const AppStore = () => {
     const handleInstall = async (templateId) => {
         setInstallingId(templateId);
         const loadingToast = toast.loading('Installing template...');
-        
+
         try {
             let templateApp;
-            
+
             if (templateId === 'qc') {
                 let qcData = createQCTemplate();
                 let actualTableId = 'qvc';
@@ -482,7 +496,7 @@ const AppStore = () => {
                         appStr = appStr.replace(/PLACEHOLDER_TABLE_STORAGE/g, locTable.id);
                         // Also handle the legacy one just in case
                         appStr = appStr.replace(/inventory_table_placeholder/g, reqTable.id);
-                        
+
                         templateApp = JSON.parse(appStr);
                         templateApp.config.appTables = [partsTable.id, reqTable.id, locTable.id];
 
@@ -663,27 +677,27 @@ const AppStore = () => {
                     if (masterTable && masterTable.id) {
                         const { addTableRecord } = await import('../utils/supabaseTablesDB');
                         console.log(`[Seed] Seeding Materials_Master (${masterTable.id})...`);
-                        await addTableRecord(masterTable.id, { 
-                            recordId: 'MAT-001', 
-                            Name: 'Engine Block', 
-                            Description: 'V6 Aluminum Block - High Precision Casting', 
-                            Category: 'Core Components', 
+                        await addTableRecord(masterTable.id, {
+                            recordId: 'MAT-001',
+                            Name: 'Engine Block',
+                            Description: 'V6 Aluminum Block - High Precision Casting',
+                            Category: 'Core Components',
                             Unit: 'pcs',
                             Image: '/assets/master/engine_block.png'
                         });
-                        await addTableRecord(masterTable.id, { 
-                            recordId: 'MAT-002', 
-                            Name: 'Transmission Case', 
-                            Description: '6-Speed Housing - Die-cast Magnesium', 
-                            Category: 'Drivetrain', 
+                        await addTableRecord(masterTable.id, {
+                            recordId: 'MAT-002',
+                            Name: 'Transmission Case',
+                            Description: '6-Speed Housing - Die-cast Magnesium',
+                            Category: 'Drivetrain',
                             Unit: 'pcs',
                             Image: '/assets/master/transmission.png'
                         });
-                        await addTableRecord(masterTable.id, { 
-                            recordId: 'MAT-003', 
-                            Name: 'Cylinder Head', 
-                            Description: 'DOHC 24V Head - Performance Grade', 
-                            Category: 'Engine Parts', 
+                        await addTableRecord(masterTable.id, {
+                            recordId: 'MAT-003',
+                            Name: 'Cylinder Head',
+                            Description: 'DOHC 24V Head - Performance Grade',
+                            Category: 'Engine Parts',
                             Unit: 'pcs',
                             Image: '/assets/master/cylinder_head.png'
                         });
@@ -722,7 +736,7 @@ const AppStore = () => {
                             .replace(/materials_master_placeholder/g, masterTable.id)
                             .replace(/defect_events_placeholder/g, eventTable.id);
                         templateApp = JSON.parse(appStr);
-                        
+
                         // Update appTables config
                         templateApp.config.appTables = [masterTable.id, eventTable.id, historyTable.id];
                     }
@@ -832,6 +846,35 @@ const AppStore = () => {
                 } catch (diabErr) {
                     console.warn('Could not create diabetes tables:', diabErr);
                 }
+            } else if (templateId === 'assy-line-production') {
+                templateApp = createAssyLineProductionTemplate();
+                try {
+                    const assyTable = await createTable({
+                        name: 'Assy_Production_Logs',
+                        fields: [
+                            { name: 'Shift', type: 'text' },
+                            { name: 'Line_Assy', type: 'text' },
+                            { name: 'Work_Order', type: 'text' },
+                            { name: 'Model_Part_Number', type: 'text' },
+                            { name: 'Qty_Plan', type: 'number' },
+                            { name: 'Qty_Actual', type: 'number' },
+                            { name: 'Qty_NG', type: 'number' },
+                            { name: 'Downtime_Minutes', type: 'number' },
+                            { name: 'Status_Produksi', type: 'text' },
+                            { name: 'Catatan', type: 'text' },
+                            { name: 'Operator', type: 'user' },
+                            { name: 'Timestamp', type: 'datetime' }
+                        ]
+                    });
+
+                    if (assyTable && assyTable.id) {
+                        const appStr = JSON.stringify(templateApp).replace(/assy_production_placeholder/g, assyTable.id);
+                        templateApp = JSON.parse(appStr);
+                        templateApp.config.appTables = [assyTable.id];
+                    }
+                } catch (assyErr) {
+                    console.warn('Could not create assy production table:', assyErr);
+                }
             } else {
 
 
@@ -850,7 +893,7 @@ const AppStore = () => {
             });
 
             toast.success(`${templateApp.name} installed successfully!`, { id: loadingToast });
-            
+
             // Navigate to builder for the new app
             setTimeout(() => {
                 navigate(`/builder?id=${savedApp.id}`);
@@ -867,9 +910,9 @@ const AppStore = () => {
     return (
         <div style={{ height: '100%', backgroundColor: '#f8fafc', overflowY: 'auto', padding: '40px 20px', fontFamily: "'Inter', sans-serif" }}>
             <Toaster position="top-right" />
-            
+
             <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-                
+
                 {/* HEADER SECTION */}
                 <div style={{ marginBottom: '50px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                     <div>
@@ -881,12 +924,12 @@ const AppStore = () => {
                             Instantly deploy enterprise-ready applications for your shop floor. Built-in logic, tables, and analytics.
                         </p>
                     </div>
-                    
+
                     <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
                         <div style={{ position: 'relative', width: '300px' }}>
                             <Search size={18} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-                            <input 
-                                type="text" 
+                            <input
+                                type="text"
                                 placeholder="Search templates..."
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
@@ -941,8 +984,8 @@ const AppStore = () => {
                         >
                             {/* Card Top: Gradient & Icon */}
                             <div style={{ height: '140px', background: t.bg, padding: '24px', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <div style={{ 
-                                    width: '64px', height: '64px', borderRadius: '18px', backgroundColor: 'white', 
+                                <div style={{
+                                    width: '64px', height: '64px', borderRadius: '18px', backgroundColor: 'white',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     boxShadow: '0 8px 16px rgba(0,0,0,0.08)'
                                 }}>
@@ -963,7 +1006,7 @@ const AppStore = () => {
                                         <Star size={14} fill="#f59e0b" /> {t.rating}
                                     </div>
                                 </div>
-                                
+
                                 <p style={{ margin: '0 0 20px 0', fontSize: '0.9rem', color: '#64748b', lineHeight: 1.5, height: '42px', overflow: 'hidden' }}>
                                     {t.description}
                                 </p>
@@ -1026,7 +1069,7 @@ const AppStore = () => {
                         <div style={{ fontSize: '3rem', marginBottom: '20px' }}>🔍</div>
                         <h3 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a' }}>No templates found</h3>
                         <p style={{ color: '#64748b' }}>Try adjusting your search or category filters.</p>
-                        <button 
+                        <button
                             onClick={() => { setSearchQuery(''); setActiveCategory('All'); }}
                             style={{ marginTop: '20px', padding: '10px 24px', backgroundColor: 'transparent', color: '#2563eb', border: '1px solid #2563eb', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
                         >
@@ -1044,7 +1087,7 @@ const AppStore = () => {
                         <p style={{ fontSize: '1.1rem', color: '#94a3b8', lineHeight: 1.6, marginBottom: '32px' }}>
                             Our experts can help you build specialized workflows tailored to your unique manufacturing processes.
                         </p>
-                        <button 
+                        <button
                             onClick={() => navigate('/builder')}
                             style={{ padding: '14px 32px', borderRadius: '14px', border: 'none', backgroundColor: '#3b82f6', color: 'white', fontWeight: 800, fontSize: '1rem', cursor: 'pointer', boxShadow: '0 10px 20px -5px rgba(59, 130, 246, 0.4)' }}
                         >
@@ -1072,15 +1115,15 @@ const AppStore = () => {
                                 <X size={20} />
                             </button>
                         </div>
-                        
+
                         <div style={{ display: 'flex', borderBottom: '1px solid #f1f5f9', backgroundColor: '#f8fafc' }}>
-                            <button 
+                            <button
                                 onClick={() => setModalTab('guide')}
-                                style={{ 
-                                    flex: 1, padding: '16px', border: 'none', 
-                                    backgroundColor: modalTab === 'guide' ? 'white' : 'transparent', 
-                                    borderBottom: modalTab === 'guide' ? `3px solid ${selectedGuide.accent}` : 'none', 
-                                    color: modalTab === 'guide' ? selectedGuide.accent : '#64748b', 
+                                style={{
+                                    flex: 1, padding: '16px', border: 'none',
+                                    backgroundColor: modalTab === 'guide' ? 'white' : 'transparent',
+                                    borderBottom: modalTab === 'guide' ? `3px solid ${selectedGuide.accent}` : 'none',
+                                    color: modalTab === 'guide' ? selectedGuide.accent : '#64748b',
                                     fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
                                 }}
@@ -1088,13 +1131,13 @@ const AppStore = () => {
                                 <BookOpen size={18} /> Technical Guide
                             </button>
                             {selectedGuide.previewImage && (
-                                <button 
+                                <button
                                     onClick={() => setModalTab('preview')}
-                                    style={{ 
-                                        flex: 1, padding: '16px', border: 'none', 
-                                        backgroundColor: modalTab === 'preview' ? 'white' : 'transparent', 
-                                        borderBottom: modalTab === 'preview' ? `3px solid ${selectedGuide.accent}` : 'none', 
-                                        color: modalTab === 'preview' ? selectedGuide.accent : '#64748b', 
+                                    style={{
+                                        flex: 1, padding: '16px', border: 'none',
+                                        backgroundColor: modalTab === 'preview' ? 'white' : 'transparent',
+                                        borderBottom: modalTab === 'preview' ? `3px solid ${selectedGuide.accent}` : 'none',
+                                        color: modalTab === 'preview' ? selectedGuide.accent : '#64748b',
                                         fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s',
                                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
                                     }}
@@ -1103,11 +1146,11 @@ const AppStore = () => {
                                 </button>
                             )}
                         </div>
-                        
+
                         <div style={{ padding: '32px', maxHeight: '70vh', overflowY: 'auto' }}>
                             {modalTab === 'guide' ? (
                                 <div style={{ display: 'grid', gap: '28px' }}>
-                                    
+
                                     <section>
                                         <h3 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                             <PlayCircle size={18} color="#2563eb" /> Operation Workflow
@@ -1183,14 +1226,14 @@ const AppStore = () => {
                                     <div style={{ marginBottom: '20px' }}>
                                         <h3 style={{ margin: '0 0 12px 0', fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>Live Interface Preview</h3>
                                         <p style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: '20px' }}>
-                                            This is a visual representation of how the {selectedGuide.name} application looks in production. 
+                                            This is a visual representation of how the {selectedGuide.name} application looks in production.
                                             The template includes all widgets and layouts shown below.
                                         </p>
                                     </div>
                                     <div style={{ borderRadius: '16px', overflow: 'hidden', border: '4px solid #f1f5f9', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
-                                        <img 
-                                            src={selectedGuide.previewImage} 
-                                            alt={`${selectedGuide.name} Preview`} 
+                                        <img
+                                            src={selectedGuide.previewImage}
+                                            alt={`${selectedGuide.name} Preview`}
                                             style={{ width: '100%', display: 'block', borderRadius: '12px' }}
                                         />
                                     </div>
@@ -1206,7 +1249,7 @@ const AppStore = () => {
                         </div>
 
                         <div style={{ padding: '24px 32px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end', backgroundColor: '#f8fafc' }}>
-                            <button 
+                            <button
                                 onClick={() => { handleInstall(selectedGuide.id); setSelectedGuide(null); }}
                                 style={{
                                     padding: '12px 32px', borderRadius: '14px', border: 'none',

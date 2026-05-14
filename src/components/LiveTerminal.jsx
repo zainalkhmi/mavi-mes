@@ -772,18 +772,18 @@ const LiveTerminal = () => {
     const toastId = toast.loading(`Sending ${count} test records to cloud...`);
 
     try {
-        const resolvedTableId = await resolveTableIdReference('STRESS_TEST_TABLE');
-        for (let i = 0; i < count; i++) {
-            await addTableRecord(resolvedTableId, {
-                timestamp: new Date().toISOString(),
-                index: i,
-                note: 'Direct cloud stress test'
-            });
-        }
-        toast.success(`Sent ${count} records directly to Supabase table ${resolvedTableId}.`, { id: toastId });
+      const resolvedTableId = await resolveTableIdReference('STRESS_TEST_TABLE');
+      for (let i = 0; i < count; i++) {
+        await addTableRecord(resolvedTableId, {
+          timestamp: new Date().toISOString(),
+          index: i,
+          note: 'Direct cloud stress test'
+        });
+      }
+      toast.success(`Sent ${count} records directly to Supabase table ${resolvedTableId}.`, { id: toastId });
     } catch (err) {
-        toast.error(`Cloud test failed: ${err?.message || 'Unknown error'}`);
-        toast.dismiss(toastId);
+      toast.error(`Cloud test failed: ${err?.message || 'Unknown error'}`);
+      toast.dismiss(toastId);
     }
   };
 
@@ -934,7 +934,11 @@ const LiveTerminal = () => {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
+      if (!e || typeof e.key !== 'string') return;
       const now = Date.now();
+      if (typeof barcodeBuffer.current !== 'string') {
+        barcodeBuffer.current = '';
+      }
       // Most scanners send characters rapidly (< 50ms apart)
       if (now - lastKeyTime.current > 50) {
         barcodeBuffer.current = '';
@@ -982,7 +986,7 @@ const LiveTerminal = () => {
 
     evalVisibility();
   }, [selectedApp, currentStepIndex, appVariables, recordPlaceholderData]);
-  
+
   useEffect(() => {
     if (!selectedApp || status !== 'RUNNING') return;
 
@@ -1076,50 +1080,50 @@ const LiveTerminal = () => {
         const allUsers = getAllUsers();
         // Get fresh user data to ensure latest assignments are respected without re-login
         // We use ID first, then fallback to Name/Username match for robustness
-        const freshUser = allUsers.find(u => u.id === user?.id) || 
-                         allUsers.find(u => u.username === user?.username) || 
-                         allUsers.find(u => u.name === user?.name) || 
-                         user;
-        
+        const freshUser = allUsers.find(u => u.id === user?.id) ||
+          allUsers.find(u => u.username === user?.username) ||
+          allUsers.find(u => u.name === user?.name) ||
+          user;
+
         let filteredApps = appId ? combinedApps : visibleApps;
 
         if (freshUser && freshUser.role === 'OPERATOR') {
-            // 1. Filter Apps: If specific app assigned, search in ALL apps (including drafts)
-            if (freshUser.assignedApp && freshUser.assignedApp !== 'ALL' && freshUser.assignedApp !== 'NONE') {
-                let assigned = combinedApps.find(a => String(a.id) === String(freshUser.assignedApp));
-                // Fallback to name search if ID doesn't match
-                if (!assigned) {
-                    assigned = combinedApps.find(a => a.name === freshUser.assignedApp);
-                }
-                filteredApps = assigned ? [assigned] : [];
+          // 1. Filter Apps: If specific app assigned, search in ALL apps (including drafts)
+          if (freshUser.assignedApp && freshUser.assignedApp !== 'ALL' && freshUser.assignedApp !== 'NONE') {
+            let assigned = combinedApps.find(a => String(a.id) === String(freshUser.assignedApp));
+            // Fallback to name search if ID doesn't match
+            if (!assigned) {
+              assigned = combinedApps.find(a => a.name === freshUser.assignedApp);
             }
-            
-            // 2. Sync Station Context: Resolve name if ID is assigned
-            if (freshUser.assignedStation && freshUser.assignedStation !== 'ALL' && freshUser.assignedStation !== 'NONE') {
-                // Try to find station name from metadata
-                const stationMatch = (stationData || []).find(s => String(s.id) === String(freshUser.assignedStation));
-                const stationName = stationMatch ? stationMatch.name : freshUser.assignedStation;
-                setAppContext(prev => ({ ...prev, station: stationName }));
-            }
+            filteredApps = assigned ? [assigned] : [];
+          }
+
+          // 2. Sync Station Context: Resolve name if ID is assigned
+          if (freshUser.assignedStation && freshUser.assignedStation !== 'ALL' && freshUser.assignedStation !== 'NONE') {
+            // Try to find station name from metadata
+            const stationMatch = (stationData || []).find(s => String(s.id) === String(freshUser.assignedStation));
+            const stationName = stationMatch ? stationMatch.name : freshUser.assignedStation;
+            setAppContext(prev => ({ ...prev, station: stationName }));
+          }
         }
 
         setFrontlineApps(filteredApps);
 
         // Auto-load match with Smart Matching
         if (appId && combinedApps.length > 0) {
-            let match = combinedApps.find(a => String(a.id) === String(appId));
-            if (!match) {
-                // Try Name fallback if ID didn't work
-                const searchName = String(appId).toLowerCase();
-                match = combinedApps.find(a => String(a.name || '').toLowerCase() === searchName);
-            }
+          let match = combinedApps.find(a => String(a.id) === String(appId));
+          if (!match) {
+            // Try Name fallback if ID didn't work
+            const searchName = String(appId).toLowerCase();
+            match = combinedApps.find(a => String(a.name || '').toLowerCase() === searchName);
+          }
 
-            // Only auto-load if it's in the filtered list (or user is admin/engineer)
-            const isAllowed = freshUser?.role !== 'OPERATOR' || !freshUser?.assignedApp || freshUser.assignedApp === 'ALL' || String(match?.id) === String(freshUser.assignedApp);
+          // Only auto-load if it's in the filtered list (or user is admin/engineer)
+          const isAllowed = freshUser?.role !== 'OPERATOR' || !freshUser?.assignedApp || freshUser.assignedApp === 'ALL' || String(match?.id) === String(freshUser.assignedApp);
 
-            if (match && isAllowed) {
-                await handleStartApp(match);
-            }
+          if (match && isAllowed) {
+            await handleStartApp(match);
+          }
         }
       } catch (err) {
         console.error('Failed to load data:', err);
@@ -1171,14 +1175,14 @@ const LiveTerminal = () => {
     // Enterprise Governance: Use published_config if published, else draft config
     const effectiveConfig = app.is_published ? (app.published_config || app.config) : app.config;
     const normalizedApp = { ...app, config: effectiveConfig };
-    
+
     setGlobalLogic(effectiveConfig.globalLogic || null);
     setSelectedApp(normalizedApp);
     setSelectedManual(null);
     setStatus('RUNNING');
     setTimer(0);
     setCurrentStepIndex(0);
-    
+
     // Fire Global/App Start logic (Legacy Actions)
     if (effectiveConfig.appTriggers) {
       const startTriggers = effectiveConfig.appTriggers.filter(t => t.event === 'ON_APP_START');
@@ -1317,18 +1321,18 @@ const LiveTerminal = () => {
 
   const resolveSourceValue = async (source, value, defaultVal = '', eventPayload = null) => {
     let rawValue = value;
-    
+
     // Resolve Mustache-style placeholders in strings first
     if (typeof rawValue === 'string' && rawValue.includes('{{')) {
       rawValue = rawValue.replace(/\{\{EVENT\.PAYLOAD\}\}/g, eventPayload || '');
       rawValue = rawValue.replace(/\{\{EVENT\.VALUE\}\}/g, eventPayload || '');
-      
+
       // Resolve variables: {{VARIABLE.VarName}}
       rawValue = rawValue.replace(/\{\{VARIABLE\.([a-zA-Z0-9_.]+)\}\}/g, (match, varName) => {
         const v = appVariables.find(av => av.name === varName || av.id === varName);
         return v ? String(v.value) : '';
       });
-      
+
       // Resolve app info: {{APP_INFO.USER}}, etc.
       rawValue = rawValue.replace(/\{\{APP_INFO\.([a-zA-Z0-9_.]+)\}\}/g, (match, infoKey) => {
         if (infoKey === 'USER') return appContext.user || '';
@@ -1456,7 +1460,7 @@ const LiveTerminal = () => {
 
     if (!expr || typeof expr !== 'string') return expr;
     let processed = expr;
- 
+
     // 0. Support [Placeholder.Field] syntax (Tulip-style)
     processed = processed.replace(/\[([a-zA-Z0-9_.]+)]/g, (match, path) => {
       const parts = path.split('.');
@@ -1709,7 +1713,7 @@ const LiveTerminal = () => {
           const { getTableById } = await import('../utils/supabaseTablesDB');
           const table = await getTableById(comp.props.tableId);
           const queryDef = table?.queries?.find(q => q.id === comp.props.queryId);
- 
+
           if (queryDef) {
             data = await queryTableRecords(comp.props.tableId, {
               filters: queryDef.filters || [],
@@ -1725,9 +1729,9 @@ const LiveTerminal = () => {
           const fetched = await getTableRecords(comp.props.tableId);
           data = fetched.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
         }
- 
+
         results[comp.id] = data;
- 
+
         // Apply Dynamic Variable Filters if defined
         if (comp.props.variableFilters && Array.isArray(comp.props.variableFilters)) {
           let filtered = [...data];
@@ -1738,7 +1742,7 @@ const LiveTerminal = () => {
               searchVal = searchVal.value || searchVal.id || searchVal.recordId || JSON.stringify(searchVal);
             }
             searchVal = String(searchVal || '').trim().toLowerCase();
-            
+
             if (searchVal && searchVal !== '[object object]') {
               filtered = filtered.filter(row => {
                 // Search across all non-object values in the row for maximum reliability
@@ -1808,19 +1812,19 @@ const LiveTerminal = () => {
             const varPath = payload.varPath || payload.target || payload.variableName || payload.variable;
             const value = payload.value || payload.expression;
             const valueType = payload.valueType || payload.source || (payload.operation === 'SET' || payload.action === 'SET' ? 'STATIC' : 'STATIC');
-            
+
             // Handle Mustache-style payload in value
             // Handle case where value is an object with type and value properties (new standard)
             let finalValue = value;
             let finalType = valueType || 'STATIC';
-            
+
             if (value && typeof value === 'object' && value.type) {
               finalType = value.type;
               finalValue = value.value || value.id || value.expression || '';
             }
 
             const resolvedValue = await resolveSourceValue(finalType, finalValue, '', eventPayload);
-            
+
             if (varPath === 'APP_INFO.USER') setAppContext(prev => ({ ...prev, user: resolvedValue }));
             else if (varPath === 'APP_INFO.STATION') setAppContext(prev => ({ ...prev, station: resolvedValue }));
             else if (varPath === 'APP_INFO.WORK_ORDER') setAppContext(prev => ({ ...prev, workOrder: resolvedValue }));
@@ -1836,176 +1840,232 @@ const LiveTerminal = () => {
               }
             }
           } else if (type === 'PLAY_SOUND') {
-          const { url } = action.payload;
-          if (url) {
-            const audio = new Audio(url);
-            audio.play().catch(err => console.error("Error playing sound:", err));
-          }
-        } else if (action.type === 'SHOW_IMAGE' || action.type === 'PLAY_VIDEO') {
-          const { url, duration } = action.payload;
-          if (url) {
-            setActiveMedia({ type: action.type === 'SHOW_IMAGE' ? 'IMAGE' : 'VIDEO', url, duration: duration || 0 });
-          }
-        } else if (action.type === 'GO_TO_STEP') {
-          const targetIndex = (selectedApp?.config?.steps || []).findIndex(s => s.id === (action.payload.stepId || action.payload.targetId));
-          if (targetIndex !== -1) setCurrentStepIndex(targetIndex);
-        } else if (action.type === 'NEXT_STEP') {
-          handleNextStep();
-        } else if (action.type === 'PREV_STEP') {
-          handlePrevStep();
-        } else if (action.type === 'COMPLETE_APP') {
-          await handleCompleteApp();
-        } else if (action.type === 'CANCEL_APP') {
-          await handleCancelApp();
-        } else if (action.type === 'SAVE_APP_DATA') {
-          await handleSaveAppData();
-        } else if (action.type === 'CREATE_RECORD' || action.type === 'UPDATE_RECORD') {
-          const { tableId, mappings, recordId: rawRecordId } = action.payload;
-          const resolvedData = {};
-          for (const [col, mapObj] of Object.entries(mappings || {})) {
-            const mValue = typeof mapObj === 'string' ? mapObj : (mapObj.value || '');
-            const mType = typeof mapObj === 'string' ? 'STATIC' : (mapObj.type || 'STATIC');
-            resolvedData[col] = await resolveSourceValue(mType, mValue, '', eventPayload);
-          }
-
-          if (action.type === 'CREATE_RECORD') {
-            const { addTableRecord, resolveTableIdReference } = await import('../utils/supabaseTablesDB');
-            const resolvedTableId = await resolveTableIdReference(tableId);
-            if (!resolvedData.recordId && !resolvedData.id) {
-              resolvedData.recordId = `QC_${Date.now()}`;
+            const { url } = action.payload;
+            if (url) {
+              const audio = new Audio(url);
+              audio.play().catch(err => console.error("Error playing sound:", err));
             }
-            await addTableRecord(resolvedTableId, resolvedData);
-          } else {
-            const recordId = await resolveSourceValue('STATIC', rawRecordId);
-            const { updateTableRecord, resolveTableIdReference, getTableRecords } = await import('../utils/supabaseTablesDB');
-            const resolvedTableId = await resolveTableIdReference(tableId);
-            
-            // For Supabase, we need the internal row ID.
-            const records = await getTableRecords(resolvedTableId);
-            const target = records.find(r => String(r.recordId).toLowerCase() === String(recordId).toLowerCase());
-            
-            if (target) {
-              await updateTableRecord(target.id, resolvedData);
+          } else if (action.type === 'SHOW_IMAGE' || action.type === 'PLAY_VIDEO') {
+            const { url, duration } = action.payload;
+            if (url) {
+              setActiveMedia({ type: action.type === 'SHOW_IMAGE' ? 'IMAGE' : 'VIDEO', url, duration: duration || 0 });
+            }
+          } else if (action.type === 'GO_TO_STEP') {
+            const targetIndex = (selectedApp?.config?.steps || []).findIndex(s => s.id === (action.payload.stepId || action.payload.targetId));
+            if (targetIndex !== -1) setCurrentStepIndex(targetIndex);
+          } else if (action.type === 'NEXT_STEP') {
+            handleNextStep();
+          } else if (action.type === 'PREV_STEP') {
+            handlePrevStep();
+          } else if (action.type === 'COMPLETE_APP') {
+            await handleCompleteApp();
+          } else if (action.type === 'CANCEL_APP') {
+            await handleCancelApp();
+          } else if (action.type === 'SAVE_APP_DATA') {
+            await handleSaveAppData();
+          } else if (action.type === 'CREATE_RECORD' || action.type === 'UPDATE_RECORD') {
+            const { tableId, mappings, recordId: rawRecordId } = action.payload;
+            const resolvedData = {};
+            for (const [col, mapObj] of Object.entries(mappings || {})) {
+              const mValue = typeof mapObj === 'string' ? mapObj : (mapObj.value || '');
+              const mType = typeof mapObj === 'string' ? 'STATIC' : (mapObj.type || 'STATIC');
+              resolvedData[col] = await resolveSourceValue(mType, mValue, '', eventPayload);
+            }
+
+            if (action.type === 'CREATE_RECORD') {
+              const { addTableRecord, resolveTableIdReference } = await import('../utils/supabaseTablesDB');
+              const resolvedTableId = await resolveTableIdReference(tableId);
+              if (!resolvedData.recordId && !resolvedData.id) {
+                resolvedData.recordId = `QC_${Date.now()}`;
+              }
+              await addTableRecord(resolvedTableId, resolvedData);
             } else {
-              throw new Error(`Record "${recordId}" not found in table "${tableId}"`);
-            }
-          }
-        } else if (['TABLE_RECORD_LOAD', 'TABLE_RECORD_CREATE', 'TABLE_RECORD_CREATE_OR_LOAD'].includes(action.type)) {
-          const { placeholderId, idType = 'STATIC', idValue = '' } = action.payload || {};
-          const placeholder = recordPlaceholders.find(rp => rp.id === placeholderId);
-          if (!placeholder?.tableId) continue;
-          const resolvedId = await resolveSourceValue(idType, idValue, '', eventPayload);
+              const recordId = await resolveSourceValue('STATIC', rawRecordId);
+              const { updateTableRecord, resolveTableIdReference, getTableRecords } = await import('../utils/supabaseTablesDB');
+              const resolvedTableId = await resolveTableIdReference(tableId);
 
-          const loadById = async () => {
-            const { getTableRecords } = await import('../utils/supabaseTablesDB');
-            const rows = await getTableRecords(placeholder.tableId);
-            const found = (rows || []).find(r => String(r.id) === String(resolvedId) || String(r.recordId) === String(resolvedId));
-            if (found) {
-              setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: found }));
+              // For Supabase, we need the internal row ID.
+              const records = await getTableRecords(resolvedTableId);
+              const target = records.find(r => String(r.recordId).toLowerCase() === String(recordId).toLowerCase());
+
+              if (target) {
+                await updateTableRecord(target.id, resolvedData);
+              } else {
+                throw new Error(`Record "${recordId}" not found in table "${tableId}"`);
+              }
+            }
+          } else if (['TABLE_RECORD_LOAD', 'TABLE_RECORD_CREATE', 'TABLE_RECORD_CREATE_OR_LOAD', 'TABLE_RECORD_SAVE', 'TABLE_RECORD_DELETE'].includes(action.type)) {
+            const { placeholderId, idType = 'STATIC', idValue = '' } = action.payload || {};
+            const placeholder = recordPlaceholders.find(rp => rp.id === placeholderId);
+            if (!placeholder?.tableId) continue;
+            const resolvedId = await resolveSourceValue(idType, idValue, '', eventPayload);
+
+            const loadById = async () => {
+              const { getTableRecords } = await import('../utils/supabaseTablesDB');
+              const rows = await getTableRecords(placeholder.tableId);
+              const found = (rows || []).find(r => String(r.id) === String(resolvedId) || String(r.recordId) === String(resolvedId));
+              if (found) {
+                setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: found }));
+                return true;
+              }
+              return false;
+            };
+
+            const createById = async () => {
+              const { addTableRecord } = await import('../utils/supabaseTablesDB');
+              const created = await addTableRecord(placeholder.tableId, { id: resolvedId });
+              setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: created || { id: resolvedId } }));
               return true;
-            }
-            return false;
-          };
+            };
 
-          const createById = async () => {
-            const { addTableRecord } = await import('../utils/supabaseTablesDB');
-            const created = await addTableRecord(placeholder.tableId, { id: resolvedId });
-            setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: created || { id: resolvedId } }));
-            return true;
-          };
+            const saveById = async () => {
+              const rec = recordPlaceholderData[placeholderId];
+              if (!rec || !rec.id) return false;
 
-          if (action.type === 'TABLE_RECORD_LOAD') {
-            console.log(`[Action] Loading record for ${placeholder.name} with ID: "${resolvedId}"`);
-            const ok = await loadById();
-            if (!ok) {
-              console.warn(`[Action] Record with ID "${resolvedId}" NOT FOUND in table ${placeholder.tableId}`);
+              const updatedData = { ...rec };
+              const allComps = [...(selectedApp?.config?.baseComponents || []), ...((selectedApp?.config?.steps || [])[currentStepIndex]?.components || [])];
+
+              allComps.forEach(comp => {
+                if (comp.props.targetVariable && comp.props.targetVariable.startsWith(`${placeholder.name}.`)) {
+                  const fieldName = comp.props.targetVariable.split('.')[1];
+                  let val = undefined;
+                  switch (comp.type) {
+                    case 'BARCODE': val = barcodeValues[comp.id]; break;
+                    case 'CAMERA_SCANNER': val = cameraScannerValues[comp.id]; break;
+                    case 'CAMERA_CAPTURE': val = cameraValues[comp.id]; break;
+                    case 'FILE_UPLOAD': val = uploadValues[comp.id]?.url || uploadValues[comp.id]?.name; break;
+                    case 'TEXT_INPUT': val = textInputValues[comp.id]; break;
+                    case 'TEXT_AREA': val = textAreaValues[comp.id]; break;
+                    case 'NUMBER_INPUT': val = numberInputValues[comp.id]; break;
+                    case 'CHECKBOX': val = checkboxValues[comp.id]; break;
+                    case 'DROPDOWN': val = dropdownValues[comp.id]; break;
+                    case 'SLIDER': val = sliderValues[comp.id]; break;
+                    case 'DATE_PICKER': val = datePickerValues[comp.id]; break;
+                    case 'TIME_PICKER': val = timePickerValues[comp.id]; break;
+                    case 'TOGGLE': val = toggleValues[comp.id]; break;
+                    case 'SIGNATURE': val = signatureValues[comp.id]; break;
+                    case 'RFID_READER': val = rfidValues[comp.id]; break;
+                    case 'NFC_READER': val = nfcValues[comp.id]; break;
+                  }
+                  if (val !== undefined && val !== null) {
+                    updatedData[fieldName] = val;
+                  }
+                }
+              });
+
+              const { updateTableRecord } = await import('../utils/supabaseTablesDB');
+              await updateTableRecord(placeholder.tableId, rec.id, updatedData);
+              setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: updatedData }));
+              return true;
+            };
+
+            const deleteById = async () => {
+              const rec = recordPlaceholderData[placeholderId];
+              if (!rec || !rec.id) return false;
+              const { deleteTableRecord } = await import('../utils/supabaseTablesDB');
+              await deleteTableRecord(placeholder.tableId, rec.id);
+              setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: null }));
+              return true;
+            };
+
+            if (action.type === 'TABLE_RECORD_LOAD') {
+              console.log(`[Action] Loading record for ${placeholder.name} with ID: "${resolvedId}"`);
+              const ok = await loadById();
+              if (!ok) {
+                console.warn(`[Action] Record with ID "${resolvedId}" NOT FOUND in table ${placeholder.tableId}`);
+              } else {
+                console.log(`[Action] Record loaded successfully into ${placeholder.name}`);
+              }
+            } else if (action.type === 'TABLE_RECORD_CREATE') {
+              await createById();
+            } else if (action.type === 'TABLE_RECORD_SAVE') {
+              await saveById();
+              console.log(`[Action] Record saved successfully into ${placeholder.name}`);
+            } else if (action.type === 'TABLE_RECORD_DELETE') {
+              await deleteById();
+              console.log(`[Action] Record deleted successfully from ${placeholder.name}`);
             } else {
-              console.log(`[Action] Record loaded successfully into ${placeholder.name}`);
+              const ok = await loadById();
+              if (!ok) await createById();
             }
-          } else if (action.type === 'TABLE_RECORD_CREATE') {
-            await createById();
-          } else {
-            const ok = await loadById();
-            if (!ok) await createById();
-          }
-        } else if (action.type === 'CLEAR_RECORD_PLACEHOLDER') {
-          const { placeholderId } = action.payload || {};
-          if (!placeholderId) continue;
-          setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: null }));
-        } else if (action.type === 'CALL_FUNCTION') {
-          const { functionId, parameters } = action.payload;
-          const fn = appFunctions.find(f => f.id === functionId);
-          if (!fn) continue;
+          } else if (action.type === 'CLEAR_RECORD_PLACEHOLDER') {
+            const { placeholderId } = action.payload || {};
+            if (!placeholderId) continue;
+            setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: null }));
+          } else if (action.type === 'CALL_FUNCTION') {
+            const { functionId, parameters } = action.payload;
+            const fn = appFunctions.find(f => f.id === functionId);
+            if (!fn) continue;
 
-          const resolvedParams = {};
-          for (const [name, paramObj] of Object.entries(parameters || {})) {
-            resolvedParams[name] = await resolveSourceValue(paramObj.type, paramObj.value, '', eventPayload);
-          }
+            const resolvedParams = {};
+            for (const [name, paramObj] of Object.entries(parameters || {})) {
+              resolvedParams[name] = await resolveSourceValue(paramObj.type, paramObj.value, '', eventPayload);
+            }
 
-          let localContext = { ...resolvedParams };
-          for (const step of fn.steps) {
-            if (step.type === 'SET') {
-              const val = evaluateExpression(step.expression, localContext);
-              localContext[step.name] = val;
-              const globalVar = appVariables.find(v => v.name === step.name);
-              if (globalVar) {
-                setAppVariables(prev => prev.map(v => v.name === step.name ? { ...v, value: val } : v));
-                if (globalVar.isPersistent) {
-                  const { upsertGlobalVariable } = await import('../utils/supabaseGlobalVars');
-                  await upsertGlobalVariable(step.name, globalVar.type || 'TEXT', val);
+            let localContext = { ...resolvedParams };
+            for (const step of fn.steps) {
+              if (step.type === 'SET') {
+                const val = evaluateExpression(step.expression, localContext);
+                localContext[step.name] = val;
+                const globalVar = appVariables.find(v => v.name === step.name);
+                if (globalVar) {
+                  setAppVariables(prev => prev.map(v => v.name === step.name ? { ...v, value: val } : v));
+                  if (globalVar.isPersistent) {
+                    const { upsertGlobalVariable } = await import('../utils/supabaseGlobalVars');
+                    await upsertGlobalVariable(step.name, globalVar.type || 'TEXT', val);
+                  }
                 }
               }
             }
-          }
-        } else if (action.type === 'SEND_TO_CONNECTOR') {
-          const { connectorId, functionId, parameters, resultVar } = action.payload;
-          const resolvedParams = {};
-          for (const [name, paramObj] of Object.entries(parameters || {})) {
-            resolvedParams[name] = await resolveSourceValue(paramObj.type, paramObj.value, '', eventPayload);
-          }
-
-          const { webhookUtility } = await import('../utils/webhookUtility');
-          try {
-            const result = await webhookUtility.executeIntegrationAction(connectorId, { functionId, parameters: resolvedParams });
-            if (resultVar && result) {
-              setAppVariables(prev => prev.map(v => v.name === resultVar ? { ...v, value: result } : v));
+          } else if (action.type === 'SEND_TO_CONNECTOR') {
+            const { connectorId, functionId, parameters, resultVar } = action.payload;
+            const resolvedParams = {};
+            for (const [name, paramObj] of Object.entries(parameters || {})) {
+              resolvedParams[name] = await resolveSourceValue(paramObj.type, paramObj.value, '', eventPayload);
             }
-          } catch (err) {
-            console.error(`[Connector] Execution failed:`, err);
-          }
-        } else if (action.type === 'LINK_RECORD' || action.type === 'UNLINK_RECORD') {
-          const {
-            sourceTableId,
-            sourceRecordId: rawSourceId,
-            sourceFieldName,
-            targetTableId,
-            targetRecordId: rawTargetId,
-            targetFieldName
-          } = action.payload;
 
-          const sourceRecordId = await resolveSourceValue(action.payload.sourceRecordIdType || 'STATIC', rawSourceId, '', eventPayload);
-          const targetRecordId = await resolveSourceValue(action.payload.targetRecordIdType || 'STATIC', rawTargetId, '', eventPayload);
-
-          if (!sourceRecordId || !targetRecordId) {
-            console.warn(`[LinkedRecords] Missing record IDs for ${action.type}:`, { sourceRecordId, targetRecordId });
-            continue;
-          }
-
-          const { linkRecords, unlinkRecords } = await import('../utils/supabaseTablesDB');
-          try {
-            if (action.type === 'LINK_RECORD') {
-              await linkRecords(sourceTableId, sourceRecordId, sourceFieldName, targetTableId, targetRecordId, targetFieldName);
-              console.log(`[LinkedRecords] Linked ${sourceRecordId} to ${targetRecordId}`);
-            } else {
-              await unlinkRecords(sourceTableId, sourceRecordId, sourceFieldName, targetTableId, targetRecordId, targetFieldName);
-              console.log(`[LinkedRecords] Unlinked ${sourceRecordId} from ${targetRecordId}`);
+            const { webhookUtility } = await import('../utils/webhookUtility');
+            try {
+              const result = await webhookUtility.executeIntegrationAction(connectorId, { functionId, parameters: resolvedParams });
+              if (resultVar && result) {
+                setAppVariables(prev => prev.map(v => v.name === resultVar ? { ...v, value: result } : v));
+              }
+            } catch (err) {
+              console.error(`[Connector] Execution failed:`, err);
             }
-            // Refresh tables to show new relationships
-            fetchTableData(selectedApp);
-          } catch (err) {
-            console.error(`[LinkedRecords] Failed to ${action.type}:`, err);
+          } else if (action.type === 'LINK_RECORD' || action.type === 'UNLINK_RECORD') {
+            const {
+              sourceTableId,
+              sourceRecordId: rawSourceId,
+              sourceFieldName,
+              targetTableId,
+              targetRecordId: rawTargetId,
+              targetFieldName
+            } = action.payload;
+
+            const sourceRecordId = await resolveSourceValue(action.payload.sourceRecordIdType || 'STATIC', rawSourceId, '', eventPayload);
+            const targetRecordId = await resolveSourceValue(action.payload.targetRecordIdType || 'STATIC', rawTargetId, '', eventPayload);
+
+            if (!sourceRecordId || !targetRecordId) {
+              console.warn(`[LinkedRecords] Missing record IDs for ${action.type}:`, { sourceRecordId, targetRecordId });
+              continue;
+            }
+
+            const { linkRecords, unlinkRecords } = await import('../utils/supabaseTablesDB');
+            try {
+              if (action.type === 'LINK_RECORD') {
+                await linkRecords(sourceTableId, sourceRecordId, sourceFieldName, targetTableId, targetRecordId, targetFieldName);
+                console.log(`[LinkedRecords] Linked ${sourceRecordId} to ${targetRecordId}`);
+              } else {
+                await unlinkRecords(sourceTableId, sourceRecordId, sourceFieldName, targetTableId, targetRecordId, targetFieldName);
+                console.log(`[LinkedRecords] Unlinked ${sourceRecordId} from ${targetRecordId}`);
+              }
+              // Refresh tables to show new relationships
+              fetchTableData(selectedApp);
+            } catch (err) {
+              console.error(`[LinkedRecords] Failed to ${action.type}:`, err);
+            }
           }
-        }
         } catch (err) {
           console.error(`Action execution failed (${action.type}):`, err);
           toast.error(`Action Failed: ${err.message || 'Unknown error'}`);
@@ -2400,14 +2460,14 @@ const LiveTerminal = () => {
   const canNavigateToStep = (targetIdx) => {
     // Always allowed to go back
     if (targetIdx <= currentStepIndex) return true;
-    
+
     // Only allow going to the very next step
     if (targetIdx > currentStepIndex + 1) return false;
-    
+
     // To go to the next step, the current step must be complete
     const currentStep = steps[currentStepIndex];
     if (!currentStep) return true;
-    
+
     const summary = getStepRequiredSummary(currentStep);
     return summary.ok;
   };
@@ -3525,7 +3585,7 @@ const LiveTerminal = () => {
       case 'IMAGE': {
         const imgSrc = resolvedProps.src || resolvedProps.url || resolvedProps.text || comp.props.src || comp.props.url;
         const isCamera = comp.props.mode === 'CAMERA';
-        
+
         if (isCamera && !imgSrc) {
           return (
             <div style={{ height: '100%', minHeight: '300px', backgroundColor: '#000', borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'white', position: 'relative', overflow: 'hidden' }}>
@@ -3818,7 +3878,9 @@ const LiveTerminal = () => {
       case 'ADVANCED_TABLE':
       case 'INTERACTIVE_TABLE': {
         const data = tableData[comp.id] || [];
-        const cols = comp.props.columns?.length > 0 ? comp.props.columns : ['id', 'createdAt'];
+        const rawCols = comp.props.columns?.length > 0 ? comp.props.columns : ['id', 'createdAt'];
+        const cols = rawCols.map(c => typeof c === 'object' ? (c.key || c.name || c.header || c.value || c.label || JSON.stringify(c)) : String(c));
+        const colHeaders = rawCols.map(c => typeof c === 'object' ? (c.header || c.label || c.name || c.key || JSON.stringify(c)) : String(c));
         const pageSize = comp.props.pageSize || 5;
         const currentPage = tablePagination[comp.id]?.page || 1;
         const totalPages = Math.max(1, Math.ceil(data.length / pageSize));
@@ -3848,8 +3910,8 @@ const LiveTerminal = () => {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                    {cols.map(col => (
-                      <th key={col} style={{ padding: '10px', textAlign: 'left', color: '#475569', fontWeight: 700 }}>{col}</th>
+                    {cols.map((colKey, idx) => (
+                      <th key={colKey || idx} style={{ padding: '10px', textAlign: 'left', color: '#475569', fontWeight: 700 }}>{colHeaders[idx]}</th>
                     ))}
                   </tr>
                 </thead>
@@ -3878,10 +3940,10 @@ const LiveTerminal = () => {
                         }}
                         style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer', backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'white', transition: 'background-color 0.2s' }}
                       >
-                        {cols.map(col => (
-                          <td key={col} style={{ padding: '10px', color: '#1e293b' }}>
+                        {cols.map(colKey => (
+                          <td key={colKey} style={{ padding: '10px', color: '#1e293b' }}>
                             {(() => {
-                              const val = row[col];
+                              const val = row[colKey];
                               if (val === undefined || val === null || val === '') return '-';
 
                               // Linked Records (Array of IDs or Objects)
@@ -4523,17 +4585,17 @@ const LiveTerminal = () => {
     // --- ENFORCE ACCESS CONTROL OVERRIDE ---
     const user = getCurrentUser();
     const allUsers = getAllUsers();
-    const freshUser = allUsers.find(u => u.id === user?.id) || 
-                     allUsers.find(u => u.username === user?.username) || 
-                     allUsers.find(u => u.name === user?.name) || 
-                     user;
+    const freshUser = allUsers.find(u => u.id === user?.id) ||
+      allUsers.find(u => u.username === user?.username) ||
+      allUsers.find(u => u.name === user?.name) ||
+      user;
 
     // Filter apps based on assigned station
     const baseFilteredApps = frontlineApps.filter(app => {
       // If operator has a specific app assigned, we skip station-level filtering 
       // because frontlineApps is already pre-filtered for them in loadData().
       if (freshUser?.role === 'OPERATOR' && freshUser?.assignedApp && freshUser?.assignedApp !== 'ALL' && freshUser?.assignedApp !== 'NONE') {
-        return true; 
+        return true;
       }
 
       if (!currentStationObj || !currentStationObj.assignedApps) return true; // fallback to all if no station config
@@ -4578,7 +4640,7 @@ const LiveTerminal = () => {
     };
 
 
-  // --- COMPONENT RENDERING ENGINE ---
+    // --- COMPONENT RENDERING ENGINE ---
 
     if (isMobile) {
       return (
@@ -5344,9 +5406,9 @@ const LiveTerminal = () => {
 
                       const err = validationErrors[comp.id];
                       return (
-                        <div 
-                          key={comp.id || idx} 
-                          ref={(el) => { if (comp?.id) widgetContainerRefs.current[comp.id] = el; }} 
+                        <div
+                          key={comp.id || idx}
+                          ref={(el) => { if (comp?.id) widgetContainerRefs.current[comp.id] = el; }}
                           className={comp.props?.isBlinking ? 'animate-blink' : ''}
                           style={containerStyle}
                         >
@@ -5384,7 +5446,7 @@ const LiveTerminal = () => {
             {/* WORK SEQUENCE FOOTER (IN CENTER PANEL) */}
             {selectedApp?.config?.stepListEnabled !== false && (
               <div style={{ padding: '15px 20px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : '#f8fafc', borderTop: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}` }}>
-                <div 
+                <div
                   onClick={() => setShowWorkSequence(!showWorkSequence)}
                   style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showWorkSequence ? '15px' : '0', cursor: 'pointer', userSelect: 'none' }}
                 >
@@ -5401,7 +5463,7 @@ const LiveTerminal = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 {showWorkSequence && (
                   <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '10px', animation: 'fadeIn 0.3s ease-in-out' }}>
                     {steps.map((step, idx) => (
@@ -5409,7 +5471,7 @@ const LiveTerminal = () => {
                         const summary = selectedApp ? getStepRequiredSummary(step) : { total: 0, done: 0, ok: true };
                         const isLocked = !canNavigateToStep(idx);
                         const isActive = idx === currentStepIndex;
-                        
+
                         return (
                           <div
                             key={idx}
