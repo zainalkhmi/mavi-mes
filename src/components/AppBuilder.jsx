@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import toast from 'react-hot-toast';
 import {
     Blocks,
     Plus,
@@ -2374,7 +2375,69 @@ const AppBuilder = () => {
                     delete newTrigger.actions;
                     delete newTrigger.conditions;
 
-                    setAppTriggers(prev => [...prev, newTrigger]);
+                    const targetIdRaw = widgetId || payload.widgetId || payload.componentId || payload.target;
+                    
+                    // Robust target resolution (search by ID, then Name, then Label)
+                    let resolvedTargetId = null;
+                    if (targetIdRaw) {
+                        const findInList = (list) => {
+                            const matchById = list.find(c => c.id === targetIdRaw);
+                            if (matchById) return matchById.id;
+                            const matchByDisplay = list.find(c => String(c.displayName || '').toLowerCase() === String(targetIdRaw).toLowerCase());
+                            if (matchByDisplay) return matchByDisplay.id;
+                            const matchByLabel = list.find(c => String(c.props?.label || '').toLowerCase() === String(targetIdRaw).toLowerCase());
+                            if (matchByLabel) return matchByLabel.id;
+                            return null;
+                        };
+
+                        resolvedTargetId = findInList(currentStepId === 'BASE' ? baseComponents : (steps.find(s => s.id === currentStepId)?.components || []));
+                        // Deep search if not found in current step
+                        if (!resolvedTargetId) {
+                            for (const s of steps) {
+                                resolvedTargetId = findInList(s.components);
+                                if (resolvedTargetId) break;
+                            }
+                        }
+                    }
+
+                    // Fallback to selected widget if no target provided for interaction-style events
+                    if (!resolvedTargetId && selectedCompIds.length === 1 && (normalizedEvent === 'ON_CLICK' || normalizedEvent === 'ON_CHANGE')) {
+                        resolvedTargetId = selectedCompIds[0];
+                    }
+
+                    if (resolvedTargetId && (normalizedEvent === 'ON_CLICK' || normalizedEvent === 'ON_CHANGE' || normalizedEvent === 'ON_FOCUS' || normalizedEvent === 'ON_BLUR')) {
+                        const updateTriggersFn = (c) => c.id === resolvedTargetId ? { 
+                            ...c, 
+                            props: { 
+                                ...c.props, 
+                                triggers: [...(c.props?.triggers || []), newTrigger] 
+                            } 
+                        } : c;
+                        
+                        if (currentStepId === 'BASE') {
+                            setBaseComponents(prev => prev.map(updateTriggersFn));
+                        } else {
+                            setSteps(prev => prev.map(s => ({ ...s, components: s.components.map(updateTriggersFn) })));
+                        }
+                        
+                        // Get widget name for toast
+                        const targetWidget = (currentStepId === 'BASE' ? baseComponents : (steps.find(s => s.id === currentStepId)?.components || [])).find(c => c.id === resolvedTargetId);
+                        const widgetName = targetWidget?.displayName || targetWidget?.props?.label || resolvedTargetId;
+                        toast.success(`Trigger ${normalizedEvent} ditambahkan ke komponen: ${widgetName}`, { position: 'bottom-right' });
+                        console.log(`[Copilot] Trigger added to widget: ${resolvedTargetId}`);
+                    } else if (normalizedEvent === 'ON_STEP_ENTER' || normalizedEvent === 'ON_STEP_EXIT') {
+                        setSteps(prev => prev.map(s => s.id === currentStepId ? {
+                            ...s,
+                            triggers: [...(s.triggers || []), newTrigger]
+                        } : s));
+                        const stepTitle = steps.find(s => s.id === currentStepId)?.title || 'Current Step';
+                        toast.success(`Trigger ${normalizedEvent} ditambahkan ke Step: ${stepTitle}`, { position: 'bottom-right' });
+                        console.log(`[Copilot] Trigger added to step: ${currentStepId}`);
+                    } else {
+                        setAppTriggers(prev => [...prev, newTrigger]);
+                        toast.success(`Trigger ${normalizedEvent} ditambahkan sebagai App Trigger (Global)`, { position: 'bottom-right' });
+                        console.log(`[Copilot] Trigger added to app (global)`);
+                    }
                     break;
                 }
                 case 'CREATE_VARIABLE': {

@@ -79,45 +79,53 @@ const BuilderCopilot = ({
   const parseCommands = (text) => {
     if (!text) return null;
 
-    // 1. Try strict tags
-    const regex = /<builder_cmds>([\s\S]*?)<\/builder_cmds>/gi;
-    const match = regex.exec(text);
-    if (match) {
+    const isCommandPayload = (parsed) => parsed && Array.isArray(parsed.commands);
+    const cleanJsonLike = (raw = '') => raw
+      .replace(/```json/gi, '')
+      .replace(/```/g, '')
+      .replace(/\/\/.*$/gm, '') // strip JS-style comments often produced by AI
+      .trim();
+
+    const tryParse = (candidate) => {
+      if (!candidate) return null;
       try {
-        const jsonStr = match[1].replace(/```json/g, '').replace(/```/g, '').trim();
-        return JSON.parse(jsonStr);
-      } catch (e) {
-        console.error("Failed to parse AI commands from tags:", e);
+        const parsed = JSON.parse(cleanJsonLike(candidate));
+        return isCommandPayload(parsed) ? parsed : null;
+      } catch {
+        return null;
       }
+    };
+
+    // 1) Strict wrapper tags
+    const tagged = /<builder_cmds>([\s\S]*?)<\/builder_cmds>/gi.exec(text);
+    const taggedParsed = tryParse(tagged?.[1]);
+    if (taggedParsed) return taggedParsed;
+
+    // 2) Markdown code blocks (parse each block independently, no noisy logging)
+    const blockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/gi;
+    let blockMatch;
+    while ((blockMatch = blockRegex.exec(text)) !== null) {
+      const parsed = tryParse(blockMatch[1]);
+      if (parsed) return parsed;
     }
 
-    // 2. Fallback: Try to find JSON blocks containing a "commands" array
-    try {
-      const fallbackRegex = /```(?:json)?\s*([\s\S]*?)\s*```/gi;
-      let fallbackMatch;
-      while ((fallbackMatch = fallbackRegex.exec(text)) !== null) {
-        const parsed = JSON.parse(fallbackMatch[1].trim());
-        if (parsed && Array.isArray(parsed.commands)) {
-          return parsed;
-        }
-      }
-    } catch (e) {
-      console.error("Failed to parse AI commands from markdown blocks:", e);
+    // 3) Scan for any balanced JSON object that contains commands array
+    const starts = [];
+    for (let i = 0; i < text.length; i += 1) {
+      if (text[i] === '{') starts.push(i);
     }
 
-    // 3. Ultimate Fallback: Try extracting a raw JSON object
-    try {
-      const braceIndex = text.indexOf('{');
-      const lastBraceIndex = text.lastIndexOf('}');
-      if (braceIndex !== -1 && lastBraceIndex !== -1 && lastBraceIndex > braceIndex) {
-        const possibleJson = text.substring(braceIndex, lastBraceIndex + 1);
-        const parsed = JSON.parse(possibleJson);
-        if (parsed && Array.isArray(parsed.commands)) {
-          return parsed;
+    for (const start of starts) {
+      let depth = 0;
+      for (let i = start; i < text.length; i += 1) {
+        if (text[i] === '{') depth += 1;
+        if (text[i] === '}') depth -= 1;
+        if (depth === 0) {
+          const parsed = tryParse(text.slice(start, i + 1));
+          if (parsed) return parsed;
+          break;
         }
       }
-    } catch (e) {
-      // Ignore
     }
 
     return null;

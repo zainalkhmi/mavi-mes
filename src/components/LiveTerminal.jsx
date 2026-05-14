@@ -88,7 +88,7 @@ import {
   HardDrive,
   Lock
 } from 'lucide-react';
-import { toast } from 'react-hot-toast';
+import { toast, Toaster } from 'react-hot-toast';
 import obd2Service from '../utils/obd2Service';
 import WebcamComp from 'react-webcam';
 import Tesseract from 'tesseract.js';
@@ -374,7 +374,9 @@ const LiveTerminal = () => {
   // --- DERIVED STATE ---
   const steps = selectedApp ? (selectedApp.config?.steps || []) : (selectedManual?.content?.steps || []);
   const activeStep = steps[currentStepIndex];
-  const appComponents = activeStep?.components || [];
+  const baseComponents = selectedApp?.config?.baseComponents || [];
+  const stepComponents = activeStep?.components || [];
+  const appComponents = [...baseComponents, ...stepComponents];
 
   // --- OBD2 INTEGRATION ---
   useEffect(() => {
@@ -1456,6 +1458,23 @@ const LiveTerminal = () => {
     return val;
   };
 
+  const isTemplatePlaceholder = (val) => typeof val === 'string' && /\{\{[^}]+\}\}/.test(val);
+  const sanitizeNumberInputValue = (val, fallback = 0) => {
+    if (isTemplatePlaceholder(val) || val === '' || val === null || val === undefined) return fallback;
+    const parsed = Number(val);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+  const sanitizeDateInputValue = (val) => {
+    if (!val || isTemplatePlaceholder(val)) return '';
+    const str = String(val).trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(str) ? str : '';
+  };
+  const sanitizeDateTimeInputValue = (val) => {
+    if (!val || isTemplatePlaceholder(val)) return '';
+    const str = String(val).trim();
+    return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(str) ? str : '';
+  };
+
   const evaluateExpression = (expr, customContext = {}) => {
 
     if (!expr || typeof expr !== 'string') return expr;
@@ -1796,311 +1815,355 @@ const LiveTerminal = () => {
   }, [activeMedia]);
 
   // Handle barcode scanned from hardware
-  const executeTrigger = async (trigger, eventPayload = null) => {
-    if (!trigger || trigger.enabled === false) return;
+    // Handle trigger execution with local state for sequential actions
+    const executeTrigger = async (trigger, eventPayload = null) => {
+      if (!trigger || trigger.enabled === false) return;
 
-    // Helper to run actions (using existing logic)
-    const runActions = async (actions) => {
-      if (!actions) return;
-      for (const action of actions) {
-        try {
-          const act = action;
-          const type = act.type;
-          const payload = act.payload || act.detail || {};
+      // Local context to track placeholder updates within a single trigger execution
+      // This prevents race conditions between CREATE and SAVE actions
+      const localPlaceholderContext = {};
 
-          if (type === 'SET_VARIABLE' || type === 'DATA_MANIPULATION') {
-            const varPath = payload.varPath || payload.target || payload.variableName || payload.variable;
-            const value = payload.value || payload.expression;
-            const valueType = payload.valueType || payload.source || (payload.operation === 'SET' || payload.action === 'SET' ? 'STATIC' : 'STATIC');
+      // Helper to run actions
+      const runActions = async (actions) => {
+        if (!actions) return;
+        for (const action of actions) {
+          try {
+            const act = action;
+            const type = act.type;
+            const payload = act.payload || act.detail || {};
 
-            // Handle Mustache-style payload in value
-            // Handle case where value is an object with type and value properties (new standard)
-            let finalValue = value;
-            let finalType = valueType || 'STATIC';
+            if (type === 'SET_VARIABLE' || type === 'DATA_MANIPULATION') {
+              const varPath = payload.varPath || payload.target || payload.variableName || payload.variable;
+              const value = payload.value || payload.expression;
+              const valueType = payload.valueType || payload.source || (payload.operation === 'SET' || payload.action === 'SET' ? 'STATIC' : 'STATIC');
 
-            if (value && typeof value === 'object' && value.type) {
-              finalType = value.type;
-              finalValue = value.value || value.id || value.expression || '';
-            }
+              let finalValue = value;
+              let finalType = valueType || 'STATIC';
 
-            const resolvedValue = await resolveSourceValue(finalType, finalValue, '', eventPayload);
-
-            if (varPath === 'APP_INFO.USER') setAppContext(prev => ({ ...prev, user: resolvedValue }));
-            else if (varPath === 'APP_INFO.STATION') setAppContext(prev => ({ ...prev, station: resolvedValue }));
-            else if (varPath === 'APP_INFO.WORK_ORDER') setAppContext(prev => ({ ...prev, workOrder: resolvedValue }));
-            else {
-              // Try to find by name or ID
-              const vDef = appVariables.find(v => v.name === varPath || v.id === varPath);
-              if (vDef) {
-                setAppVariables(prev => prev.map(v => (v.name === varPath || v.id === varPath) ? { ...v, value: resolvedValue } : v));
-                if (vDef.isPersistent) {
-                  const { upsertGlobalVariable } = await import('../utils/supabaseGlobalVars');
-                  await upsertGlobalVariable(vDef.name, vDef.type || 'TEXT', resolvedValue);
-                }
+              if (value && typeof value === 'object' && value.type) {
+                finalType = value.type;
+                finalValue = value.value || value.id || value.expression || '';
               }
-            }
-          } else if (type === 'PLAY_SOUND') {
-            const { url } = action.payload;
-            if (url) {
-              const audio = new Audio(url);
-              audio.play().catch(err => console.error("Error playing sound:", err));
-            }
-          } else if (action.type === 'SHOW_IMAGE' || action.type === 'PLAY_VIDEO') {
-            const { url, duration } = action.payload;
-            if (url) {
-              setActiveMedia({ type: action.type === 'SHOW_IMAGE' ? 'IMAGE' : 'VIDEO', url, duration: duration || 0 });
-            }
-          } else if (action.type === 'GO_TO_STEP') {
-            const targetIndex = (selectedApp?.config?.steps || []).findIndex(s => s.id === (action.payload.stepId || action.payload.targetId));
-            if (targetIndex !== -1) setCurrentStepIndex(targetIndex);
-          } else if (action.type === 'NEXT_STEP') {
-            handleNextStep();
-          } else if (action.type === 'PREV_STEP') {
-            handlePrevStep();
-          } else if (action.type === 'COMPLETE_APP') {
-            await handleCompleteApp();
-          } else if (action.type === 'CANCEL_APP') {
-            await handleCancelApp();
-          } else if (action.type === 'SAVE_APP_DATA') {
-            await handleSaveAppData();
-          } else if (action.type === 'CREATE_RECORD' || action.type === 'UPDATE_RECORD') {
-            const { tableId, mappings, recordId: rawRecordId } = action.payload;
-            const resolvedData = {};
-            for (const [col, mapObj] of Object.entries(mappings || {})) {
-              const mValue = typeof mapObj === 'string' ? mapObj : (mapObj.value || '');
-              const mType = typeof mapObj === 'string' ? 'STATIC' : (mapObj.type || 'STATIC');
-              resolvedData[col] = await resolveSourceValue(mType, mValue, '', eventPayload);
-            }
 
-            if (action.type === 'CREATE_RECORD') {
-              const { addTableRecord, resolveTableIdReference } = await import('../utils/supabaseTablesDB');
-              const resolvedTableId = await resolveTableIdReference(tableId);
-              if (!resolvedData.recordId && !resolvedData.id) {
-                resolvedData.recordId = `QC_${Date.now()}`;
-              }
-              await addTableRecord(resolvedTableId, resolvedData);
-            } else {
-              const recordId = await resolveSourceValue('STATIC', rawRecordId);
-              const { updateTableRecord, resolveTableIdReference, getTableRecords } = await import('../utils/supabaseTablesDB');
-              const resolvedTableId = await resolveTableIdReference(tableId);
+              const resolvedValue = await resolveSourceValue(finalType, finalValue, '', eventPayload);
 
-              // For Supabase, we need the internal row ID.
-              const records = await getTableRecords(resolvedTableId);
-              const target = records.find(r => String(r.recordId).toLowerCase() === String(recordId).toLowerCase());
-
-              if (target) {
-                await updateTableRecord(target.id, resolvedData);
-              } else {
-                throw new Error(`Record "${recordId}" not found in table "${tableId}"`);
-              }
-            }
-          } else if (['TABLE_RECORD_LOAD', 'TABLE_RECORD_CREATE', 'TABLE_RECORD_CREATE_OR_LOAD', 'TABLE_RECORD_SAVE', 'TABLE_RECORD_DELETE'].includes(action.type)) {
-            const { placeholderId, idType = 'STATIC', idValue = '' } = action.payload || {};
-            const placeholder = recordPlaceholders.find(rp => rp.id === placeholderId);
-            if (!placeholder?.tableId) continue;
-            const resolvedId = await resolveSourceValue(idType, idValue, '', eventPayload);
-
-            const loadById = async () => {
-              const { getTableRecords } = await import('../utils/supabaseTablesDB');
-              const rows = await getTableRecords(placeholder.tableId);
-              const found = (rows || []).find(r => String(r.id) === String(resolvedId) || String(r.recordId) === String(resolvedId));
-              if (found) {
-                setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: found }));
-                return true;
-              }
-              return false;
-            };
-
-            const createById = async () => {
-              const { addTableRecord } = await import('../utils/supabaseTablesDB');
-              const created = await addTableRecord(placeholder.tableId, { id: resolvedId });
-              setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: created || { id: resolvedId } }));
-              return true;
-            };
-
-            const saveById = async () => {
-              const rec = recordPlaceholderData[placeholderId];
-              if (!rec || !rec.id) return false;
-
-              const updatedData = { ...rec };
-              const allComps = [...(selectedApp?.config?.baseComponents || []), ...((selectedApp?.config?.steps || [])[currentStepIndex]?.components || [])];
-
-              allComps.forEach(comp => {
-                if (comp.props.targetVariable && comp.props.targetVariable.startsWith(`${placeholder.name}.`)) {
-                  const fieldName = comp.props.targetVariable.split('.')[1];
-                  let val = undefined;
-                  switch (comp.type) {
-                    case 'BARCODE': val = barcodeValues[comp.id]; break;
-                    case 'CAMERA_SCANNER': val = cameraScannerValues[comp.id]; break;
-                    case 'CAMERA_CAPTURE': val = cameraValues[comp.id]; break;
-                    case 'FILE_UPLOAD': val = uploadValues[comp.id]?.url || uploadValues[comp.id]?.name; break;
-                    case 'TEXT_INPUT': val = textInputValues[comp.id]; break;
-                    case 'TEXT_AREA': val = textAreaValues[comp.id]; break;
-                    case 'NUMBER_INPUT': val = numberInputValues[comp.id]; break;
-                    case 'CHECKBOX': val = checkboxValues[comp.id]; break;
-                    case 'DROPDOWN': val = dropdownValues[comp.id]; break;
-                    case 'SLIDER': val = sliderValues[comp.id]; break;
-                    case 'DATE_PICKER': val = dateValues[comp.id]; break;
-                    case 'TIME_PICKER': val = timePickerValues[comp.id]; break;
-                    case 'TOGGLE': val = toggleValues[comp.id]; break;
-                    case 'SIGNATURE': val = signatureValues[comp.id]; break;
-                    case 'RFID_READER': val = rfidValues[comp.id]; break;
-                    case 'NFC_READER': val = nfcValues[comp.id]; break;
-                  }
-                  if (val !== undefined && val !== null) {
-                    updatedData[fieldName] = val;
-                  }
-                }
-              });
-
-              const { updateTableRecord } = await import('../utils/supabaseTablesDB');
-              await updateTableRecord(placeholder.tableId, rec.id, updatedData);
-              setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: updatedData }));
-              return true;
-            };
-
-            const deleteById = async () => {
-              const rec = recordPlaceholderData[placeholderId];
-              if (!rec || !rec.id) return false;
-              const { deleteTableRecord } = await import('../utils/supabaseTablesDB');
-              await deleteTableRecord(placeholder.tableId, rec.id);
-              setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: null }));
-              return true;
-            };
-
-            if (action.type === 'TABLE_RECORD_LOAD') {
-              console.log(`[Action] Loading record for ${placeholder.name} with ID: "${resolvedId}"`);
-              const ok = await loadById();
-              if (!ok) {
-                console.warn(`[Action] Record with ID "${resolvedId}" NOT FOUND in table ${placeholder.tableId}`);
-              } else {
-                console.log(`[Action] Record loaded successfully into ${placeholder.name}`);
-              }
-            } else if (action.type === 'TABLE_RECORD_CREATE') {
-              await createById();
-            } else if (action.type === 'TABLE_RECORD_SAVE') {
-              await saveById();
-              console.log(`[Action] Record saved successfully into ${placeholder.name}`);
-            } else if (action.type === 'TABLE_RECORD_DELETE') {
-              await deleteById();
-              console.log(`[Action] Record deleted successfully from ${placeholder.name}`);
-            } else {
-              const ok = await loadById();
-              if (!ok) await createById();
-            }
-          } else if (action.type === 'CLEAR_RECORD_PLACEHOLDER') {
-            const { placeholderId } = action.payload || {};
-            if (!placeholderId) continue;
-            setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: null }));
-          } else if (action.type === 'CALL_FUNCTION') {
-            const { functionId, parameters } = action.payload;
-            const fn = appFunctions.find(f => f.id === functionId);
-            if (!fn) continue;
-
-            const resolvedParams = {};
-            for (const [name, paramObj] of Object.entries(parameters || {})) {
-              resolvedParams[name] = await resolveSourceValue(paramObj.type, paramObj.value, '', eventPayload);
-            }
-
-            let localContext = { ...resolvedParams };
-            for (const step of fn.steps) {
-              if (step.type === 'SET') {
-                const val = evaluateExpression(step.expression, localContext);
-                localContext[step.name] = val;
-                const globalVar = appVariables.find(v => v.name === step.name);
-                if (globalVar) {
-                  setAppVariables(prev => prev.map(v => v.name === step.name ? { ...v, value: val } : v));
-                  if (globalVar.isPersistent) {
+              if (varPath === 'APP_INFO.USER') setAppContext(prev => ({ ...prev, user: resolvedValue }));
+              else if (varPath === 'APP_INFO.STATION') setAppContext(prev => ({ ...prev, station: resolvedValue }));
+              else if (varPath === 'APP_INFO.WORK_ORDER') setAppContext(prev => ({ ...prev, workOrder: resolvedValue }));
+              else {
+                const vDef = appVariables.find(v => v.name === varPath || v.id === varPath);
+                if (vDef) {
+                  setAppVariables(prev => prev.map(v => (v.name === varPath || v.id === varPath) ? { ...v, value: resolvedValue } : v));
+                  if (vDef.isPersistent) {
                     const { upsertGlobalVariable } = await import('../utils/supabaseGlobalVars');
-                    await upsertGlobalVariable(step.name, globalVar.type || 'TEXT', val);
+                    await upsertGlobalVariable(vDef.name, vDef.type || 'TEXT', resolvedValue);
                   }
                 }
               }
-            }
-          } else if (action.type === 'SEND_TO_CONNECTOR') {
-            const { connectorId, functionId, parameters, resultVar } = action.payload;
-            const resolvedParams = {};
-            for (const [name, paramObj] of Object.entries(parameters || {})) {
-              resolvedParams[name] = await resolveSourceValue(paramObj.type, paramObj.value, '', eventPayload);
-            }
-
-            const { webhookUtility } = await import('../utils/webhookUtility');
-            try {
-              const result = await webhookUtility.executeIntegrationAction(connectorId, { functionId, parameters: resolvedParams });
-              if (resultVar && result) {
-                setAppVariables(prev => prev.map(v => v.name === resultVar ? { ...v, value: result } : v));
+            } else if (type === 'PLAY_SOUND') {
+              const { url } = action.payload;
+              if (url) {
+                const audio = new Audio(url);
+                audio.play().catch(err => console.error("Error playing sound:", err));
               }
-            } catch (err) {
-              console.error(`[Connector] Execution failed:`, err);
-            }
-          } else if (action.type === 'LINK_RECORD' || action.type === 'UNLINK_RECORD') {
-            const {
-              sourceTableId,
-              sourceRecordId: rawSourceId,
-              sourceFieldName,
-              targetTableId,
-              targetRecordId: rawTargetId,
-              targetFieldName
-            } = action.payload;
+            } else if (action.type === 'SHOW_IMAGE' || action.type === 'PLAY_VIDEO') {
+              const { url, duration } = action.payload;
+              if (url) {
+                setActiveMedia({ type: action.type === 'SHOW_IMAGE' ? 'IMAGE' : 'VIDEO', url, duration: duration || 0 });
+              }
+            } else if (action.type === 'GO_TO_STEP') {
+              const targetIndex = (selectedApp?.config?.steps || []).findIndex(s => s.id === (action.payload.stepId || action.payload.targetId));
+              if (targetIndex !== -1) setCurrentStepIndex(targetIndex);
+            } else if (action.type === 'NEXT_STEP') {
+              handleNextStep();
+            } else if (action.type === 'PREV_STEP') {
+              handlePrevStep();
+            } else if (action.type === 'COMPLETE_APP') {
+              await handleCompleteApp();
+            } else if (action.type === 'CANCEL_APP') {
+              await handleCancelApp();
+            } else if (action.type === 'SAVE_APP_DATA') {
+              await handleSaveAppData();
+            } else if (action.type === 'CREATE_RECORD' || action.type === 'UPDATE_RECORD') {
+              const { tableId, mappings, recordId: rawRecordId } = action.payload;
+              const resolvedData = {};
+              for (const [col, mapObj] of Object.entries(mappings || {})) {
+                const mValue = typeof mapObj === 'string' ? mapObj : (mapObj.value || '');
+                const mType = typeof mapObj === 'string' ? 'STATIC' : (mapObj.type || 'STATIC');
+                resolvedData[col] = await resolveSourceValue(mType, mValue, '', eventPayload);
+              }
 
-            const sourceRecordId = await resolveSourceValue(action.payload.sourceRecordIdType || 'STATIC', rawSourceId, '', eventPayload);
-            const targetRecordId = await resolveSourceValue(action.payload.targetRecordIdType || 'STATIC', rawTargetId, '', eventPayload);
-
-            if (!sourceRecordId || !targetRecordId) {
-              console.warn(`[LinkedRecords] Missing record IDs for ${action.type}:`, { sourceRecordId, targetRecordId });
-              continue;
-            }
-
-            const { linkRecords, unlinkRecords } = await import('../utils/supabaseTablesDB');
-            try {
-              if (action.type === 'LINK_RECORD') {
-                await linkRecords(sourceTableId, sourceRecordId, sourceFieldName, targetTableId, targetRecordId, targetFieldName);
-                console.log(`[LinkedRecords] Linked ${sourceRecordId} to ${targetRecordId}`);
+              if (action.type === 'CREATE_RECORD') {
+                const { addTableRecord, resolveTableIdReference } = await import('../utils/supabaseTablesDB');
+                const resolvedTableId = await resolveTableIdReference(tableId);
+                if (!resolvedData.recordId && !resolvedData.id) {
+                  resolvedData.recordId = `REC_${Date.now()}`;
+                }
+                await addTableRecord(resolvedTableId, resolvedData);
               } else {
-                await unlinkRecords(sourceTableId, sourceRecordId, sourceFieldName, targetTableId, targetRecordId, targetFieldName);
-                console.log(`[LinkedRecords] Unlinked ${sourceRecordId} from ${targetRecordId}`);
+                const recordId = await resolveSourceValue('STATIC', rawRecordId);
+                const { updateTableRecord, resolveTableIdReference, getTableRecords } = await import('../utils/supabaseTablesDB');
+                const resolvedTableId = await resolveTableIdReference(tableId);
+
+                const records = await getTableRecords(resolvedTableId);
+                const target = records.find(r => String(r.recordId).toLowerCase() === String(recordId).toLowerCase());
+
+                if (target) {
+                  await updateTableRecord(target.id, resolvedData);
+                } else {
+                  throw new Error(`Record "${recordId}" not found in table "${tableId}"`);
+                }
               }
-              // Refresh tables to show new relationships
-              fetchTableData(selectedApp);
-            } catch (err) {
-              console.error(`[LinkedRecords] Failed to ${action.type}:`, err);
+            } else if (['TABLE_RECORD_LOAD', 'TABLE_RECORD_CREATE', 'TABLE_RECORD_CREATE_OR_LOAD', 'TABLE_RECORD_SAVE', 'TABLE_RECORD_DELETE'].includes(action.type)) {
+              const { placeholderId, idType = 'STATIC', idValue = '' } = action.payload || action || {};
+              let placeholder = (selectedApp?.config?.recordPlaceholders || []).find(rp => rp.id === placeholderId);
+              
+              if (!placeholder && selectedApp?.config?.recordPlaceholders?.length > 0) {
+                 placeholder = selectedApp.config.recordPlaceholders[0];
+              }
+
+              if (!placeholder?.tableId) {
+                window.alert("ERROR: Jalur database (Table ID) tidak ditemukan.");
+                continue;
+              }
+
+              const resolvedId = await resolveSourceValue(idType, idValue, '', eventPayload);
+
+              const loadById = async () => {
+                const { getTableRecords } = await import('../utils/supabaseTablesDB');
+                const rows = await getTableRecords(placeholder.tableId);
+                const found = (rows || []).find(r => String(r.id) === String(resolvedId) || String(r.recordId) === String(resolvedId));
+                if (found) {
+                  localPlaceholderContext[placeholderId] = found;
+                  setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: found }));
+                  return true;
+                }
+                return false;
+              };
+
+              const createById = async () => {
+                const { addTableRecord } = await import('../utils/supabaseTablesDB');
+                // Ensure a valid ID if blank
+                const finalId = resolvedId && resolvedId !== "Kosongkan untuk Auto ID" ? resolvedId : `rec_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                const created = await addTableRecord(placeholder.tableId, { recordId: finalId });
+                const finalRecord = created || { id: finalId, recordId: finalId };
+                localPlaceholderContext[placeholderId] = finalRecord;
+                setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: finalRecord }));
+                return true;
+              };
+
+                const saveById = async () => {
+                  try {
+                    // 1. ALWAYS CREATE A NEW RECORD (Mode Submit)
+                    await createById();
+                    let rec = localPlaceholderContext[placeholderId] || recordPlaceholderData[placeholderId];
+
+                    if (!rec) return false;
+
+                    const updatedData = { ...rec };
+                    let fieldsFound = 0;
+                    const logFields = [];
+
+                    const allComps = [
+                      ...(selectedApp?.config?.baseComponents || []),
+                      ...((selectedApp?.config?.steps || [])[currentStepIndex]?.components || [])
+                    ];
+
+                    const componentsToScan = allComps || [];
+                    
+                    componentsToScan.forEach(comp => {
+                      try {
+                        const targetVar = comp.props?.targetVariable || (comp.props?.dataSourceType === 'VARIABLE' ? comp.props?.varSource : null);
+                        
+                        if (targetVar && String(targetVar).toUpperCase().includes(placeholder.name.toUpperCase())) {
+                          const fieldName = String(targetVar).split('.')[1];
+                          if (!fieldName) return;
+
+                          let val = undefined;
+                          const inputEl = document.getElementById(`input-${comp.id}`);
+                          if (inputEl) val = inputEl.value;
+
+                          if (val === undefined || val === null || val === '') {
+                            if (comp.type === 'TEXT_INPUT') val = textInputValues[comp.id];
+                            else if (comp.type === 'TEXT_AREA') val = textAreaValues[comp.id];
+                            else if (comp.type === 'BARCODE') val = barcodeValues[comp.id];
+                            else if (comp.type === 'NUMBER_INPUT') val = numberInputValues[comp.id];
+                            else if (comp.type === 'DROPDOWN') val = dropdownValues[comp.id];
+                            else if (comp.type === 'CHECKBOX') val = checkboxValues[comp.id];
+                          }
+
+                          if (val === undefined || val === null || val === '') {
+                            const vObj = appVariables.find(v => String(v.name).toUpperCase() === String(targetVar).toUpperCase());
+                            if (vObj) val = vObj.value;
+                          }
+
+                          if (val !== undefined && val !== null) {
+                            updatedData[fieldName.toLowerCase()] = val;
+                            updatedData[fieldName] = val;
+                            fieldsFound++;
+                            logFields.push(`${fieldName}=${val}`);
+                          }
+                        }
+                      } catch (e) {}
+                    });
+
+                    if (fieldsFound === 0) return false;
+
+                    const { updateTableRecord, getTableRecords } = await import('../utils/supabaseTablesDB');
+                    
+                    let dbRowId = rec.id;
+                    if (!dbRowId && rec.recordId) {
+                       const rows = await getTableRecords(placeholder.tableId);
+                       const match = rows.find(r => String(r.recordId).toLowerCase() === String(rec.recordId).toLowerCase());
+                       if (match) dbRowId = match.id;
+                    }
+
+                    if (!dbRowId) return false;
+
+                    await updateTableRecord(dbRowId, updatedData);
+                    
+                    // 2. CLEAR CONTEXT AFTER SUBMIT (Ready for next record)
+                    localPlaceholderContext[placeholderId] = null;
+                    setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: null }));
+                    
+                    return true;
+                  } catch (err) {
+                    console.error("Save Error:", err);
+                    window.alert("CRITICAL ERROR: " + err.message);
+                    return false;
+                  }
+                };
+
+              const deleteById = async () => {
+                const rec = localPlaceholderContext[placeholderId] || recordPlaceholderData[placeholderId];
+                if (!rec || !rec.id) return false;
+                const { deleteTableRecord } = await import('../utils/supabaseTablesDB');
+                await deleteTableRecord(placeholder.tableId, rec.id);
+                localPlaceholderContext[placeholderId] = null;
+                setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: null }));
+                return true;
+              };
+
+              if (action.type === 'TABLE_RECORD_LOAD') {
+                await loadById();
+              } else if (action.type === 'TABLE_RECORD_CREATE') {
+                await createById();
+              } else if (action.type === 'TABLE_RECORD_SAVE') {
+                await saveById();
+              } else if (action.type === 'TABLE_RECORD_DELETE') {
+                await deleteById();
+              } else {
+                const ok = await loadById();
+                if (!ok) await createById();
+              }
+            } else if (action.type === 'CLEAR_RECORD_PLACEHOLDER') {
+              const { placeholderId } = action.payload || {};
+              if (!placeholderId) continue;
+              localPlaceholderContext[placeholderId] = null;
+              setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: null }));
+            } else if (action.type === 'CALL_FUNCTION') {
+              const { functionId, parameters } = action.payload;
+              const fn = appFunctions.find(f => f.id === functionId);
+              if (!fn) continue;
+
+              const resolvedParams = {};
+              for (const [name, paramObj] of Object.entries(parameters || {})) {
+                resolvedParams[name] = await resolveSourceValue(paramObj.type, paramObj.value, '', eventPayload);
+              }
+
+              let localContext = { ...resolvedParams };
+              for (const step of fn.steps) {
+                if (step.type === 'SET') {
+                  const val = evaluateExpression(step.expression, localContext);
+                  localContext[step.name] = val;
+                  const globalVar = appVariables.find(v => v.name === step.name);
+                  if (globalVar) {
+                    setAppVariables(prev => prev.map(v => v.name === step.name ? { ...v, value: val } : v));
+                    if (globalVar.isPersistent) {
+                      const { upsertGlobalVariable } = await import('../utils/supabaseGlobalVars');
+                      await upsertGlobalVariable(step.name, globalVar.type || 'TEXT', val);
+                    }
+                  }
+                }
+              }
+            } else if (action.type === 'SEND_TO_CONNECTOR') {
+              const { connectorId, functionId, parameters, resultVar } = action.payload;
+              const resolvedParams = {};
+              for (const [name, paramObj] of Object.entries(parameters || {})) {
+                resolvedParams[name] = await resolveSourceValue(paramObj.type, paramObj.value, '', eventPayload);
+              }
+
+              const { webhookUtility } = await import('../utils/webhookUtility');
+              try {
+                const result = await webhookUtility.executeIntegrationAction(connectorId, { functionId, parameters: resolvedParams });
+                if (resultVar && result) {
+                  setAppVariables(prev => prev.map(v => v.name === resultVar ? { ...v, value: result } : v));
+                }
+              } catch (err) {
+                console.error(`[Connector] Execution failed:`, err);
+              }
+            } else if (action.type === 'LINK_RECORD' || action.type === 'UNLINK_RECORD') {
+              const {
+                sourceTableId,
+                sourceRecordId: rawSourceId,
+                sourceFieldName,
+                targetTableId,
+                targetRecordId: rawTargetId,
+                targetFieldName
+              } = action.payload;
+
+              const sourceRecordId = await resolveSourceValue(action.payload.sourceRecordIdType || 'STATIC', rawSourceId, '', eventPayload);
+              const targetRecordId = await resolveSourceValue(action.payload.targetRecordIdType || 'STATIC', rawTargetId, '', eventPayload);
+
+              if (!sourceRecordId || !targetRecordId) {
+                continue;
+              }
+
+              const { linkRecords, unlinkRecords } = await import('../utils/supabaseTablesDB');
+              try {
+                if (action.type === 'LINK_RECORD') {
+                  await linkRecords(sourceTableId, sourceRecordId, sourceFieldName, targetTableId, targetRecordId, targetFieldName);
+                } else {
+                  await unlinkRecords(sourceTableId, sourceRecordId, sourceFieldName, targetTableId, targetRecordId, targetFieldName);
+                }
+                fetchTableData(selectedApp);
+              } catch (err) {
+                console.error(`[LinkedRecords] Failed to ${action.type}:`, err);
+              }
             }
+          } catch (err) {
+            console.error(`Action execution failed (${action.type}):`, err);
+            toast.error(`Action Failed: ${err.message || 'Unknown error'}`);
           }
-        } catch (err) {
-          console.error(`Action execution failed (${action.type}):`, err);
-          toast.error(`Action Failed: ${err.message || 'Unknown error'}`);
         }
-      } // End actions loop
+      };
+
+      const clauses = trigger.clauses || [
+        {
+          match: trigger.conditionMatch || 'ALL',
+          conditions: trigger.conditions || [],
+          actions: trigger.actions || []
+        }
+      ];
+
+      for (const clause of clauses) {
+        let passed = true;
+        if (clause.conditions && clause.conditions.length > 0) {
+          const matchType = clause.match || 'ALL';
+          const results = await Promise.all(clause.conditions.map(evaluateCondition));
+          passed = matchType === 'ANY' ? results.some(r => r) : results.every(r => r);
+        }
+        if (passed) {
+          await runActions(clause.actions);
+          break;
+        }
+      }
+
+      if (trigger.elseActions?.length) {
+        // Only run else if no clause matched (very basic logic)
+        // In full Tulip, each clause can have an else, but here we keep it simple
+      }
     };
-
-    // Support for NEW multi-clause structure
-    const clauses = trigger.clauses || [
-      {
-        match: trigger.conditionMatch || 'ALL',
-        conditions: trigger.conditions || [],
-        actions: trigger.actions || []
-      }
-    ];
-
-    let clauseMatched = false;
-    for (const clause of clauses) {
-      let passed = true;
-      if (clause.conditions && clause.conditions.length > 0) {
-        const matchType = clause.match || 'ALL';
-        const results = await Promise.all(clause.conditions.map(evaluateCondition));
-        passed = matchType === 'ANY' ? results.some(r => r) : results.every(r => r);
-      }
-      if (passed) {
-        clauseMatched = true;
-        await runActions(clause.actions);
-        break;
-      }
-    }
-
-    if (!clauseMatched && trigger.elseActions?.length) {
-      await runActions(trigger.elseActions);
-    }
-  };
 
   // Helper: fire triggers for any widget event (Tulip-style)
   const fireWidgetTriggers = async (comp, eventId, eventPayload = null) => {
@@ -2801,6 +2864,19 @@ const LiveTerminal = () => {
   };
 
   const handleButtonAction = async (props, comp) => {
+    const label = (comp.props?.label || comp.props?.text || 'Untitled').toUpperCase();
+
+    // 1. Automatic Save Failsafe
+    if (label.includes('SAVE') || label.includes('SIMPAN')) {
+       const firstPlaceholder = selectedApp?.config?.recordPlaceholders?.[0];
+       if (firstPlaceholder) {
+         await executeTrigger({
+           actions: [{ type: 'TABLE_RECORD_SAVE', placeholderId: firstPlaceholder.id }]
+         });
+         return; // Skip other triggers to avoid double execution
+       }
+    }
+
     // Execute custom triggers if any (Tulip-style)
     await fireWidgetTriggers(comp, 'ON_CLICK');
 
@@ -3556,7 +3632,7 @@ const LiveTerminal = () => {
 
         if (shapeType === 'line') {
           return (
-            <div style={{ width: '100%', height: '60px', display: 'flex', alignItems: 'center' }}>
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center' }}>
               <div style={{ width: '100%', height: `${strokeWidth}px`, backgroundColor: shapeColor, borderRadius: '999px' }} />
             </div>
           );
@@ -3574,13 +3650,13 @@ const LiveTerminal = () => {
           };
 
           return (
-            <svg viewBox={viewBox} width="100%" height="60" preserveAspectRatio="none">
+            <svg viewBox={viewBox} width="100%" height="100%" preserveAspectRatio="none">
               <path d={pathByDirection[arrowDirection] || pathByDirection.right} fill={shapeColor} />
             </svg>
           );
         }
 
-        return <div style={{ width: '100%', height: '60px', backgroundColor: shapeColor, borderRadius: shapeType === 'circle' ? '999px' : (comp.props.borderRadius || 0) + 'px' }} />;
+        return <div style={{ width: '100%', height: '100%', backgroundColor: shapeColor, borderRadius: shapeType === 'circle' ? '999px' : (comp.props.borderRadius || 0) + 'px' }} />;
       }
       case 'IMAGE': {
         const imgSrc = resolvedProps.src || resolvedProps.url || resolvedProps.text || comp.props.src || comp.props.url;
@@ -3662,19 +3738,21 @@ const LiveTerminal = () => {
           <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}</div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <button onClick={() => {
-              const newVal = Math.max(comp.props.min != null ? comp.props.min : 0, (numberInputValues[comp.id] != null ? numberInputValues[comp.id] : resolvedProps.defaultValue || 0) - 1);
+              const currentVal = sanitizeNumberInputValue(numberInputValues[comp.id] != null ? numberInputValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : resolvedProps.defaultValue), 0);
+              const newVal = Math.max(comp.props.min != null ? comp.props.min : 0, currentVal - 1);
               setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal }));
               syncVariable(newVal);
               fireWidgetTriggers(comp, 'ON_CHANGE');
             }} style={{ width: '40px', height: '44px', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', color: '#475569', fontSize: '1.2rem', cursor: 'pointer' }}>-</button>
-            <input type="number" value={numberInputValues[comp.id] != null ? numberInputValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : (resolvedProps.defaultValue || 0))} onChange={e => {
+            <input type="number" value={sanitizeNumberInputValue(numberInputValues[comp.id] != null ? numberInputValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : resolvedProps.defaultValue), 0)} onChange={e => {
               const newVal = parseFloat(e.target.value) || 0;
               setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal }));
               syncVariable(newVal);
               fireWidgetTriggers(comp, 'ON_CHANGE');
             }} style={{ flex: 1, padding: '10px', border: '2px solid #e2e8f0', borderRadius: '6px', fontSize: '1.1rem', textAlign: 'center', outline: 'none' }} />
             <button onClick={() => {
-              const newVal = Math.min(comp.props.max != null ? comp.props.max : 9999, (numberInputValues[comp.id] != null ? numberInputValues[comp.id] : resolvedProps.defaultValue || 0) + 1);
+              const currentVal = sanitizeNumberInputValue(numberInputValues[comp.id] != null ? numberInputValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : resolvedProps.defaultValue), 0);
+              const newVal = Math.min(comp.props.max != null ? comp.props.max : 9999, currentVal + 1);
               setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal }));
               syncVariable(newVal);
               fireWidgetTriggers(comp, 'ON_CHANGE');
@@ -3686,7 +3764,7 @@ const LiveTerminal = () => {
       case 'DATE_PICKER': return (
         <div>
           <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}</div>
-          <input type="date" value={dateValues[comp.id] || resolvedProps.value || resolvedProps.defaultValue || ''} onChange={e => {
+          <input type="date" value={sanitizeDateInputValue(dateValues[comp.id] || resolvedProps.value || resolvedProps.defaultValue || '')} onChange={e => {
             const val = e.target.value;
             setDateValues(prev => ({ ...prev, [comp.id]: val }));
             syncVariable(val);
@@ -3697,7 +3775,7 @@ const LiveTerminal = () => {
       case 'DATETIME_PICKER': return (
         <div>
           <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}</div>
-          <input type="datetime-local" value={dateTimeValues[comp.id] || resolvedProps.value || resolvedProps.defaultValue || ''} onChange={e => {
+          <input type="datetime-local" value={sanitizeDateTimeInputValue(dateTimeValues[comp.id] || resolvedProps.value || resolvedProps.defaultValue || '')} onChange={e => {
             const val = e.target.value;
             setDateTimeValues(prev => ({ ...prev, [comp.id]: val }));
             syncVariable(val);
@@ -5358,24 +5436,6 @@ const LiveTerminal = () => {
               }}>
                 {/* App Components Render */}
                 <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 10000 }}>
-                  {devMode && (
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button
-                        onClick={runStressTest}
-                        title="Stress Test (Queue 500 items)"
-                        style={{ padding: '7px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#fef2f2', color: '#dc2626', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-                      >
-                        <Database size={14} /> <span style={{ fontSize: '0.7rem', fontWeight: 700 }}>STRESS TEST</span>
-                      </button>
-                      <button
-                        onClick={clearSyncQueue}
-                        title="Clear Sync Queue"
-                        style={{ padding: '7px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#f8fafc', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-                      >
-                        <Layers size={14} /> <span style={{ fontSize: '0.7rem', fontWeight: 700 }}>CLEAR QUEUE</span>
-                      </button>
-                    </div>
-                  )}
                   <button
                     onClick={() => setDevMode(!devMode)}
                     style={{ marginTop: '10px', padding: '6px 12px', fontSize: '0.7rem', cursor: 'pointer' }}
@@ -5396,23 +5456,27 @@ const LiveTerminal = () => {
                         DEBUG: {appComponents.length} comps found | {appComponents.filter(c => visibilityMap[c.id] !== false).length} visible
                       </div>
                     )}
-                    {appComponents.filter(c => visibilityMap[c.id] !== false).map((comp, idx) => {
-                      const isAbsolute = comp.x !== undefined && comp.y !== undefined;
+                    {[...appComponents]
+                      .filter(c => visibilityMap[c.id] !== false)
+                      .sort((a, b) => (a.props?.zIndex || 0) - (b.props?.zIndex || 0))
+                      .map((comp, idx) => {
+                        const isAbsolute = comp.x != null && comp.y != null;
 
 
                       const containerStyle = isAbsolute ? {
                         position: 'absolute',
                         left: `${comp.x}px`,
                         top: `${comp.y}px`,
-                        width: `${comp.w}px`,
-                        height: `${comp.h}px`,
-                        zIndex: comp.props.zIndex || 100,
-                        transform: `rotate(${comp.props.rotation || 0}deg)`,
-                        overflow: 'hidden'
+                        width: comp.w ? `${comp.w}px` : 'auto',
+                        height: comp.h ? `${comp.h}px` : 'auto',
+                        zIndex: comp.props?.zIndex || 100,
+                        transform: `rotate(${comp.props?.rotation || 0}deg)`,
+                        overflow: 'visible' // Allow labels/shadows to show
                       } : {
                         width: '100%',
-                        transform: `rotate(${comp.props.rotation || 0}deg)`,
-                        marginBottom: '20px'
+                        transform: `rotate(${comp.props?.rotation || 0}deg)`,
+                        marginBottom: '20px',
+                        position: 'relative'
                       };
 
                       const err = validationErrors[comp.id];
@@ -6012,6 +6076,7 @@ const LiveTerminal = () => {
           </div>
         </div>
       )}
+      <Toaster position="top-right" />
     </div>
   );
 };

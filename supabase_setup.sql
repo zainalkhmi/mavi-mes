@@ -45,6 +45,12 @@ CREATE TABLE IF NOT EXISTS public.production_queue (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Policies for production_queue
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.production_queue TO anon, authenticated;
+ALTER TABLE public.production_queue ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all production_queue" ON public.production_queue;
+CREATE POLICY "Allow all production_queue" ON public.production_queue FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
 -- 4. Table: audit_logs
 CREATE TABLE IF NOT EXISTS public.audit_logs (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -62,6 +68,12 @@ CREATE TABLE IF NOT EXISTS public.dynamic_translations (
     translations JSONB DEFAULT '{}',
     updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Policies for dynamic_translations
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.dynamic_translations TO anon, authenticated;
+ALTER TABLE public.dynamic_translations ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all dynamic_translations" ON public.dynamic_translations;
+CREATE POLICY "Allow all dynamic_translations" ON public.dynamic_translations FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
 -- 6. Storage bucket for images (required by IMAGE widget upload)
 -- NOTE: run with a role that can manage storage (SQL Editor as project owner)
@@ -136,13 +148,30 @@ CREATE TABLE IF NOT EXISTS public.app_variables (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-DO $$ BEGIN
+DO $$ 
+BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conname = 'app_variables_name_unique'
   ) THEN
     ALTER TABLE public.app_variables ADD CONSTRAINT app_variables_name_unique UNIQUE (name);
   END IF;
 END $$;
+
+-- Policies for app_variables
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.app_variables TO anon, authenticated;
+ALTER TABLE public.app_variables ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow read app_variables" ON public.app_variables;
+CREATE POLICY "Allow read app_variables" ON public.app_variables FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Allow insert app_variables" ON public.app_variables;
+CREATE POLICY "Allow insert app_variables" ON public.app_variables FOR INSERT TO anon, authenticated WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow update app_variables" ON public.app_variables;
+CREATE POLICY "Allow update app_variables" ON public.app_variables FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow delete app_variables" ON public.app_variables;
+CREATE POLICY "Allow delete app_variables" ON public.app_variables FOR DELETE TO anon, authenticated USING (true);
 
 ALTER TABLE public.app_variables
 ADD COLUMN IF NOT EXISTS validation_rules JSONB DEFAULT '{}';
@@ -495,3 +524,55 @@ CREATE POLICY "Allow all measurements" ON public.measurements FOR ALL TO anon, a
 
 DROP POLICY IF EXISTS "Allow all completions" ON public.completions;
 CREATE POLICY "Allow all completions" ON public.completions FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+-- 24. Table: saved_analyses
+CREATE TABLE IF NOT EXISTS public.saved_analyses (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    description TEXT,
+    config JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+GRANT ALL ON TABLE public.saved_analyses TO anon, authenticated;
+ALTER TABLE public.saved_analyses ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all saved_analyses" ON public.saved_analyses;
+CREATE POLICY "Allow all saved_analyses" ON public.saved_analyses FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+-- 25. Table: dashboards
+CREATE TABLE IF NOT EXISTS public.dashboards (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    description TEXT,
+    layout JSONB DEFAULT '[]',
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+GRANT ALL ON TABLE public.dashboards TO anon, authenticated;
+ALTER TABLE public.dashboards ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all dashboards" ON public.dashboards;
+CREATE POLICY "Allow all dashboards" ON public.dashboards FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+-- 26. Table: player_sessions
+CREATE TABLE IF NOT EXISTS public.player_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    app_id UUID REFERENCES public.frontline_apps(id),
+    app_name TEXT,
+    station_id UUID REFERENCES public.stations(id),
+    station_name TEXT,
+    operator TEXT,
+    duration_seconds INTEGER DEFAULT 0,
+    step_count INTEGER DEFAULT 0,
+    dev_mode BOOLEAN DEFAULT false,
+    comments JSONB DEFAULT '[]',
+    started_at TIMESTAMPTZ DEFAULT now(),
+    ended_at TIMESTAMPTZ DEFAULT now(),
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+GRANT ALL ON TABLE public.player_sessions TO anon, authenticated;
+ALTER TABLE public.player_sessions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all player_sessions" ON public.player_sessions;
+CREATE POLICY "Allow all player_sessions" ON public.player_sessions FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);

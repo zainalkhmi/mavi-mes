@@ -224,7 +224,9 @@ export async function deleteTable(tableId) {
 }
 
 export async function getTableById(id) {
-    const normalizedId = ensureUuidOrThrow(id, 'table_id');
+    const normalizedId = isUuid(id)
+        ? ensureUuidOrThrow(id, 'table_id')
+        : await resolveTableIdReference(id);
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
         .from('app_tables')
@@ -239,7 +241,9 @@ export async function getTableById(id) {
 
 export async function getTableRecords(tableId) {
     try {
-        const normalizedTableId = ensureUuidOrThrow(tableId, 'table_id');
+        const normalizedTableId = isUuid(tableId)
+            ? ensureUuidOrThrow(tableId, 'table_id')
+            : await resolveTableIdReference(tableId);
         const supabase = getSupabaseClient();
         const { data, error } = await supabase
             .from('app_table_records')
@@ -395,16 +399,35 @@ export async function deleteTableRecord(recordInternalId) {
 export async function updateTableRecord(recordInternalId, updateData) {
     const supabase = getSupabaseClient();
 
-    // Fetch current to merge
-    const { data: existing, error: fetchErr } = await supabase
+    // 1. Find the record (Flexible: check id first, then record_id, then table_id)
+    let { data: existing, error: fetchErr } = await supabase
         .from('app_table_records')
         .select('*')
         .eq('id', recordInternalId)
-        .single();
-    if (fetchErr) throw fetchErr;
+        .maybeSingle();
+
+    if (!existing) {
+        const { data: fallback } = await supabase
+            .from('app_table_records')
+            .select('*')
+            .eq('record_id', recordInternalId)
+            .maybeSingle();
+        existing = fallback;
+    }
+
+    if (!existing) {
+        const { data: tableRecords } = await supabase
+            .from('app_table_records')
+            .select('*')
+            .eq('table_id', recordInternalId)
+            .order('created_at', { ascending: false })
+            .limit(1);
+        if (tableRecords?.[0]) existing = tableRecords[0];
+    }
+
+    if (!existing) throw new Error(`Record/Table "${recordInternalId}" tidak ditemukan.`);
 
     const mergedData = { ...(existing.data || {}), ...updateData };
-
     const table = await getTableById(existing.table_id);
     const newData = applyExcelLikeFormulas(table, mergedData);
 
@@ -412,20 +435,17 @@ export async function updateTableRecord(recordInternalId, updateData) {
     delete newData.recordId;
     delete newData.tableId;
 
-    const { data, error } = await supabase
+    const { data: updatedList, error: updateErr } = await supabase
         .from('app_table_records')
-        .update({
-            data: newData,
-            updated_at: new Date().toISOString()
-        })
-        .eq('id', recordInternalId)
-        .select()
-        .single();
+        .update({ data: newData, updated_at: new Date().toISOString() })
+        .eq('id', existing.id)
+        .select();
 
-    if (error) throw error;
-    const record = rowToRecord(data);
+    if (updateErr) throw updateErr;
+    if (!updatedList?.[0]) throw new Error("Gagal update: Data tidak ditemukan.");
 
-    // Fire automation trigger
+    const record = rowToRecord(updatedList[0]);
+
     if (automationEngine && typeof automationEngine.trigger === 'function') {
         automationEngine.trigger('TABLE_ROW_UPDATED', {
             tableId: existing.table_id,
