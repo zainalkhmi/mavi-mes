@@ -59,10 +59,17 @@ const getByPath = (obj, path) => {
 const hasValue = (v) => !(v === undefined || v === null || v === '');
 
 const buildContextIndex = (context = {}) => {
-    const widgets = Array.isArray(context?.widgets) ? context.widgets : [];
-    const variables = Array.isArray(context?.variables) ? context.variables : [];
-    const steps = Array.isArray(context?.steps) ? context.steps : [];
-    const tables = Array.isArray(context?.tables) ? context.tables : [];
+    // DEFENSIVE: Ensure all context fields are arrays before mapping
+    const getSafeArray = (arr, name) => {
+        if (Array.isArray(arr)) return arr;
+        if (arr) console.warn(`[CopilotSafety] Context.${name} is not an array:`, arr);
+        return [];
+    };
+
+    const widgets = getSafeArray(context?.widgets, 'widgets');
+    const variables = getSafeArray(context?.variables, 'variables');
+    const steps = getSafeArray(context?.steps, 'steps');
+    const tables = getSafeArray(context?.tables, 'tables');
 
     return {
         widgetIds: new Set(widgets.map(w => w?.id).filter(Boolean)),
