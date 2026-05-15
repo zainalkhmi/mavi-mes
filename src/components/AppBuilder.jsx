@@ -2361,6 +2361,14 @@ const AppBuilder = () => {
                                 else if (t.includes('DELETE') && (t.includes('RECORD') || t.includes('ROW'))) action.type = 'TABLE_RECORD_DELETE';
                                 else if (t.includes('LOAD') && (t.includes('RECORD') || t.includes('ROW'))) action.type = 'TABLE_RECORD_LOAD';
                                 else if ((t.includes('SET') || t.includes('UPDATE') || t.includes('CHANGE')) && t.includes('VARIABLE')) action.type = 'SET_VARIABLE';
+                                
+                                // Resolve table ID dynamically if AI passed a name instead of ID
+                                if (action.tableId && !action.tableId.includes('-')) {
+                                    const matchingTable = tables.find(tbl => String(tbl.name || '').toLowerCase() === String(action.tableId).toLowerCase());
+                                    if (matchingTable) {
+                                        action.tableId = matchingTable.id;
+                                    }
+                                }
                             });
                         }
                     });
@@ -2453,10 +2461,18 @@ const AppBuilder = () => {
                     break;
                 }
                 case 'CREATE_RECORD_PLACEHOLDER': {
+                    let resolvedTableId = payload.tableId || '';
+                    if (resolvedTableId && !resolvedTableId.includes('-')) {
+                         const matchingTable = tables.find(tbl => String(tbl.name || '').toLowerCase() === String(resolvedTableId).toLowerCase());
+                         if (matchingTable) {
+                             resolvedTableId = matchingTable.id;
+                         }
+                    }
+
                     const newPh = {
                         id: `ph_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                         name: payload.name,
-                        tableId: payload.tableId || ''
+                        tableId: resolvedTableId
                     };
                     setRecordPlaceholders(prev => [...prev, newPh]);
                     break;

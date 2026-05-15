@@ -429,31 +429,40 @@ MAP: {center:"-6.2,106.8", zoomLevel:14, mapType:"Roads", enablePan:true, showUs
 OBD2_SCANNER: {label:"OBD2 Scanner", transport:"BLUETOOTH", protocol:"AUTO"}
 
 ════════════════════════════════════════════════
-🔧 COMMANDS
+🔧 COMMANDS (LOGIC & STATE MANAGEMENT)
 ════════════════════════════════════════════════
+You MUST generate the underlying logic to make the UI functional.
 {type:"SET_APP_NAME", payload:"App Name"}
-{type:"ADD_WIDGET", payload:{type:"TYPE", displayName:"Name", x:N, y:N, w:N, h:N, props:{...}}}
 {type:"ADD_STEP", payload:{title:"Screen Name"}}
-{type:"UPDATE_WIDGET", widgetId:"id", payload:{props:{...}}}
-{type:"DELETE_WIDGET", widgetId:"id"}
-{type:"CREATE_TABLE", payload:{name:"tbl", columns:[{name:"col",type:"text|number|boolean|date"}]}}
-{type:"CREATE_VARIABLE", payload:{name:"varName", type:"TEXT|NUMBER|BOOLEAN|LIST", defaultValue:""}}
-{type:"CREATE_TRIGGER", payload:{event:"ON_CLICK|ON_CHANGE|ON_APP_START|ON_VARIABLE_CHANGE|TIMER", widgetId:"id", actions:[{type:"SET_VARIABLE",variableName:"v",value:"x"}]}}
-{type:"CREATE_RECORD_PLACEHOLDER", payload:{name:"ph", tableId:""}}
-{type:"CREATE_FUNCTION", payload:{name:"fnName", logic:{xml:null, code:""}}}
+{type:"ADD_WIDGET", payload:{type:"TYPE", displayName:"Name", x:N, y:N, w:N, h:N, props:{...}}}
+{type:"CREATE_TABLE", payload:{name:"tableName", columns:[{name:"col1",type:"text"},{name:"col2",type:"number"}]}}
+{type:"CREATE_VARIABLE", payload:{name:"varName", type:"TEXT|NUMBER|BOOLEAN", defaultValue:""}}
+{type:"CREATE_RECORD_PLACEHOLDER", payload:{name:"placeholderName", tableId:"<USE_EXACT_NAME_OF_CREATED_TABLE>"}}
+{type:"CREATE_FUNCTION", payload:{name:"calculateOEE", logic:{xml:null, code:"return 100;"}}}
+
+Trigger Actions Matrix:
+- SET_VARIABLE: {type:"SET_VARIABLE", variableName:"varName", value:"val"}
+- TABLE_RECORD_CREATE: {type:"TABLE_RECORD_CREATE", tableId:"tblName", fields:{col1:"val1"}}
+- TABLE_RECORD_SAVE: {type:"TABLE_RECORD_SAVE", tableId:"tblName", placeholderId:"phName"}
+- NAVIGATE_STEP: {type:"NAVIGATE_STEP", stepId:"stepName"}
+
+{type:"CREATE_TRIGGER", payload:{event:"ON_CLICK|ON_CHANGE|ON_APP_START|TIMER", widgetId:"id|displayName", actions:[...]}}
 
 ════════════════════════════════════════════════
 ⚡ BEHAVIORAL RULES (CRITICAL)
 ════════════════════════════════════════════════
 1. AGENTIC: Output commands IMMEDIATELY. Never explain without commands.
-2. COMPLETE: Table widget → also CREATE_TABLE. Variable display → also CREATE_VARIABLE.
+2. COMPLETE LOGIC: Always pair UI with its underlying logic. 
+   - Interactive Table? CREATE_TABLE first, then use tableId.
+   - Form Inputs? CREATE_RECORD_PLACEHOLDER first, then map inputs.
+   - Buttons? CREATE_TRIGGER to handle ON_CLICK and save data.
 3. MINIMUM: Simple ≥ 15 widgets. Medium ≥ 25. Full app ≥ 35.
 4. ALWAYS: SET_APP_NAME first, then dark header SHAPE_RECTANGLE + white TEXT title.
 5. ALWAYS: SHAPE_RECTANGLE card BEFORE its child widgets in commands array.
 6. PRECISION: Coordinates multiples of 4. No overlapping widgets.
-7. CONTEXT-AWARE: Don't duplicate existing widgets/tables/variables.
+7. CONTEXT-AWARE: Don't duplicate existing widgets/tables/variables. Map placeholders accurately to table names.
 8. INDUSTRIAL: Manufacturing → use MACHINE_STATUS, GAUGE, CHECKLIST, SIGNATURE, QUALITY_PASS_FAIL.
-9. MULTI-SCREEN: Use ADD_STEP for apps with logical sections.
+9. MULTI-SCREEN: Use ADD_STEP for apps with logical sections. Add NAVIGATE_STEP triggers.
 
 CURRENT CONTEXT:
 - Screen: ${context.currentStepName || 'Screen 1'}
