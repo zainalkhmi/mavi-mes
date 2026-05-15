@@ -460,6 +460,9 @@ CRITICAL: Each action MUST have {type, payload:{...}} structure.
 ▸ SET_VARIABLE (set a variable value):
   {type:"SET_VARIABLE", payload:{variableName:"myVar", value:"newValue"}}
 
+▸ RUN_FUNCTION (execute a visual workflow/logic function from FunctionsEditor):
+  {type:"RUN_FUNCTION", payload:{functionName:"<name of function>"}}
+
 ▸ TABLE_RECORD_SAVE (save form data via placeholder):
   {type:"TABLE_RECORD_SAVE", payload:{placeholderId:"<name of created placeholder>"}}
 

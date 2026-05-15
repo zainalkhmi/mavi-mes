@@ -5056,7 +5056,10 @@ const AppBuilder = () => {
                     const functions = JSON.parse(localStorage.getItem('mes_functions') || '[]');
                     const targetFn = functions.find(f => f.name === functionName);
                     if (targetFn) {
-                        await automationEngine.executeGraph(targetFn, { timestamp: new Date().toISOString(), source: 'UI_TRIGGER' });
+                        const graphData = targetFn.published ? targetFn.published.data : targetFn.draft;
+                        if (graphData && graphData.nodes) {
+                            await automationEngine.executeGraph(graphData, { timestamp: new Date().toISOString(), source: 'UI_TRIGGER' });
+                        }
                     }
                     break;
                 }
@@ -20589,6 +20592,27 @@ const AppBuilder = () => {
                                                         </div>
                                                     </div>
                                                 );
+                                            case 'RUN_FUNCTION':
+                                                return (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)', minWidth: '80px' }}>Function</label>
+                                                        <select
+                                                            value={act.payload?.functionName || ''}
+                                                            onChange={(e) => updatePayload({ functionName: e.target.value })}
+                                                            style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
+                                                        >
+                                                            <option value="">Select Function...</option>
+                                                            {(() => {
+                                                                try {
+                                                                    const functions = JSON.parse(localStorage.getItem('mes_functions') || '[]');
+                                                                    return functions.map(fn => (
+                                                                        <option key={fn.id} value={fn.name}>{fn.name}</option>
+                                                                    ));
+                                                                } catch (e) { return null; }
+                                                            })()}
+                                                        </select>
+                                                    </div>
+                                                );
                                             case 'PLAY_SOUND':
                                                 return (
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -21068,6 +21092,12 @@ const AppBuilder = () => {
                                                                                     <option value="AI_PROCESS">AI: Process with AI</option>
                                                                                     <option value="CUSTOM_SCRIPT">Advanced: Execute Custom Script</option>
                                                                                     <option value="CALCULATE_FORMULA">Advanced: Calculate Formula</option>
+                                                                                </optgroup>
+                                                                                <optgroup label="OBD2 & Engine Logic">
+                                                                                    <option value="RUN_FUNCTION">Logic: Execute Function</option>
+                                                                                    <option value="OBD2_CONNECT">OBD2: Connect Vehicle</option>
+                                                                                    <option value="OBD2_QUERY">OBD2: Read Engine PID</option>
+                                                                                    <option value="OBD2_CLEAR_DTC">OBD2: Clear Error Codes</option>
                                                                                 </optgroup>
                                                                                 <optgroup label="App & Navigation">
                                                                                     {(() => {

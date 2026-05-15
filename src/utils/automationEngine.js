@@ -617,15 +617,20 @@ class AutomationEngine {
         const targetFn = functions.find(f => f.name === action.functionName || f.id === action.functionId);
         if (targetFn) {
           console.log(`[AutomationEngine] Running function: ${targetFn.name}`);
+          const graphData = targetFn.published ? targetFn.published.data : targetFn.draft;
+          if (!graphData || !graphData.nodes) {
+              console.error(`[AutomationEngine] Function graph data not found for: ${targetFn.name}`);
+              return null;
+          }
           // Resolve input values for the function based on its contract
           const inputValues = {};
-          if (action.inputs && targetFn.inputs) {
-            targetFn.inputs.forEach(contractInput => {
+          if (action.inputs && graphData.inputs) {
+            graphData.inputs.forEach(contractInput => {
               const value = this.resolveValue(action.inputs[contractInput.name], eventData);
               inputValues[contractInput.name] = value;
             });
           }
-          return this.executeGraph(targetFn, { ...eventData, ...inputValues });
+          return this.executeGraph(graphData, { ...eventData, ...inputValues });
         } else {
           console.error(`[AutomationEngine] Function not found: ${action.functionName}`);
           return null;

@@ -1925,6 +1925,25 @@ const LiveTerminal = () => {
                if (msgType === 'error') toast.error(message);
                else if (msgType === 'warning') toast.error(message, { icon: '⚠️' });
                else toast.success(message);
+            } else if (type === 'RUN_FUNCTION') {
+               const functionName = payload.functionName || payload.name || action.functionName;
+               try {
+                 const functions = JSON.parse(localStorage.getItem('mes_functions') || '[]');
+                 const targetFn = functions.find(f => f.name === functionName || f.id === functionName);
+                 if (targetFn) {
+                   const { default: automationEngine } = await import('../utils/automationEngine');
+                   const graphData = targetFn.published ? targetFn.published.data : targetFn.draft;
+                   if (graphData && graphData.nodes) {
+                       await automationEngine.executeGraph(graphData, { timestamp: new Date().toISOString(), source: 'UI_TRIGGER', ...eventPayload });
+                   } else {
+                       console.warn(`[runActions] Function graph data not found: ${functionName}`);
+                   }
+                 } else {
+                   console.warn(`[runActions] Function not found: ${functionName}`);
+                 }
+               } catch(e) {
+                 console.error(`[runActions] Error running function:`, e);
+               }
             } else if (type === 'PLAY_SOUND') {
               const { url } = action.payload;
               if (url) {
