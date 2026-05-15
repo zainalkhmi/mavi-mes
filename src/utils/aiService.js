@@ -432,37 +432,89 @@ OBD2_SCANNER: {label:"OBD2 Scanner", transport:"BLUETOOTH", protocol:"AUTO"}
 🔧 COMMANDS (LOGIC & STATE MANAGEMENT)
 ════════════════════════════════════════════════
 You MUST generate the underlying logic to make the UI functional.
+
+STRUCTURE COMMANDS:
 {type:"SET_APP_NAME", payload:"App Name"}
 {type:"ADD_STEP", payload:{title:"Screen Name"}}
 {type:"ADD_WIDGET", payload:{type:"TYPE", displayName:"Name", x:N, y:N, w:N, h:N, props:{...}}}
+
+DATA COMMANDS:
 {type:"CREATE_TABLE", payload:{name:"tableName", columns:[{name:"col1",type:"text"},{name:"col2",type:"number"}]}}
 {type:"CREATE_VARIABLE", payload:{name:"varName", type:"TEXT|NUMBER|BOOLEAN", defaultValue:""}}
-{type:"CREATE_RECORD_PLACEHOLDER", payload:{name:"placeholderName", tableId:"<USE_EXACT_NAME_OF_CREATED_TABLE>"}}
+{type:"CREATE_RECORD_PLACEHOLDER", payload:{name:"placeholderName", tableId:"tableName"}}
+  ↳ tableId MUST match the EXACT name from a CREATE_TABLE command (case-insensitive match).
 {type:"CREATE_FUNCTION", payload:{name:"calculateOEE", logic:{xml:null, code:"return 100;"}}}
 
-Trigger Actions Matrix:
-- SET_VARIABLE: {type:"SET_VARIABLE", variableName:"varName", value:"val"}
-- TABLE_RECORD_CREATE: {type:"TABLE_RECORD_CREATE", tableId:"tblName", fields:{col1:"val1"}}
-- TABLE_RECORD_SAVE: {type:"TABLE_RECORD_SAVE", tableId:"tblName", placeholderId:"phName"}
-- NAVIGATE_STEP: {type:"NAVIGATE_STEP", stepId:"stepName"}
+TRIGGER COMMAND (creates event→action automation):
+{type:"CREATE_TRIGGER", payload:{
+  event:"ON_CLICK|ON_CHANGE|ON_APP_START|ON_STEP_ENTER|TIMER",
+  widgetId:"<displayName of target widget>",
+  actions:[<ACTION OBJECTS>]
+}}
 
-{type:"CREATE_TRIGGER", payload:{event:"ON_CLICK|ON_CHANGE|ON_APP_START|TIMER", widgetId:"id|displayName", actions:[...]}}
+════════════════════════════════════════════════
+🎯 TRIGGER ACTIONS — PRECISE PAYLOAD FORMAT
+════════════════════════════════════════════════
+CRITICAL: Each action MUST have {type, payload:{...}} structure.
+
+▸ SET_VARIABLE (set a variable value):
+  {type:"SET_VARIABLE", payload:{variableName:"myVar", value:"newValue"}}
+
+▸ TABLE_RECORD_SAVE (save form data via placeholder):
+  {type:"TABLE_RECORD_SAVE", payload:{placeholderId:"<name of created placeholder>"}}
+
+▸ TABLE_RECORD_CREATE (create new record via placeholder):
+  {type:"TABLE_RECORD_CREATE", payload:{placeholderId:"<name of created placeholder>"}}
+
+▸ GO_TO_STEP (navigate to screen):
+  {type:"GO_TO_STEP", payload:{stepId:"<title of target screen>"}}
+
+▸ NEXT_STEP / PREV_STEP:
+  {type:"NEXT_STEP", payload:{}}
+  {type:"PREV_STEP", payload:{}}
+
+▸ SHOW_NOTIFICATION (toast message):
+  {type:"SHOW_NOTIFICATION", payload:{message:"Data saved!", msgType:"success|error|warning"}}
+
+▸ COMPLETE_APP / CANCEL_APP:
+  {type:"COMPLETE_APP", payload:{}}
+  {type:"CANCEL_APP", payload:{}}
+
+════════════════════════════════════════════════
+📝 COMPLETE FORM APP EXAMPLE (follow this pattern!)
+════════════════════════════════════════════════
+Order MUST be: CREATE_TABLE → CREATE_VARIABLE → CREATE_RECORD_PLACEHOLDER → ADD_WIDGET → CREATE_TRIGGER
+
+Example for a data entry form:
+1. {type:"CREATE_TABLE", payload:{name:"production_log", columns:[{name:"product",type:"text"},{name:"qty",type:"number"},{name:"status",type:"text"}]}}
+2. {type:"CREATE_VARIABLE", payload:{name:"totalQty", type:"NUMBER", defaultValue:0}}
+3. {type:"CREATE_RECORD_PLACEHOLDER", payload:{name:"productionRecord", tableId:"production_log"}}
+4. {type:"ADD_WIDGET", payload:{type:"TEXT_INPUT", displayName:"Product Input", x:20, y:100, w:440, h:48, props:{hint:"Enter product name", targetVariable:"production_log.product"}}}
+5. {type:"ADD_WIDGET", payload:{type:"NUMBER_INPUT", displayName:"Qty Input", x:20, y:164, w:200, h:48, props:{label:"Quantity", targetVariable:"production_log.qty"}}}
+6. {type:"ADD_WIDGET", payload:{type:"BUTTON", displayName:"Save Button", x:20, y:228, w:200, h:44, props:{text:"💾 Save", backgroundColor:"#10b981", color:"#ffffff", fontWeight:"bold", shape:1}}}
+7. {type:"CREATE_TRIGGER", payload:{event:"ON_CLICK", widgetId:"Save Button", actions:[
+     {type:"TABLE_RECORD_SAVE", payload:{placeholderId:"productionRecord"}},
+     {type:"SHOW_NOTIFICATION", payload:{message:"Data berhasil disimpan!", msgType:"success"}}
+   ]}}
 
 ════════════════════════════════════════════════
 ⚡ BEHAVIORAL RULES (CRITICAL)
 ════════════════════════════════════════════════
 1. AGENTIC: Output commands IMMEDIATELY. Never explain without commands.
-2. COMPLETE LOGIC: Always pair UI with its underlying logic. 
-   - Interactive Table? CREATE_TABLE first, then use tableId.
-   - Form Inputs? CREATE_RECORD_PLACEHOLDER first, then map inputs.
-   - Buttons? CREATE_TRIGGER to handle ON_CLICK and save data.
+2. COMPLETE LOGIC CHAIN: Always pair UI with its underlying data logic.
+   - Form → CREATE_TABLE first, then CREATE_RECORD_PLACEHOLDER, then input widgets with targetVariable.
+   - Save Button → CREATE_TRIGGER ON_CLICK with TABLE_RECORD_SAVE action.
+   - Interactive Table → CREATE_TABLE first, then widget with matching tableId.
+   - Navigation → CREATE_TRIGGER with GO_TO_STEP action (use screen title as stepId).
 3. MINIMUM: Simple ≥ 15 widgets. Medium ≥ 25. Full app ≥ 35.
 4. ALWAYS: SET_APP_NAME first, then dark header SHAPE_RECTANGLE + white TEXT title.
 5. ALWAYS: SHAPE_RECTANGLE card BEFORE its child widgets in commands array.
 6. PRECISION: Coordinates multiples of 4. No overlapping widgets.
-7. CONTEXT-AWARE: Don't duplicate existing widgets/tables/variables. Map placeholders accurately to table names.
-8. INDUSTRIAL: Manufacturing → use MACHINE_STATUS, GAUGE, CHECKLIST, SIGNATURE, QUALITY_PASS_FAIL.
-9. MULTI-SCREEN: Use ADD_STEP for apps with logical sections. Add NAVIGATE_STEP triggers.
+7. CONTEXT-AWARE: Don't duplicate existing widgets/tables/variables.
+8. CROSS-REFERENCE: Use displayName to reference widgets in triggers. Use table name for placeholders.
+9. INDUSTRIAL: Manufacturing → use MACHINE_STATUS, GAUGE, CHECKLIST, SIGNATURE, QUALITY_PASS_FAIL.
+10. MULTI-SCREEN: Use ADD_STEP for logical sections. Add GO_TO_STEP trigger actions for navigation buttons.
+11. VARIABLE BINDING: Input widgets MUST have targetVariable prop matching "tableName.columnName" for auto-harvest.
 
 CURRENT CONTEXT:
 - Screen: ${context.currentStepName || 'Screen 1'}

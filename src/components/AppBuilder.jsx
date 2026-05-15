@@ -205,7 +205,7 @@ const formatTimeLabel = (isoValue) => {
 
 import { processDocument } from '../utils/aiService';
 
-import { saveFrontlineApp, getAllFrontlineApps, deleteFrontlineApp, publishApp, requestApproval, approveApp } from '../utils/supabaseFrontlineDB';
+import { saveFrontlineApp, getAllFrontlineApps, deleteFrontlineApp, publishApp, requestApproval, approveApp, getAllVariables, saveVariable } from '../utils/supabaseFrontlineDB';
 import {
     createTable,
     addTableRecord,
@@ -237,6 +237,7 @@ import { logEvent, AUDIT_EVENTS } from '../utils/auditLog';
 import ColorPicker from './ColorPicker';
 import ShapePicker from './ShapePicker';
 import { createShopfloorTemplate } from '../utils/shopfloorTemplate';
+import { createTuneUpTemplate } from '../utils/tuneUpTemplate';
 import automationEngine from '../utils/automationEngine';
 import hardwareService from '../utils/hardwareService';
 import obd2Service from '../utils/obd2Service';
@@ -2319,7 +2320,7 @@ const AppBuilder = () => {
                     const eventStr = String(resolvedEvent || '').toUpperCase();
                     let normalizedEvent = eventStr;
 
-                    if (eventStr.includes('VARIABLE') || eventStr.includes('CHANGE')) {
+                    if (eventStr.includes('VARIABLE') || (eventStr.includes('ON_CHANGE') && !payload.widgetId && !widgetId)) {
                         normalizedEvent = 'ON_VARIABLE_CHANGE';
                     } else if (eventStr.includes('START') || eventStr.includes('INIT') || eventStr.includes('MOUNT')) {
                         normalizedEvent = 'ON_APP_START';
@@ -2329,8 +2330,14 @@ const AppBuilder = () => {
                         normalizedEvent = 'ON_APP_CANCEL';
                     } else if (eventStr.includes('TIMER') || eventStr.includes('INTERVAL')) {
                         normalizedEvent = 'TIMER';
-                    } else if (eventStr.includes('CLICK') || eventStr.includes('PRESS')) {
+                    } else if (eventStr.includes('CLICK') || eventStr.includes('PRESS') || eventStr.includes('TAP')) {
                         normalizedEvent = 'ON_CLICK';
+                    } else if (eventStr.includes('CHANGE')) {
+                        normalizedEvent = 'ON_CHANGE';
+                    } else if (eventStr.includes('STEP_ENTER') || eventStr.includes('SCREEN_ENTER')) {
+                        normalizedEvent = 'ON_STEP_ENTER';
+                    } else if (eventStr.includes('STEP_EXIT') || eventStr.includes('SCREEN_EXIT')) {
+                        normalizedEvent = 'ON_STEP_EXIT';
                     }
 
                     let watchVar = payload.watchVar || payload.variableName || payload.variable || '';
@@ -2350,51 +2357,112 @@ const AppBuilder = () => {
                         clauses = [{ conditions: [], actions: [] }];
                     }
 
-                    // Normalize action types inside clauses
+                    // ── Normalize actions inside clauses for runtime precision ──
                     clauses.forEach(clause => {
                         if (Array.isArray(clause.actions)) {
-                            clause.actions.forEach(action => {
-                                if (!action || !action.type) return;
-                                const t = String(action.type).toUpperCase();
-                                if ((t.includes('CREATE') || t.includes('INSERT')) && (t.includes('RECORD') || t.includes('ROW') || t.includes('TABLE'))) action.type = 'TABLE_RECORD_CREATE';
-                                else if ((t.includes('SAVE') || t.includes('UPDATE')) && (t.includes('RECORD') || t.includes('ROW') || t.includes('TABLE'))) action.type = 'TABLE_RECORD_SAVE';
-                                else if (t.includes('DELETE') && (t.includes('RECORD') || t.includes('ROW'))) action.type = 'TABLE_RECORD_DELETE';
-                                else if (t.includes('LOAD') && (t.includes('RECORD') || t.includes('ROW'))) action.type = 'TABLE_RECORD_LOAD';
-                                else if ((t.includes('SET') || t.includes('UPDATE') || t.includes('CHANGE')) && t.includes('VARIABLE')) action.type = 'SET_VARIABLE';
-                                
-                                // Resolve table ID dynamically if AI passed a name instead of ID
-                                if (action.tableId && !action.tableId.includes('-')) {
-                                    const matchingTable = tables.find(tbl => String(tbl.name || '').toLowerCase() === String(action.tableId).toLowerCase());
-                                    if (matchingTable) {
-                                        action.tableId = matchingTable.id;
+                            clause.actions = clause.actions.map(action => {
+                                if (!action || !action.type) return action;
+                                const t = String(action.type).toUpperCase().replace(/[\s-]/g, '_');
+                                const normalized = { ...action };
+
+                                // 1. Normalize action type aliases
+                                if ((t.includes('CREATE') || t.includes('INSERT')) && (t.includes('RECORD') || t.includes('ROW') || t.includes('TABLE'))) normalized.type = 'TABLE_RECORD_CREATE';
+                                else if ((t.includes('SAVE') || (t.includes('UPDATE') && !t.includes('VARIABLE'))) && (t.includes('RECORD') || t.includes('ROW') || t.includes('TABLE'))) normalized.type = 'TABLE_RECORD_SAVE';
+                                else if (t.includes('DELETE') && (t.includes('RECORD') || t.includes('ROW'))) normalized.type = 'TABLE_RECORD_DELETE';
+                                else if (t.includes('LOAD') && (t.includes('RECORD') || t.includes('ROW'))) normalized.type = 'TABLE_RECORD_LOAD';
+                                else if ((t.includes('SET') || t.includes('UPDATE') || t.includes('CHANGE')) && t.includes('VARIABLE')) normalized.type = 'SET_VARIABLE';
+                                else if (t === 'NAVIGATE_STEP' || t === 'NAVIGATE' || t === 'GOTO_STEP' || t === 'GOTO') normalized.type = 'GO_TO_STEP';
+                                else if (t.includes('NOTIFICATION') || t.includes('TOAST') || t.includes('SHOW_MESSAGE') || t === 'ALERT') normalized.type = 'SHOW_NOTIFICATION';
+
+                                // 2. Ensure payload wrapper exists — AI may put fields flat on action
+                                if (!normalized.payload) {
+                                    const p = {};
+                                    // SET_VARIABLE
+                                    if (normalized.type === 'SET_VARIABLE') {
+                                        p.variableName = normalized.variableName || normalized.variable || normalized.varPath || normalized.target || '';
+                                        p.value = normalized.value !== undefined ? normalized.value : (normalized.expression || '');
+                                        if (normalized.valueType) p.valueType = normalized.valueType;
+                                    }
+                                    // TABLE_RECORD_SAVE/CREATE/LOAD/DELETE
+                                    else if (normalized.type.startsWith('TABLE_RECORD_')) {
+                                        p.placeholderId = normalized.placeholderId || normalized.placeholder || '';
+                                        if (normalized.tableId) p.tableId = normalized.tableId;
+                                        if (normalized.fields) p.fields = normalized.fields;
+                                    }
+                                    // GO_TO_STEP
+                                    else if (normalized.type === 'GO_TO_STEP') {
+                                        p.stepId = normalized.stepId || normalized.targetId || normalized.screen || '';
+                                    }
+                                    // SHOW_NOTIFICATION
+                                    else if (normalized.type === 'SHOW_NOTIFICATION') {
+                                        p.message = normalized.message || normalized.text || 'Notification';
+                                        p.msgType = normalized.msgType || normalized.notificationType || 'success';
+                                    }
+                                    // NEXT/PREV/COMPLETE/CANCEL
+                                    else if (['NEXT_STEP', 'PREV_STEP', 'COMPLETE_APP', 'CANCEL_APP'].includes(normalized.type)) {
+                                        // No extra payload needed
+                                    }
+                                    if (Object.keys(p).length > 0) normalized.payload = p;
+                                }
+
+                                // 3. Resolve placeholder name→ID inside action payload
+                                if (normalized.payload?.placeholderId && !String(normalized.payload.placeholderId).startsWith('ph_')) {
+                                    const matchPh = recordPlaceholders.find(rp => 
+                                        String(rp.name || '').toLowerCase() === String(normalized.payload.placeholderId).toLowerCase()
+                                    );
+                                    if (matchPh) {
+                                        console.log(`[Copilot] Placeholder resolved: "${normalized.payload.placeholderId}" → ${matchPh.id}`);
+                                        normalized.payload.placeholderId = matchPh.id;
                                     }
                                 }
+
+                                // 4. Resolve table name→ID inside action payload
+                                const actionTableId = normalized.payload?.tableId || normalized.tableId;
+                                if (actionTableId && !String(actionTableId).includes('-')) {
+                                    const matchingTable = tables.find(tbl => String(tbl.name || '').toLowerCase() === String(actionTableId).toLowerCase());
+                                    if (matchingTable) {
+                                        if (normalized.payload) normalized.payload.tableId = matchingTable.id;
+                                        else normalized.tableId = matchingTable.id;
+                                    }
+                                }
+
+                                // 5. Clean up flat fields that are now in payload
+                                ['variableName', 'variable', 'varPath', 'value', 'expression', 'placeholderId', 
+                                 'tableId', 'fields', 'stepId', 'targetId', 'screen', 'message', 'text', 'msgType'
+                                ].forEach(key => { if (normalized.payload && key in normalized) delete normalized[key]; });
+
+                                return normalized;
                             });
                         }
                     });
 
                     const newTrigger = {
                         id: `t_${Date.now()}`,
-                        ...payload,
+                        name: payload.name || `${normalizedEvent} Trigger`,
                         event: normalizedEvent,
+                        enabled: true,
                         ...(normalizedEvent === 'ON_VARIABLE_CHANGE' ? { watchVar } : {}),
                         clauses
                     };
-                    delete newTrigger.actions;
-                    delete newTrigger.conditions;
 
                     const targetIdRaw = widgetId || payload.widgetId || payload.componentId || payload.target;
                     
-                    // Robust target resolution (search by ID, then Name, then Label)
+                    // Robust target resolution (search by ID, then Name, then Label, then Text)
                     let resolvedTargetId = null;
                     if (targetIdRaw) {
                         const findInList = (list) => {
+                            const raw = String(targetIdRaw).toLowerCase();
                             const matchById = list.find(c => c.id === targetIdRaw);
                             if (matchById) return matchById.id;
-                            const matchByDisplay = list.find(c => String(c.displayName || '').toLowerCase() === String(targetIdRaw).toLowerCase());
+                            const matchByDisplay = list.find(c => String(c.displayName || '').toLowerCase() === raw);
                             if (matchByDisplay) return matchByDisplay.id;
-                            const matchByLabel = list.find(c => String(c.props?.label || '').toLowerCase() === String(targetIdRaw).toLowerCase());
+                            const matchByLabel = list.find(c => String(c.props?.label || '').toLowerCase() === raw);
                             if (matchByLabel) return matchByLabel.id;
+                            const matchByText = list.find(c => String(c.props?.text || '').toLowerCase() === raw);
+                            if (matchByText) return matchByText.id;
+                            // Fuzzy: partial match on displayName
+                            const fuzzy = list.find(c => String(c.displayName || '').toLowerCase().includes(raw) || raw.includes(String(c.displayName || '').toLowerCase()));
+                            if (fuzzy) return fuzzy.id;
                             return null;
                         };
 
@@ -2431,41 +2499,65 @@ const AppBuilder = () => {
                         // Get widget name for toast
                         const targetWidget = (currentStepId === 'BASE' ? baseComponents : (steps.find(s => s.id === currentStepId)?.components || [])).find(c => c.id === resolvedTargetId);
                         const widgetName = targetWidget?.displayName || targetWidget?.props?.label || resolvedTargetId;
-                        toast.success(`Trigger ${normalizedEvent} ditambahkan ke komponen: ${widgetName}`, { position: 'bottom-right' });
-                        console.log(`[Copilot] Trigger added to widget: ${resolvedTargetId}`);
+                        const actionCount = clauses.reduce((sum, cl) => sum + (cl.actions?.length || 0), 0);
+                        toast.success(`✅ Trigger ${normalizedEvent} → ${widgetName} (${actionCount} actions)`, { position: 'bottom-right' });
+                        console.log(`[Copilot] Trigger added to widget: ${resolvedTargetId} with ${actionCount} actions`);
                     } else if (normalizedEvent === 'ON_STEP_ENTER' || normalizedEvent === 'ON_STEP_EXIT') {
                         setSteps(prev => prev.map(s => s.id === currentStepId ? {
                             ...s,
                             triggers: [...(s.triggers || []), newTrigger]
                         } : s));
                         const stepTitle = steps.find(s => s.id === currentStepId)?.title || 'Current Step';
-                        toast.success(`Trigger ${normalizedEvent} ditambahkan ke Step: ${stepTitle}`, { position: 'bottom-right' });
+                        toast.success(`✅ Trigger ${normalizedEvent} → Step: ${stepTitle}`, { position: 'bottom-right' });
                         console.log(`[Copilot] Trigger added to step: ${currentStepId}`);
                     } else {
                         setAppTriggers(prev => [...prev, newTrigger]);
-                        toast.success(`Trigger ${normalizedEvent} ditambahkan sebagai App Trigger (Global)`, { position: 'bottom-right' });
+                        toast.success(`✅ App Trigger: ${normalizedEvent} (Global)`, { position: 'bottom-right' });
                         console.log(`[Copilot] Trigger added to app (global)`);
                     }
                     break;
                 }
                 case 'CREATE_VARIABLE': {
+                    // Prevent duplicate variable names
+                    const existingVar = appVariables.find(v => String(v.name).toLowerCase() === String(payload.name).toLowerCase());
+                    if (existingVar) {
+                        console.log(`[Copilot] Variable "${payload.name}" already exists, skipping.`);
+                        toast.info(`Variable "${payload.name}" sudah ada`, { position: 'bottom-right' });
+                        break;
+                    }
                     const newVar = {
-                        id: `v_${Date.now()}`,
+                        id: `v_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                         name: payload.name,
-                        type: payload.type || 'TEXT',
+                        type: (payload.type || 'TEXT').toUpperCase(),
                         defaultValue: payload.defaultValue ?? '',
                         value: payload.defaultValue ?? '',
                         persisted: payload.persisted || false
                     };
                     setAppVariables(prev => [...prev, newVar]);
+                    saveVariable(newVar).catch(console.error);
+                    toast.success(`📌 Variable: ${newVar.name} (${newVar.type})`, { position: 'bottom-right' });
+                    console.log(`[Copilot] Variable "${newVar.name}" created (${newVar.type})`);
                     break;
                 }
                 case 'CREATE_RECORD_PLACEHOLDER': {
+                    // Prevent duplicate placeholder names
+                    const existingPh = recordPlaceholders.find(rp => String(rp.name).toLowerCase() === String(payload.name).toLowerCase());
+                    if (existingPh) {
+                        console.log(`[Copilot] Placeholder "${payload.name}" already exists, skipping.`);
+                        toast.info(`Placeholder "${payload.name}" sudah ada`, { position: 'bottom-right' });
+                        break;
+                    }
+
                     let resolvedTableId = payload.tableId || '';
+                    // Try to resolve table name → ID from both tables state and appTables
                     if (resolvedTableId && !resolvedTableId.includes('-')) {
-                         const matchingTable = tables.find(tbl => String(tbl.name || '').toLowerCase() === String(resolvedTableId).toLowerCase());
+                         const allTables = [...(tables || []), ...(appTables || [])];
+                         const matchingTable = allTables.find(tbl => String(tbl.name || '').toLowerCase() === String(resolvedTableId).toLowerCase());
                          if (matchingTable) {
                              resolvedTableId = matchingTable.id;
+                             console.log(`[Copilot] Placeholder table resolved: "${payload.tableId}" → ${matchingTable.id}`);
+                         } else {
+                             console.warn(`[Copilot] Table "${resolvedTableId}" not found yet — placeholder will use name as reference`);
                          }
                     }
 
@@ -2475,6 +2567,9 @@ const AppBuilder = () => {
                         tableId: resolvedTableId
                     };
                     setRecordPlaceholders(prev => [...prev, newPh]);
+                    const tableName = payload.tableId || resolvedTableId;
+                    toast.success(`📋 Placeholder: ${newPh.name} → ${tableName}`, { position: 'bottom-right' });
+                    console.log(`[Copilot] Placeholder "${newPh.name}" created → table: ${resolvedTableId}`);
                     break;
                 }
                 case 'CREATE_FUNCTION': {
@@ -2484,6 +2579,7 @@ const AppBuilder = () => {
                         logic: payload.logic || { xml: null, code: '' }
                     };
                     setAppFunctions(prev => [...prev, newFunc]);
+                    toast.success(`⚡ Function: ${newFunc.name}`, { position: 'bottom-right' });
                     break;
                 }
                 default:
@@ -4101,6 +4197,35 @@ const AppBuilder = () => {
 
     useEffect(() => {
         getTables().then(setTables).catch(err => console.error("Failed to fetch tables:", err));
+
+        // Auto-fetch Global Variables on mount
+        getAllVariables().then(rows => {
+            const globals = rows.map(row => {
+                let defaultValue = '';
+                try { defaultValue = row.default_value !== null ? JSON.parse(row.default_value) : ''; } 
+                catch { defaultValue = row.default_value ?? ''; }
+                return {
+                    id: row.id,
+                    name: row.name,
+                    type: row.type,
+                    defaultValue,
+                    value: defaultValue,
+                    clearOnCompletion: row.clear_on_completion ?? true,
+                    saveForAnalysis: row.save_for_analysis ?? true,
+                    isPersistent: row.clear_on_completion === false
+                };
+            });
+            
+            setAppVariables(prev => {
+                const next = [...prev];
+                globals.forEach(g => {
+                    if (!next.find(v => String(v.name).toLowerCase() === String(g.name).toLowerCase())) {
+                        next.push(g);
+                    }
+                });
+                return next;
+            });
+        }).catch(err => console.error("Failed to fetch global variables:", err));
     }, []);
 
     useEffect(() => {
@@ -4853,11 +4978,51 @@ const AppBuilder = () => {
                     }
                     break;
                 }
-                case 'RESET_VARIABLE': {
+                case 'RESET_VARIABLE':
+                case 'CLEAR_VARIABLE': {
                     const { varPath } = action.payload;
                     const v = appVariables.find(av => av.name === varPath);
                     if (v) {
-                        setValidatedVariableValue(varPath, v.defaultValue || '', 'RESET_VARIABLE');
+                        setValidatedVariableValue(varPath, v.defaultValue || '', 'CLEAR_VARIABLE');
+                    }
+                    break;
+                }
+                case 'AI_PROCESS': {
+                    const { promptType, prompt, inputVar, resultVar } = action.payload;
+                    const actualPrompt = promptType === 'VARIABLE' ? (appVariables.find(v => v.name === prompt)?.value || '') : prompt;
+                    const inputData = inputVar ? (appVariables.find(v => v.name === inputVar)?.value || '') : '';
+                    const fullPrompt = inputData ? `${actualPrompt}\n\nData:\n${inputData}` : actualPrompt;
+
+                    if (fullPrompt) {
+                        toast.success(`Processing AI request...`);
+                        try {
+                            const { getChatCompletion } = await import('../utils/aiService');
+                            const { getPrimaryAiConnector } = await import('../utils/database');
+                            const connector = await getPrimaryAiConnector();
+                            const result = await getChatCompletion([{ role: 'user', content: fullPrompt }], connector);
+                            if (resultVar) {
+                                setValidatedVariableValue(resultVar, result, 'AI_PROCESS');
+                            }
+                            toast.success(`AI Process completed.`);
+                        } catch(e) {
+                            toast.error(`AI Error: ${e.message}`);
+                        }
+                    }
+                    break;
+                }
+                case 'PLAY_SOUND': {
+                    const { url } = action.payload;
+                    if (url) {
+                        const audio = new Audio(url);
+                        audio.play().catch(err => console.error("Error playing sound:", err));
+                    }
+                    break;
+                }
+                case 'SHOW_IMAGE':
+                case 'PLAY_VIDEO': {
+                    const { url } = action.payload;
+                    if (url) {
+                        toast.success(`[Media Simulated] Playing ${action.type === 'SHOW_IMAGE' ? 'Image' : 'Video'}: ${url}`);
                     }
                     break;
                 }
@@ -4892,6 +5057,36 @@ const AppBuilder = () => {
                     const targetFn = functions.find(f => f.name === functionName);
                     if (targetFn) {
                         await automationEngine.executeGraph(targetFn, { timestamp: new Date().toISOString(), source: 'UI_TRIGGER' });
+                    }
+                    break;
+                }
+                case 'CALCULATE_FORMULA': {
+                    const { formula, resultVar } = action.payload;
+                    let expr = formula || '';
+                    appVariables.forEach(v => {
+                        expr = expr.replace(new RegExp(`@${v.name}\\b`, 'g'), typeof v.value === 'number' ? v.value : `"${v.value}"`);
+                    });
+                    try {
+                        const val = new Function(`return ${expr}`)();
+                        if (resultVar) {
+                            setValidatedVariableValue(resultVar, val, 'CALCULATE_FORMULA');
+                        }
+                    } catch(e) {
+                        toast.error(`Formula Error: ${e.message}`);
+                    }
+                    break;
+                }
+                case 'CUSTOM_SCRIPT': {
+                    const { script } = action.payload;
+                    try {
+                        const ctx = {
+                            variables: appVariables,
+                            setVar: (n, v) => setValidatedVariableValue(n, v, 'CUSTOM_SCRIPT')
+                        };
+                        const fn = new Function('ctx', script);
+                        fn(ctx);
+                    } catch(e) {
+                        toast.error(`Script Error: ${e.message}`);
                     }
                     break;
                 }
@@ -5084,68 +5279,98 @@ const AppBuilder = () => {
                 case 'TABLE_RECORD_CREATE_OR_LOAD':
                 case 'TABLE_RECORD_SAVE':
                 case 'TABLE_RECORD_DELETE': {
-                    const { placeholderId, idType, idValue } = action.payload;
+                    const { placeholderId, idType, idValue } = action.payload || {};
                     const resolvedId = resolveValue(idValue, idType);
-                    const placeholder = recordPlaceholders.find(rp => rp.id === placeholderId);
-                    if (!placeholder || !placeholder.tableId) return;
+                    // Resolve placeholder by ID or by name (AI generates name-based references)
+                    const placeholder = recordPlaceholders.find(rp => rp.id === placeholderId)
+                                     || recordPlaceholders.find(rp => String(rp.name).toLowerCase() === String(placeholderId).toLowerCase());
+                    if (!placeholder || !placeholder.tableId) {
+                        console.warn(`[Builder Dev] TABLE_RECORD action: placeholder "${placeholderId}" not found or has no tableId. Available:`, recordPlaceholders.map(r => r.name));
+                        toast.error(`❌ Placeholder "${placeholderId}" tidak ditemukan.`);
+                        return;
+                    }
 
                     const handleLoad = async (id) => {
                         const records = await getTableRecords(placeholder.tableId);
-                        const record = records.find(r => String(r.id) === String(id));
+                        // Match by Supabase row id OR by custom recordId field
+                        const record = records.find(r => String(r.id) === String(id) || String(r.recordId) === String(id));
                         if (record) {
-                            setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: record }));
+                            setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: record }));
+                            console.log(`[Builder Dev] Loaded record for placeholder "${placeholder.name}":`, record);
                             return true;
                         }
+                        console.warn(`[Builder Dev] Record "${id}" not found in table ${placeholder.tableId}`);
                         return false;
                     };
                     const handleCreate = async (id) => {
                         const effectiveId = id || `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
                         if (viewMode === 'PREVIEW') {
-                            const newRec = { id: effectiveId, _simulated: true, created_at: new Date().toISOString() };
-                            setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: newRec }));
+                            const newRec = { id: effectiveId, recordId: effectiveId, _simulated: true, created_at: new Date().toISOString() };
+                            setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: newRec }));
                             console.log(`[Developer Mode] Simulated creation of record ${effectiveId}`);
                             return true;
                         }
-                        const newRec = await addTableRecord(placeholder.tableId, { id: effectiveId });
-                        setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: newRec }));
+                        const newRec = await addTableRecord(placeholder.tableId, { recordId: effectiveId });
+                        setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: newRec || { id: effectiveId, recordId: effectiveId } }));
                         return true;
                     };
                     const handleSave = async () => {
-                        const rec = recordPlaceholderData[placeholderId];
-                        if (!rec || !rec.id) return false;
+                        const rec = recordPlaceholderData[placeholder.id];
+                        if (!rec || !rec.id) {
+                            // Auto-create if no record exists yet
+                            await handleCreate(null);
+                            const newRec = recordPlaceholderData[placeholder.id];
+                            if (!newRec?.id) return false;
+                        }
+                        const currentRec = recordPlaceholderData[placeholder.id];
 
-                        const updatedData = { ...rec };
+                        const updatedData = { ...currentRec };
                         const allComps = [...baseComponents, ...(steps.find(s => s.id === currentStepId)?.components || [])];
                         allComps.forEach(comp => {
-                            if (comp.props.targetVariable && comp.props.targetVariable.startsWith(`${placeholder.name}.`)) {
-                                const fieldName = comp.props.targetVariable.split('.')[1];
-                                if (previewFormValues[comp.id] !== undefined) {
-                                    updatedData[fieldName] = previewFormValues[comp.id];
-                                }
+                            const targetVar = comp.props?.targetVariable;
+                            if (!targetVar) return;
+                            const targetVarUpper = String(targetVar).toUpperCase();
+                            const phNameUpper = String(placeholder.name).toUpperCase();
+                            // Match "placeholderName.columnName" OR just "columnName"
+                            let fieldName = null;
+                            if (targetVarUpper.startsWith(phNameUpper + '.')) {
+                                fieldName = targetVar.split('.')[1];
+                            }
+                            if (fieldName && previewFormValues[comp.id] !== undefined) {
+                                updatedData[fieldName] = previewFormValues[comp.id];
                             }
                         });
 
                         if (viewMode === 'PREVIEW') {
-                            setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: updatedData }));
-                            console.log(`[Developer Mode] Simulated SAVE of record ${rec.id}`, updatedData);
+                            setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: updatedData }));
+                            console.log(`[Developer Mode] Simulated SAVE of record ${currentRec.id}`, updatedData);
+                            toast.success('💾 Data tersimpan (Dev Mode Simulation)');
                             return true;
                         }
-                        const { updateTableRecord } = await import('../utils/database');
-                        await updateTableRecord(placeholder.tableId, rec.id, updatedData);
-                        setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: updatedData }));
+                        // Use supabaseTablesDB (not deprecated 'database' util)
+                        const { updateTableRecord } = await import('../utils/supabaseTablesDB');
+                        await updateTableRecord(currentRec.id, updatedData);
+                        setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: updatedData }));
+                        console.log(`[Builder Dev] Saved record id=${currentRec.id}`, updatedData);
                         return true;
                     };
                     const handleDelete = async () => {
-                        const rec = recordPlaceholderData[placeholderId];
-                        if (!rec || !rec.id) return false;
+                        const rec = recordPlaceholderData[placeholder.id];
+                        if (!rec || !rec.id) {
+                            toast.error('❌ DELETE: Record belum di-load.');
+                            return false;
+                        }
                         if (viewMode === 'PREVIEW') {
-                            setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: null }));
+                            setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: null }));
                             console.log(`[Developer Mode] Simulated DELETE of record ${rec.id}`);
+                            toast.success('🗑️ Record dihapus (Dev Mode Simulation)');
                             return true;
                         }
-                        const { deleteTableRecord } = await import('../utils/database');
-                        await deleteTableRecord(placeholder.tableId, rec.id);
-                        setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: null }));
+                        // deleteTableRecord only needs the row id
+                        const { deleteTableRecord } = await import('../utils/supabaseTablesDB');
+                        await deleteTableRecord(rec.id);
+                        setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: null }));
+                        console.log(`[Builder Dev] Deleted record id=${rec.id}`);
                         return true;
                     };
 
@@ -7141,6 +7366,67 @@ const AppBuilder = () => {
         } catch (error) {
             console.error('Failed to create template app:', error);
             alert('Error generating template app: ' + (error.message || 'Unknown error') + '. Please check your connection.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleCreateTuneUpTemplate = async () => {
+        setIsSaving(true);
+        try {
+            const templateApp = createTuneUpTemplate();
+
+            // 1. Create a physical table for the template automatically
+            let logTableId = null;
+            try {
+                const newTable = await createTable({
+                    name: `TuneUp_Logs`,
+                    description: 'Automated table for vehicle tune up records',
+                    fields: [
+                        { name: 'Vehicle_VIN', type: 'text' },
+                        { name: 'Engine_Health_Score', type: 'number' },
+                        { name: 'Service_Status', type: 'text' },
+                        { name: 'Timestamp', type: 'datetime' }
+                    ]
+                });
+                if (newTable && newTable.id) {
+                    logTableId = newTable.id;
+                }
+                const updatedTables = await getTables();
+                setTables(updatedTables);
+            } catch (tErr) {
+                console.warn('Could not create automated table:', tErr);
+            }
+
+            if (logTableId) {
+                if (templateApp.config.recordPlaceholders && templateApp.config.recordPlaceholders.length > 0) {
+                    templateApp.config.recordPlaceholders[0].tableId = logTableId;
+                }
+                templateApp.config.appTables = [logTableId];
+            }
+
+            // 3. Save the new app
+            const { id, ...templateData } = templateApp;
+            const savedApp = await saveFrontlineApp({
+                ...templateData,
+                is_published: templateApp.published ?? false,
+                approval_status: templateApp.approvalStatus || 'DRAFT',
+                updated_at: new Date().toISOString()
+            });
+
+            // 4. Refresh and load
+            await loadApps();
+            setIsCreateDrawerOpen(false);
+            loadApp(savedApp || templateApp);
+
+            setProUiDialog({
+                type: 'success',
+                message: 'Pro Tune-Up Template Created Successfully!',
+                detail: 'OBD2 Diagnostics, AI Analysis, and Database logs are ready.'
+            });
+        } catch (error) {
+            console.error('Failed to create tune-up app:', error);
+            alert('Error generating template app: ' + (error.message || 'Unknown error'));
         } finally {
             setIsSaving(false);
         }
@@ -10885,15 +11171,22 @@ const AppBuilder = () => {
                     </div>
                 );
 
-            case 'VARIABLE_TEXT':
+            case 'VARIABLE_TEXT': {
+                let vv = `@${comp.props.targetVariable || 'Variable'}`;
+                if (viewMode === 'PREVIEW') {
+                    const varSource = comp.props.targetVariable;
+                    const v = appVariables.find(av => av.name === varSource);
+                    if (v) vv = v.value;
+                }
                 return (
                     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
                         {comp.props.label && <div style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '4px' }}>{safeRender(comp.props.label)}</div>}
                         <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                            {`@${comp.props.targetVariable || 'Variable'}`}
+                            {vv}
                         </div>
                     </div>
                 );
+            }
 
             default:
                 if (CHROMELESS_COMPONENT_TYPES.includes(comp.type)) {
@@ -21942,14 +22235,16 @@ const AppBuilder = () => {
                                                 alert('Variable name already exists');
                                                 return;
                                             }
+                                            const newVar = {
+                                                ...variableEditor.variable,
+                                                name: normalizedName,
+                                                value: variableEditor.variable.defaultValue
+                                            };
                                             setAppVariables([
                                                 ...appVariables,
-                                                {
-                                                    ...variableEditor.variable,
-                                                    name: normalizedName,
-                                                    value: variableEditor.variable.defaultValue
-                                                }
+                                                newVar
                                             ]);
+                                            saveVariable(newVar).catch(console.error);
                                         } else {
                                             const originalName = variableEditor.originalName || variableEditor.variable.name;
                                             if (appVariables.some(v => v.name === normalizedName && v.name !== originalName)) {
@@ -21962,22 +22257,24 @@ const AppBuilder = () => {
                                                 const updated = prev.map(v => {
                                                     if (v.name !== originalName) return v;
                                                     found = true;
-                                                    return {
+                                                    const upVar = {
                                                         ...v,
                                                         ...variableEditor.variable,
                                                         name: normalizedName,
                                                         value: variableEditor.variable.value ?? variableEditor.variable.defaultValue
                                                     };
+                                                    saveVariable(upVar).catch(console.error);
+                                                    return upVar;
                                                 });
                                                 if (found) return updated;
-                                                return [
-                                                    ...prev,
-                                                    {
-                                                        ...variableEditor.variable,
-                                                        name: normalizedName,
-                                                        value: variableEditor.variable.defaultValue
-                                                    }
-                                                ];
+                                                
+                                                const fallbackVar = {
+                                                    ...variableEditor.variable,
+                                                    name: normalizedName,
+                                                    value: variableEditor.variable.defaultValue
+                                                };
+                                                saveVariable(fallbackVar).catch(console.error);
+                                                return [ ...prev, fallbackVar ];
                                             });
                                         }
                                         setVariableEditor({ isOpen: false, variable: null, isNew: false, originalName: null });
@@ -22080,6 +22377,34 @@ const AppBuilder = () => {
                                         </div>
                                         <div style={{ marginTop: '10px', padding: '6px 16px', borderRadius: '20px', backgroundColor: '#8b5cf6', color: '#fff', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                                             Premium Beta
+                                        </div>
+                                    </div>
+
+                                    {/* Template Tune-Up Card */}
+                                    <div
+                                        onClick={handleCreateTuneUpTemplate}
+                                        style={{
+                                            padding: '40px', borderRadius: '20px', border: '2px solid var(--border-primary)', cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                            display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '20px',
+                                            background: 'linear-gradient(135deg, #ffffff 0%, #eff6ff 100%)', position: 'relative', overflow: 'hidden'
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.borderColor = '#3b82f6';
+                                            e.currentTarget.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1)';
+                                            e.currentTarget.style.transform = 'translateY(-4px)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.borderColor = '#e2e8f0';
+                                            e.currentTarget.style.boxShadow = 'none';
+                                            e.currentTarget.style.transform = 'none';
+                                        }}
+                                    >
+                                        <div style={{ width: '80px', height: '80px', borderRadius: '20px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6' }}>
+                                            <Activity size={40} />
+                                        </div>
+                                        <div>
+                                            <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>Tune-Up Pro Template</h3>
+                                            <p style={{ marginTop: '8px', fontSize: '0.95rem', color: 'var(--text-quaternary)', lineHeight: 1.5 }}>Deploy an advanced automotive app with OBD2 & AI capabilities.</p>
                                         </div>
                                     </div>
 

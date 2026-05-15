@@ -1866,6 +1866,58 @@ const LiveTerminal = () => {
                   }
                 }
               }
+            } else if (type === 'INCREMENT_VARIABLE' || type === 'DECREMENT_VARIABLE') {
+              const varPath = payload.varPath || payload.variableName || payload.variable;
+              const amount = payload.amount || 1;
+              const vDef = appVariables.find(v => v.name === varPath || v.id === varPath);
+              if (vDef) {
+                const currentVal = Number(vDef.value) || 0;
+                const amt = Number(amount) || 1;
+                const nextVal = type === 'INCREMENT_VARIABLE' ? currentVal + amt : currentVal - amt;
+                setAppVariables(prev => prev.map(v => (v.name === varPath || v.id === varPath) ? { ...v, value: nextVal } : v));
+                if (vDef.isPersistent) {
+                  const { upsertGlobalVariable } = await import('../utils/supabaseGlobalVars');
+                  await upsertGlobalVariable(vDef.name, vDef.type || 'TEXT', nextVal);
+                }
+              }
+            } else if (type === 'CLEAR_VARIABLE' || type === 'RESET_VARIABLE') {
+              const varPath = payload.varPath || payload.variableName || payload.variable;
+              const vDef = appVariables.find(v => v.name === varPath || v.id === varPath);
+              if (vDef) {
+                setAppVariables(prev => prev.map(v => (v.name === varPath || v.id === varPath) ? { ...v, value: vDef.defaultValue || '' } : v));
+                if (vDef.isPersistent) {
+                  const { upsertGlobalVariable } = await import('../utils/supabaseGlobalVars');
+                  await upsertGlobalVariable(vDef.name, vDef.type || 'TEXT', vDef.defaultValue || '');
+                }
+              }
+            } else if (type === 'AI_PROCESS') {
+              const { promptType, prompt, inputVar, resultVar } = payload;
+              const actualPrompt = promptType === 'VARIABLE' ? (appVariables.find(v => v.name === prompt)?.value || '') : prompt;
+              const inputData = inputVar ? (appVariables.find(v => v.name === inputVar)?.value || '') : '';
+              
+              const fullPrompt = inputData ? `${actualPrompt}\n\nData:\n${inputData}` : actualPrompt;
+              if (fullPrompt) {
+                toast.success(`Processing AI request...`);
+                try {
+                  const { getChatCompletion } = await import('../utils/aiService');
+                  const { getPrimaryAiConnector } = await import('../utils/database');
+                  const connector = await getPrimaryAiConnector();
+                  const result = await getChatCompletion([{ role: 'user', content: fullPrompt }], connector);
+                  
+                  if (resultVar) {
+                     setAppVariables(prev => prev.map(v => v.name === resultVar ? { ...v, value: result } : v));
+                     const vDef = appVariables.find(v => v.name === resultVar);
+                     if (vDef?.isPersistent) {
+                       const { upsertGlobalVariable } = await import('../utils/supabaseGlobalVars');
+                       await upsertGlobalVariable(vDef.name, vDef.type || 'TEXT', result);
+                     }
+                  }
+                  toast.success(`AI Process completed.`);
+                } catch(e) {
+                  toast.error(`AI Error: ${e.message}`);
+                  console.error(e);
+                }
+              }
             } else if (type === 'SHOW_NOTIFICATION' || type === 'SHOW_MESSAGE' || type === 'DISPLAY_MESSAGE' || type === 'ALERT') {
                const message = await resolveSourceValue(payload.valueType || payload.messageType || 'STATIC', payload.message || payload.value || payload.text || 'Notification', '', eventPayload);
                const msgType = payload.msgType || payload.notificationType || payload.type || 'success';
@@ -1884,8 +1936,15 @@ const LiveTerminal = () => {
               if (url) {
                 setActiveMedia({ type: action.type === 'SHOW_IMAGE' ? 'IMAGE' : 'VIDEO', url, duration: duration || 0 });
               }
-            } else if (action.type === 'GO_TO_STEP') {
-              const targetIndex = (selectedApp?.config?.steps || []).findIndex(s => s.id === (action.payload.stepId || action.payload.targetId));
+            } else if (action.type === 'GO_TO_STEP' || action.type === 'NAVIGATE_STEP') {
+              const stepTarget = action.payload?.stepId || action.payload?.targetId || action.payload?.screen || '';
+              let targetIndex = (selectedApp?.config?.steps || []).findIndex(s => s.id === stepTarget);
+              // Fallback: resolve by step title
+              if (targetIndex === -1) {
+                targetIndex = (selectedApp?.config?.steps || []).findIndex(s => 
+                  String(s.title || '').toLowerCase() === String(stepTarget).toLowerCase()
+                );
+              }
               if (targetIndex !== -1) setCurrentStepIndex(targetIndex);
             } else if (action.type === 'NEXT_STEP') {
               handleNextStep();
@@ -1929,16 +1988,17 @@ const LiveTerminal = () => {
               }
             } else if (['TABLE_RECORD_LOAD', 'TABLE_RECORD_CREATE', 'TABLE_RECORD_CREATE_OR_LOAD', 'TABLE_RECORD_SAVE', 'TABLE_RECORD_DELETE'].includes(action.type)) {
               const { placeholderId, idType = 'STATIC', idValue = '' } = action.payload || action || {};
-              let placeholder = (selectedApp?.config?.recordPlaceholders || []).find(rp => rp.id === placeholderId);
-              
-              if (!placeholder && selectedApp?.config?.recordPlaceholders?.length > 0) {
-                 placeholder = selectedApp.config.recordPlaceholders[0];
-              }
+              // Resolve placeholder by ID first, then fallback to name match
+              const allPlaceholders = selectedApp?.config?.recordPlaceholders || [];
+              let placeholder = allPlaceholders.find(rp => rp.id === placeholderId)
+                             || allPlaceholders.find(rp => String(rp.name).toLowerCase() === String(placeholderId).toLowerCase());
 
               if (!placeholder?.tableId) {
-                window.alert("ERROR: Jalur database (Table ID) tidak ditemukan.");
+                toast.error(`❌ Placeholder "${placeholderId}" tidak ditemukan atau tidak terhubung ke tabel.`);
+                console.error(`[TABLE_RECORD] Placeholder not found: "${placeholderId}"`, allPlaceholders);
                 continue;
               }
+              console.log(`[TABLE_RECORD] Resolved placeholder: "${placeholderId}" → id=${placeholder.id}, table=${placeholder.tableId}`, placeholder);
 
               const resolvedId = await resolveSourceValue(idType, idValue, '', eventPayload);
 
@@ -2012,15 +2072,21 @@ const LiveTerminal = () => {
                             if (val === undefined || val === null || val === '') {
                               if (comp.type === 'TEXT_INPUT') val = textInputValues[comp.id];
                               else if (comp.type === 'TEXT_AREA') val = textAreaValues[comp.id];
-                              else if (comp.type === 'BARCODE') val = barcodeValues[comp.id];
+                              else if (comp.type === 'BARCODE' || comp.type === 'BARCODE_SCANNER') val = barcodeValues[comp.id] ?? cameraScannerValues[comp.id];
                               else if (comp.type === 'NUMBER_INPUT') val = numberInputValues[comp.id];
                               else if (comp.type === 'DROPDOWN') val = dropdownValues[comp.id];
-                              else if (comp.type === 'CHECKBOX') val = checkboxValues[comp.id];
+                              else if (comp.type === 'CHECKBOX') val = toggleState[comp.id]; // CHECKBOX uses toggleState in LiveTerminal
+                              else if (comp.type === 'BOOLEAN_TOGGLE') val = toggleState[comp.id];
                               else if (comp.type === 'CHECKLIST') val = checklistState[comp.id];
                               else if (comp.type === 'TOGGLE') val = toggleState[comp.id];
-                              else if (comp.type === 'RADIO') val = radioValues[comp.id];
+                              else if (comp.type === 'RADIO' || comp.type === 'RADIO_GROUP') val = radioValues[comp.id];
                               else if (comp.type === 'MULTI_SELECT') val = multiSelectValues[comp.id];
                               else if (comp.type === 'QUALITY_PASS_FAIL') val = qualityResult[comp.id];
+                              else if (comp.type === 'SLIDER') val = sliderValues[comp.id];
+                              else if (comp.type === 'DATE_PICKER') val = dateValues[comp.id];
+                              else if (comp.type === 'DATETIME_PICKER') val = dateTimeValues[comp.id];
+                              else if (comp.type === 'SIGNATURE' || comp.type === 'SIGNATURE_PAD') val = signatureWidgetValues[comp.id] ?? drawValues[comp.id];
+                              else if (comp.type === 'CAMERA_CAPTURE' || comp.type === 'CAMERA') val = cameraValues[comp.id];
                             }
 
                             if (val !== undefined && val !== null && val !== '') {
@@ -2072,11 +2138,16 @@ const LiveTerminal = () => {
 
               const deleteById = async () => {
                 const rec = localPlaceholderContext[placeholderId] || recordPlaceholderData[placeholderId];
-                if (!rec || !rec.id) return false;
+                if (!rec || !rec.id) {
+                  toast.error('❌ DELETE: Tidak ada record yang di-load. Gunakan TABLE_RECORD_LOAD dulu.');
+                  return false;
+                }
                 const { deleteTableRecord } = await import('../utils/supabaseTablesDB');
-                await deleteTableRecord(placeholder.tableId, rec.id);
+                // deleteTableRecord only takes the internal row id (Supabase primary key)
+                await deleteTableRecord(rec.id);
                 localPlaceholderContext[placeholderId] = null;
                 setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: null }));
+                console.log(`[TABLE_RECORD_DELETE] Deleted record id=${rec.id} from table=${placeholder.tableId}`);
                 return true;
               };
 
@@ -2092,6 +2163,41 @@ const LiveTerminal = () => {
                 const ok = await loadById();
                 if (!ok) await createById();
               }
+            } else if (type === 'OBD2_CONNECT') {
+                const { transport } = payload;
+                try {
+                    if (transport === 'SERIAL') await obd2Service.connectSerial();
+                    else await obd2Service.connectBluetooth();
+                } catch(e) {
+                    toast.error(`OBD2 Error: ${e.message}`);
+                }
+            } else if (type === 'OBD2_QUERY' || type === 'OBD2_READ') {
+                const { pid } = payload;
+                if (pid) {
+                    await obd2Service.queryPID(pid);
+                }
+            } else if (type === 'OBD2_CLEAR_DTC') {
+                await obd2Service.clearDTC();
+            } else if (type === 'CUSTOM_SCRIPT') {
+                const { script } = payload;
+                if (script) {
+                    try {
+                        const fn = new Function('appVariables', 'setVariable', 'toast', script);
+                        fn(appVariables, (n, v) => setAppVariables(prev => prev.map(p => p.name === n ? { ...p, value: v } : p)), toast);
+                    } catch(e) {
+                        toast.error(`Script error: ${e.message}`);
+                    }
+                }
+            } else if (type === 'CALCULATE_FORMULA') {
+                const { formula, resultVar } = payload;
+                if (formula && resultVar) {
+                    try {
+                        const val = evaluateExpression(formula);
+                        setAppVariables(prev => prev.map(v => v.name === resultVar ? { ...v, value: val } : v));
+                    } catch(e) {
+                        toast.error(`Formula error: ${e.message}`);
+                    }
+                }
             } else if (action.type === 'CLEAR_RECORD_PLACEHOLDER') {
               const { placeholderId } = action.payload || {};
               if (!placeholderId) continue;
