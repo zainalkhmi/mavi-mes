@@ -4659,6 +4659,262 @@ const LiveTerminal = () => {
         );
 
       }
+      // ── SHAPE aliases (AI generates these, LiveTerminal uses 'SHAPE') ──
+      case 'SHAPE_RECTANGLE':
+      case 'SHAPE_SQUARE':
+        return (
+          <div style={{
+            width: '100%', height: '100%',
+            backgroundColor: comp.props.backgroundColor || 'transparent',
+            borderRadius: (comp.props.borderRadius || 0) + 'px',
+            border: comp.props.borderWidth > 0 ? `${comp.props.borderWidth}px solid ${comp.props.bordercolor || '#e2e8f0'}` : 'none'
+          }} />
+        );
+      case 'SHAPE_CIRCLE':
+        return (
+          <div style={{
+            width: '100%', height: '100%',
+            backgroundColor: comp.props.backgroundColor || '#e2e8f0',
+            borderRadius: '50%',
+            border: comp.props.borderWidth > 0 ? `${comp.props.borderWidth}px solid ${comp.props.bordercolor || '#94a3b8'}` : 'none'
+          }} />
+        );
+      case 'SHAPE_LINE':
+        return (
+          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center' }}>
+            <div style={{ width: '100%', height: `${comp.props.strokeWidth || 2}px`, backgroundColor: comp.props.backgroundcolor || comp.props.backgroundColor || '#e2e8f0', borderRadius: '999px' }} />
+          </div>
+        );
+      case 'SHAPE_ARROW':
+      case 'SHAPE_DOUBLE_ARROW':
+      case 'SHAPE_TRIANGLE':
+        return (
+          <div style={{ width: '100%', height: '100%', backgroundColor: comp.props.backgroundColor || '#3b82f6', clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)' }} />
+        );
+      // ── DIAL_GAUGE ──
+      case 'DIAL_GAUGE':
+      case 'GAUGE_CIRCULAR': {
+        const val = Number(comp.props.value || 0);
+        const min = Number(comp.props.min || 0);
+        const max = Number(comp.props.max || 100);
+        const pct = Math.min(1, Math.max(0, (val - min) / (max - min)));
+        const angle = -135 + pct * 270;
+        const color = comp.props.color || '#3b82f6';
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '12px' }}>
+            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: isDark ? '#94a3b8' : '#64748b', textTransform: 'uppercase' }}>{comp.props.title || comp.props.label}</div>
+            <div style={{ position: 'relative', width: '100px', height: '100px' }}>
+              <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%' }}>
+                <path d="M 10 80 A 45 45 0 1 1 90 80" fill="none" stroke={isDark ? '#1e293b' : '#e2e8f0'} strokeWidth="10" strokeLinecap="round" />
+                <path d="M 10 80 A 45 45 0 1 1 90 80" fill="none" stroke={color} strokeWidth="10" strokeLinecap="round"
+                  strokeDasharray={`${pct * 251.3} 251.3`} />
+                <text x="50" y="72" textAnchor="middle" fontSize="18" fontWeight="900" fill={isDark ? '#f8fafc' : '#0f172a'}>{val}</text>
+                <text x="50" y="84" textAnchor="middle" fontSize="8" fill="#94a3b8">{comp.props.unit}</text>
+              </svg>
+            </div>
+            <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>{min} – {max} {comp.props.unit}</div>
+          </div>
+        );
+      }
+      // ── MACHINE_TIMELINE ──
+      case 'MACHINE_TIMELINE': {
+        const slots = [
+          { label: '06:00', status: 'RUNNING', dur: 2 }, { label: '08:00', status: 'FAULT', dur: 0.5 },
+          { label: '08:30', status: 'RUNNING', dur: 3 }, { label: '11:30', status: 'STOPPED', dur: 0.5 },
+          { label: '12:00', status: 'RUNNING', dur: 4 }, { label: '16:00', status: 'STOPPED', dur: 1 }
+        ];
+        const total = slots.reduce((s, x) => s + x.dur, 0);
+        const colorMap = { RUNNING: '#10b981', STOPPED: '#94a3b8', FAULT: '#ef4444' };
+        return (
+          <div style={{ backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', padding: '16px' }}>
+            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: isDark ? '#f8fafc' : '#0f172a', marginBottom: '12px' }}>{comp.props.title || 'Machine Timeline'}</div>
+            <div style={{ display: 'flex', height: '32px', borderRadius: '8px', overflow: 'hidden', gap: '2px' }}>
+              {slots.map((s, i) => (
+                <div key={i} title={`${s.label} — ${s.status}`} style={{ flex: s.dur / total, backgroundColor: colorMap[s.status] || '#94a3b8' }} />
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '16px', marginTop: '10px' }}>
+              {Object.entries(colorMap).map(([k, v]) => (
+                <div key={k} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.65rem', fontWeight: 700, color: isDark ? '#94a3b8' : '#64748b' }}>
+                  <div style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: v }} />{k}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+      // ── TABLE_AGGREGATION ──
+      case 'TABLE_AGGREGATION': {
+        const aggData = tableData[comp.props.tableId] || [];
+        let aggVal = 0;
+        if (aggData.length > 0 && comp.props.column) {
+          const vals = aggData.map(r => parseFloat(r[comp.props.column])).filter(v => !isNaN(v));
+          if (comp.props.calculation === 'COUNT') aggVal = aggData.length;
+          else if (comp.props.calculation === 'SUM') aggVal = vals.reduce((a, b) => a + b, 0);
+          else if (comp.props.calculation === 'AVG') aggVal = vals.length > 0 ? (vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
+          else if (comp.props.calculation === 'MIN') aggVal = Math.min(...vals);
+          else if (comp.props.calculation === 'MAX') aggVal = Math.max(...vals);
+          else aggVal = aggData.length;
+        } else if (aggData.length > 0) { aggVal = aggData.length; }
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+            {comp.props.label && <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>{comp.props.label}</div>}
+            <div style={{ fontSize: `${comp.props.fontSize || 28}px`, fontWeight: 900, color: comp.props.color || (isDark ? '#f8fafc' : '#0f172a'), lineHeight: 1 }}>
+              {comp.props.prefix}{Math.round(aggVal * 100) / 100}{comp.props.suffix}
+            </div>
+            <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>{comp.props.calculation || 'COUNT'}</div>
+          </div>
+        );
+      }
+      // ── RECORD_DISPLAY ──
+      case 'RECORD_DISPLAY': {
+        const ph = (recordPlaceholders || []).find(p => p.id === comp.props.placeholderId);
+        const rec = ph?.currentRecord || {};
+        const fields = comp.props.fieldsToShow?.length > 0 ? comp.props.fieldsToShow : Object.keys(rec).slice(0, 6);
+        return (
+          <div style={{ backgroundColor: isDark ? '#0f172a' : '#f8fafc', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', padding: '16px' }}>
+            {fields.length > 0 ? fields.map(f => (
+              <div key={f} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${isDark ? '#1e293b' : '#f1f5f9'}` }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>{f}</span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: isDark ? '#f8fafc' : '#0f172a' }}>{safeRender(rec[f]) || '—'}</span>
+              </div>
+            )) : (
+              <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem', padding: '20px' }}>No record loaded</div>
+            )}
+          </div>
+        );
+      }
+      // ── MACHINE_ATTRIBUTE ──
+      case 'MACHINE_ATTRIBUTE': {
+        const attrVal = machineTagValues?.[`${comp.props.machineId}_${comp.props.attribute}`] || comp.props.value || '—';
+        return (
+          <div style={{ backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '10px', padding: '14px 16px' }}>
+            <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '4px' }}>{comp.props.attribute || 'Attribute'}</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#3b82f6', fontFamily: 'monospace' }}>{safeRender(attrVal)}</div>
+            {comp.props.unit && <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>{comp.props.unit}</div>}
+          </div>
+        );
+      }
+      // ── STEP_TIME ──
+      case 'STEP_TIME': {
+        const [elapsed, setElapsed] = React.useState(0);
+        React.useEffect(() => {
+          const t = setInterval(() => setElapsed(e => e + 1), 1000);
+          return () => clearInterval(t);
+        }, []);
+        const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+            <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>{comp.props.mode === 'COUNTDOWN' ? 'Remaining' : 'Elapsed'}</div>
+            <div style={{ fontSize: '2rem', fontWeight: 900, color: isDark ? '#f8fafc' : '#0f172a', fontFamily: 'monospace' }}>{fmt(elapsed)}</div>
+          </div>
+        );
+      }
+      // ── EMBED_WEB / WEBPAGE ──
+      case 'EMBED_WEB':
+      case 'WEBPAGE':
+        return (
+          <div style={{ width: '100%', height: '100%', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '8px', overflow: 'hidden' }}>
+            {(comp.props.url && comp.props.url !== 'https://') ? (
+              <iframe src={comp.props.url} style={{ width: '100%', height: '100%', border: 'none' }} title={comp.props.title || 'Web'} sandbox="allow-scripts allow-same-origin" />
+            ) : (
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', gap: '8px' }}>
+                <div style={{ fontSize: '2rem' }}>🌐</div>
+                <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>No URL configured</div>
+              </div>
+            )}
+          </div>
+        );
+      // ── BARCODE_SCANNER ──
+      case 'BARCODE_SCANNER':
+        return (
+          <div style={{ border: `2px dashed ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', padding: '24px', textAlign: 'center', backgroundColor: isDark ? '#0f172a' : '#f8fafc' }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>📷</div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: isDark ? '#f8fafc' : '#0f172a', marginBottom: '4px' }}>{comp.props.label || 'Barcode Scanner'}</div>
+            <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Point camera at barcode to scan</div>
+            <input type="text" placeholder="Or type/paste barcode..." onChange={e => { syncVariable(e.target.value); fireWidgetTriggers(comp, 'ON_SCAN'); }}
+              style={{ marginTop: '12px', width: '100%', padding: '10px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '8px', backgroundColor: isDark ? '#1e293b' : 'white', color: isDark ? '#f8fafc' : '#0f172a', fontSize: '0.85rem', textAlign: 'center', outline: 'none' }} />
+          </div>
+        );
+      // ── SIGNATURE_PAD ──
+      case 'SIGNATURE_PAD':
+        return (
+          <div>
+            <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{comp.props.label || 'Signature'}{comp.props.required ? ' *' : ''}</div>
+            <div style={{ border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '8px', padding: '12px', backgroundColor: isDark ? '#1e293b' : '#f8fafc' }}>
+              <canvas width={520} height={150}
+                ref={(el) => { if (el) ensureSignatureCanvas(comp.id); signatureCanvasRefs.current[comp.id] = el; }}
+                onMouseDown={(e) => startSignatureDraw(comp.id, e)} onMouseMove={(e) => moveSignatureDraw(comp.id, e)}
+                onMouseUp={() => endSignatureDraw(comp.id, comp)} onMouseLeave={() => endSignatureDraw(comp.id, comp)}
+                onTouchStart={(e) => startSignatureDraw(comp.id, e)} onTouchMove={(e) => moveSignatureDraw(comp.id, e)}
+                onTouchEnd={() => endSignatureDraw(comp.id, comp)}
+                style={{ width: '100%', backgroundColor: comp.props.backgroundColor || 'white', border: '1px dashed #cbd5e1', borderRadius: '6px', touchAction: 'none' }}
+              />
+              <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
+                <button onClick={() => clearSignatureCanvas(comp.id, comp)} style={{ padding: '6px 12px', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', fontSize: '0.75rem', cursor: 'pointer' }}>Clear</button>
+              </div>
+            </div>
+          </div>
+        );
+      // ── AI_CHAT ──
+      case 'AI_CHAT':
+        return (
+          <div style={{ backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <div style={{ padding: '12px 16px', borderBottom: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, fontSize: '0.85rem', fontWeight: 700, color: isDark ? '#f8fafc' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>🤖</span>{comp.props.title || 'AI Assistant'}
+            </div>
+            <div style={{ flex: 1, padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.8rem' }}>AI Chat active in live mode</div>
+            <div style={{ padding: '12px', borderTop: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, display: 'flex', gap: '8px' }}>
+              <input placeholder={comp.props.placeholder || 'Type message...'} style={{ flex: 1, padding: '8px 12px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '8px', backgroundColor: isDark ? '#1e293b' : '#f8fafc', color: isDark ? '#f8fafc' : '#0f172a', fontSize: '0.85rem', outline: 'none' }} />
+              <button style={{ padding: '8px 14px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700 }}>Send</button>
+            </div>
+          </div>
+        );
+      // ── PDF_VIEWER / DOCUMENT ──
+      case 'PDF_VIEWER':
+      case 'DOCUMENT':
+        return (
+          <div style={{ backgroundColor: isDark ? '#0f172a' : '#f8fafc', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '8px', overflow: 'hidden' }}>
+            <div style={{ padding: '10px 15px', borderBottom: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 600, fontSize: '0.9rem', color: isDark ? '#f8fafc' : '#0f172a' }}>📄 {comp.props.title || 'Document'}</div>
+            {comp.props.url ? <iframe src={comp.props.url} style={{ width: '100%', height: '300px', border: 'none' }} title={comp.props.title} /> : <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>No document URL configured</div>}
+          </div>
+        );
+      // ── GRID ──
+      case 'GRID': {
+        const rows = comp.props.rows || 4, cols = comp.props.cols || 4;
+        return (
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)`, gap: '1px', width: '100%', height: '100%', backgroundColor: '#e2e8f0' }}>
+            {Array.from({ length: rows * cols }).map((_, i) => <div key={i} style={{ backgroundColor: isDark ? '#1e293b' : 'white' }} />)}
+          </div>
+        );
+      }
+      // ── ANALYTIC ──
+      case 'ANALYTIC':
+        return (
+          <div style={{ backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', height: '100%' }}>
+            <div style={{ fontSize: '2rem' }}>📈</div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: isDark ? '#f8fafc' : '#0f172a' }}>{comp.props.title || 'Analytics'}</div>
+            <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Live analytics will render here</div>
+          </div>
+        );
+      // ── CAD_VIEWER ──
+      case 'CAD_VIEWER':
+        return (
+          <div style={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', height: '100%' }}>
+            <div style={{ fontSize: '2.5rem' }}>🧊</div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f8fafc' }}>{comp.props.title || '3D Viewer'}</div>
+            <div style={{ fontSize: '0.7rem', color: '#475569' }}>{comp.props.fileUrl ? comp.props.fileUrl : 'No CAD file configured'}</div>
+          </div>
+        );
+      // ── TEXT alias (AI sometimes sends 'TEXT' with label instead of text prop) ──
+      case 'LABEL':
+      case 'HEADING':
+      case 'PARAGRAPH':
+        return (
+          <div style={{ fontSize: `${comp.props.fontSize || 14}px`, color: comp.props.color || comp.props.textcolor || (isDark ? '#f8fafc' : '#1e293b'), fontWeight: comp.props.fontWeight || 'normal', textAlign: comp.props.textAlignment === 1 ? 'center' : comp.props.textAlignment === 2 ? 'right' : 'left', backgroundColor: comp.props.backgroundColor || 'transparent', padding: comp.props.backgroundColor ? '8px' : 0, borderRadius: '4px', width: '100%' }}>
+            {safeRender(comp.props.text || comp.props.label || '')}
+          </div>
+        );
       default: return (
         <div style={{ color: '#dc2626', backgroundColor: '#fee2e2', padding: '10px', borderRadius: '4px', fontSize: '0.75rem', border: '1px solid #fecaca' }}>
           Unknown Type: {comp.type}
@@ -4666,6 +4922,7 @@ const LiveTerminal = () => {
       );
     }
   };
+
   // --- INITIALIZATION / LOADING VIEW ---
   if (loading) {
     return (

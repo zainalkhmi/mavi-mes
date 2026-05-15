@@ -22472,10 +22472,12 @@ const AppBuilder = () => {
                 canRedo={builderStack.redo.length > 0}
                 context={{
                     currentStepName: currentStep?.title,
-                    widgets: currentStep?.components,
-                    variables: appVariables,
-                    triggers: appTriggers,
-                    tables: tables
+                    widgets: currentStep?.components || [],
+                    variables: appVariables || [],
+                    triggers: appTriggers || [],
+                    tables: tables || [],
+                    steps: steps || [],
+                    recordPlaceholders: recordPlaceholders || []
                 }}
             />
 

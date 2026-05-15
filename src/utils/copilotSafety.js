@@ -15,8 +15,11 @@ const ALLOWED_COMMAND_TYPES = new Set([
     'UPDATE_TABLE',
     'DELETE_TABLE',
     'CREATE_STEP',
+    'ADD_STEP',
     'UPDATE_STEP',
-    'DELETE_STEP'
+    'DELETE_STEP',
+    'SET_APP_NAME',
+    'CREATE_FUNCTION'
 ]);
 
 export const COPILOT_SAFETY_ERROR_CODES = {
@@ -48,8 +51,11 @@ const REQUIRED_FIELDS_BY_TYPE = {
     UPDATE_TABLE: ['tableId'],
     DELETE_TABLE: ['tableId'],
     CREATE_STEP: ['payload.title'],
+    ADD_STEP: ['payload.title'],
     UPDATE_STEP: ['stepId'],
-    DELETE_STEP: ['stepId']
+    DELETE_STEP: ['stepId'],
+    SET_APP_NAME: [],
+    CREATE_FUNCTION: ['payload.name']
 };
 
 const getByPath = (obj, path) => {

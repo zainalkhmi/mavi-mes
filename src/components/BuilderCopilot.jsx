@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  MessageSquare, Send, X, Sparkles, User, Bot, Loader2,
+  Send, X, Sparkles, User, Bot, Loader2,
   Trash2, BrainCircuit, Code, PlusCircle, Image as ImageIcon,
-  CheckCircle2, AlertCircle, Wand2
+  CheckCircle2, AlertCircle, Wand2, Zap, LayoutTemplate,
+  RotateCcw, RotateCw, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { getPrimaryAiConnector } from '../utils/database';
 import { getBuilderCopilotAdvice, getBuilderVisionAdvice } from '../utils/aiService';
@@ -34,7 +35,7 @@ const BuilderCopilot = ({
     } catch (e) { /* ignore parse errors */ }
     return [{
       role: 'assistant',
-      content: 'Halo! Saya Mavi Builder Copilot. Saya bisa membantu Anda memasang komponen, membuat tabel, atau membangun aplikasi dari gambar. Apa yang ingin Anda buat hari ini?',
+      content: 'Halo! Saya **Mavi Builder Copilot** — AI Architect untuk aplikasi MES industrial.\n\nSaya bisa:\n• 🏗️ Generate full app dari deskripsi\n• 📊 Buat dashboard KPI & monitoring\n• 📋 Buat form input & quality inspection\n• 🔧 Tambah widget spesifik ke screen\n• 🤖 Buat trigger & automation\n\nApa yang ingin Anda buat hari ini?',
       timestamp: new Date()
     }];
   };
@@ -424,16 +425,28 @@ const BuilderCopilot = ({
                                 textTransform: 'uppercase',
                                 backgroundColor:
                                   cmd.type === 'ADD_WIDGET' ? '#ecfdf5' :
-                                    cmd.type === 'DELETE_WIDGET' ? '#fef2f2' :
-                                      cmd.type === 'CREATE_TRIGGER' ? '#fff7ed' :
-                                        cmd.type === 'CREATE_VARIABLE' ? '#faf5ff' : '#eff6ff',
+                                  cmd.type === 'DELETE_WIDGET' ? '#fef2f2' :
+                                  cmd.type === 'UPDATE_WIDGET' ? '#eff6ff' :
+                                  cmd.type === 'CREATE_TRIGGER' ? '#fff7ed' :
+                                  cmd.type === 'CREATE_VARIABLE' ? '#faf5ff' :
+                                  cmd.type === 'CREATE_TABLE' ? '#f0fdf4' :
+                                  cmd.type === 'ADD_STEP' ? '#f0f9ff' :
+                                  cmd.type === 'SET_APP_NAME' ? '#fefce8' :
+                                  cmd.type === 'CREATE_RECORD_PLACEHOLDER' ? '#fff1f2' :
+                                  cmd.type === 'CREATE_FUNCTION' ? '#f5f3ff' : '#f1f5f9',
                                 color:
-                                  cmd.type === 'ADD_WIDGET' ? '#10b981' :
-                                    cmd.type === 'DELETE_WIDGET' ? '#ef4444' :
-                                      cmd.type === 'CREATE_TRIGGER' ? '#f97316' :
-                                        cmd.type === 'CREATE_VARIABLE' ? '#a855f7' : '#3b82f6'
+                                  cmd.type === 'ADD_WIDGET' ? '#059669' :
+                                  cmd.type === 'DELETE_WIDGET' ? '#dc2626' :
+                                  cmd.type === 'UPDATE_WIDGET' ? '#2563eb' :
+                                  cmd.type === 'CREATE_TRIGGER' ? '#ea580c' :
+                                  cmd.type === 'CREATE_VARIABLE' ? '#9333ea' :
+                                  cmd.type === 'CREATE_TABLE' ? '#16a34a' :
+                                  cmd.type === 'ADD_STEP' ? '#0284c7' :
+                                  cmd.type === 'SET_APP_NAME' ? '#ca8a04' :
+                                  cmd.type === 'CREATE_RECORD_PLACEHOLDER' ? '#e11d48' :
+                                  cmd.type === 'CREATE_FUNCTION' ? '#7c3aed' : '#475569'
                               }}>
-                                {cmd.type.replace('_', ' ')}
+                                {cmd.type.replace(/_/g, ' ')}
                               </div>
                               <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b' }}>
                                 {cmd.payload?.name || cmd.payload?.type || cmd.widgetId || 'Component'}
@@ -518,18 +531,43 @@ const BuilderCopilot = ({
       </div>
 
       {/* Input Area */}
-      <div style={{ padding: '24px', borderTop: '1px solid #e2e8f0', backgroundColor: '#ffffff' }}>
+      <div style={{ padding: '16px 20px 20px', borderTop: '1px solid #e2e8f0', backgroundColor: '#ffffff' }}>
+
+        {/* Quick Prompt Chips */}
+        <div style={{ marginBottom: '12px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+          {[
+            { label: '🏭 App Produksi', prompt: 'Buatkan app monitoring produksi pabrik dengan dashboard KPI, tabel data, dan machine status' },
+            { label: '📋 Form QC', prompt: 'Buatkan form quality control dengan checklist, pass/fail, camera capture, dan signature' },
+            { label: '📊 Dashboard', prompt: 'Buatkan dashboard monitoring dengan 4 KPI card, chart trend, dan tabel data' },
+            { label: '📦 Inventory', prompt: 'Buatkan app inventory management dengan barcode scanner, tabel stok, dan form input' },
+            { label: '🔧 Maintenance', prompt: 'Buatkan app work order maintenance dengan form permintaan, checklist, dan tanda tangan approval' },
+            { label: '⚙️ SCADA', prompt: 'Buatkan SCADA monitoring dengan machine status, gauge, dial gauge, dan machine timeline' },
+          ].map((chip, i) => (
+            <button
+              key={i}
+              onClick={() => setInput(chip.prompt)}
+              style={{
+                padding: '4px 10px',
+                borderRadius: '20px',
+                border: '1px solid #e2e8f0',
+                backgroundColor: '#f8fafc',
+                color: '#475569',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+                whiteSpace: 'nowrap'
+              }}
+              onMouseEnter={e => { e.target.style.backgroundColor = '#eff6ff'; e.target.style.borderColor = '#bfdbfe'; e.target.style.color = '#1d4ed8'; }}
+              onMouseLeave={e => { e.target.style.backgroundColor = '#f8fafc'; e.target.style.borderColor = '#e2e8f0'; e.target.style.color = '#475569'; }}
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
+
         {selectedFile && (
-          <div style={{
-            marginBottom: '12px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '8px 12px',
-            backgroundColor: '#eff6ff',
-            borderRadius: '8px',
-            border: '1px solid #bfdbfe'
-          }}>
+          <div style={{ marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', backgroundColor: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: '#1e40af', fontWeight: 600 }}>
               <ImageIcon size={14} /> {selectedFile.name}
             </div>
@@ -539,89 +577,52 @@ const BuilderCopilot = ({
           </div>
         )}
 
-        <div style={{ position: 'relative', display: 'flex', gap: '10px' }}>
-          <div style={{ position: 'relative', flex: 1 }}>
-            <input
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyPress={e => e.key === 'Enter' && handleSend()}
-              placeholder="Deskripsikan apa yang ingin Anda buat..."
-              style={{
-                width: '100%',
-                padding: '14px 16px',
-                borderRadius: '16px',
-                border: '1.5px solid #e2e8f0',
-                backgroundColor: '#f8fafc',
-                fontSize: '0.9rem',
-                outline: 'none',
-                transition: 'all 0.2s',
-                boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.05)'
-              }}
-              onFocus={(e) => {
-                e.target.style.borderColor = '#3b82f6';
-                e.target.style.backgroundColor = '#ffffff';
-                e.target.style.boxShadow = '0 0 0 4px rgba(59, 130, 246, 0.1)';
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = '#e2e8f0';
-                e.target.style.backgroundColor = '#f8fafc';
-                e.target.style.boxShadow = 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.05)';
-              }}
-            />
-          </div>
-
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            style={{ display: 'none' }}
-            accept="image/*"
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+          <textarea
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+            placeholder="Deskripsikan apa yang ingin Anda buat... (Shift+Enter untuk baris baru)"
+            rows={2}
+            style={{
+              flex: 1,
+              padding: '12px 14px',
+              borderRadius: '14px',
+              border: '1.5px solid #e2e8f0',
+              backgroundColor: '#f8fafc',
+              fontSize: '0.875rem',
+              outline: 'none',
+              resize: 'none',
+              transition: 'all 0.2s',
+              lineHeight: 1.5,
+              fontFamily: 'inherit'
+            }}
+            onFocus={e => { e.target.style.borderColor = '#3b82f6'; e.target.style.backgroundColor = '#fff'; e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.1)'; }}
+            onBlur={e => { e.target.style.borderColor = '#e2e8f0'; e.target.style.backgroundColor = '#f8fafc'; e.target.style.boxShadow = 'none'; }}
           />
 
-          <button
-            onClick={() => fileInputRef.current.click()}
-            style={{
-              backgroundColor: selectedFile ? '#3b82f6' : '#f1f5f9',
-              color: selectedFile ? '#ffffff' : '#64748b',
-              border: 'none',
-              width: '48px',
-              height: '48px',
-              borderRadius: '16px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
-            }}
-          >
-            <ImageIcon size={20} />
-          </button>
-
-          <button
-            onClick={handleSend}
-            disabled={(!input.trim() && !selectedFile) || isLoading}
-            style={{
-              backgroundColor: '#3b82f6',
-              color: 'white',
-              border: 'none',
-              width: '48px',
-              height: '48px',
-              borderRadius: '16px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: (input.trim() || selectedFile) && !isLoading ? 'pointer' : 'default',
-              opacity: (input.trim() || selectedFile) && !isLoading ? 1 : 0.5,
-              transition: 'all 0.2s',
-              boxShadow: (input.trim() || selectedFile) && !isLoading ? '0 4px 12px rgba(59, 130, 246, 0.4)' : 'none'
-            }}
-          >
-            <Send size={20} />
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept="image/*" />
+            <button
+              onClick={() => fileInputRef.current.click()}
+              title="Upload image/mockup"
+              style={{ backgroundColor: selectedFile ? '#3b82f6' : '#f1f5f9', color: selectedFile ? '#fff' : '#64748b', border: 'none', width: '42px', height: '42px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+            >
+              <ImageIcon size={18} />
+            </button>
+            <button
+              onClick={handleSend}
+              disabled={(!input.trim() && !selectedFile) || isLoading}
+              style={{ backgroundColor: '#3b82f6', color: 'white', border: 'none', width: '42px', height: '42px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: (input.trim() || selectedFile) && !isLoading ? 'pointer' : 'default', opacity: (input.trim() || selectedFile) && !isLoading ? 1 : 0.5, boxShadow: '0 4px 12px rgba(59,130,246,0.35)' }}
+            >
+              {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+            </button>
+          </div>
         </div>
 
-        <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'center' }}>
-          <Sparkles size={10} color="#3b82f6" /> AI-Powered by {aiConnector?.aiSettings?.provider || aiConnector?.config?.provider || 'Mavi Brain'}
+        <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', color: '#94a3b8', fontSize: '0.68rem' }}>
+          <Zap size={10} />
+          <span>AI-Powered by {aiConnector?.aiSettings?.provider || aiConnector?.config?.provider || 'Mavi Brain'} • Enter kirim, Shift+Enter baris baru</span>
         </div>
       </div>
     </div>

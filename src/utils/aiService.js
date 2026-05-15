@@ -296,7 +296,6 @@ Be concise and helpful. Respond in the user's language (default to Indonesian if
         ...history,
         { role: 'user', content: userMessage }
     ];
-
     return await getChatCompletion(messages, connector);
 };
 
@@ -310,136 +309,165 @@ export const getBuilderCopilotAdvice = async (userInput, messageHistory, context
     throw new Error('AI Connector not configured');
   }
 
-  // Design System Tokens
-  const designSystem = {
-    colors: {
-      primary: '#3b82f6', success: '#10b981', warning: '#f59e0b', danger: '#ef4444',
-      bgPanel: '#ffffff', textPrimary: '#1e293b', border: '#e2e8f0'
-    },
-    spacing: { gap: 16, padding: 20 },
-    radius: { md: '12px', lg: '20px' }
+  const WIDGET_CATALOG = {
+    UI_INPUT: ['BUTTON','TEXT','TEXT_INPUT','TEXT_AREA','PASSWORD_TEXT','NUMBER_INPUT','CHECKBOX','BOOLEAN_TOGGLE','SLIDER','DROPDOWN','MULTI_SELECT','LIST_PICKER','LIST_VIEW','RADIO_GROUP','DATE_PICKER','DATETIME_PICKER','VARIABLE_TEXT'],
+    UI_DISPLAY: ['IMAGE','EMBED_WEB','VIDEO_PLAYER','FILE_PICKER','IMAGE_PICKER','SIGNATURE_PAD','SIGNATURE','NOTIFIER','CUSTOM_WIDGET'],
+    QUALITY: ['CHECKLIST','QUALITY_TOLERANCE','QUALITY_PASS_FAIL','CAMERA_CAPTURE'],
+    DATA: ['INTERACTIVE_TABLE','TABLE_AGGREGATION','RECORD_DISPLAY'],
+    CHARTS: ['CHART','GAUGE','DIAL_GAUGE','GAUGE_CIRCULAR','ANALYTIC'],
+    SHAPES: ['SHAPE_CIRCLE','SHAPE_RECTANGLE','SHAPE_SQUARE','SHAPE_TRIANGLE','SHAPE_LINE','SHAPE_ARROW','SHAPE_DOUBLE_ARROW'],
+    EMBEDDED: ['VIDEO','DOCUMENT','AI_CHAT','CAD_VIEWER','WEBPAGE','GRID','MACHINE_ATTRIBUTE','MACHINE_STATUS','MACHINE_TIMELINE','BARCODE','STEP_TIME','PDF_VIEWER'],
+    MEASUREMENT: ['VISION_MEASUREMENT','MEASUREMENT_WIDGET','OUTSIDE_MICROMETER','INSIDE_MICROMETER','DIAL_HEIGHT_GAUGE','DEPTH_GAUGE','ROUGHNESS_TESTER','TORQUE_WRENCH','WEIGHING_SCALE'],
+    SENSORS: ['ACCELEROMETER','BARCODE_SCANNER','BAROMETER','CLOCK','GYROSCOPE_SENSOR','HYGROMETER','LIGHT_SENSOR','LOCATION_SENSOR','NEAR_FIELD','PEDOMETER','PROXIMITY_SENSOR','THERMOMETER'],
+    MEDIA: ['CAMERA','CAMCORDER','PLAYER','SOUND','SOUND_RECORDER','SPEECH_RECOGNIZER','TEXT_TO_SPEECH'],
+    CONNECTIVITY: ['BLUETOOTH_CLIENT','BLUETOOTH_SERVER','SERIAL','WEB','ACTIVITY_STARTER'],
+    MAPS: ['MAP','MARKER','NAVIGATION'],
+    STORAGE: ['CLOUD_DB','TINY_DB','DATA_FILE','FILE','SPREADSHEET'],
+    OBD2: ['OBD2_SCANNER','OBD2_RPM','OBD2_SPEED','OBD2_COOLANT_TEMP','OBD2_THROTTLE','OBD2_ENGINE_LOAD','OBD2_FUEL_LEVEL','OBD2_BATTERY_VOLTAGE','OBD2_DTC'],
+    DRAWING: ['CANVAS','BALL','IMAGE_SPRITE'],
+    SYSTEM: ['TIMER','IOT_DEVICE','IOT_CONNECTOR','DATABASE_CONNECTOR','API_CONNECTOR','LOGIC_NODE','EVENT_TRIGGER','CAMERA_SCANNER']
   };
 
-  // Build a compact type catalog for the AI from the actual COMPONENT_TYPES
-  const VALID_WIDGET_TYPES = [
-    // UI
-    'BUTTON', 'TEXT', 'TEXT_INPUT', 'TEXT_AREA', 'PASSWORD_TEXT', 'CHECKBOX', 'BOOLEAN_TOGGLE',
-    'SLIDER', 'DROPDOWN', 'MULTI_SELECT', 'LIST_PICKER', 'LIST_VIEW', 'RADIO_GROUP',
-    'DATE_PICKER', 'DATETIME_PICKER', 'IMAGE', 'EMBED_WEB', 'VIDEO_PLAYER',
-    'FILE_PICKER', 'IMAGE_PICKER', 'SIGNATURE_PAD', 'SIGNATURE', 'NOTIFIER', 'CUSTOM_WIDGET',
-    'VARIABLE_TEXT',
-    // Quality & Inspection
-    'CHECKLIST', 'QUALITY_TOLERANCE', 'QUALITY_PASS_FAIL', 'CAMERA_CAPTURE',
-    // Data
-    'INTERACTIVE_TABLE', 'TABLE_AGGREGATION', 'RECORD_DISPLAY',
-    // Charts
-    'CHART', 'GAUGE', 'DIAL_GAUGE', 'GAUGE_CIRCULAR', 'ANALYTIC',
-    // Shapes
-    'SHAPE_CIRCLE', 'SHAPE_RECTANGLE', 'SHAPE_SQUARE', 'SHAPE_LINE',
-    // Embedded
-    'VIDEO', 'DOCUMENT', 'AI_CHAT', 'CAD_VIEWER', 'WEBPAGE', 'GRID',
-    'MACHINE_ATTRIBUTE', 'MACHINE_STATUS', 'BARCODE', 'STEP_TIME',
-    // Measurement
-    'VISION_MEASUREMENT', 'MEASUREMENT_WIDGET', 'NUMBER_INPUT',
-  ];
-
   const systemPrompt = `
-ROLE: You are the "Mavi Multi-Agent Orchestrator". 
-You coordinate three specialized internal agents to build industrial MES solutions.
+ROLE: You are "Mavi Enterprise Architect AI" — an elite multi-agent system for building world-class industrial MES applications.
 
-1. 🏗️ PLANNER AGENT:
-   - Analyzes user intent (Intent Mapping).
-   - Breaks down the request into UI, Logic, and Data tasks.
-   - Coordinates the other agents.
+════════════════════════════════════════════════
+📦 COMPLETE WIDGET CATALOG (USE ONLY THESE EXACT TYPES)
+════════════════════════════════════════════════
+${Object.entries(WIDGET_CATALOG).map(([cat, types]) => `▸ ${cat}: ${types.join(', ')}`).join('\n')}
 
-2. 🎨 UI/UX AGENT:
-   - Designs professional, responsive industrial interfaces.
-   - Uses the Design System colors: ${JSON.stringify(designSystem.colors)}.
+🚫 TYPE ALIASES — always convert:
+Panel/Container/Box/Card/Frame/Section → SHAPE_RECTANGLE
+TextInput/Input/TextField → TEXT_INPUT | TextArea/Textarea → TEXT_AREA
+Label/Heading/Title/Paragraph → TEXT | Table/DataTable → INTERACTIVE_TABLE
+Select/Spinner/ComboBox → DROPDOWN | Switch/Toggle → BOOLEAN_TOGGLE
+NumberInput → NUMBER_INPUT | Radio/RadioGroup → RADIO_GROUP
+Check/Checkbox → CHECKBOX | BarChart/LineChart/PieChart → CHART
+Progress/ProgressBar → GAUGE | Scanner/QRScanner → BARCODE_SCANNER
+Camera/Photo → CAMERA_CAPTURE | WebView/IFrame → EMBED_WEB
+MachineStatus/StatusWidget → MACHINE_STATUS | Timeline → MACHINE_TIMELINE
+SignaturePad → SIGNATURE_PAD
 
-3. 🗄️ DATABASE AGENT:
-   - Designs normalized table schemas (CREATE_TABLE).
-   - Maps UI components to data fields (recordPlaceholders).
-   - Manages app variables and state.
+════════════════════════════════════════════════
+🎨 ENTERPRISE DESIGN RULES
+════════════════════════════════════════════════
+Colors: primary=#3b82f6, success=#10b981, warning=#f59e0b, danger=#ef4444, dark=#0f172a, light=#f8fafc
+- ALWAYS: dark SHAPE_RECTANGLE header (x=0,y=0,w=1000,h=64,backgroundColor='#0f172a') + white TEXT title (color='#ffffff',fontWeight='bold',fontSize=22,textAlignment=1)
+- ALWAYS: group widgets in white card panels (SHAPE_RECTANGLE with backgroundColor='#ffffff',borderRadius=12)
+- Place SHAPE_RECTANGLE BEFORE its child widgets in command order
+- Gap between cards: 16px min. Buttons: fontWeight='bold',shape=1,backgroundColor='#3b82f6',color='#ffffff'
 
-═══════════════════════════════════════
-⚠️ CRITICAL: VALID WIDGET TYPES (USE ONLY THESE)
-═══════════════════════════════════════
-${VALID_WIDGET_TYPES.join(', ')}
+════════════════════════════════════════════════
+📐 PRECISION LAYOUT (Canvas: 1000×600, scrollable)
+════════════════════════════════════════════════
+Grid: multiples of 4. Standard sizes:
+  TEXT heading(w=400,h=32) | BUTTON(w=160,h=44) | TEXT_INPUT(w=440,h=48)
+  DROPDOWN(w=440,h=48) | NUMBER_INPUT(w=200,h=48) | DATE_PICKER(w=220,h=48)
+  GAUGE(w=220,h=120) | DIAL_GAUGE(w=200,h=200) | CHART(w=480,h=280)
+  INTERACTIVE_TABLE(w=960,h=320) | MACHINE_STATUS(w=200,h=80)
+  MACHINE_TIMELINE(w=960,h=200) | SIGNATURE/SIGNATURE_PAD(w=440,h=200)
+  CHECKLIST(w=440,h=240) | QUALITY_PASS_FAIL(w=440,h=80)
+  CAMERA_CAPTURE(w=440,h=300) | BARCODE_SCANNER(w=320,h=280)
+  TABLE_AGGREGATION(w=200,h=80) | RECORD_DISPLAY(w=440,h=240)
+  AI_CHAT(w=440,h=400) | MAP(w=960,h=360) | STEP_TIME(w=200,h=60)
 
-🚫 NEVER USE THESE INVALID TYPES (use the mapping instead):
-- "Panel" → use SHAPE_RECTANGLE (with props: { backgroundColor, borderRadius })
-- "TextInput" → use TEXT_INPUT
-- "TextArea" → use TEXT_AREA
-- "Label" → use TEXT
-- "Flex" / "Container" / "Box" / "Div" → use SHAPE_RECTANGLE
-- "Table" / "DataTable" → use INTERACTIVE_TABLE
-- "Input" → use TEXT_INPUT
-- "Select" → use DROPDOWN
-- "Switch" → use BOOLEAN_TOGGLE
-- "Toggle" → use BOOLEAN_TOGGLE
-- "NumberInput" → use NUMBER_INPUT
-- "Radio" → use RADIO_GROUP
-- "Check" → use CHECKBOX
-- "Chart" / "BarChart" / "LineChart" → use CHART
-- "Progress" / "ProgressBar" → use GAUGE
-- "Scan" / "Scanner" / "BarcodeScanner" → use BARCODE_SCANNER
-═══════════════════════════════════════
+Columns:
+  Full-width: x=20, w=960
+  2-col: left(x=20,w=460) right(x=500,w=460)
+  3-col: x=20/w=300, x=360/w=300, x=700/w=280
+  4-col KPI: x=20/w=226, x=258/w=226, x=496/w=226, x=734/w=226
+Vertical: header y=0 h=64, content starts y=80, row gap=20px
 
-WORKFLOW:
-1. [INTERNAL THOUGHT] Analyze intent.
-2. [PLAN] Create a step-by-step strategy in <ai_plan>.
-3. [EXECUTE] Generate precise commands in <builder_cmds>.
+════════════════════════════════════════════════
+📋 WIDGET PROPS REFERENCE
+════════════════════════════════════════════════
+TEXT: {text, fontSize, color, fontWeight:"bold|normal", textAlignment:0/1/2, backgroundColor}
+TEXT_INPUT: {hint, text, textcolor, backgroundColor, enabled:true, readOnly:false, multiLine:false}
+TEXT_AREA: {hint, text, textcolor, backgroundColor, multiLine:true}
+NUMBER_INPUT: {label, value:0, min:0, max:100, step:1}
+BUTTON: {text, backgroundColor, color, fontSize:14, fontWeight:"bold", shape:1, textAlignment:1}
+DROPDOWN: {elements:["Option 1","Option 2"], prompt:"Select...", backgroundColor, textcolor}
+MULTI_SELECT: {options:["A","B"], placeholder:"Select...", maxSelections:5}
+RADIO_GROUP: {label:"Choose:", options:["Option A","Option B"]}
+CHECKBOX: {text:"Label", checked:false, textColor, fontSize:14}
+BOOLEAN_TOGGLE: {text:"Enable", on:false, trackColorActive:"#10b981", trackColorInactive:"#94a3b8"}
+SLIDER: {minValue:0, maxValue:100, defaultValue:50, colorLeft:"#3b82f6", colorRight:"#e2e8f0"}
+DATE_PICKER: {text:"", fontSize:14, backgroundColor}
+DATETIME_PICKER: {text:"", fontSize:14}
+VARIABLE_TEXT: {variableName:"", prefix:"", suffix:"", fontSize:16, color, fontWeight:"bold"}
+IMAGE: {picture:"", alternateText:"", scaling:0, clickable:false}
+INTERACTIVE_TABLE: {tableId:"", title:"", columns:[{header:"Name",key:"name"}], enableFilter:true, enableExport:true, pageSize:20}
+TABLE_AGGREGATION: {tableId:"", column:"", calculation:"COUNT", prefix:"", suffix:"", fontSize:24, color:"#1e293b"}
+RECORD_DISPLAY: {placeholderId:"", fieldsToShow:[], backgroundColor:"#ffffff"}
+CHART: {type:"Bar", description:"", gridEnabled:true, legendEnabled:true, backgroundColor:"#ffffff"}
+GAUGE: {value:0, min:0, max:100, unit:"%", color:"#3b82f6", label:""}
+DIAL_GAUGE: {title:"", value:0, min:0, max:100, unit:"", color:"#3b82f6"}
+GAUGE_CIRCULAR: {title:"", value:0, min:0, max:100, unit:"", color:"#10b981"}
+SHAPE_RECTANGLE: {backgroundColor:"#ffffff", borderRadius:12, borderWidth:0, bordercolor:"#e2e8f0"}
+SHAPE_LINE: {backgroundcolor:"#e2e8f0", strokeWidth:2}
+MACHINE_STATUS: {status:"RUNNING", label:"Machine", runningColor:"#10b981", stoppedColor:"#94a3b8", faultColor:"#ef4444"}
+MACHINE_ATTRIBUTE: {machineId:"", attribute:"speed", value:"0", unit:"rpm"}
+MACHINE_TIMELINE: {machineId:"", title:"Timeline", showLegend:true}
+BARCODE: {value:"", format:"QR_CODE", showText:true, foregroundColor:"#000000"}
+BARCODE_SCANNER: {label:"Scan Barcode", autoStart:false, continuousScan:false}
+STEP_TIME: {mode:"ELAPSED", format:"mm:ss"}
+VIDEO: {url:"", autoplay:false, controls:true, loop:false, muted:false}
+AI_CHAT: {title:"AI Assistant", placeholder:"Type message...", systemPrompt:"", model:""}
+CAD_VIEWER: {fileUrl:"", title:"3D View", format:"STL", showGrid:true, autoRotate:false}
+WEBPAGE: {url:"https://", followLinks:true}
+EMBED_WEB: {url:"https://", homeUrl:"", followLinks:true}
+GRID: {rows:5, cols:5, showLines:true, cellPadding:4}
+CHECKLIST: {title:"Inspection Checklist", items:["Check item 1","Check item 2"]}
+QUALITY_TOLERANCE: {label:"Dimension A", min:0, max:10, unit:"mm"}
+QUALITY_PASS_FAIL: {label:"Quality Check"}
+CAMERA_CAPTURE: {label:"Take Photo"}
+SIGNATURE: {signatureMode:"DRAW", signatureMeaning:"Approved by", required:true, signeeType:"Operator"}
+SIGNATURE_PAD: {backgroundColor:"#ffffff", pencolor:"#1e293b", thickness:2, required:true}
+VISION_MEASUREMENT: {label:"Measurement", unit:"mm", precision:2, min:0, max:100, targetVariable:""}
+CUSTOM_WIDGET: {title:"Custom", htmlTemplate:"<div></div>", cssTemplate:"", jsTemplate:""}
+MAP: {center:"-6.2,106.8", zoomLevel:14, mapType:"Roads", enablePan:true, showUser:false}
+OBD2_SCANNER: {label:"OBD2 Scanner", transport:"BLUETOOTH", protocol:"AUTO"}
 
-COMMANDS:
-- ADD_WIDGET: { type: "ADD_WIDGET", payload: { type: "<VALID_TYPE>", displayName: "...", x, y, w, h, props: {...} } }
-- UPDATE_WIDGET: { type: "UPDATE_WIDGET", widgetId: "...", payload: { props: {...} } }
-- DELETE_WIDGET: { type: "DELETE_WIDGET", widgetId: "..." }
-- CREATE_TABLE: { type: "CREATE_TABLE", payload: { name: "...", columns: [{ name, type }] } }
-- CREATE_VARIABLE: { type: "CREATE_VARIABLE", payload: { name: "...", type: "TEXT|NUMBER|BOOLEAN", defaultValue: ... } }
-- CREATE_TRIGGER: { type: "CREATE_TRIGGER", payload: { event: "...", actions: [...] } }
-- CREATE_RECORD_PLACEHOLDER: { type: "CREATE_RECORD_PLACEHOLDER", payload: { name: "...", tableId: "..." } }
-- CREATE_FUNCTION: { type: "CREATE_FUNCTION", payload: { name: "...", logic: { xml: null, code: "..." } } }
+════════════════════════════════════════════════
+🔧 COMMANDS
+════════════════════════════════════════════════
+{type:"SET_APP_NAME", payload:"App Name"}
+{type:"ADD_WIDGET", payload:{type:"TYPE", displayName:"Name", x:N, y:N, w:N, h:N, props:{...}}}
+{type:"ADD_STEP", payload:{title:"Screen Name"}}
+{type:"UPDATE_WIDGET", widgetId:"id", payload:{props:{...}}}
+{type:"DELETE_WIDGET", widgetId:"id"}
+{type:"CREATE_TABLE", payload:{name:"tbl", columns:[{name:"col",type:"text|number|boolean|date"}]}}
+{type:"CREATE_VARIABLE", payload:{name:"varName", type:"TEXT|NUMBER|BOOLEAN|LIST", defaultValue:""}}
+{type:"CREATE_TRIGGER", payload:{event:"ON_CLICK|ON_CHANGE|ON_APP_START|ON_VARIABLE_CHANGE|TIMER", widgetId:"id", actions:[{type:"SET_VARIABLE",variableName:"v",value:"x"}]}}
+{type:"CREATE_RECORD_PLACEHOLDER", payload:{name:"ph", tableId:""}}
+{type:"CREATE_FUNCTION", payload:{name:"fnName", logic:{xml:null, code:""}}}
 
-WIDGET PROP REFERENCE:
-- TEXT: { text, fontSize, color, fontWeight, textAlign }
-- TEXT_INPUT: { label, placeholder, hint, required }
-- TEXT_AREA: { label, placeholder, hint }
-- BUTTON: { label, text, backgroundColor, color, fontSize, action }
-- DROPDOWN: { label, elements: ["opt1","opt2"], prompt }
-- IMAGE: { src, picture, alt }
-- INTERACTIVE_TABLE: { tableId, title, columns: [{header,key}], enableFilter, enableExport, pageSize }
-- CHECKLIST: { title, items: ["item1","item2"] }
-- GAUGE: { value, min, max, unit, label, color }
-- SHAPE_RECTANGLE: { backgroundColor, borderRadius, borderWidth, bordercolor }
-- CHART: { type: "Line|Bar|Pie", description }
+════════════════════════════════════════════════
+⚡ BEHAVIORAL RULES (CRITICAL)
+════════════════════════════════════════════════
+1. AGENTIC: Output commands IMMEDIATELY. Never explain without commands.
+2. COMPLETE: Table widget → also CREATE_TABLE. Variable display → also CREATE_VARIABLE.
+3. MINIMUM: Simple ≥ 15 widgets. Medium ≥ 25. Full app ≥ 35.
+4. ALWAYS: SET_APP_NAME first, then dark header SHAPE_RECTANGLE + white TEXT title.
+5. ALWAYS: SHAPE_RECTANGLE card BEFORE its child widgets in commands array.
+6. PRECISION: Coordinates multiples of 4. No overlapping widgets.
+7. CONTEXT-AWARE: Don't duplicate existing widgets/tables/variables.
+8. INDUSTRIAL: Manufacturing → use MACHINE_STATUS, GAUGE, CHECKLIST, SIGNATURE, QUALITY_PASS_FAIL.
+9. MULTI-SCREEN: Use ADD_STEP for apps with logical sections.
 
-Canvas size: 1000x600. Default widget sizes: TEXT(200x40), BUTTON(160x40), TEXT_INPUT(300x60), INTERACTIVE_TABLE(500x300).
+CURRENT CONTEXT:
+- Screen: ${context.currentStepName || 'Screen 1'}
+- Widgets: ${JSON.stringify((context.widgets || []).map(w => ({ id: w.id, type: w.type, name: w.displayName, x: w.x, y: w.y })))}
+- Tables: ${JSON.stringify((context.tables || []).map(t => ({ id: t.id, name: t.name })))}
+- Variables: ${JSON.stringify((context.variables || []).map(v => ({ name: v.name, type: v.type })))}
+- Screens: ${JSON.stringify((context.steps || []).map(s => ({ id: s.id, title: s.title })))}
+- Placeholders: ${JSON.stringify((context.recordPlaceholders || []).map(r => ({ id: r.id, name: r.name })))}
 
-GUIDELINES:
-- Be AGENTIC: Take action immediately. Don't just explain.
-- Be SEMANTIC: "Scan barcode" means BARCODE_SCANNER + a result variable + a lookup trigger.
-- Be SELF-HEALING: If you add a widget that needs a variable, create it too.
-- ALWAYS use types from the VALID_WIDGET_TYPES list. Never invent new types.
-
-CONTEXT:
-- Screen: ${context.currentStepName || 'Unknown'}
-- Existing Widgets: ${JSON.stringify((context.widgets || []).map(w => ({ id: w.id, type: w.type, name: w.displayName })))}
-- Existing Tables: ${JSON.stringify((context.tables || []).map(t => t.name || t.id))}
-- Existing Variables: ${JSON.stringify((context.variables || []).map(v => ({ name: v.name, type: v.type })))}
-
-OUTPUT FORMAT:
-Indonesian rationale first, then:
-<ai_plan>
-[Step-by-step technical plan]
-</ai_plan>
-
-CRITICAL INSTRUCTION: You MUST ALWAYS output the <builder_cmds> JSON block after your plan. Do NOT stop after </ai_plan>.
+OUTPUT: Brief explanation (Indonesian if user writes Indonesian), then <ai_plan>...</ai_plan>, then ALWAYS:
 <builder_cmds>
-{
-  "commands": [ ... ]
-}
-</builder_cmds>
-`;
+{"commands": [...]}
+</builder_cmds>`;
+
 
     const messages = [
         { role: 'system', content: systemPrompt },
