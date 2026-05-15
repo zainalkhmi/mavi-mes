@@ -184,9 +184,9 @@ export function createTuneUpTemplate() {
                         },
                         {
                             id: `c2_cam_${timestamp}`,
-                            type: "IMAGE",
+                            type: "CAMERA_CAPTURE",
                             x: 540, y: 100, w: 444, h: 250,
-                            props: { label: "Engine Bay Photo", mode: "CAMERA", required: true, triggers: [] }
+                            props: { label: "Engine Bay Photo", required: true, triggers: [] }
                         },
                         {
                             id: `c2_ai_btn_${timestamp}`,

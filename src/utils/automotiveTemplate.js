@@ -194,9 +194,9 @@ export function createAutomotiveTuneUpTemplate() {
                         },
                         {
                             id: `c3_cam_${timestamp}`,
-                            type: "IMAGE",
+                            type: "CAMERA_CAPTURE",
                             x: 540, y: 100, w: 444, h: 300,
-                            props: { label: "Evidence: Throttle Body Condition", mode: "CAMERA", required: true, triggers: [] }
+                            props: { label: "Evidence: Throttle Body Condition", required: true, triggers: [] }
                         },
                         {
                             id: `c3_radio_${timestamp}`,

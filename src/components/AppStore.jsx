@@ -31,7 +31,27 @@ const AppStore = () => {
     const [selectedGuide, setSelectedGuide] = useState(null);
     const [modalTab, setModalTab] = useState('guide'); // 'guide' | 'preview'
 
+    const [archivedTemplates, setArchivedTemplates] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('archivedTemplates')) || []; } catch { return []; }
+    });
+    const [isAdmin, setIsAdmin] = useState(false);
+    
+    React.useEffect(() => {
+        try {
+            const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
+            if (user?.role?.toUpperCase() === 'ADMIN') setIsAdmin(true);
+        } catch (e) {}
+    }, []);
 
+    const toggleArchive = (e, templateId) => {
+        e.stopPropagation();
+        setArchivedTemplates(prev => {
+            const next = prev.includes(templateId) ? prev.filter(id => id !== templateId) : [...prev, templateId];
+            localStorage.setItem('archivedTemplates', JSON.stringify(next));
+            toast.success(prev.includes(templateId) ? 'Template Restored' : 'Template Archived');
+            return next;
+        });
+    };
     const categories = ['All', 'Quality', 'Production', 'Logistics', 'Maintenance', 'Safety', 'Healthcare'];
 
 
@@ -352,6 +372,8 @@ const AppStore = () => {
         const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             t.description.toLowerCase().includes(searchQuery.toLowerCase());
         const matchesCategory = activeCategory === 'All' || t.category === activeCategory;
+        const isArchived = archivedTemplates.includes(t.id);
+        if (!isAdmin && isArchived) return false;
         return matchesSearch && matchesCategory;
     });
 
@@ -992,6 +1014,14 @@ const AppStore = () => {
                                     {t.icon}
                                 </div>
                                 <div style={{ position: 'absolute', top: '16px', right: '16px', display: 'flex', gap: '6px' }}>
+                                    {isAdmin && (
+                                        <button 
+                                            onClick={(e) => toggleArchive(e, t.id)}
+                                            style={{ padding: '4px 8px', borderRadius: '6px', backgroundColor: archivedTemplates.includes(t.id) ? '#ef4444' : 'rgba(255,255,255,0.4)', border: 'none', backdropFilter: 'blur(8px)', fontSize: '0.65rem', fontWeight: 800, color: archivedTemplates.includes(t.id) ? 'white' : '#0f172a', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                        >
+                                            <X size={12} /> {archivedTemplates.includes(t.id) ? 'ARCHIVED' : 'ARCHIVE'}
+                                        </button>
+                                    )}
                                     <div style={{ padding: '4px 8px', borderRadius: '6px', backgroundColor: 'rgba(255,255,255,0.4)', backdropFilter: 'blur(8px)', fontSize: '0.65rem', fontWeight: 800, color: '#0f172a' }}>
                                         {t.category.toUpperCase()}
                                     </div>
