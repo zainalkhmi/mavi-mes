@@ -511,6 +511,35 @@ const LiveTerminal = () => {
     return () => clearInterval(timer);
   }, []);
 
+  // Sync input widgets when record placeholders change (e.g. table row selected)
+  useEffect(() => {
+    if (!selectedApp && !selectedManual) return;
+    const activeStep = (selectedApp?.config?.steps || selectedManual?.content?.steps || [])[currentStepIndex];
+    if (!activeStep) return;
+
+    activeStep.components.forEach(comp => {
+      const binding = comp.props.varSource || comp.props.targetVariable;
+      if (binding && typeof binding === 'string' && binding.startsWith('@')) {
+        const val = resolveValue(binding);
+        if (val !== undefined && val !== null) {
+          if (comp.type === 'TEXT_INPUT') {
+            setTextInputValues(prev => prev[comp.id] === val ? prev : { ...prev, [comp.id]: val });
+          } else if (comp.type === 'NUMBER_INPUT') {
+            setNumberInputValues(prev => prev[comp.id] === val ? prev : { ...prev, [comp.id]: val });
+          } else if (comp.type === 'DROPDOWN') {
+            setDropdownValues(prev => prev[comp.id] === val ? prev : { ...prev, [comp.id]: val });
+          } else if (comp.type === 'RADIO_GROUP') {
+            setRadioValues(prev => prev[comp.id] === val ? prev : { ...prev, [comp.id]: val });
+          } else if (comp.type === 'CHECKBOX') {
+            setToggleState(prev => prev[comp.id] === val ? prev : { ...prev, [comp.id]: !!val });
+          } else if (comp.type === 'TEXT_AREA') {
+            setTextAreaValues(prev => prev[comp.id] === val ? prev : { ...prev, [comp.id]: val });
+          }
+        }
+      }
+    });
+  }, [recordPlaceholderData, currentStepIndex, selectedApp, selectedManual]);
+
   useEffect(() => {
     getStations().then(res => setStations(res || [])).catch(console.error);
   }, []);
@@ -1620,7 +1649,39 @@ const LiveTerminal = () => {
           const placeholder = recordPlaceholders.find(rp => rp.name === pName);
           if (placeholder) {
             const data = recordPlaceholderData[placeholder.id];
-            return data ? data[fName] : '';
+            if (data) {
+              let res = data[fName];
+              if (res === undefined) {
+                const key = Object.keys(data).find(k => k.toLowerCase() === fName.toLowerCase());
+                if (key) res = data[key];
+              }
+              return res ?? '';
+            }
+          }
+        }
+      }
+      // Support @PlaceholderName.FieldName (Simplified syntax)
+      if (varName.includes('.')) {
+        const [pName, ...fPath] = varName.split('.');
+        const placeholder = recordPlaceholders.find(rp => rp.name === pName || rp.id === pName);
+        if (placeholder) {
+          const data = recordPlaceholderData[placeholder.id];
+          if (data) {
+            let current = data;
+            for (const part of fPath) {
+              if (current && typeof current === 'object') {
+                let next = current[part];
+                if (next === undefined) {
+                  const key = Object.keys(current).find(k => k.toLowerCase() === part.toLowerCase());
+                  if (key) next = current[key];
+                }
+                current = next;
+              } else {
+                current = undefined;
+                break;
+              }
+            }
+            return current ?? '';
           }
         }
       }
@@ -3646,7 +3707,7 @@ const LiveTerminal = () => {
           <input
             id={`input-${comp.id}`}
             type="text"
-            value={textInputValues[comp.id] != null ? textInputValues[comp.id] : (resolvedProps.defaultValue || '')}
+            value={textInputValues[comp.id] != null ? textInputValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : (resolvedProps.defaultValue || ''))}
             onChange={async e => {
               const val = comp.props.mask ? applyInputMask(e.target.value, comp.props.mask) : e.target.value;
               setTextInputValues(prev => ({ ...prev, [comp.id]: val }));
@@ -3693,7 +3754,7 @@ const LiveTerminal = () => {
           <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}{comp.props.required ? ' *' : ''}</div>
           <select
             id={`input-${comp.id}`}
-            value={dropdownValues[comp.id] != null ? dropdownValues[comp.id] : (resolvedProps.defaultValue || '')}
+            value={dropdownValues[comp.id] != null ? dropdownValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : (resolvedProps.defaultValue || ''))}
             onChange={e => {
               const val = e.target.value;
               setDropdownValues(prev => ({ ...prev, [comp.id]: val }));
@@ -3716,7 +3777,7 @@ const LiveTerminal = () => {
         </div>
       );
       case 'RADIO_GROUP': {
-        const selectedVal = radioValues[comp.id] != null ? radioValues[comp.id] : (comp.props.defaultValue || '');
+        const selectedVal = radioValues[comp.id] != null ? radioValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : (comp.props.defaultValue || ''));
         return (
           <div>
             <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{comp.props.label}{comp.props.required ? ' *' : ''}</div>

@@ -8618,22 +8618,62 @@ const AppBuilder = () => {
                             <option value="APP_INFO.APP_NAME">App Name</option>
                         </select>
                     ) : (
-                        <select
-                            value={selectedComp.props.varSource}
-                            onChange={(e) => updateComponentProps(selectedComp.id, { varSource: e.target.value })}
-                            style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)', fontSize: '0.85rem' }}
-                        >
-                            {appVariables.length > 0 && (
-                                <optgroup label="App Variables">
-                                    {appVariables.map(v => (
-                                        <option key={v.name} value={v.name}>{v.name}</option>
-                                    ))}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <select
+                                value={
+                                    appVariables.some(v => v.name === selectedComp.props.varSource) || 
+                                    (selectedComp.props.varSource && selectedComp.props.varSource.startsWith('@'))
+                                        ? selectedComp.props.varSource 
+                                        : (selectedComp.props.varSource ? 'MANUAL' : '')
+                                }
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === 'MANUAL') {
+                                        // Keep current value but allow manual editing
+                                    } else {
+                                        updateComponentProps(selectedComp.id, { varSource: val });
+                                    }
+                                }}
+                                style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+                            >
+                                <option value="">Select variable...</option>
+                                {appVariables.length > 0 && (
+                                    <optgroup label="App Variables">
+                                        {appVariables.map(v => (
+                                            <option key={v.name} value={v.name}>{v.name}</option>
+                                        ))}
+                                    </optgroup>
+                                )}
+                                {recordPlaceholders.length > 0 && (
+                                    <optgroup label="Record Fields (@Table)">
+                                        {recordPlaceholders.map(rp => {
+                                            const table = tables.find(t => t.id === rp.tableId);
+                                            const columns = table?.columns || [];
+                                            return columns.map(col => {
+                                                const colName = typeof col === 'object' ? (col.name || col.label) : col;
+                                                const bindVal = `@${rp.name}.${colName}`;
+                                                return <option key={bindVal} value={bindVal}>@{rp.name}.{colName}</option>
+                                            });
+                                        })}
+                                    </optgroup>
+                                )}
+                                <optgroup label="Advanced">
+                                    <option value="MANUAL">Custom Expression / @Manual...</option>
                                 </optgroup>
-                            )}
-                            {appVariables.length === 0 && (
-                                <option value="" disabled>No app variables yet</option>
-                            )}
-                        </select>
+                            </select>
+                            
+                            {(!appVariables.some(v => v.name === selectedComp.props.varSource) && 
+                              !(selectedComp.props.varSource && selectedComp.props.varSource.startsWith('@')) && 
+                              selectedComp.props.varSource !== '') || 
+                             (selectedComp.props.varSource === 'MANUAL') ? (
+                                <input 
+                                    value={selectedComp.props.varSource === 'MANUAL' ? '' : selectedComp.props.varSource}
+                                    onChange={(e) => updateComponentProps(selectedComp.id, { varSource: e.target.value })}
+                                    placeholder="e.g. @dit.DATA"
+                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.8rem', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                />
+                            ) : null}
+                        </div>
                     )}
                 </div>
             </div>
