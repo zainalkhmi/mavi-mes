@@ -80,7 +80,14 @@ function objectContainsVariableRef(value, variableName, parentKey = '') {
 
     if (typeof value === 'string') {
         if (value.includes(`@${variableName}`)) return true;
-        if (['varSource', 'variable', 'varPath'].includes(parentKey) && value === variableName) return true;
+        
+        // Check common property keys that store variable names
+        const variableKeys = [
+            'varSource', 'variable', 'varPath', 'targetVariable', 
+            'variableName', 'sourceVariable', 'inputVariable', 'outputVariable'
+        ];
+        if (variableKeys.includes(parentKey) && value === variableName) return true;
+        
         return false;
     }
 

@@ -353,6 +353,7 @@ const LiveTerminal = () => {
   const [obd2Status, setObd2Status] = useState('disconnected');
   const [visionValues, setVisionValues] = useState({}); // { [compId]: string }
   const [ocrProcessing, setOcrProcessing] = useState({}); // { [compId]: boolean }
+  const [refreshKey, setRefreshKey] = useState(0);
   const stepTimerRef = useRef(null);
   // Defect modal
   const [showDefectModal, setShowDefectModal] = useState(false);
@@ -432,7 +433,44 @@ const LiveTerminal = () => {
   }, [selectedApp, currentStepIndex, obd2Status, appComponents]);
 
 
+  const resetInputs = useCallback(() => {
+    console.log('[resetInputs] Clearing all form states and variables...');
+    setBarcodeValues({});
+    setCameraScannerValues({});
+    setCameraScannerStatus({});
+    setCameraScannerActive({});
+    setCameraValues({});
+    setUploadValues({});
+    setTextInputValues({});
+    setTextAreaValues({});
+    setMultiSelectValues({});
+    setDropdownValues({});
+    setRadioValues({});
+    setToleranceValues({});
+    setNumberInputValues({});
+    setDateValues({});
+    setDateTimeValues({});
+    setSliderValues({});
+    setDrawValues({});
+    setGpsValues({});
+    setMediaValues({});
+    setQualityResult({});
+    setSignatureWidgetValues({});
+    setQualityData({});
+    setChecklistState({});
+    setToggleState({});
+    setVisionValues({});
+    setRecordPlaceholderData({});
+    
+    // Increment refresh key to force a clean re-render of all components
+    setRefreshKey(prev => prev + 1);
+    
+    // Reset all variables to their default values
+    setAppVariables(prev => prev.map(v => ({ ...v, value: v.defaultValue || '' })));
+  }, []);
+
   const syncVariableForComp = (comp, value) => {
+
     if (!comp) return;
     const varName = comp.props?.targetVariable || (comp.props?.dataSourceType === 'VARIABLE' ? comp.props?.varSource : null);
     if (varName) {
@@ -1163,15 +1201,8 @@ const LiveTerminal = () => {
       setRecordPlaceholderData({});
       setBoundData({});
       
-      // Clear input states
-      setTextInputValues({});
-      setTextAreaValues({});
-      setNumberInputValues({});
-      setBarcodeValues({});
-      setDropdownValues({});
-      setToggleState({});
-      setQualityResult({});
-      setSignatureWidgetValues({});
+      resetInputs();
+
 
 
       logEvent({
@@ -1220,33 +1251,9 @@ const LiveTerminal = () => {
     setTimeout(() => {
       executeBlocklyLogic('ON_APP_START');
     }, 50);
-    setCycleData([]);
-    setQuantityLog({});
-    setChecklistState({});
-    setToggleState({});
-    setBarcodeValues({});
-    setCameraScannerValues({});
-    setCameraScannerStatus({});
-    setCameraScannerActive({});
-    setCameraValues({});
-    setUploadValues({});
-    setTextInputValues({});
-    setTextAreaValues({});
-    setMultiSelectValues({});
-    setDropdownValues({});
-    setRadioValues({});
-    setToleranceValues({});
-    setNumberInputValues({});
-    setDateValues({});
-    setDateTimeValues({});
-    setSliderValues({});
-    setDrawValues({});
-    setGpsValues({});
-    setMediaValues({});
-    setQualityResult({});
-    setSignatureWidgetValues({});
-    setQualityData({});
+    resetInputs();
     setDefectLog([]);
+
     setAppContext(prev => ({
       ...prev,
       user: launchOperator || prev.user || 'Operator',
@@ -1654,13 +1661,19 @@ const LiveTerminal = () => {
 
 
   const fetchChartData = useCallback(async (app) => {
-    if (!app || !app.config?.steps) return;
-    const currentStep = app.config.steps[currentStepIndex];
-    if (!currentStep) return;
+    if (!app?.config) return;
+    const steps = app.config.steps || [];
+    const currentStep = steps[currentStepIndex];
+    const baseComps = app.config.baseComponents || [];
 
     const chartTypes = ['CHART', 'PARETO_CHART', 'CONTROL_CHART', 'DASHBOARD_PARETO', 'DASHBOARD_CHART_BAR', 'DASHBOARD_CHART_LINE', 'DASHBOARD_METRIC'];
-    const chartComps = currentStep.components.filter(c => chartTypes.includes(c.type));
+    const chartComps = [
+      ...(currentStep?.components || []),
+      ...baseComps
+    ].filter(c => chartTypes.includes(c.type));
+    
     if (chartComps.length === 0) return;
+
 
     const results = {};
     for (const comp of chartComps) {
@@ -1709,12 +1722,18 @@ const LiveTerminal = () => {
   }, [currentStepIndex, getTableRecords, getTableById]);
 
   const fetchBoundData = useCallback(async (app) => {
-    if (!app || !app.config?.steps) return;
-    const currentStep = app.config.steps[currentStepIndex];
-    if (!currentStep) return;
+    if (!app?.config) return;
+    const steps = app.config.steps || [];
+    const currentStep = steps[currentStepIndex];
+    const baseComps = app.config.baseComponents || [];
 
-    const boundComps = currentStep.components.filter(c => c.props?.dataSourceType === 'TABLE_RECORD');
+    const boundComps = [
+      ...(currentStep?.components || []),
+      ...baseComps
+    ].filter(c => c.props?.dataSourceType === 'TABLE_RECORD');
+    
     if (boundComps.length === 0) return;
+
 
     console.log(`Fetching data for ${boundComps.length} bound widgets...`);
     const results = {};
@@ -1738,11 +1757,16 @@ const LiveTerminal = () => {
   }, [currentStepIndex]);
 
   const fetchTableData = useCallback(async (app) => {
-    if (!app || !app.config?.steps) return;
-    const currentStep = app.config.steps[currentStepIndex];
-    if (!currentStep) return;
-
-    const tableComps = currentStep.components.filter(c => c.type === 'INTERACTIVE_TABLE' || c.type === 'ADVANCED_TABLE');
+    if (!app?.config) return;
+    const steps = app.config.steps || [];
+    const currentStep = steps[currentStepIndex];
+    const baseComps = app.config.baseComponents || [];
+    
+    const tableComps = [
+      ...(currentStep?.components || []),
+      ...baseComps
+    ].filter(c => c.type === 'INTERACTIVE_TABLE' || c.type === 'ADVANCED_TABLE');
+    
     if (tableComps.length === 0) return;
 
     const results = {};
@@ -2089,9 +2113,16 @@ const LiveTerminal = () => {
                 const columns = tableDef?.columns || [];
 
                 // AGGRESSIVE SCAN: Search ALL components (Apps & Manuals)
+                // AGGRESSIVE SCAN: Search ALL components (Apps & Manuals)
+                // Prioritize components on the CURRENT step to avoid matching empty fields from other steps
+                const currentStepComps = (selectedApp?.config?.steps || [])[currentStepIndex]?.components || [];
+                const baseComps = selectedApp?.config?.baseComponents || [];
+                const otherStepsComps = (selectedApp?.config?.steps || []).filter((s, i) => i !== currentStepIndex).flatMap(s => s.components || []);
+                
                 const allComps = [
-                  ...(selectedApp?.config?.baseComponents || []),
-                  ...(selectedApp?.config?.steps || []).flatMap(s => s.components || []),
+                  ...currentStepComps,
+                  ...baseComps,
+                  ...otherStepsComps,
                   ...(selectedManual?.content?.baseComponents || []),
                   ...(selectedManual?.content?.steps || []).flatMap(s => s.components || [])
                 ];
@@ -2114,6 +2145,8 @@ const LiveTerminal = () => {
                   if (comp.type === 'SIGNATURE' || comp.type === 'SIGNATURE_PAD') return signatureWidgetValues[comp.id] ?? drawValues[comp.id];
                   if (comp.type === 'CAMERA_CAPTURE' || comp.type === 'CAMERA') return cameraValues[comp.id];
                   if (comp.type === 'FILE_UPLOAD' || comp.type === 'FILE_PICKER') return fileValues[comp.id];
+                  if (comp.type === 'INTERACTIVE_TABLE' || comp.type === 'TABLE') return tableData[comp.id];
+                  if (comp.type === 'ADVANCED_TABLE') return advancedTableData[comp.id];
                   return undefined;
                 };
 
@@ -2138,13 +2171,22 @@ const LiveTerminal = () => {
                     const phNameNorm = normalize(placeholder.name);
 
                     // Match: Placeholder.Column, Column, last segment var (e.g. dit.data), explicit field binding, or Label match
+                    const compName = comp.name || comp.props?.name || '';
+                    const compNameNorm = normalize(compName);
+
+                    // Match: Placeholder.Column, Column, last segment var (e.g. dit.data), explicit field binding, Label match, or Component Name
                     if (
                       targetVarNorm === phNameNorm + colNorm ||
                       targetVarNorm === colNorm ||
                       targetVarLastSegNorm === colNorm ||
                       explicitFieldNorm === colNorm ||
-                      compLabelNorm === colNorm
+                      compLabelNorm === colNorm ||
+                      compNameNorm === colNorm ||
+                      normalize(comp.id) === colNorm
                     ) {
+                      // Skip if we already found a value for this column from a higher-priority component
+                      if (updatedData[colName] !== undefined && updatedData[colName] !== null && updatedData[colName] !== '') return;
+
                       let val = getComponentLiveValue(comp);
 
                       // DOM Fallback if state is empty but element has value
@@ -2197,6 +2239,12 @@ const LiveTerminal = () => {
                 console.log(`[saveById] Final harvest results for placeholder "${placeholder.name}":`, updatedData);
                 console.log(`[saveById] Total fields populated: ${fieldsFound}`);
 
+                if (fieldsFound === 0 && !rec) {
+                  console.warn(`[saveById] No data harvested for new record in "${placeholder.name}". Aborting save to prevent empty record.`);
+                  toast.error(`❌ Tidak ada data yang ditemukan untuk disimpan ke ${placeholder.name}. Pastikan label input atau nama variabel sesuai dengan kolom tabel.`);
+                  return false;
+                }
+
                 // 3. Determine if we UPDATE or CREATE
                 let finalRecord = null;
                 if (rec && (rec.id || rec.recordId)) {
@@ -2224,6 +2272,17 @@ const LiveTerminal = () => {
                 localPlaceholderContext[placeholderId] = finalRecord;
                 setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: finalRecord }));
                 toast.success('💾 Data berhasil disimpan ke tabel.');
+                
+                // Trigger UI refresh for tables, charts, etc.
+                const activeConfig = selectedApp || (selectedManual ? { config: selectedManual.content } : null);
+                if (activeConfig) {
+                  setTimeout(() => {
+                    fetchTableData(activeConfig);
+                    fetchChartData(activeConfig);
+                    fetchBoundData(activeConfig);
+                  }, 500);
+                }
+                
                 return true;
               } catch (err) {
                 console.error('[saveById] Error:', err);
@@ -2341,6 +2400,20 @@ const LiveTerminal = () => {
               }
             } catch (err) {
               console.error(`[Connector] Execution failed:`, err);
+            }
+          } else if (action.type === 'APP_REFRESH' || action.type === 'CLEAR_ALL_INPUTS') {
+            console.log(`[${action.type}] Manually triggering data refresh...`);
+            resetInputs(); // Clear all manual entries and force remount
+            if (action.type === 'APP_REFRESH') {
+              const activeConfig = selectedApp || (selectedManual ? { config: selectedManual.content } : null);
+              if (activeConfig) {
+                await fetchTableData(activeConfig);
+                await fetchChartData(activeConfig);
+                await fetchBoundData(activeConfig);
+                toast.success('🔄 Data refreshed');
+              }
+            } else {
+              toast.success('🧹 Inputs cleared');
             }
           } else if (action.type === 'LINK_RECORD' || action.type === 'UNLINK_RECORD') {
             const {
@@ -3134,14 +3207,8 @@ const LiveTerminal = () => {
     // 2. Execute custom triggers if any (Tulip-style)
     await fireWidgetTriggers(comp, 'ON_CLICK');
 
-    // 3. Reset placeholders only for submit/navigation actions, not plain SAVE.
-    const shouldResetPlaceholders = ['NEXT_STEP', 'PREV_STEP', 'GO_TO_STEP', 'COMPLETE', 'COMPLETE_APP', 'CANCEL_APP'].includes(props.action);
-    if (shouldResetPlaceholders) {
-      recordPlaceholders.forEach(rp => {
-        localPlaceholderContext[rp.id] = null;
-        setRecordPlaceholderData(prev => ({ ...prev, [rp.id]: null }));
-      });
-    }
+    // 3. Reset logic removed - now strictly triggered by APP_REFRESH or explicit triggers
+
 
     const action = props.action;
     switch (action) {
@@ -4088,7 +4155,7 @@ const LiveTerminal = () => {
         const DataComponent = type === 'BAR' ? Bar : type === 'AREA' ? Area : Line;
 
         return (
-          <div style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '15px', height: '300px', display: 'flex', flexDirection: 'column' }}>
+          <div key={`${comp.id}-${refreshKey}`} style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '15px', height: '300px', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' }}>
               <BarChart3 size={18} color={color} />
               <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569' }}>{title}</span>
@@ -4165,7 +4232,7 @@ const LiveTerminal = () => {
         });
 
         return (
-          <div style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '15px', height: '300px', display: 'flex', flexDirection: 'column' }}>
+          <div key={`${comp.id}-${refreshKey}`} style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '15px', height: '300px', display: 'flex', flexDirection: 'column' }}>
             <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569', marginBottom: '15px' }}>{title}</div>
             <div style={{ flex: 1, width: '100%', minHeight: 0 }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -4186,7 +4253,7 @@ const LiveTerminal = () => {
         const data = chartData[comp.id] || [];
         const { title, yAxisColumn, ucl, lcl, target, color } = comp.props;
         return (
-          <div style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '15px', height: '300px', display: 'flex', flexDirection: 'column' }}>
+          <div key={`${comp.id}-${refreshKey}`} style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '15px', height: '300px', display: 'flex', flexDirection: 'column' }}>
             <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569', marginBottom: '15px' }}>{title}</div>
             <div style={{ flex: 1, width: '100%', minHeight: 0 }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -4247,7 +4314,7 @@ const LiveTerminal = () => {
         const linkedPlaceholderId = comp.props.linkedRecordPlaceholderId;
 
         return (
-          <div style={{ backgroundColor: comp.props.backgroundColor || '#ffffff', border: comp.props.bordered !== false ? '1px solid #e2e8f0' : 'none', borderRadius: '8px', padding: '15px', display: 'flex', flexDirection: 'column' }}>
+          <div key={`${comp.id}-${refreshKey}`} style={{ backgroundColor: comp.props.backgroundColor || '#ffffff', border: comp.props.bordered !== false ? '1px solid #e2e8f0' : 'none', borderRadius: '8px', padding: '15px', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' }}>
               <Table size={18} color={comp.props.color || '#3b82f6'} />
               <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569' }}>
@@ -5894,14 +5961,17 @@ const LiveTerminal = () => {
 
 
         {/* CENTER PANEL: INSTRUCTIONS */}
-        <div style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          padding: '20px',
-          backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc',
-          overflowY: 'auto'
-        }}>
+        <div 
+          key={`center-panel-${refreshKey}`}
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '20px',
+            backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc',
+            overflowY: 'auto'
+          }}
+        >
           <div style={{
             backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || (selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white'),
             backgroundImage: activeStep?.backgroundImage ? `url(${activeStep.backgroundImage})` : 'none',

@@ -1869,6 +1869,7 @@ const AppBuilder = () => {
     const [appBackgroundColor, setAppBackgroundColor] = useState('#ffffff');
     const [appThemeMode, setAppThemeMode] = useState('LIGHT');
     const [builderTheme, setBuilderTheme] = useState(localStorage.getItem('mavi-builder-theme') || 'LIGHT');
+    const [refreshKey, setRefreshKey] = useState(0);
 
     useEffect(() => {
         localStorage.setItem('mavi-builder-theme', builderTheme);
@@ -2076,6 +2077,29 @@ const AppBuilder = () => {
     }, []);
 
     const fileInputRef = useRef(null);
+
+    const resetInputs = () => {
+        console.log('[resetInputs] Clearing all preview states...');
+        setPreviewFormValues({});
+        setPreviewChecklistState({});
+        setPreviewToggleState({});
+        setPreviewQuantityLog({});
+        setPreviewMenuState({});
+        setCameraScannerValues({});
+        setCameraValues({});
+        setUploadValues({});
+        setDrawValues({});
+        setSignatureValues({});
+        setSignatureAuditTrail([]);
+        setSignedStepLocks({});
+        setRecordPlaceholderData({});
+        
+        // Reset variables to default
+        setAppVariables(prev => prev.map(v => ({ ...v, value: v.defaultValue ?? v.value })));
+        
+        // Nuclear refresh
+        setRefreshKey(prev => prev + 1);
+    };
 
     const getDefaultStopOnError = (eventId = '') => {
         return ['ON_APP_START', 'ON_APP_COMPLETE', 'ON_APP_CANCEL', 'ON_STEP_ENTER', 'ON_STEP_EXIT'].includes(String(eventId || ''));
@@ -5152,7 +5176,8 @@ const AppBuilder = () => {
                     break;
                 }
                 case 'CREATE_RECORD':
-                case 'UPDATE_RECORD': {
+                case 'UPDATE_RECORD':
+                case 'TABLE_RECORD_SAVE': {
                     const { tableId, mappings, recordId: rawRecordId } = action.payload;
                     const resolvedData = {};
                     Object.entries(mappings || {}).forEach(([col, mapObj]) => {
@@ -5165,6 +5190,9 @@ const AppBuilder = () => {
                         const recName = action.type === 'CREATE_RECORD' ? 'created' : 'updated';
                         const recId = action.type === 'CREATE_RECORD' ? '' : resolveValue(rawRecordId);
                         console.log(`[Developer Mode] Simulated Record ${recName} in table ${tableId}`, { id: recId, data: resolvedData });
+                        
+                        // In Preview, simulation log
+                        toast.success('Simulated: Record saved successfully.');
                     } else {
                         if (action.type === 'CREATE_RECORD') {
                             addTableRecord(tableId, resolvedData)
@@ -5179,6 +5207,13 @@ const AppBuilder = () => {
                             });
                         }
                     }
+                    break;
+                }
+                case 'APP_REFRESH':
+                case 'CLEAR_ALL_INPUTS': {
+                    console.log(`[${action.type}] Triggering refresh in builder preview...`);
+                    resetInputs();
+                    toast.success(action.type === 'APP_REFRESH' ? 'App Refreshed' : 'Inputs Cleared');
                     break;
                 }
                 case 'CLEAR_RECORD_PLACEHOLDER': {
@@ -12955,6 +12990,7 @@ const AppBuilder = () => {
 
                                 <div
                                     className="canvas-drawing-area"
+                                    key={`preview-stage-${refreshKey}`}
                                     onContextMenu={(e) => {
                                         e.preventDefault();
                                         if (viewMode === 'PREVIEW') return;
@@ -20575,6 +20611,7 @@ const AppBuilder = () => {
                                                 );
                                             case 'NEXT_STEP':
                                             case 'PREV_STEP':
+                                            case 'APP_REFRESH':
                                                 return <div style={{ fontSize: '0.85rem', color: 'var(--text-quaternary)', fontStyle: 'italic', padding: '8px' }}>No additional parameters required.</div>;
                                             case 'TABLE_RECORD_LOAD':
                                             case 'TABLE_RECORD_CREATE':
@@ -21178,6 +21215,7 @@ const AppBuilder = () => {
                                                                                         <option value="OBD2_CLEAR_DTC">OBD2: Clear Error Codes</option>
                                                                                     </optgroup>
                                                                                     <optgroup label="App & Navigation">
+                                                                                        <option value="APP_REFRESH">App: Refresh All Data</option>
                                                                                         {(() => {
                                                                                             const isTransitionActionType = (t) => ['GO_TO_STEP', 'NEXT_STEP', 'PREV_STEP', 'COMPLETE_APP', 'CANCEL_APP'].includes(String(t || ''));
                                                                                             const actionsList = triggerEditor.trigger?.clauses?.[cIdx]?.actions || [];

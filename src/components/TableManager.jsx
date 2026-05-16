@@ -329,6 +329,7 @@ const TableManager = () => {
     const [newType, setNewType] = useState('text');
     const [uploadingFields, setUploadingFields] = useState({}); // { fieldName: boolean }
     const [visualJoinRecords, setVisualJoinRecords] = useState({});
+    const [selectedIds, setSelectedIds] = useState(new Set());
 
     // Queries & Aggregations state
     const [isQueryEditorOpen, setIsQueryEditorOpen] = useState(false);
@@ -350,6 +351,7 @@ const TableManager = () => {
             return;
         }
         loadRecords(selectedTableId);
+        setSelectedIds(new Set());
     }, [selectedTableId]);
 
     useEffect(() => {
@@ -501,7 +503,6 @@ const TableManager = () => {
 
         return { nodes: Array.from(nodeMap.values()), edges };
     }, [selectedTable, records, tables]);
-
     const updateRecordSort = (fieldName) => {
         if (recordSortField === fieldName) {
             setRecordSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
@@ -509,6 +510,43 @@ const TableManager = () => {
         }
         setRecordSortField(fieldName);
         setRecordSortDirection('asc');
+    };
+
+    const toggleSelectRecord = (id, e) => {
+        if (e) e.stopPropagation();
+        const next = new Set(selectedIds);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        setSelectedIds(next);
+    };
+
+    const handleSelectAll = () => {
+        if (selectedIds.size > 0 && selectedIds.size === filteredAndSortedRecords.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(filteredAndSortedRecords.map(r => r.id)));
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        if (!selectedIds.size) return;
+        if (!confirm(`Hapus ${selectedIds.size} record yang dipilih? Tindakan ini tidak dapat dibatalkan.`)) return;
+
+        try {
+            setRecordsLoading(true);
+            const idsToDelete = Array.from(selectedIds);
+            for (const id of idsToDelete) {
+                await deleteTableRecord(id);
+            }
+            setSelectedIds(new Set());
+            await loadRecords(selectedTable.id);
+            setSelectedRecordInternalId(null);
+        } catch (error) {
+            console.error('Bulk delete failed:', error);
+            alert('Gagal menghapus beberapa record: ' + (error.message || 'Unknown error'));
+        } finally {
+            setRecordsLoading(false);
+        }
     };
 
     const loadTables = async () => {
@@ -1479,6 +1517,26 @@ const TableManager = () => {
                                         </div>
 
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                            {selectedIds.size > 0 && (
+                                                <button
+                                                    onClick={handleBulkDelete}
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '8px',
+                                                        padding: '10px 16px',
+                                                        borderRadius: '10px',
+                                                        backgroundColor: '#fee2e2',
+                                                        color: '#ef4444',
+                                                        border: 'none',
+                                                        fontWeight: 700,
+                                                        fontSize: '0.85rem',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    <Trash2 size={16} /> Hapus ({selectedIds.size})
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={handleImportButtonClick}
                                                 disabled={csvImporting}
@@ -1607,6 +1665,14 @@ const TableManager = () => {
                                                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                                     <thead style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: '#fafafa' }}>
                                                         <tr style={{ borderBottom: `1px solid ${TOKENS.border}` }}>
+                                                            <th style={{ width: '40px', padding: '16px' }}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={filteredAndSortedRecords.length > 0 && selectedIds.size === filteredAndSortedRecords.length}
+                                                                    onChange={handleSelectAll}
+                                                                    style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                                                                />
+                                                            </th>
                                                             <th style={{ padding: '16px', width: '50px', textAlign: 'left', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase' }}>#</th>
                                                             <th style={{ padding: '16px', textAlign: 'left', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase' }}>Record ID</th>
                                                             {activeFields.filter(f => !hiddenFields.includes(f.name)).map(field => (
@@ -1625,11 +1691,19 @@ const TableManager = () => {
                                                                 onClick={() => setSelectedRecordInternalId(record.id)}
                                                                 style={{
                                                                     borderBottom: `1px solid ${TOKENS.borderLight}`,
-                                                                    backgroundColor: selectedRecordInternalId === record.id ? '#f5f7ff' : 'transparent',
+                                                                    backgroundColor: selectedRecordInternalId === record.id ? '#f5f7ff' : (selectedIds.has(record.id) ? '#f0f9ff' : 'transparent'),
                                                                     cursor: 'pointer',
                                                                     transition: 'all 0.2s'
                                                                 }}
                                                             >
+                                                                <td style={{ padding: '16px', width: '40px' }} onClick={(e) => e.stopPropagation()}>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={selectedIds.has(record.id)}
+                                                                        onChange={(e) => toggleSelectRecord(record.id, e)}
+                                                                        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                                                                    />
+                                                                </td>
                                                                 <td style={{ padding: '16px', color: TOKENS.textMuted, fontSize: '0.85rem' }}>{idx + 1}</td>
                                                                 <td style={{ padding: '16px', fontWeight: 700, color: TOKENS.text, fontSize: '0.9rem' }}>{record.recordId}</td>
                                                                 {activeFields.filter(f => !hiddenFields.includes(f.name)).map(field => (
