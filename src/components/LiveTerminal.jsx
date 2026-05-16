@@ -537,8 +537,23 @@ const LiveTerminal = () => {
           }
         }
       }
+      // Also sync components bound to appVariables via targetVariable (without @ prefix)
+      const varName = comp.props.targetVariable || (comp.props.dataSourceType === 'VARIABLE' ? comp.props.varSource : null);
+      if (varName && typeof varName === 'string' && !varName.startsWith('@')) {
+        const vDef = appVariables.find(v => v.name === varName);
+        if (vDef && vDef.value !== undefined && vDef.value !== null) {
+          const val = vDef.value;
+          if (comp.type === 'TEXT_INPUT') {
+            setTextInputValues(prev => prev[comp.id] === val ? prev : { ...prev, [comp.id]: val });
+          } else if (comp.type === 'NUMBER_INPUT') {
+            setNumberInputValues(prev => prev[comp.id] === val ? prev : { ...prev, [comp.id]: val });
+          } else if (comp.type === 'TEXT_AREA') {
+            setTextAreaValues(prev => prev[comp.id] === val ? prev : { ...prev, [comp.id]: val });
+          }
+        }
+      }
     });
-  }, [recordPlaceholderData, currentStepIndex, selectedApp, selectedManual]);
+  }, [recordPlaceholderData, appVariables, currentStepIndex, selectedApp, selectedManual]);
 
   useEffect(() => {
     getStations().then(res => setStations(res || [])).catch(console.error);
@@ -2295,12 +2310,24 @@ const LiveTerminal = () => {
                     }
                   }
 
-                  // 2. Variable Fallback
+                  // 2. Variable Fallback (Aggressive matching)
                   if (!updatedData[colName]) {
                     const v = appVariables.find(v => {
                       const vNameUpper = String(v.name).toUpperCase();
                       const colUpper = String(colName).toUpperCase();
-                      return vNameUpper === colUpper || vNameUpper.endsWith('.' + colUpper);
+                      // Exact match
+                      if (vNameUpper === colUpper) return true;
+                      // Dot-suffix: Record.COLUMN
+                      if (vNameUpper.endsWith('.' + colUpper)) return true;
+                      // Underscore-suffix: NILAI_A matches column A
+                      if (vNameUpper.endsWith('_' + colUpper)) return true;
+                      // Column contains variable name: column NILAI_A matches var NILAI_A
+                      if (colUpper.includes(vNameUpper) || vNameUpper.includes(colUpper)) return true;
+                      // Normalized (strip underscores/spaces): NILAIA === NILAIA
+                      const vNorm = vNameUpper.replace(/[^A-Z0-9]/g, '');
+                      const cNorm = colUpper.replace(/[^A-Z0-9]/g, '');
+                      if (vNorm === cNorm) return true;
+                      return false;
                     });
                     if (v && v.value !== undefined && v.value !== null && v.value !== '') {
                       console.log(`[saveById] Found value for column "${colName}" from variable "${v.name}":`, v.value);
@@ -2314,8 +2341,7 @@ const LiveTerminal = () => {
                 console.log(`[saveById] Total fields populated: ${fieldsFound}`);
 
                 if (fieldsFound === 0 && !rec) {
-                  console.warn(`[saveById] No data harvested for new record in "${placeholder.name}". Aborting save to prevent empty record.`);
-                  toast.error(`❌ Tidak ada data yang ditemukan untuk disimpan ke ${placeholder.name}. Pastikan label input atau nama variabel sesuai dengan kolom tabel.`);
+                  console.warn(`[saveById] No data harvested for new record in "${placeholder.name}". Skipping save silently.`);
                   return false;
                 }
 
@@ -6126,14 +6152,6 @@ const LiveTerminal = () => {
                 flex: 1
               }}>
                 {/* App Components Render */}
-                <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 10000 }}>
-                  <button
-                    onClick={() => setDevMode(!devMode)}
-                    style={{ marginTop: '10px', padding: '6px 12px', fontSize: '0.7rem', cursor: 'pointer' }}
-                  >
-                    {devMode ? 'Hide Dev Tools' : 'Show Dev Tools'}
-                  </button>
-                </div>
                 {appComponents.length > 0 ? (
                   <div style={{
                     position: 'relative',
@@ -6141,12 +6159,6 @@ const LiveTerminal = () => {
                     height: '100%',
                     minHeight: '800px' // Ensure a minimum height for the canvas
                   }}>
-                    {/* Debug Overlay */}
-                    {!selectedApp?.is_published && (
-                      <div style={{ position: 'absolute', top: 5, left: 5, backgroundColor: 'rgba(0,0,0,0.7)', color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', zIndex: 10000, pointerEvents: 'none' }}>
-                        DEBUG: {appComponents.length} comps found | {appComponents.filter(c => visibilityMap[c.id] !== false).length} visible
-                      </div>
-                    )}
                     {[...appComponents]
                       .filter(c => visibilityMap[c.id] !== false)
                       .sort((a, b) => (a.props?.zIndex || 0) - (b.props?.zIndex || 0))

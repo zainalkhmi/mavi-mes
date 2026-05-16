@@ -4931,6 +4931,31 @@ const AppBuilder = () => {
             return false;
         }
 
+        // Reverse-sync: update previewFormValues for any input widgets bound to this variable
+        // so that textboxes immediately reflect the new variable value
+        if (didChange) {
+            const allComps = [...baseComponents, ...(steps.find(s => s.id === currentStepId)?.components || [])];
+            const boundCompIds = [];
+            allComps.forEach(comp => {
+                const props = comp?.props || {};
+                // Check targetVariable binding
+                if (props.targetVariable === varPath) {
+                    boundCompIds.push(comp.id);
+                }
+                // Check dataSourceType=VARIABLE binding
+                if (props.dataSourceType === 'VARIABLE' && props.varSource === varPath) {
+                    boundCompIds.push(comp.id);
+                }
+            });
+            if (boundCompIds.length > 0) {
+                setPreviewFormValues(prev => {
+                    const next = { ...prev };
+                    boundCompIds.forEach(id => { next[id] = nextValue; });
+                    return next;
+                });
+            }
+        }
+
         // Tulip-like: allow "data changed" triggers
         if (viewMode === 'PREVIEW' && didChange) {
             const eventPayload = { variable: varPath, previousValue: prevValue, value: nextValue, source };
@@ -4982,10 +5007,17 @@ const AppBuilder = () => {
 
     const syncInputDatasourceValue = (comp, nextValue, source = 'widget_input') => {
         const props = comp?.props || {};
-        if (props.dataSourceType !== 'VARIABLE') return;
-        const varName = String(props.varSource || '');
-        if (!varName || varName.startsWith('APP_INFO.')) return;
-        setValidatedVariableValue(varName, nextValue, source);
+        // Primary: dataSourceType=VARIABLE with varSource
+        if (props.dataSourceType === 'VARIABLE') {
+            const varName = String(props.varSource || '');
+            if (!varName || varName.startsWith('APP_INFO.')) return;
+            setValidatedVariableValue(varName, nextValue, source);
+            return;
+        }
+        // Fallback: targetVariable prop (common for TEXT_INPUT widgets)
+        if (props.targetVariable) {
+            setValidatedVariableValue(props.targetVariable, nextValue, source);
+        }
     };
 
     const executeAction = async (action, runtimeCtx = null) => {
@@ -5343,17 +5375,23 @@ const AppBuilder = () => {
                     };
                     const handleCreate = async (id) => {
                         const effectiveId = id || `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-                        if (viewMode === 'PREVIEW') {
-                            const newRec = { id: effectiveId, recordId: effectiveId, _simulated: true, created_at: new Date().toISOString() };
-                            setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: newRec }));
-                            console.log(`[Developer Mode] Simulated creation of record ${effectiveId}`);
-                            return true;
+                        // Create record with harvested data (reuse handleSave logic)
+                        // First set a minimal placeholder so handleSave can create with data
+                        setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: null }));
+                        const saved = await handleSave(effectiveId);
+                        if (!saved) {
+                            // Fallback: create empty record if no data harvested
+                            if (viewMode === 'PREVIEW') {
+                                const newRec = { id: effectiveId, recordId: effectiveId, _simulated: true, created_at: new Date().toISOString() };
+                                setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: newRec }));
+                            } else {
+                                const newRec = await addTableRecord(placeholder.tableId, { recordId: effectiveId });
+                                setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: newRec || { id: effectiveId, recordId: effectiveId } }));
+                            }
                         }
-                        const newRec = await addTableRecord(placeholder.tableId, { recordId: effectiveId });
-                        setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: newRec || { id: effectiveId, recordId: effectiveId } }));
                         return true;
                     };
-                    const handleSave = async () => {
+                    const handleSave = async (createRecordId = null) => {
                         const rec = recordPlaceholderData[placeholder.id];
                         const { getTableById, addTableRecord, updateTableRecord } = await import('../utils/supabaseTablesDB');
                         const tableDef = await getTableById(placeholder.tableId);
@@ -5362,6 +5400,7 @@ const AppBuilder = () => {
                         // 1. Harvest updated data from UI components
                         const updatedData = rec ? { ...rec } : {};
                         const allComps = [...baseComponents, ...(steps.find(s => s.id === currentStepId)?.components || [])];
+                        let fieldsFound = 0;
                         
                         allComps.forEach(comp => {
                             const targetVar = comp.props?.targetVariable || (comp.props?.dataSourceType === 'VARIABLE' ? comp.props?.varSource : null);
@@ -5380,42 +5419,56 @@ const AppBuilder = () => {
 
                             if (fieldName && previewFormValues[comp.id] !== undefined) {
                                 updatedData[fieldName] = previewFormValues[comp.id];
+                                fieldsFound++;
                             }
                         });
 
-                        // 2. Variable Fallback (Check appVariables for matching names)
+                        // 2. Variable Fallback (Aggressive matching)
                         columns.forEach(col => {
                             const colName = col.name || col;
-                            if (updatedData[colName] === undefined) {
+                            if (['id', 'recordid', 'createdat', 'updatedat', 'created_at', 'updated_at'].includes(String(colName).toLowerCase())) return;
+                            if (updatedData[colName] === undefined || updatedData[colName] === null || updatedData[colName] === '') {
                                 const v = appVariables.find(v => {
                                     const vNameUpper = String(v.name).toUpperCase();
                                     const colUpper = String(colName).toUpperCase();
-                                    return vNameUpper === colUpper || vNameUpper.endsWith('.' + colUpper);
+                                    if (vNameUpper === colUpper) return true;
+                                    if (vNameUpper.endsWith('.' + colUpper)) return true;
+                                    if (vNameUpper.endsWith('_' + colUpper)) return true;
+                                    if (colUpper.includes(vNameUpper) || vNameUpper.includes(colUpper)) return true;
+                                    const vNorm = vNameUpper.replace(/[^A-Z0-9]/g, '');
+                                    const cNorm = colUpper.replace(/[^A-Z0-9]/g, '');
+                                    if (vNorm === cNorm) return true;
+                                    return false;
                                 });
-                                if (v && v.value !== undefined) {
+                                if (v && v.value !== undefined && v.value !== null && v.value !== '') {
                                     updatedData[colName] = v.value;
+                                    fieldsFound++;
+                                    console.log(`[Builder] Variable fallback: column "${colName}" ← variable "${v.name}" = ${v.value}`);
                                 }
                             }
                         });
 
+                        if (fieldsFound === 0 && !rec) {
+                            console.warn(`[Builder] No data harvested for placeholder "${placeholder.name}". Skipping.`);
+                            return false;
+                        }
+
                         if (viewMode === 'PREVIEW') {
-                            const finalRec = updatedData.id ? updatedData : { ...updatedData, id: `sim_${Date.now()}`, recordId: updatedData.recordId || `rec_${Date.now()}` };
+                            const finalRec = updatedData.id ? updatedData : { ...updatedData, id: `sim_${Date.now()}`, recordId: updatedData.recordId || createRecordId || `rec_${Date.now()}` };
                             setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: finalRec }));
                             console.log(`[Developer Mode] Simulated SAVE of record`, finalRec);
                             toast.success('💾 Data tersimpan (Dev Mode Simulation)');
                             return true;
                         }
 
-                        // 2. Perform DB operation
+                        // 3. Perform DB operation
                         try {
                             if (rec && rec.id) {
-                                // Update existing
                                 const saved = await updateTableRecord(rec.id, updatedData);
                                 setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: saved }));
                                 console.log(`[Builder Dev] Updated record id=${rec.id}`, saved);
                             } else {
-                                // Create new with full data
-                                const effectiveId = resolvedId && resolvedId !== "Kosongkan untuk Auto ID" ? resolvedId : `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                                const effectiveId = createRecordId || (resolvedId && resolvedId !== "Kosongkan untuk Auto ID" ? resolvedId : `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
                                 const saved = await addTableRecord(placeholder.tableId, { ...updatedData, recordId: effectiveId });
                                 setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: saved }));
                                 console.log(`[Builder Dev] Created record with data`, saved);
@@ -7667,6 +7720,25 @@ const AppBuilder = () => {
         if (confirm('Are you sure you want to delete this app? This action cannot be undone.')) {
             try {
                 await deleteFrontlineApp(id);
+
+                // Purge from all localStorage caches so LiveTerminal doesn't show ghost entries
+                const cacheKeys = ['mavi_offline_vault', 'offline_apps_cache', 'draft_frontline_apps'];
+                cacheKeys.forEach(key => {
+                    try {
+                        const raw = localStorage.getItem(key);
+                        if (raw) {
+                            const arr = JSON.parse(raw);
+                            if (Array.isArray(arr)) {
+                                const filtered = arr.filter(a => String(a.id) !== String(id));
+                                if (filtered.length !== arr.length) {
+                                    localStorage.setItem(key, JSON.stringify(filtered));
+                                    console.log(`[Delete] Purged app ${id} from cache "${key}"`);
+                                }
+                            }
+                        }
+                    } catch (e) { /* ignore parse errors */ }
+                });
+
                 if (currentAppId === id) resetBuilder();
                 await loadApps();
                 alert('Project deleted successfully!');
