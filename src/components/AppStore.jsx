@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
     Layout, Sparkles, Settings2, Package, Wrench, ArrowRight, CheckCircle2,
     Search, Filter, Star, Zap, Info, Rocket, Database, ShieldCheck,
-    ChevronRight, ShoppingBag, Plus, Award, Boxes, ShieldAlert, BookOpen, X,
+    ChevronRight, ShoppingBag, Plus, Award, Boxes, ShieldAlert, BookOpen, X, Trash2,
     List, Cpu, Settings, FileText, PlayCircle, Activity, HeartPulse,
     Image as ImageIcon
 } from 'lucide-react';
@@ -21,6 +21,7 @@ import { createAssyLineProductionTemplate } from '../utils/assyLineProductionTem
 
 import { saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { createTable, getTables, addTableRecord } from '../utils/database';
+import { getCurrentUser } from '../utils/auth';
 import toast, { Toaster } from 'react-hot-toast';
 
 const AppStore = () => {
@@ -34,13 +35,14 @@ const AppStore = () => {
     const [archivedTemplates, setArchivedTemplates] = useState(() => {
         try { return JSON.parse(localStorage.getItem('archivedTemplates')) || []; } catch { return []; }
     });
+    const [deletedTemplates, setDeletedTemplates] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('deletedAppStoreTemplates')) || []; } catch { return []; }
+    });
     const [isAdmin, setIsAdmin] = useState(false);
     
     React.useEffect(() => {
-        try {
-            const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
-            if (user?.role?.toUpperCase() === 'ADMIN') setIsAdmin(true);
-        } catch (e) {}
+        const user = getCurrentUser();
+        if (user?.role?.toUpperCase().includes('ADMIN')) setIsAdmin(true);
     }, []);
 
     const toggleArchive = (e, templateId) => {
@@ -51,6 +53,18 @@ const AppStore = () => {
             toast.success(prev.includes(templateId) ? 'Template Restored' : 'Template Archived');
             return next;
         });
+    };
+
+    const handleDelete = (e, templateId) => {
+        e.stopPropagation();
+        if (window.confirm("Are you sure you want to permanently delete this template?")) {
+            setDeletedTemplates(prev => {
+                const next = [...prev, templateId];
+                localStorage.setItem('deletedAppStoreTemplates', JSON.stringify(next));
+                toast.success('Template Deleted');
+                return next;
+            });
+        }
     };
     const categories = ['All', 'Quality', 'Production', 'Logistics', 'Maintenance', 'Safety', 'Healthcare'];
 
@@ -369,6 +383,7 @@ const AppStore = () => {
 
 
     const filteredTemplates = templates.filter(t => {
+        if (deletedTemplates.includes(t.id)) return false;
         const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             t.description.toLowerCase().includes(searchQuery.toLowerCase());
         const matchesCategory = activeCategory === 'All' || t.category === activeCategory;
@@ -1015,12 +1030,20 @@ const AppStore = () => {
                                 </div>
                                 <div style={{ position: 'absolute', top: '16px', right: '16px', display: 'flex', gap: '6px' }}>
                                     {isAdmin && (
-                                        <button 
-                                            onClick={(e) => toggleArchive(e, t.id)}
-                                            style={{ padding: '4px 8px', borderRadius: '6px', backgroundColor: archivedTemplates.includes(t.id) ? '#ef4444' : 'rgba(255,255,255,0.4)', border: 'none', backdropFilter: 'blur(8px)', fontSize: '0.65rem', fontWeight: 800, color: archivedTemplates.includes(t.id) ? 'white' : '#0f172a', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                        >
-                                            <X size={12} /> {archivedTemplates.includes(t.id) ? 'ARCHIVED' : 'ARCHIVE'}
-                                        </button>
+                                        <>
+                                            <button 
+                                                onClick={(e) => toggleArchive(e, t.id)}
+                                                style={{ padding: '4px 8px', borderRadius: '6px', backgroundColor: archivedTemplates.includes(t.id) ? '#ef4444' : 'rgba(255,255,255,0.4)', border: 'none', backdropFilter: 'blur(8px)', fontSize: '0.65rem', fontWeight: 800, color: archivedTemplates.includes(t.id) ? 'white' : '#0f172a', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                            >
+                                                <X size={12} /> {archivedTemplates.includes(t.id) ? 'RESTORE' : 'ARCHIVE'}
+                                            </button>
+                                            <button 
+                                                onClick={(e) => handleDelete(e, t.id)}
+                                                style={{ padding: '4px 8px', borderRadius: '6px', backgroundColor: '#ef4444', border: 'none', backdropFilter: 'blur(8px)', fontSize: '0.65rem', fontWeight: 800, color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                            >
+                                                <Trash2 size={12} /> DELETE
+                                            </button>
+                                        </>
                                     )}
                                     <div style={{ padding: '4px 8px', borderRadius: '6px', backgroundColor: 'rgba(255,255,255,0.4)', backdropFilter: 'blur(8px)', fontSize: '0.65rem', fontWeight: 800, color: '#0f172a' }}>
                                         {t.category.toUpperCase()}
