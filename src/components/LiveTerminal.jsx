@@ -1657,6 +1657,7 @@ const LiveTerminal = () => {
               }
               return res ?? '';
             }
+            return ''; // Placeholder exists but no record selected
           }
         }
       }
@@ -1683,10 +1684,13 @@ const LiveTerminal = () => {
             }
             return current ?? '';
           }
+          return ''; // Placeholder exists but no record selected
         }
       }
       const v = appVariables.find(av => av.name === varName);
-      return v ? v.value : val;
+      if (v) return v.value;
+      if (val.startsWith('@') && val.includes('.')) return '';
+      return val;
     }
     return val;
   };
@@ -2167,6 +2171,7 @@ const LiveTerminal = () => {
                 const rec = localPlaceholderContext[placeholderId] || recordPlaceholderData[placeholderId];
                 const updatedData = rec ? { ...rec } : {};
                 let fieldsFound = 0;
+                const harvestedColsThisSession = new Set();
 
                 // Fetch table definition to know which columns we need
                 const { getTableById, addTableRecord, updateTableRecord, getTableRecords } = await import('../utils/supabaseTablesDB');
@@ -2245,8 +2250,8 @@ const LiveTerminal = () => {
                       compNameNorm === colNorm ||
                       normalize(comp.id) === colNorm
                     ) {
-                      // Skip if we already found a value for this column from a higher-priority component
-                      if (updatedData[colName] !== undefined && updatedData[colName] !== null && updatedData[colName] !== '') return;
+                      // Only skip if we already harvested a value for this specific column in THIS session
+                      if (harvestedColsThisSession.has(colName)) return;
 
                       let val = getComponentLiveValue(comp);
 
@@ -2259,6 +2264,7 @@ const LiveTerminal = () => {
                       if (val !== undefined && val !== null && val !== '') {
                         console.log(`[saveById] Found value for column "${colName}" from component "${comp.id}" (${comp.type}):`, val);
                         updatedData[colName] = val;
+                        harvestedColsThisSession.add(colName);
                         fieldsFound++;
                       }
                     }
