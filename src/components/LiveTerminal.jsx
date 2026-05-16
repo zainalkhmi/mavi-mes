@@ -330,6 +330,7 @@ const LiveTerminal = () => {
   const [uploadValues, setUploadValues] = useState({}); // { [compId]: { name, url, type } }
   const [textInputValues, setTextInputValues] = useState({}); // { [compId]: string }
   const [textAreaValues, setTextAreaValues] = useState({}); // { [compId]: string }
+  const saveLock = useRef({}); // Prevents double-saves for the same placeholder during concurrent triggers
   const [multiSelectValues, setMultiSelectValues] = useState({}); // { [compId]: string[] }
   const [dropdownValues, setDropdownValues] = useState({}); // { [compId]: string }
   const [radioValues, setRadioValues] = useState({}); // { [compId]: string }
@@ -1152,6 +1153,26 @@ const LiveTerminal = () => {
       setCycleData([]);
       setQualityData({});
       setQuantityLog({});
+      
+      // Initialize variables and placeholders for Manuals if they exist
+      const config = fullManual.content || {};
+      const resolvedVariables = (config.appVariables || []).map(v => ({ ...v, value: v.defaultValue }));
+      setAppVariables(resolvedVariables);
+      setAppFunctions(config.appFunctions || []);
+      setRecordPlaceholders(config.recordPlaceholders || []);
+      setRecordPlaceholderData({});
+      setBoundData({});
+      
+      // Clear input states
+      setTextInputValues({});
+      setTextAreaValues({});
+      setNumberInputValues({});
+      setBarcodeValues({});
+      setDropdownValues({});
+      setToggleState({});
+      setQualityResult({});
+      setSignatureWidgetValues({});
+
 
       logEvent({
         type: AUDIT_EVENTS.CYCLE_START,
@@ -1816,518 +1837,576 @@ const LiveTerminal = () => {
   }, [activeMedia]);
 
   // Handle barcode scanned from hardware
-    // Handle trigger execution with local state for sequential actions
-    const executeTrigger = async (trigger, eventPayload = null) => {
-      if (!trigger || trigger.enabled === false) return;
+  // Handle trigger execution with local state for sequential actions
+  const executeTrigger = async (trigger, eventPayload = null) => {
+    if (!trigger || trigger.enabled === false) return;
 
-      // Local context to track placeholder updates within a single trigger execution
-      // This prevents race conditions between CREATE and SAVE actions
-      const localPlaceholderContext = {};
+    // Local context to track placeholder updates within a single trigger execution
+    // This prevents race conditions between CREATE and SAVE actions
+    const localPlaceholderContext = {};
 
-      // Helper to run actions
-      const runActions = async (actions) => {
-        if (!actions || actions.length === 0) {
-          console.log('[runActions] No actions to execute');
-          return;
-        }
-        console.log(`[runActions] Executing ${actions.length} actions...`);
-        for (const action of actions) {
-          try {
-            const act = action;
-            const type = act.type;
-            const payload = act.payload || act.detail || {};
-            console.log(` -> Action: ${type}`, payload);
+    // Helper to run actions
+    const runActions = async (actions) => {
+      if (!actions || actions.length === 0) {
+        console.log('[runActions] No actions to execute');
+        return;
+      }
+      console.log(`[runActions] Executing ${actions.length} actions...`);
+      for (const action of actions) {
+        try {
+          const act = action;
+          const type = act.type;
+          const payload = act.payload || act.detail || {};
+          console.log(` -> Action: ${type}`, payload);
 
-            if (type === 'SET_VARIABLE' || type === 'DATA_MANIPULATION') {
-              const varPath = payload.varPath || payload.target || payload.variableName || payload.variable;
-              const value = payload.value || payload.expression;
-              const valueType = payload.valueType || payload.source || (payload.operation === 'SET' || payload.action === 'SET' ? 'STATIC' : 'STATIC');
+          if (type === 'SET_VARIABLE' || type === 'DATA_MANIPULATION') {
+            const varPath = payload.varPath || payload.target || payload.variableName || payload.variable;
+            const value = payload.value || payload.expression;
+            const valueType = payload.valueType || payload.source || (payload.operation === 'SET' || payload.action === 'SET' ? 'STATIC' : 'STATIC');
 
-              let finalValue = value;
-              let finalType = valueType || 'STATIC';
+            let finalValue = value;
+            let finalType = valueType || 'STATIC';
 
-              if (value && typeof value === 'object' && value.type) {
-                finalType = value.type;
-                finalValue = value.value || value.id || value.expression || '';
-              }
+            if (value && typeof value === 'object' && value.type) {
+              finalType = value.type;
+              finalValue = value.value || value.id || value.expression || '';
+            }
 
-              const resolvedValue = await resolveSourceValue(finalType, finalValue, '', eventPayload);
+            const resolvedValue = await resolveSourceValue(finalType, finalValue, '', eventPayload);
 
-              if (varPath === 'APP_INFO.USER') setAppContext(prev => ({ ...prev, user: resolvedValue }));
-              else if (varPath === 'APP_INFO.STATION') setAppContext(prev => ({ ...prev, station: resolvedValue }));
-              else if (varPath === 'APP_INFO.WORK_ORDER') setAppContext(prev => ({ ...prev, workOrder: resolvedValue }));
-              else {
-                const vDef = appVariables.find(v => v.name === varPath || v.id === varPath);
-                if (vDef) {
-                  setAppVariables(prev => prev.map(v => (v.name === varPath || v.id === varPath) ? { ...v, value: resolvedValue } : v));
-                  if (vDef.isPersistent) {
-                    const { upsertGlobalVariable } = await import('../utils/supabaseGlobalVars');
-                    await upsertGlobalVariable(vDef.name, vDef.type || 'TEXT', resolvedValue);
-                  }
-                }
-              }
-            } else if (type === 'INCREMENT_VARIABLE' || type === 'DECREMENT_VARIABLE') {
-              const varPath = payload.varPath || payload.variableName || payload.variable;
-              const amount = payload.amount || 1;
+            if (varPath === 'APP_INFO.USER') setAppContext(prev => ({ ...prev, user: resolvedValue }));
+            else if (varPath === 'APP_INFO.STATION') setAppContext(prev => ({ ...prev, station: resolvedValue }));
+            else if (varPath === 'APP_INFO.WORK_ORDER') setAppContext(prev => ({ ...prev, workOrder: resolvedValue }));
+            else {
               const vDef = appVariables.find(v => v.name === varPath || v.id === varPath);
               if (vDef) {
-                const currentVal = Number(vDef.value) || 0;
-                const amt = Number(amount) || 1;
-                const nextVal = type === 'INCREMENT_VARIABLE' ? currentVal + amt : currentVal - amt;
-                setAppVariables(prev => prev.map(v => (v.name === varPath || v.id === varPath) ? { ...v, value: nextVal } : v));
+                setAppVariables(prev => prev.map(v => (v.name === varPath || v.id === varPath) ? { ...v, value: resolvedValue } : v));
                 if (vDef.isPersistent) {
                   const { upsertGlobalVariable } = await import('../utils/supabaseGlobalVars');
-                  await upsertGlobalVariable(vDef.name, vDef.type || 'TEXT', nextVal);
+                  await upsertGlobalVariable(vDef.name, vDef.type || 'TEXT', resolvedValue);
                 }
-              }
-            } else if (type === 'CLEAR_VARIABLE' || type === 'RESET_VARIABLE') {
-              const varPath = payload.varPath || payload.variableName || payload.variable;
-              const vDef = appVariables.find(v => v.name === varPath || v.id === varPath);
-              if (vDef) {
-                setAppVariables(prev => prev.map(v => (v.name === varPath || v.id === varPath) ? { ...v, value: vDef.defaultValue || '' } : v));
-                if (vDef.isPersistent) {
-                  const { upsertGlobalVariable } = await import('../utils/supabaseGlobalVars');
-                  await upsertGlobalVariable(vDef.name, vDef.type || 'TEXT', vDef.defaultValue || '');
-                }
-              }
-            } else if (type === 'AI_PROCESS') {
-              const { promptType, prompt, inputVar, resultVar } = payload;
-              const actualPrompt = promptType === 'VARIABLE' ? (appVariables.find(v => v.name === prompt)?.value || '') : prompt;
-              const inputData = inputVar ? (appVariables.find(v => v.name === inputVar)?.value || '') : '';
-              
-              const fullPrompt = inputData ? `${actualPrompt}\n\nData:\n${inputData}` : actualPrompt;
-              if (fullPrompt) {
-                toast.success(`Processing AI request...`);
-                try {
-                  const { getChatCompletion } = await import('../utils/aiService');
-                  const { getPrimaryAiConnector } = await import('../utils/database');
-                  const connector = await getPrimaryAiConnector();
-                  const result = await getChatCompletion([{ role: 'user', content: fullPrompt }], connector);
-                  
-                  if (resultVar) {
-                     setAppVariables(prev => prev.map(v => v.name === resultVar ? { ...v, value: result } : v));
-                     const vDef = appVariables.find(v => v.name === resultVar);
-                     if (vDef?.isPersistent) {
-                       const { upsertGlobalVariable } = await import('../utils/supabaseGlobalVars');
-                       await upsertGlobalVariable(vDef.name, vDef.type || 'TEXT', result);
-                     }
-                  }
-                  toast.success(`AI Process completed.`);
-                } catch(e) {
-                  toast.error(`AI Error: ${e.message}`);
-                  console.error(e);
-                }
-              }
-            } else if (type === 'SHOW_NOTIFICATION' || type === 'SHOW_MESSAGE' || type === 'DISPLAY_MESSAGE' || type === 'ALERT') {
-               const message = await resolveSourceValue(payload.valueType || payload.messageType || 'STATIC', payload.message || payload.value || payload.text || 'Notification', '', eventPayload);
-               const msgType = payload.msgType || payload.notificationType || payload.type || 'success';
-               console.log(`[Trigger] ${type}:`, message);
-               if (msgType === 'error') toast.error(message);
-               else if (msgType === 'warning') toast.error(message, { icon: '⚠️' });
-               else toast.success(message);
-            } else if (type === 'RUN_FUNCTION') {
-               const functionName = payload.functionName || payload.name || action.functionName;
-               try {
-                 const functions = JSON.parse(localStorage.getItem('mes_functions') || '[]');
-                 const targetFn = functions.find(f => f.name === functionName || f.id === functionName);
-                 if (targetFn) {
-                   const { default: automationEngine } = await import('../utils/automationEngine');
-                   const graphData = targetFn.published ? targetFn.published.data : targetFn.draft;
-                   if (graphData && graphData.nodes) {
-                       await automationEngine.executeGraph(graphData, { timestamp: new Date().toISOString(), source: 'UI_TRIGGER', ...eventPayload });
-                   } else {
-                       console.warn(`[runActions] Function graph data not found: ${functionName}`);
-                   }
-                 } else {
-                   console.warn(`[runActions] Function not found: ${functionName}`);
-                 }
-               } catch(e) {
-                 console.error(`[runActions] Error running function:`, e);
-               }
-            } else if (type === 'PLAY_SOUND') {
-              const { url } = action.payload;
-              if (url) {
-                const audio = new Audio(url);
-                audio.play().catch(err => console.error("Error playing sound:", err));
-              }
-            } else if (action.type === 'SHOW_IMAGE' || action.type === 'PLAY_VIDEO') {
-              const { url, duration } = action.payload;
-              if (url) {
-                setActiveMedia({ type: action.type === 'SHOW_IMAGE' ? 'IMAGE' : 'VIDEO', url, duration: duration || 0 });
-              }
-            } else if (action.type === 'GO_TO_STEP' || action.type === 'NAVIGATE_STEP') {
-              const stepTarget = action.payload?.stepId || action.payload?.targetId || action.payload?.screen || '';
-              let targetIndex = (selectedApp?.config?.steps || []).findIndex(s => s.id === stepTarget);
-              // Fallback: resolve by step title
-              if (targetIndex === -1) {
-                targetIndex = (selectedApp?.config?.steps || []).findIndex(s => 
-                  String(s.title || '').toLowerCase() === String(stepTarget).toLowerCase()
-                );
-              }
-              if (targetIndex !== -1) setCurrentStepIndex(targetIndex);
-            } else if (action.type === 'NEXT_STEP') {
-              handleNextStep();
-            } else if (action.type === 'PREV_STEP') {
-              handlePrevStep();
-            } else if (action.type === 'COMPLETE_APP') {
-              await handleCompleteApp();
-            } else if (action.type === 'CANCEL_APP') {
-              await handleCancelApp();
-            } else if (action.type === 'SAVE_APP_DATA') {
-              await handleSaveAppData();
-            } else if (action.type === 'CREATE_RECORD' || action.type === 'UPDATE_RECORD') {
-              const { tableId, mappings, recordId: rawRecordId } = action.payload;
-              const resolvedData = {};
-              for (const [col, mapObj] of Object.entries(mappings || {})) {
-                const mValue = typeof mapObj === 'string' ? mapObj : (mapObj.value || '');
-                const mType = typeof mapObj === 'string' ? 'STATIC' : (mapObj.type || 'STATIC');
-                resolvedData[col] = await resolveSourceValue(mType, mValue, '', eventPayload);
-              }
-
-              if (action.type === 'CREATE_RECORD') {
-                const { addTableRecord, resolveTableIdReference } = await import('../utils/supabaseTablesDB');
-                const resolvedTableId = await resolveTableIdReference(tableId);
-                if (!resolvedData.recordId && !resolvedData.id) {
-                  resolvedData.recordId = `REC_${Date.now()}`;
-                }
-                await addTableRecord(resolvedTableId, resolvedData);
-              } else {
-                const recordId = await resolveSourceValue('STATIC', rawRecordId);
-                const { updateTableRecord, resolveTableIdReference, getTableRecords } = await import('../utils/supabaseTablesDB');
-                const resolvedTableId = await resolveTableIdReference(tableId);
-
-                const records = await getTableRecords(resolvedTableId);
-                const target = records.find(r => String(r.recordId).toLowerCase() === String(recordId).toLowerCase());
-
-                if (target) {
-                  await updateTableRecord(target.id, resolvedData);
-                } else {
-                  throw new Error(`Record "${recordId}" not found in table "${tableId}"`);
-                }
-              }
-            } else if (['TABLE_RECORD_LOAD', 'TABLE_RECORD_CREATE', 'TABLE_RECORD_CREATE_OR_LOAD', 'TABLE_RECORD_SAVE', 'TABLE_RECORD_DELETE'].includes(action.type)) {
-              const { placeholderId, idType = 'STATIC', idValue = '' } = action.payload || action || {};
-              // Resolve placeholder by ID first, then fallback to name match
-              const allPlaceholders = selectedApp?.config?.recordPlaceholders || [];
-              let placeholder = allPlaceholders.find(rp => rp.id === placeholderId)
-                             || allPlaceholders.find(rp => String(rp.name).toLowerCase() === String(placeholderId).toLowerCase());
-
-              if (!placeholder?.tableId) {
-                toast.error(`❌ Placeholder "${placeholderId}" tidak ditemukan atau tidak terhubung ke tabel.`);
-                console.error(`[TABLE_RECORD] Placeholder not found: "${placeholderId}"`, allPlaceholders);
-                continue;
-              }
-              console.log(`[TABLE_RECORD] Resolved placeholder: "${placeholderId}" → id=${placeholder.id}, table=${placeholder.tableId}`, placeholder);
-
-              const resolvedId = await resolveSourceValue(idType, idValue, '', eventPayload);
-
-              const loadById = async () => {
-                const { getTableRecords } = await import('../utils/supabaseTablesDB');
-                const rows = await getTableRecords(placeholder.tableId);
-                const found = (rows || []).find(r => String(r.id) === String(resolvedId) || String(r.recordId) === String(resolvedId));
-                if (found) {
-                  localPlaceholderContext[placeholderId] = found;
-                  setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: found }));
-                  return true;
-                }
-                return false;
-              };
-
-              const createById = async () => {
-                const { addTableRecord } = await import('../utils/supabaseTablesDB');
-                // Ensure a valid ID if blank
-                const finalId = resolvedId && resolvedId !== "Kosongkan untuk Auto ID" ? resolvedId : `rec_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-                const created = await addTableRecord(placeholder.tableId, { recordId: finalId });
-                const finalRecord = created || { id: finalId, recordId: finalId };
-                localPlaceholderContext[placeholderId] = finalRecord;
-                setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: finalRecord }));
-                return true;
-              };
-
-                const saveById = async () => {
-                  try {
-                    // 1. CREATE IF MISSING, THEN UPDATE (One record per session/click)
-                    let rec = localPlaceholderContext[placeholderId] || recordPlaceholderData[placeholderId];
-                    if (!rec || (!rec.id && !rec.recordId)) {
-                       await createById();
-                       rec = localPlaceholderContext[placeholderId] || recordPlaceholderData[placeholderId];
-                    }
-
-                    if (!rec) return false;
-
-                    const updatedData = { ...rec };
-                    let fieldsFound = 0;
-
-                    // 2. Identify all potential columns to harvest
-                    const { getTableById } = await import('../utils/supabaseTablesDB');
-                    const tableDef = await getTableById(placeholder.tableId);
-                    const columns = tableDef?.columns || [];
-
-                    // 3. Harvest data for EACH column
-                    for (const col of columns) {
-                      const colName = col.name || col;
-                      if (['id', 'recordid', 'createdat', 'updatedat'].includes(String(colName).toLowerCase())) continue;
-
-                      try {
-                        // AGGRESSIVE SCAN: Search ALL components
-                        const allComps = [
-                          ...(selectedApp?.config?.baseComponents || []),
-                          ...(selectedApp?.config?.steps || []).flatMap(s => s.components || [])
-                        ];
-
-                        allComps.forEach(comp => {
-                          const targetVar = comp.props?.targetVariable || (comp.props?.dataSourceType === 'VARIABLE' ? comp.props?.varSource : null);
-                          if (!targetVar) return;
-
-                          const targetVarUpper = String(targetVar).toUpperCase();
-                          const colUpper = String(colName).toUpperCase();
-                          
-                          // Match if it ends with .COLUMN_NAME or is exactly COLUMN_NAME
-                          if (targetVarUpper.endsWith('.' + colUpper) || targetVarUpper === colUpper) {
-                            let val = undefined;
-                            const inputEl = document.getElementById(`input-${comp.id}`);
-                            if (inputEl) val = inputEl.value;
-
-                            if (val === undefined || val === null || val === '') {
-                              if (comp.type === 'TEXT_INPUT') val = textInputValues[comp.id];
-                              else if (comp.type === 'TEXT_AREA') val = textAreaValues[comp.id];
-                              else if (comp.type === 'BARCODE' || comp.type === 'BARCODE_SCANNER') val = barcodeValues[comp.id] ?? cameraScannerValues[comp.id];
-                              else if (comp.type === 'NUMBER_INPUT') val = numberInputValues[comp.id];
-                              else if (comp.type === 'DROPDOWN') val = dropdownValues[comp.id];
-                              else if (comp.type === 'CHECKBOX') val = toggleState[comp.id]; // CHECKBOX uses toggleState in LiveTerminal
-                              else if (comp.type === 'BOOLEAN_TOGGLE') val = toggleState[comp.id];
-                              else if (comp.type === 'CHECKLIST') val = checklistState[comp.id];
-                              else if (comp.type === 'TOGGLE') val = toggleState[comp.id];
-                              else if (comp.type === 'RADIO' || comp.type === 'RADIO_GROUP') val = radioValues[comp.id];
-                              else if (comp.type === 'MULTI_SELECT') val = multiSelectValues[comp.id];
-                              else if (comp.type === 'QUALITY_PASS_FAIL') val = qualityResult[comp.id];
-                              else if (comp.type === 'SLIDER') val = sliderValues[comp.id];
-                              else if (comp.type === 'DATE_PICKER') val = dateValues[comp.id];
-                              else if (comp.type === 'DATETIME_PICKER') val = dateTimeValues[comp.id];
-                              else if (comp.type === 'SIGNATURE' || comp.type === 'SIGNATURE_PAD') val = signatureWidgetValues[comp.id] ?? drawValues[comp.id];
-                              else if (comp.type === 'CAMERA_CAPTURE' || comp.type === 'CAMERA') val = cameraValues[comp.id];
-                            }
-
-                            if (val !== undefined && val !== null && val !== '') {
-                              updatedData[colName] = val;
-                              updatedData[colName.toLowerCase()] = val;
-                              fieldsFound++;
-                            }
-                          }
-                        });
-
-                        // Fallback to global variables
-                        if (!updatedData[colName]) {
-                          const v = appVariables.find(v => {
-                            const vNameUpper = String(v.name).toUpperCase();
-                            return vNameUpper.endsWith('.' + String(colName).toUpperCase()) || vNameUpper === String(colName).toUpperCase();
-                          });
-                          if (v && v.value !== undefined && v.value !== null && v.value !== '') {
-                            updatedData[colName] = v.value;
-                            updatedData[colName.toLowerCase()] = v.value;
-                            fieldsFound++;
-                          }
-                        }
-                      } catch (e) {
-                        console.warn(`[Harvest] Error for column ${colName}:`, e);
-                      }
-                    }
-
-                    console.log(`[saveById] Harvested ${fieldsFound} fields from UI.`);
-
-                    const { updateTableRecord, getTableRecords } = await import('../utils/supabaseTablesDB');
-                    
-                    let dbRowId = rec.id;
-                    if (!dbRowId && rec.recordId) {
-                       const rows = await getTableRecords(placeholder.tableId);
-                       const match = rows.find(r => String(r.recordId).toLowerCase() === String(rec.recordId).toLowerCase());
-                       if (match) dbRowId = match.id;
-                    }
-
-                    if (!dbRowId) return false;
-
-                    await updateTableRecord(dbRowId, updatedData);
-                    return true;
-                  } catch (err) {
-                    console.error("Save Error:", err);
-                    window.alert("CRITICAL ERROR: " + err.message);
-                    return false;
-                  }
-                };
-
-              const deleteById = async () => {
-                const rec = localPlaceholderContext[placeholderId] || recordPlaceholderData[placeholderId];
-                if (!rec || !rec.id) {
-                  toast.error('❌ DELETE: Tidak ada record yang di-load. Gunakan TABLE_RECORD_LOAD dulu.');
-                  return false;
-                }
-                const { deleteTableRecord } = await import('../utils/supabaseTablesDB');
-                // deleteTableRecord only takes the internal row id (Supabase primary key)
-                await deleteTableRecord(rec.id);
-                localPlaceholderContext[placeholderId] = null;
-                setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: null }));
-                console.log(`[TABLE_RECORD_DELETE] Deleted record id=${rec.id} from table=${placeholder.tableId}`);
-                return true;
-              };
-
-              if (action.type === 'TABLE_RECORD_LOAD') {
-                await loadById();
-              } else if (action.type === 'TABLE_RECORD_CREATE') {
-                await createById();
-              } else if (action.type === 'TABLE_RECORD_SAVE') {
-                await saveById();
-              } else if (action.type === 'TABLE_RECORD_DELETE') {
-                await deleteById();
-              } else {
-                const ok = await loadById();
-                if (!ok) await createById();
-              }
-            } else if (type === 'OBD2_CONNECT') {
-                const { transport } = payload;
-                try {
-                    if (transport === 'SERIAL') await obd2Service.connectSerial();
-                    else await obd2Service.connectBluetooth();
-                } catch(e) {
-                    toast.error(`OBD2 Error: ${e.message}`);
-                }
-            } else if (type === 'OBD2_QUERY' || type === 'OBD2_READ') {
-                const { pid } = payload;
-                if (pid) {
-                    await obd2Service.queryPID(pid);
-                }
-            } else if (type === 'OBD2_CLEAR_DTC') {
-                await obd2Service.clearDTC();
-            } else if (type === 'CUSTOM_SCRIPT') {
-                const { script } = payload;
-                if (script) {
-                    try {
-                        const fn = new Function('appVariables', 'setVariable', 'toast', script);
-                        fn(appVariables, (n, v) => setAppVariables(prev => prev.map(p => p.name === n ? { ...p, value: v } : p)), toast);
-                    } catch(e) {
-                        toast.error(`Script error: ${e.message}`);
-                    }
-                }
-            } else if (type === 'CALCULATE_FORMULA') {
-                const { formula, resultVar } = payload;
-                if (formula && resultVar) {
-                    try {
-                        const val = evaluateExpression(formula);
-                        setAppVariables(prev => prev.map(v => v.name === resultVar ? { ...v, value: val } : v));
-                    } catch(e) {
-                        toast.error(`Formula error: ${e.message}`);
-                    }
-                }
-            } else if (action.type === 'CLEAR_RECORD_PLACEHOLDER') {
-              const { placeholderId } = action.payload || {};
-              if (!placeholderId) continue;
-              localPlaceholderContext[placeholderId] = null;
-              setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: null }));
-            } else if (action.type === 'CALL_FUNCTION') {
-              const { functionId, parameters } = action.payload;
-              const fn = appFunctions.find(f => f.id === functionId);
-              if (!fn) continue;
-
-              const resolvedParams = {};
-              for (const [name, paramObj] of Object.entries(parameters || {})) {
-                resolvedParams[name] = await resolveSourceValue(paramObj.type, paramObj.value, '', eventPayload);
-              }
-
-              let localContext = { ...resolvedParams };
-              for (const step of fn.steps) {
-                if (step.type === 'SET') {
-                  const val = evaluateExpression(step.expression, localContext);
-                  localContext[step.name] = val;
-                  const globalVar = appVariables.find(v => v.name === step.name);
-                  if (globalVar) {
-                    setAppVariables(prev => prev.map(v => v.name === step.name ? { ...v, value: val } : v));
-                    if (globalVar.isPersistent) {
-                      const { upsertGlobalVariable } = await import('../utils/supabaseGlobalVars');
-                      await upsertGlobalVariable(step.name, globalVar.type || 'TEXT', val);
-                    }
-                  }
-                }
-              }
-            } else if (action.type === 'SEND_TO_CONNECTOR') {
-              const { connectorId, functionId, parameters, resultVar } = action.payload;
-              const resolvedParams = {};
-              for (const [name, paramObj] of Object.entries(parameters || {})) {
-                resolvedParams[name] = await resolveSourceValue(paramObj.type, paramObj.value, '', eventPayload);
-              }
-
-              const { webhookUtility } = await import('../utils/webhookUtility');
-              try {
-                const result = await webhookUtility.executeIntegrationAction(connectorId, { functionId, parameters: resolvedParams });
-                if (resultVar && result) {
-                  setAppVariables(prev => prev.map(v => v.name === resultVar ? { ...v, value: result } : v));
-                }
-              } catch (err) {
-                console.error(`[Connector] Execution failed:`, err);
-              }
-            } else if (action.type === 'LINK_RECORD' || action.type === 'UNLINK_RECORD') {
-              const {
-                sourceTableId,
-                sourceRecordId: rawSourceId,
-                sourceFieldName,
-                targetTableId,
-                targetRecordId: rawTargetId,
-                targetFieldName
-              } = action.payload;
-
-              const sourceRecordId = await resolveSourceValue(action.payload.sourceRecordIdType || 'STATIC', rawSourceId, '', eventPayload);
-              const targetRecordId = await resolveSourceValue(action.payload.targetRecordIdType || 'STATIC', rawTargetId, '', eventPayload);
-
-              if (!sourceRecordId || !targetRecordId) {
-                continue;
-              }
-
-              const { linkRecords, unlinkRecords } = await import('../utils/supabaseTablesDB');
-              try {
-                if (action.type === 'LINK_RECORD') {
-                  await linkRecords(sourceTableId, sourceRecordId, sourceFieldName, targetTableId, targetRecordId, targetFieldName);
-                } else {
-                  await unlinkRecords(sourceTableId, sourceRecordId, sourceFieldName, targetTableId, targetRecordId, targetFieldName);
-                }
-                fetchTableData(selectedApp);
-              } catch (err) {
-                console.error(`[LinkedRecords] Failed to ${action.type}:`, err);
               }
             }
-          } catch (err) {
-            console.error(`Action execution failed (${action.type}):`, err);
-            toast.error(`Action Failed: ${err.message || 'Unknown error'}`);
+          } else if (type === 'INCREMENT_VARIABLE' || type === 'DECREMENT_VARIABLE') {
+            const varPath = payload.varPath || payload.variableName || payload.variable;
+            const amount = payload.amount || 1;
+            const vDef = appVariables.find(v => v.name === varPath || v.id === varPath);
+            if (vDef) {
+              const currentVal = Number(vDef.value) || 0;
+              const amt = Number(amount) || 1;
+              const nextVal = type === 'INCREMENT_VARIABLE' ? currentVal + amt : currentVal - amt;
+              setAppVariables(prev => prev.map(v => (v.name === varPath || v.id === varPath) ? { ...v, value: nextVal } : v));
+              if (vDef.isPersistent) {
+                const { upsertGlobalVariable } = await import('../utils/supabaseGlobalVars');
+                await upsertGlobalVariable(vDef.name, vDef.type || 'TEXT', nextVal);
+              }
+            }
+          } else if (type === 'CLEAR_VARIABLE' || type === 'RESET_VARIABLE') {
+            const varPath = payload.varPath || payload.variableName || payload.variable;
+            const vDef = appVariables.find(v => v.name === varPath || v.id === varPath);
+            if (vDef) {
+              setAppVariables(prev => prev.map(v => (v.name === varPath || v.id === varPath) ? { ...v, value: vDef.defaultValue || '' } : v));
+              if (vDef.isPersistent) {
+                const { upsertGlobalVariable } = await import('../utils/supabaseGlobalVars');
+                await upsertGlobalVariable(vDef.name, vDef.type || 'TEXT', vDef.defaultValue || '');
+              }
+            }
+          } else if (type === 'AI_PROCESS') {
+            const { promptType, prompt, inputVar, resultVar } = payload;
+            const actualPrompt = promptType === 'VARIABLE' ? (appVariables.find(v => v.name === prompt)?.value || '') : prompt;
+            const inputData = inputVar ? (appVariables.find(v => v.name === inputVar)?.value || '') : '';
+
+            const fullPrompt = inputData ? `${actualPrompt}\n\nData:\n${inputData}` : actualPrompt;
+            if (fullPrompt) {
+              toast.success(`Processing AI request...`);
+              try {
+                const { getChatCompletion } = await import('../utils/aiService');
+                const { getPrimaryAiConnector } = await import('../utils/database');
+                const connector = await getPrimaryAiConnector();
+                const result = await getChatCompletion([{ role: 'user', content: fullPrompt }], connector);
+
+                if (resultVar) {
+                  setAppVariables(prev => prev.map(v => v.name === resultVar ? { ...v, value: result } : v));
+                  const vDef = appVariables.find(v => v.name === resultVar);
+                  if (vDef?.isPersistent) {
+                    const { upsertGlobalVariable } = await import('../utils/supabaseGlobalVars');
+                    await upsertGlobalVariable(vDef.name, vDef.type || 'TEXT', result);
+                  }
+                }
+                toast.success(`AI Process completed.`);
+              } catch (e) {
+                toast.error(`AI Error: ${e.message}`);
+                console.error(e);
+              }
+            }
+          } else if (type === 'SHOW_NOTIFICATION' || type === 'SHOW_MESSAGE' || type === 'DISPLAY_MESSAGE' || type === 'ALERT') {
+            const message = await resolveSourceValue(payload.valueType || payload.messageType || 'STATIC', payload.message || payload.value || payload.text || 'Notification', '', eventPayload);
+            const msgType = payload.msgType || payload.notificationType || payload.type || 'success';
+            console.log(`[Trigger] ${type}:`, message);
+            if (msgType === 'error') toast.error(message);
+            else if (msgType === 'warning') toast.error(message, { icon: '⚠️' });
+            else toast.success(message);
+          } else if (type === 'RUN_FUNCTION') {
+            const functionName = payload.functionName || payload.name || action.functionName;
+            try {
+              const functions = JSON.parse(localStorage.getItem('mes_functions') || '[]');
+              const targetFn = functions.find(f => f.name === functionName || f.id === functionName);
+              if (targetFn) {
+                const { default: automationEngine } = await import('../utils/automationEngine');
+                const graphData = targetFn.published ? targetFn.published.data : targetFn.draft;
+                if (graphData && graphData.nodes) {
+                  await automationEngine.executeGraph(graphData, { timestamp: new Date().toISOString(), source: 'UI_TRIGGER', ...eventPayload });
+                } else {
+                  console.warn(`[runActions] Function graph data not found: ${functionName}`);
+                }
+              } else {
+                console.warn(`[runActions] Function not found: ${functionName}`);
+              }
+            } catch (e) {
+              console.error(`[runActions] Error running function:`, e);
+            }
+          } else if (type === 'PLAY_SOUND') {
+            const { url } = action.payload;
+            if (url) {
+              const audio = new Audio(url);
+              audio.play().catch(err => console.error("Error playing sound:", err));
+            }
+          } else if (action.type === 'SHOW_IMAGE' || action.type === 'PLAY_VIDEO') {
+            const { url, duration } = action.payload;
+            if (url) {
+              setActiveMedia({ type: action.type === 'SHOW_IMAGE' ? 'IMAGE' : 'VIDEO', url, duration: duration || 0 });
+            }
+          } else if (action.type === 'GO_TO_STEP' || action.type === 'NAVIGATE_STEP') {
+            const stepTarget = action.payload?.stepId || action.payload?.targetId || action.payload?.screen || '';
+            let targetIndex = (selectedApp?.config?.steps || []).findIndex(s => s.id === stepTarget);
+            // Fallback: resolve by step title
+            if (targetIndex === -1) {
+              targetIndex = (selectedApp?.config?.steps || []).findIndex(s =>
+                String(s.title || '').toLowerCase() === String(stepTarget).toLowerCase()
+              );
+            }
+            if (targetIndex !== -1) setCurrentStepIndex(targetIndex);
+          } else if (action.type === 'NEXT_STEP') {
+            handleNextStep();
+          } else if (action.type === 'PREV_STEP') {
+            handlePrevStep();
+          } else if (action.type === 'COMPLETE_APP') {
+            await handleCompleteApp();
+          } else if (action.type === 'CANCEL_APP') {
+            await handleCancelApp();
+          } else if (action.type === 'SAVE_APP_DATA') {
+            await handleSaveAppData();
+          } else if (action.type === 'CREATE_RECORD' || action.type === 'UPDATE_RECORD') {
+            const { tableId, mappings, recordId: rawRecordId } = action.payload;
+            const resolvedData = {};
+            for (const [col, mapObj] of Object.entries(mappings || {})) {
+              const mValue = typeof mapObj === 'string' ? mapObj : (mapObj.value || '');
+              const mType = typeof mapObj === 'string' ? 'STATIC' : (mapObj.type || 'STATIC');
+              resolvedData[col] = await resolveSourceValue(mType, mValue, '', eventPayload);
+            }
+
+            if (action.type === 'CREATE_RECORD') {
+              const { addTableRecord, resolveTableIdReference } = await import('../utils/supabaseTablesDB');
+              const resolvedTableId = await resolveTableIdReference(tableId);
+              if (!resolvedData.recordId && !resolvedData.id) {
+                resolvedData.recordId = `REC_${Date.now()}`;
+              }
+              await addTableRecord(resolvedTableId, resolvedData);
+            } else {
+              const recordId = await resolveSourceValue('STATIC', rawRecordId);
+              const { updateTableRecord, resolveTableIdReference, getTableRecords } = await import('../utils/supabaseTablesDB');
+              const resolvedTableId = await resolveTableIdReference(tableId);
+
+              const records = await getTableRecords(resolvedTableId);
+              const target = records.find(r => String(r.recordId).toLowerCase() === String(recordId).toLowerCase());
+
+              if (target) {
+                await updateTableRecord(target.id, resolvedData);
+              } else {
+                throw new Error(`Record "${recordId}" not found in table "${tableId}"`);
+              }
+            }
+          } else if (['TABLE_RECORD_LOAD', 'TABLE_RECORD_CREATE', 'TABLE_RECORD_CREATE_OR_LOAD', 'TABLE_RECORD_SAVE', 'TABLE_RECORD_DELETE'].includes(action.type)) {
+            let { placeholderId, idType = 'STATIC', idValue = '' } = action.payload || action || {};
+            
+            // Resolve placeholder by ID first, then fallback to name match
+            const allPlaceholders = recordPlaceholders || [];
+            
+            // Fallback: If no placeholderId provided for a SAVE action, try the first one
+            if (!placeholderId && action.type === 'TABLE_RECORD_SAVE' && allPlaceholders.length > 0) {
+               placeholderId = allPlaceholders[0].id;
+               console.log(`[TABLE_RECORD] No placeholderId specified for SAVE. Falling back to first placeholder: ${placeholderId}`);
+            }
+
+            let placeholder = allPlaceholders.find(rp => rp.id === placeholderId)
+              || allPlaceholders.find(rp => String(rp.name).toLowerCase() === String(placeholderId).toLowerCase());
+
+            if (!placeholder?.tableId) {
+              toast.error(`❌ Placeholder "${placeholderId || 'kosong'}" tidak ditemukan atau tidak terhubung ke tabel.`);
+              console.error(`[TABLE_RECORD] Placeholder not found: "${placeholderId}"`, allPlaceholders);
+              continue;
+            }
+            console.log(`[TABLE_RECORD] Resolved placeholder: "${placeholderId}" → id=${placeholder.id}, table=${placeholder.tableId}`, placeholder);
+
+            const resolvedId = await resolveSourceValue(idType, idValue, '', eventPayload);
+
+            const loadById = async () => {
+              const { getTableRecords } = await import('../utils/supabaseTablesDB');
+              const rows = await getTableRecords(placeholder.tableId);
+              const found = (rows || []).find(r => String(r.id) === String(resolvedId) || String(r.recordId) === String(resolvedId));
+              if (found) {
+                localPlaceholderContext[placeholderId] = found;
+                setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: found }));
+                return true;
+              }
+              return false;
+            };
+
+            const createById = async () => {
+              // Create should persist full harvested payload (not only recordId).
+              // Force-create mode by clearing current context, then reuse save flow.
+              localPlaceholderContext[placeholderId] = null;
+              setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: null }));
+              return await saveById();
+            };
+
+            const saveById = async () => {
+              if (saveLock.current[placeholderId]) {
+                console.log(`[saveById] Save already in progress for "${placeholderId}", skipping.`);
+                return false;
+              }
+              saveLock.current[placeholderId] = true;
+
+              try {
+                // 1. Harvest current data from UI components
+                const rec = localPlaceholderContext[placeholderId] || recordPlaceholderData[placeholderId];
+                const updatedData = rec ? { ...rec } : {};
+                let fieldsFound = 0;
+
+                // Fetch table definition to know which columns we need
+                const { getTableById, addTableRecord, updateTableRecord, getTableRecords } = await import('../utils/supabaseTablesDB');
+                const tableDef = await getTableById(placeholder.tableId);
+                const columns = tableDef?.columns || [];
+
+                // AGGRESSIVE SCAN: Search ALL components (Apps & Manuals)
+                const allComps = [
+                  ...(selectedApp?.config?.baseComponents || []),
+                  ...(selectedApp?.config?.steps || []).flatMap(s => s.components || []),
+                  ...(selectedManual?.content?.baseComponents || []),
+                  ...(selectedManual?.content?.steps || []).flatMap(s => s.components || [])
+                ];
+
+                const getComponentLiveValue = (comp) => {
+                  if (comp.type === 'TEXT_INPUT') return textInputValues[comp.id];
+                  if (comp.type === 'TEXT_AREA') return textAreaValues[comp.id];
+                  if (comp.type === 'NUMBER_INPUT') return numberInputValues[comp.id];
+                  if (comp.type === 'BARCODE' || comp.type === 'BARCODE_SCANNER') return barcodeValues[comp.id] ?? cameraScannerValues[comp.id];
+                  if (comp.type === 'DROPDOWN') return dropdownValues[comp.id];
+                  if (comp.type === 'CHECKBOX' || comp.type === 'BOOLEAN_TOGGLE' || comp.type === 'TOGGLE') return toggleState[comp.id];
+                  if (comp.type === 'CHECKLIST') return checklistState[comp.id];
+                  if (comp.type === 'RADIO' || comp.type === 'RADIO_GROUP') return radioValues[comp.id];
+                  if (comp.type === 'MULTI_SELECT') return multiSelectValues[comp.id];
+                  if (comp.type === 'QUALITY_PASS_FAIL') return qualityResult[comp.id];
+                  if (comp.type === 'SLIDER') return sliderValues[comp.id];
+                  if (comp.type === 'DATE_PICKER') return dateValues[comp.id];
+                  if (comp.type === 'DATETIME_PICKER') return dateTimeValues[comp.id];
+                  if (comp.type === 'TIME_PICKER') return timeValues[comp.id];
+                  if (comp.type === 'SIGNATURE' || comp.type === 'SIGNATURE_PAD') return signatureWidgetValues[comp.id] ?? drawValues[comp.id];
+                  if (comp.type === 'CAMERA_CAPTURE' || comp.type === 'CAMERA') return cameraValues[comp.id];
+                  if (comp.type === 'FILE_UPLOAD' || comp.type === 'FILE_PICKER') return fileValues[comp.id];
+                  return undefined;
+                };
+
+                // Harvest data for EACH column
+                for (const col of columns) {
+                  const colName = col.name || col;
+                  if (['id', 'recordid', 'createdat', 'updatedat'].includes(String(colName).toLowerCase())) continue;
+
+                  allComps.forEach(comp => {
+                    // Normalization helper for matching
+                    const normalize = (str) => String(str || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+                    const targetVar = comp.props?.targetVariable || (comp.props?.dataSourceType === 'VARIABLE' ? comp.props?.varSource : null);
+                    const explicitField = comp.props?.tableField || comp.props?.fieldName || comp.props?.column || comp.props?.bindingConfig?.resultColumn || '';
+                    const compLabel = comp.props?.label || comp.props?.text || comp.props?.title || '';
+
+                    const targetVarNorm = normalize(targetVar);
+                    const targetVarLastSegNorm = targetVar && String(targetVar).includes('.') ? normalize(String(targetVar).split('.').pop()) : '';
+                    const explicitFieldNorm = normalize(explicitField);
+                    const compLabelNorm = normalize(compLabel);
+                    const colNorm = normalize(colName);
+                    const phNameNorm = normalize(placeholder.name);
+
+                    // Match: Placeholder.Column, Column, last segment var (e.g. dit.data), explicit field binding, or Label match
+                    if (
+                      targetVarNorm === phNameNorm + colNorm ||
+                      targetVarNorm === colNorm ||
+                      targetVarLastSegNorm === colNorm ||
+                      explicitFieldNorm === colNorm ||
+                      compLabelNorm === colNorm
+                    ) {
+                      let val = getComponentLiveValue(comp);
+
+                      // DOM Fallback if state is empty but element has value
+                      if (val === undefined || val === null || val === '') {
+                        const inputEl = document.getElementById(`input-${comp.id}`);
+                        if (inputEl) val = inputEl.value;
+                      }
+
+                      if (val !== undefined && val !== null && val !== '') {
+                        console.log(`[saveById] Found value for column "${colName}" from component "${comp.id}" (${comp.type}):`, val);
+                        updatedData[colName] = val;
+                        fieldsFound++;
+                      }
+                    }
+                  });
+
+
+                  // Fallback khusus: bila tabel hanya punya 1 kolom data user, simpan dari input aktif meski belum dimapping variable.
+                  if (!updatedData[colName] && columns.filter(c => !['id', 'recordid', 'createdat', 'updatedat'].includes(String((c.name || c)).toLowerCase())).length === 1) {
+                    for (const comp of allComps) {
+                      let val = getComponentLiveValue(comp);
+                      if (val === undefined || val === null || val === '') {
+                        const inputEl = document.getElementById(`input-${comp.id}`);
+                        if (inputEl) val = inputEl.value;
+                      }
+                      if (val !== undefined && val !== null && val !== '') {
+                        updatedData[colName] = val;
+                        fieldsFound++;
+                        console.log(`[saveById] Single-column fallback used for "${colName}" from component "${comp.id}"`);
+                        break;
+                      }
+                    }
+                  }
+
+                  // 2. Variable Fallback
+                  if (!updatedData[colName]) {
+                    const v = appVariables.find(v => {
+                      const vNameUpper = String(v.name).toUpperCase();
+                      const colUpper = String(colName).toUpperCase();
+                      return vNameUpper === colUpper || vNameUpper.endsWith('.' + colUpper);
+                    });
+                    if (v && v.value !== undefined && v.value !== null && v.value !== '') {
+                      console.log(`[saveById] Found value for column "${colName}" from variable "${v.name}":`, v.value);
+                      updatedData[colName] = v.value;
+                      fieldsFound++;
+                    }
+                  }
+                }
+
+                console.log(`[saveById] Final harvest results for placeholder "${placeholder.name}":`, updatedData);
+                console.log(`[saveById] Total fields populated: ${fieldsFound}`);
+
+                // 3. Determine if we UPDATE or CREATE
+                let finalRecord = null;
+                if (rec && (rec.id || rec.recordId)) {
+                  let dbRowId = rec.id;
+                  if (!dbRowId && rec.recordId) {
+                    const rows = await getTableRecords(placeholder.tableId);
+                    const match = rows.find(r => String(r.recordId).toLowerCase() === String(rec.recordId).toLowerCase());
+                    if (match) dbRowId = match.id;
+                  }
+
+                  if (dbRowId) {
+                    finalRecord = await updateTableRecord(dbRowId, updatedData);
+                    console.log(`[saveById] Updated record id=${dbRowId}`);
+                  }
+                }
+
+                if (!finalRecord) {
+                  // Create new record with harvested data
+                  const finalId = resolvedId && resolvedId !== "Kosongkan untuk Auto ID" ? resolvedId : `rec_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                  finalRecord = await addTableRecord(placeholder.tableId, { ...updatedData, recordId: finalId });
+                  console.log(`[saveById] Created new record recordId=${finalId}`);
+                }
+
+                // 4. Update context and state
+                localPlaceholderContext[placeholderId] = finalRecord;
+                setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: finalRecord }));
+                toast.success('💾 Data berhasil disimpan ke tabel.');
+                return true;
+              } catch (err) {
+                console.error('[saveById] Error:', err);
+                toast.error(`❌ Gagal simpan: ${err.message}`);
+                return false;
+              } finally {
+                setTimeout(() => { saveLock.current[placeholderId] = false; }, 1000);
+              }
+            };
+
+            const deleteById = async () => {
+              const rec = localPlaceholderContext[placeholderId] || recordPlaceholderData[placeholderId];
+              if (!rec || !rec.id) {
+                toast.error('❌ DELETE: Tidak ada record yang di-load. Gunakan TABLE_RECORD_LOAD dulu.');
+                return false;
+              }
+              const { deleteTableRecord } = await import('../utils/supabaseTablesDB');
+              // deleteTableRecord only takes the internal row id (Supabase primary key)
+              await deleteTableRecord(rec.id);
+              localPlaceholderContext[placeholderId] = null;
+              setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: null }));
+              console.log(`[TABLE_RECORD_DELETE] Deleted record id=${rec.id} from table=${placeholder.tableId}`);
+              return true;
+            };
+
+            if (action.type === 'TABLE_RECORD_LOAD') {
+              await loadById();
+            } else if (action.type === 'TABLE_RECORD_CREATE') {
+              await createById();
+            } else if (action.type === 'TABLE_RECORD_SAVE') {
+              await saveById();
+            } else if (action.type === 'TABLE_RECORD_DELETE') {
+              await deleteById();
+            } else {
+              const ok = await loadById();
+              if (!ok) await createById();
+            }
+          } else if (type === 'OBD2_CONNECT') {
+            const { transport } = payload;
+            try {
+              if (transport === 'SERIAL') await obd2Service.connectSerial();
+              else await obd2Service.connectBluetooth();
+            } catch (e) {
+              toast.error(`OBD2 Error: ${e.message}`);
+            }
+          } else if (type === 'OBD2_QUERY' || type === 'OBD2_READ') {
+            const { pid } = payload;
+            if (pid) {
+              await obd2Service.queryPID(pid);
+            }
+          } else if (type === 'OBD2_CLEAR_DTC') {
+            await obd2Service.clearDTC();
+          } else if (type === 'CUSTOM_SCRIPT') {
+            const { script } = payload;
+            if (script) {
+              try {
+                const fn = new Function('appVariables', 'setVariable', 'toast', script);
+                fn(appVariables, (n, v) => setAppVariables(prev => prev.map(p => p.name === n ? { ...p, value: v } : p)), toast);
+              } catch (e) {
+                toast.error(`Script error: ${e.message}`);
+              }
+            }
+          } else if (type === 'CALCULATE_FORMULA') {
+            const { formula, resultVar } = payload;
+            if (formula && resultVar) {
+              try {
+                const val = evaluateExpression(formula);
+                setAppVariables(prev => prev.map(v => v.name === resultVar ? { ...v, value: val } : v));
+              } catch (e) {
+                toast.error(`Formula error: ${e.message}`);
+              }
+            }
+          } else if (action.type === 'CLEAR_RECORD_PLACEHOLDER') {
+            const { placeholderId } = action.payload || {};
+            if (!placeholderId) continue;
+            localPlaceholderContext[placeholderId] = null;
+            setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: null }));
+          } else if (action.type === 'CALL_FUNCTION') {
+            const { functionId, parameters } = action.payload;
+            const fn = appFunctions.find(f => f.id === functionId);
+            if (!fn) continue;
+
+            const resolvedParams = {};
+            for (const [name, paramObj] of Object.entries(parameters || {})) {
+              resolvedParams[name] = await resolveSourceValue(paramObj.type, paramObj.value, '', eventPayload);
+            }
+
+            let localContext = { ...resolvedParams };
+            for (const step of fn.steps) {
+              if (step.type === 'SET') {
+                const val = evaluateExpression(step.expression, localContext);
+                localContext[step.name] = val;
+                const globalVar = appVariables.find(v => v.name === step.name);
+                if (globalVar) {
+                  setAppVariables(prev => prev.map(v => v.name === step.name ? { ...v, value: val } : v));
+                  if (globalVar.isPersistent) {
+                    const { upsertGlobalVariable } = await import('../utils/supabaseGlobalVars');
+                    await upsertGlobalVariable(step.name, globalVar.type || 'TEXT', val);
+                  }
+                }
+              }
+            }
+          } else if (action.type === 'SEND_TO_CONNECTOR') {
+            const { connectorId, functionId, parameters, resultVar } = action.payload;
+            const resolvedParams = {};
+            for (const [name, paramObj] of Object.entries(parameters || {})) {
+              resolvedParams[name] = await resolveSourceValue(paramObj.type, paramObj.value, '', eventPayload);
+            }
+
+            const { webhookUtility } = await import('../utils/webhookUtility');
+            try {
+              const result = await webhookUtility.executeIntegrationAction(connectorId, { functionId, parameters: resolvedParams });
+              if (resultVar && result) {
+                setAppVariables(prev => prev.map(v => v.name === resultVar ? { ...v, value: result } : v));
+              }
+            } catch (err) {
+              console.error(`[Connector] Execution failed:`, err);
+            }
+          } else if (action.type === 'LINK_RECORD' || action.type === 'UNLINK_RECORD') {
+            const {
+              sourceTableId,
+              sourceRecordId: rawSourceId,
+              sourceFieldName,
+              targetTableId,
+              targetRecordId: rawTargetId,
+              targetFieldName
+            } = action.payload;
+
+            const sourceRecordId = await resolveSourceValue(action.payload.sourceRecordIdType || 'STATIC', rawSourceId, '', eventPayload);
+            const targetRecordId = await resolveSourceValue(action.payload.targetRecordIdType || 'STATIC', rawTargetId, '', eventPayload);
+
+            if (!sourceRecordId || !targetRecordId) {
+              continue;
+            }
+
+            const { linkRecords, unlinkRecords } = await import('../utils/supabaseTablesDB');
+            try {
+              if (action.type === 'LINK_RECORD') {
+                await linkRecords(sourceTableId, sourceRecordId, sourceFieldName, targetTableId, targetRecordId, targetFieldName);
+              } else {
+                await unlinkRecords(sourceTableId, sourceRecordId, sourceFieldName, targetTableId, targetRecordId, targetFieldName);
+              }
+              fetchTableData(selectedApp);
+            } catch (err) {
+              console.error(`[LinkedRecords] Failed to ${action.type}:`, err);
+            }
           }
+        } catch (err) {
+          console.error(`Action execution failed (${action.type}):`, err);
+          toast.error(`Action Failed: ${err.message || 'Unknown error'}`);
         }
-      };
-
-      const clauses = trigger.clauses || [
-        {
-          match: trigger.conditionMatch || 'ALL',
-          conditions: trigger.conditions || [],
-          actions: trigger.actions || []
-        }
-      ];
-
-      for (const clause of clauses) {
-        let passed = true;
-        if (clause.conditions && clause.conditions.length > 0) {
-          const matchType = clause.match || 'ALL';
-          const results = await Promise.all(clause.conditions.map(c => evaluateCondition(c, eventPayload)));
-          passed = matchType === 'ANY' ? results.some(r => r) : results.every(r => r);
-        }
-        if (passed) {
-          console.log(`[executeTrigger] Clause passed. Running actions...`);
-          await runActions(clause.actions);
-          break;
-        } else {
-          console.log(`[executeTrigger] Clause conditions not met.`);
-        }
-      }
-
-      if (trigger.elseActions?.length) {
-        // Only run else if no clause matched (very basic logic)
-        // In full Tulip, each clause can have an else, but here we keep it simple
       }
     };
+
+    const clauses = trigger.clauses || [
+      {
+        match: trigger.conditionMatch || 'ALL',
+        conditions: trigger.conditions || [],
+        actions: trigger.actions || []
+      }
+    ];
+
+    for (const clause of clauses) {
+      let passed = true;
+      if (clause.conditions && clause.conditions.length > 0) {
+        const matchType = clause.match || 'ALL';
+        const results = await Promise.all(clause.conditions.map(c => evaluateCondition(c, eventPayload)));
+        passed = matchType === 'ANY' ? results.some(r => r) : results.every(r => r);
+      }
+      if (passed) {
+        console.log(`[executeTrigger] Clause passed. Running actions...`);
+        await runActions(clause.actions);
+        break;
+      } else {
+        console.log(`[executeTrigger] Clause conditions not met.`);
+      }
+    }
+
+    if (trigger.elseActions?.length) {
+      // Only run else if no clause matched (very basic logic)
+      // In full Tulip, each clause can have an else, but here we keep it simple
+    }
+  };
 
   // Helper: fire triggers for any widget event (Tulip-style)
   const fireWidgetTriggers = async (comp, eventId, eventPayload = null) => {
@@ -3035,30 +3114,34 @@ const LiveTerminal = () => {
 
     // 1. Automatic Save Failsafe (Fallback mode)
     if (label.includes('SAVE') || label.includes('SIMPAN')) {
-       const triggers = comp.props?.triggers || [];
-       const hasDbAction = triggers.some(t => t.actions?.some(a => 
-         ['TABLE_RECORD_SAVE', 'TABLE_RECORD_CREATE', 'TABLE_RECORD_CREATE_OR_LOAD', 'SAVE_APP_DATA'].includes(a.type)
-       ));
-       
-       if (!hasDbAction) {
-         const firstPlaceholder = selectedApp?.config?.recordPlaceholders?.[0];
-         if (firstPlaceholder) {
-           await executeTrigger({
-             enabled: true,
-             actions: [{ type: 'TABLE_RECORD_SAVE', placeholderId: firstPlaceholder.id }]
-           });
-         }
-       }
+      const triggers = comp.props?.triggers || [];
+      const hasDbAction = triggers.length > 0; // Disable failsafe if ANY trigger exists to prevent double saves
+
+      if (!hasDbAction) {
+        const firstPlaceholder = recordPlaceholders?.[0];
+        if (firstPlaceholder) {
+          await executeTrigger({
+            enabled: true,
+            actions: [{ type: 'TABLE_RECORD_SAVE', placeholderId: firstPlaceholder.id }]
+          });
+        } else {
+          console.warn('[LiveTerminal] Button detected as SAVE but no Record Placeholder found in App/Manual config.');
+          toast.error('❌ Tombol SIMPAN terdeteksi, tapi Aplikasi ini belum memiliki "Record Placeholder" (Tabel) yang dikonfigurasi.', { duration: 5000 });
+        }
+      }
     }
 
     // 2. Execute custom triggers if any (Tulip-style)
     await fireWidgetTriggers(comp, 'ON_CLICK');
 
-    // 2. Reset all placeholders after the button click is fully processed (Submit effect)
-    selectedApp?.config?.recordPlaceholders?.forEach(rp => {
-       localPlaceholderContext[rp.id] = null;
-       setRecordPlaceholderData(prev => ({ ...prev, [rp.id]: null }));
-    });
+    // 3. Reset placeholders only for submit/navigation actions, not plain SAVE.
+    const shouldResetPlaceholders = ['NEXT_STEP', 'PREV_STEP', 'GO_TO_STEP', 'COMPLETE', 'COMPLETE_APP', 'CANCEL_APP'].includes(props.action);
+    if (shouldResetPlaceholders) {
+      recordPlaceholders.forEach(rp => {
+        localPlaceholderContext[rp.id] = null;
+        setRecordPlaceholderData(prev => ({ ...prev, [rp.id]: null }));
+      });
+    }
 
     const action = props.action;
     switch (action) {
@@ -5906,49 +5989,49 @@ const LiveTerminal = () => {
                         const isAbsolute = comp.x != null && comp.y != null;
 
 
-                      const containerStyle = isAbsolute ? {
-                        position: 'absolute',
-                        left: `${comp.x}px`,
-                        top: `${comp.y}px`,
-                        width: comp.w ? `${comp.w}px` : 'auto',
-                        height: comp.h ? `${comp.h}px` : 'auto',
-                        zIndex: comp.props?.zIndex || 100,
-                        transform: `rotate(${comp.props?.rotation || 0}deg)`,
-                        overflow: 'visible' // Allow labels/shadows to show
-                      } : {
-                        width: '100%',
-                        transform: `rotate(${comp.props?.rotation || 0}deg)`,
-                        marginBottom: '20px',
-                        position: 'relative'
-                      };
+                        const containerStyle = isAbsolute ? {
+                          position: 'absolute',
+                          left: `${comp.x}px`,
+                          top: `${comp.y}px`,
+                          width: comp.w ? `${comp.w}px` : 'auto',
+                          height: comp.h ? `${comp.h}px` : 'auto',
+                          zIndex: comp.props?.zIndex || 100,
+                          transform: `rotate(${comp.props?.rotation || 0}deg)`,
+                          overflow: 'visible' // Allow labels/shadows to show
+                        } : {
+                          width: '100%',
+                          transform: `rotate(${comp.props?.rotation || 0}deg)`,
+                          marginBottom: '20px',
+                          position: 'relative'
+                        };
 
-                      const err = validationErrors[comp.id];
-                      return (
-                        <div
-                          key={comp.id || idx}
-                          ref={(el) => { if (comp?.id) widgetContainerRefs.current[comp.id] = el; }}
-                          className={comp.props?.isBlinking ? 'animate-blink' : ''}
-                          style={containerStyle}
-                        >
-                          <div style={{
-                            border: err ? '2px solid #ef4444' : 'none',
-                            borderRadius: '8px',
-                            padding: err ? '10px' : 0,
-                            backgroundColor: err ? '#fee2e2' : 'transparent',
-                            height: isAbsolute ? '100%' : 'auto',
-                            position: 'relative',
-                            boxSizing: 'border-box'
-                          }}>
-                            {renderComponent(comp)}
-                          </div>
-                          {err && (
-                            <div style={{ marginTop: '6px', fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>
-                              {err}
+                        const err = validationErrors[comp.id];
+                        return (
+                          <div
+                            key={comp.id || idx}
+                            ref={(el) => { if (comp?.id) widgetContainerRefs.current[comp.id] = el; }}
+                            className={comp.props?.isBlinking ? 'animate-blink' : ''}
+                            style={containerStyle}
+                          >
+                            <div style={{
+                              border: err ? '2px solid #ef4444' : 'none',
+                              borderRadius: '8px',
+                              padding: err ? '10px' : 0,
+                              backgroundColor: err ? '#fee2e2' : 'transparent',
+                              height: isAbsolute ? '100%' : 'auto',
+                              position: 'relative',
+                              boxSizing: 'border-box'
+                            }}>
+                              {renderComponent(comp)}
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                            {err && (
+                              <div style={{ marginTop: '6px', fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>
+                                {err}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '30px', marginTop: '40px' }}>

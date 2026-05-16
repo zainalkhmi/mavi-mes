@@ -5319,43 +5319,78 @@ const AppBuilder = () => {
                     };
                     const handleSave = async () => {
                         const rec = recordPlaceholderData[placeholder.id];
-                        if (!rec || !rec.id) {
-                            // Auto-create if no record exists yet
-                            await handleCreate(null);
-                            const newRec = recordPlaceholderData[placeholder.id];
-                            if (!newRec?.id) return false;
-                        }
-                        const currentRec = recordPlaceholderData[placeholder.id];
-
-                        const updatedData = { ...currentRec };
+                        const { getTableById, addTableRecord, updateTableRecord } = await import('../utils/supabaseTablesDB');
+                        const tableDef = await getTableById(placeholder.tableId);
+                        const columns = tableDef?.columns || [];
+                        
+                        // 1. Harvest updated data from UI components
+                        const updatedData = rec ? { ...rec } : {};
                         const allComps = [...baseComponents, ...(steps.find(s => s.id === currentStepId)?.components || [])];
+                        
                         allComps.forEach(comp => {
-                            const targetVar = comp.props?.targetVariable;
+                            const targetVar = comp.props?.targetVariable || (comp.props?.dataSourceType === 'VARIABLE' ? comp.props?.varSource : null);
                             if (!targetVar) return;
                             const targetVarUpper = String(targetVar).toUpperCase();
                             const phNameUpper = String(placeholder.name).toUpperCase();
+                            
                             // Match "placeholderName.columnName" OR just "columnName"
                             let fieldName = null;
                             if (targetVarUpper.startsWith(phNameUpper + '.')) {
                                 fieldName = targetVar.split('.')[1];
+                            } else if (targetVarUpper === targetVarUpper.replace(/[^A-Z0-9_]/g, '')) {
+                                // Simple column name match
+                                fieldName = targetVar;
                             }
+
                             if (fieldName && previewFormValues[comp.id] !== undefined) {
                                 updatedData[fieldName] = previewFormValues[comp.id];
                             }
                         });
 
+                        // 2. Variable Fallback (Check appVariables for matching names)
+                        columns.forEach(col => {
+                            const colName = col.name || col;
+                            if (updatedData[colName] === undefined) {
+                                const v = appVariables.find(v => {
+                                    const vNameUpper = String(v.name).toUpperCase();
+                                    const colUpper = String(colName).toUpperCase();
+                                    return vNameUpper === colUpper || vNameUpper.endsWith('.' + colUpper);
+                                });
+                                if (v && v.value !== undefined) {
+                                    updatedData[colName] = v.value;
+                                }
+                            }
+                        });
+
                         if (viewMode === 'PREVIEW') {
-                            setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: updatedData }));
-                            console.log(`[Developer Mode] Simulated SAVE of record ${currentRec.id}`, updatedData);
+                            const finalRec = updatedData.id ? updatedData : { ...updatedData, id: `sim_${Date.now()}`, recordId: updatedData.recordId || `rec_${Date.now()}` };
+                            setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: finalRec }));
+                            console.log(`[Developer Mode] Simulated SAVE of record`, finalRec);
                             toast.success('💾 Data tersimpan (Dev Mode Simulation)');
                             return true;
                         }
-                        // Use supabaseTablesDB (not deprecated 'database' util)
-                        const { updateTableRecord } = await import('../utils/supabaseTablesDB');
-                        await updateTableRecord(currentRec.id, updatedData);
-                        setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: updatedData }));
-                        console.log(`[Builder Dev] Saved record id=${currentRec.id}`, updatedData);
-                        return true;
+
+                        // 2. Perform DB operation
+                        try {
+                            if (rec && rec.id) {
+                                // Update existing
+                                const saved = await updateTableRecord(rec.id, updatedData);
+                                setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: saved }));
+                                console.log(`[Builder Dev] Updated record id=${rec.id}`, saved);
+                            } else {
+                                // Create new with full data
+                                const effectiveId = resolvedId && resolvedId !== "Kosongkan untuk Auto ID" ? resolvedId : `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                                const saved = await addTableRecord(placeholder.tableId, { ...updatedData, recordId: effectiveId });
+                                setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: saved }));
+                                console.log(`[Builder Dev] Created record with data`, saved);
+                            }
+                            toast.success('💾 Data berhasil disimpan ke tabel.');
+                            return true;
+                        } catch (err) {
+                            console.error('[Builder Dev] Save failed:', err);
+                            toast.error(`❌ Gagal simpan: ${err.message}`);
+                            return false;
+                        }
                     };
                     const handleDelete = async () => {
                         const rec = recordPlaceholderData[placeholder.id];
@@ -14410,6 +14445,29 @@ const AppBuilder = () => {
                                                             </div>
                                                         )}
 
+                                                        {/* Section: Data Binding */}
+                                                        {(sidebarSearch === '' || 'data variable target binding'.includes(sidebarSearch.toLowerCase())) && (
+                                                            <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Data Binding</label>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>TARGET VARIABLE / COLUMN</label>
+                                                                    <select
+                                                                        value={selectedComp.props.targetVariable || ''}
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
+                                                                        style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                    >
+                                                                        <option value="">None (Static)</option>
+                                                                        {appVariables.map(v => (
+                                                                            <option key={v.name} value={v.name}>{v.name}</option>
+                                                                        ))}
+                                                                    </select>
+                                                                    <div style={{ marginTop: '6px', fontSize: '0.65rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                                                                        Pilih variable atau ketik "Placeholder.Column" untuk simpan otomatis.
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
                                                         {/* Section: Typography */}
                                                         {(sidebarSearch === '' || 'typography font size bold italic typeface'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
@@ -15914,6 +15972,29 @@ const AppBuilder = () => {
                                                             </div>
                                                         )}
 
+                                                        {/* Section: Data Binding */}
+                                                        {(sidebarSearch === '' || 'data variable target binding'.includes(sidebarSearch.toLowerCase())) && (
+                                                            <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Data Binding</label>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>TARGET VARIABLE / COLUMN</label>
+                                                                    <select
+                                                                        value={selectedComp.props.targetVariable || ''}
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
+                                                                        style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                    >
+                                                                        <option value="">None (Static)</option>
+                                                                        {appVariables.map(v => (
+                                                                            <option key={v.name} value={v.name}>{v.name}</option>
+                                                                        ))}
+                                                                    </select>
+                                                                    <div style={{ marginTop: '6px', fontSize: '0.65rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                                                                        Pilih variable atau ketik "Placeholder.Column" untuk simpan otomatis.
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
                                                         {/* Section: Typography */}
                                                         {(sidebarSearch === '' || 'typography font size bold italic typeface'.includes(sidebarSearch.toLowerCase())) && (
                                                             <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
@@ -15961,6 +16042,19 @@ const AppBuilder = () => {
                                                                 style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
                                                             />
                                                         </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>TARGET VARIABLE / COLUMN</label>
+                                                            <select
+                                                                value={selectedComp.props.targetVariable || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            >
+                                                                <option value="">None (Static)</option>
+                                                                {appVariables.map(v => (
+                                                                    <option key={v.name} value={v.name}>{v.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                             <input id={`show-progress-${selectedComp.id}`} type="checkbox" checked={selectedComp.props.showProgress !== false} onChange={(e) => updateComponentProps(selectedComp.id, { showProgress: e.target.checked })} />
                                                             <label htmlFor={`show-progress-${selectedComp.id}`} style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Show Progress Indicator</label>
@@ -16003,6 +16097,19 @@ const AppBuilder = () => {
                                                         <div className="prop-group">
                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SIGNATURE MEANING</label>
                                                             <textarea value={selectedComp.props.signatureMeaning || ''} onChange={(e) => updateComponentProps(selectedComp.id, { signatureMeaning: e.target.value })} rows={2} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>TARGET VARIABLE / COLUMN</label>
+                                                            <select
+                                                                value={selectedComp.props.targetVariable || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            >
+                                                                <option value="">None (Static)</option>
+                                                                {appVariables.map(v => (
+                                                                    <option key={v.name} value={v.name}>{v.name}</option>
+                                                                ))}
+                                                            </select>
                                                         </div>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                             <input id={`comment-mandatory-${selectedComp.id}`} type="checkbox" checked={!!selectedComp.props.commentMandatory} onChange={(e) => updateComponentProps(selectedComp.id, { commentMandatory: e.target.checked })} />
@@ -16090,6 +16197,19 @@ const AppBuilder = () => {
                                                                 <input type="checkbox" checked={!!selectedComp.props.required} onChange={(e) => updateComponentProps(selectedComp.id, { required: e.target.checked })} />
                                                                 Required
                                                             </label>
+                                                        </div>
+                                                        <div className="prop-group" style={{ marginTop: '12px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>TARGET VARIABLE / COLUMN</label>
+                                                            <select
+                                                                value={selectedComp.props.targetVariable || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            >
+                                                                <option value="">None (Static)</option>
+                                                                {appVariables.map(v => (
+                                                                    <option key={v.name} value={v.name}>{v.name}</option>
+                                                                ))}
+                                                            </select>
                                                         </div>
                                                     </>
                                                 )}
@@ -16211,6 +16331,19 @@ const AppBuilder = () => {
                                                             <input id={`required-dd-${selectedComp.id}`} type="checkbox" checked={!!selectedComp.props.required} onChange={(e) => updateComponentProps(selectedComp.id, { required: e.target.checked })} />
                                                             <label htmlFor={`required-dd-${selectedComp.id}`} style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Required</label>
                                                         </div>
+                                                        <div className="prop-group" style={{ marginTop: '12px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>TARGET VARIABLE / COLUMN</label>
+                                                            <select
+                                                                value={selectedComp.props.targetVariable || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            >
+                                                                <option value="">None (Static)</option>
+                                                                {appVariables.map(v => (
+                                                                    <option key={v.name} value={v.name}>{v.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
                                                         <button
                                                             onClick={() => setViewMode('DIAGRAM')}
                                                             style={{
@@ -16264,6 +16397,19 @@ const AppBuilder = () => {
                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>DEFAULT VALUE</label>
                                                             <input value={selectedComp.props.defaultValue || ''} onChange={(e) => updateComponentProps(selectedComp.id, { defaultValue: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
                                                         </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>TARGET VARIABLE / COLUMN</label>
+                                                            <select
+                                                                value={selectedComp.props.targetVariable || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            >
+                                                                <option value="">None (Static)</option>
+                                                                {appVariables.map(v => (
+                                                                    <option key={v.name} value={v.name}>{v.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                             <input id={`required-rg-${selectedComp.id}`} type="checkbox" checked={!!selectedComp.props.required} onChange={(e) => updateComponentProps(selectedComp.id, { required: e.target.checked })} />
                                                             <label htmlFor={`required-rg-${selectedComp.id}`} style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Required</label>
@@ -16311,6 +16457,32 @@ const AppBuilder = () => {
                                                         <div className="prop-group">
                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PLACEHOLDER</label>
                                                             <input value={selectedComp.props.placeholder} onChange={(e) => updateComponentProps(selectedComp.id, { placeholder: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} />
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>TARGET VARIABLE / COLUMN</label>
+                                                            <select
+                                                                value={selectedComp.props.targetVariable || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            >
+                                                                <option value="">None (Static)</option>
+                                                                {appVariables.map(v => (
+                                                                    <option key={v.name} value={v.name}>{v.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>TARGET VARIABLE / COLUMN</label>
+                                                            <select
+                                                                value={selectedComp.props.targetVariable || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            >
+                                                                <option value="">None (Static)</option>
+                                                                {appVariables.map(v => (
+                                                                    <option key={v.name} value={v.name}>{v.name}</option>
+                                                                ))}
+                                                            </select>
                                                         </div>
                                                         <button
                                                             onClick={() => setViewMode('DIAGRAM')}
@@ -17162,6 +17334,26 @@ const AppBuilder = () => {
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Color Right (Inactive)</label>
                                                                         <ColorPicker value={selectedComp.props.colorRight || '#e2e8f0'} onChange={(val) => updateComponentProps(selectedComp.id, { colorRight: val })} />
                                                                     </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Section: Data Binding */}
+                                                        {(sidebarSearch === '' || 'data variable target binding'.includes(sidebarSearch.toLowerCase())) && (
+                                                            <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Data Binding</label>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>TARGET VARIABLE / COLUMN</label>
+                                                                    <select
+                                                                        value={selectedComp.props.targetVariable || ''}
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
+                                                                        style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                    >
+                                                                        <option value="">None (Static)</option>
+                                                                        {appVariables.map(v => (
+                                                                            <option key={v.name} value={v.name}>{v.name}</option>
+                                                                        ))}
+                                                                    </select>
                                                                 </div>
                                                             </div>
                                                         )}
