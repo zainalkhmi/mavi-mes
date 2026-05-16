@@ -2146,6 +2146,13 @@ const LiveTerminal = () => {
               if (found) {
                 localPlaceholderContext[placeholderId] = found;
                 setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: found }));
+                
+                // Also update selected row in linked tables for visual feedback
+                const linkedTable = appComponents.find(c => (c.type === 'INTERACTIVE_TABLE' || c.type === 'ADVANCED_TABLE') && c.props.linkedRecordPlaceholderId === placeholder.id);
+                if (linkedTable) {
+                  setSelectedTableRow(prev => ({ ...prev, [linkedTable.id]: found }));
+                }
+                
                 return true;
               }
               return false;
@@ -3372,9 +3379,11 @@ const LiveTerminal = () => {
     }
 
     const syncVariable = (value) => {
-      const varName = comp.props?.targetVariable || (comp.props?.dataSourceType === 'VARIABLE' ? comp.props?.varSource : null);
-      if (varName) {
-        setAppVariables(prev => prev.map(v => v.name === varName ? { ...v, value } : v));
+      let varName = comp.props?.targetVariable || (comp.props?.dataSourceType === 'VARIABLE' ? comp.props?.varSource : null);
+      if (varName && typeof varName === 'string') {
+        // Strip @ prefix if present for matching with appVariables
+        const cleanVarName = varName.startsWith('@') ? varName.substring(1) : varName;
+        setAppVariables(prev => prev.map(v => v.name === cleanVarName ? { ...v, value } : v));
       }
     };
 
@@ -4369,7 +4378,26 @@ const LiveTerminal = () => {
       }
       case 'ADVANCED_TABLE':
       case 'INTERACTIVE_TABLE': {
-        const data = tableData[comp.id] || [];
+        let data = tableData[comp.id] || [];
+
+        // Apply Real-time Variable Filters
+        const vFilters = comp.props.variableFilters || [];
+        if (vFilters.length > 0) {
+          data = data.filter(row => {
+            return vFilters.every(f => {
+              const v = appVariables.find(av => av.name === f.variableName || av.id === f.variableName);
+              const filterVal = v?.value;
+              if (filterVal === undefined || filterVal === null || filterVal === '') return true;
+
+              const colName = f.columnName || f.field || f.column;
+              const rowVal = row[colName];
+              
+              // Case-insensitive inclusion match
+              return String(rowVal || '').toLowerCase().includes(String(filterVal).toLowerCase());
+            });
+          });
+        }
+
         const rawCols = comp.props.columns?.length > 0 ? comp.props.columns : ['id', 'createdAt'];
         const cols = rawCols.map(c => typeof c === 'object' ? (c.key || c.name || c.header || c.value || c.label || JSON.stringify(c)) : String(c));
         const colHeaders = rawCols.map(c => typeof c === 'object' ? (c.header || c.label || c.name || c.key || JSON.stringify(c)) : String(c));

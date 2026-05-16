@@ -44,6 +44,7 @@ import {
     Loader2,
     Upload,
     Table,
+    Filter,
     Camera,
     MapPin,
     Globe,
@@ -17229,6 +17230,61 @@ const AppBuilder = () => {
                                                             </div>
                                                         )}
 
+                                                        {selectedComp.props.tableId && (selectedComp.props.dataSourceMode || 'TABLE') !== 'VARIABLE' && (
+                                                            <div className="prop-group" style={{ marginBottom: '15px', padding: '10px', backgroundColor: 'rgba(59,130,246,0.05)', borderRadius: '6px', border: '1px dashed #3b82f6' }}>
+                                                                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.65rem', color: '#3b82f6', fontWeight: 800, marginBottom: '8px' }}>
+                                                                    <Filter size={12} /> REACTIVE FILTERS
+                                                                </label>
+                                                                {(selectedComp.props.variableFilters || []).map((f, idx) => (
+                                                                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px solid var(--border-secondary)' }}>
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                                            <span style={{ fontSize: '0.6rem', color: 'var(--text-quaternary)' }}>Filter #{idx + 1}</span>
+                                                                            <button onClick={() => {
+                                                                                const newFilters = (selectedComp.props.variableFilters || []).filter((_, i) => i !== idx);
+                                                                                updateComponentProps(selectedComp.id, { variableFilters: newFilters });
+                                                                            }} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.65rem', cursor: 'pointer' }}>Remove</button>
+                                                                        </div>
+                                                                        <select
+                                                                            value={f.columnName || ''}
+                                                                            onChange={(e) => {
+                                                                                const newFilters = [...(selectedComp.props.variableFilters || [])];
+                                                                                newFilters[idx].columnName = e.target.value;
+                                                                                updateComponentProps(selectedComp.id, { variableFilters: newFilters });
+                                                                            }}
+                                                                            style={{ width: '100%', padding: '4px', fontSize: '0.7rem', borderRadius: '4px', border: '1px solid var(--border-primary)', color: 'var(--text-primary)', backgroundColor: 'var(--bg-panel)' }}
+                                                                        >
+                                                                            <option value="">Select Column...</option>
+                                                                            {tables.find(t => t.id === selectedComp.props.tableId)?.columns?.map(c => {
+                                                                                const cStr = typeof c === 'object' ? (c.name || c.header || c.label) : String(c);
+                                                                                return <option key={cStr} value={cStr}>{cStr}</option>;
+                                                                            })}
+                                                                        </select>
+                                                                        <div style={{ fontSize: '0.6rem', textAlign: 'center', color: 'var(--text-quaternary)' }}>matches</div>
+                                                                        <select
+                                                                            value={f.variableName || ''}
+                                                                            onChange={(e) => {
+                                                                                const newFilters = [...(selectedComp.props.variableFilters || [])];
+                                                                                newFilters[idx].variableName = e.target.value;
+                                                                                updateComponentProps(selectedComp.id, { variableFilters: newFilters });
+                                                                            }}
+                                                                            style={{ width: '100%', padding: '4px', fontSize: '0.7rem', borderRadius: '4px', border: '1px solid var(--border-primary)', color: 'var(--text-primary)', backgroundColor: 'var(--bg-panel)' }}
+                                                                        >
+                                                                            <option value="">Select Variable...</option>
+                                                                            {appVariables.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
+                                                                        </select>
+                                                                    </div>
+                                                                ))}
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const newFilters = [...(selectedComp.props.variableFilters || []), { columnName: '', variableName: '' }];
+                                                                        updateComponentProps(selectedComp.id, { variableFilters: newFilters });
+                                                                    }}
+                                                                    style={{ width: '100%', padding: '6px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
+                                                                >
+                                                                    + Add Reactive Filter
+                                                                </button>
+                                                            </div>
+                                                        )}
                                                         <div className="prop-group" style={{ marginBottom: '10px' }}>
                                                             <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>ROWS PER PAGE</label>
                                                             <input
