@@ -9,6 +9,7 @@ import {
 
 import { useNavigate } from 'react-router-dom';
 import { createIncomingInspectionTemplate } from '../utils/incomingInspectionTemplate';
+import { createWeighDispenseTemplate } from '../utils/weighDispenseTemplate';
 
 import { saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { createTable, getTables, addTableRecord } from '../utils/database';
@@ -57,7 +58,7 @@ const AppStore = () => {
             });
         }
     };
-    const categories = ['All', 'Quality'];
+    const categories = ['All', 'Quality', 'Manufacturing'];
 
 
     const templates = [
@@ -86,6 +87,32 @@ const AppStore = () => {
                     { event: 'COMPLETE_INSPECTION', function: 'Saves all measurements and judgment to IQC_Inspections table.' }
                 ],
                 mechanism: 'Each inspection step validates measurements against configurable spec limits (LSL/USL) and calculates pass/fail automatically.'
+            }
+        },
+        {
+            id: 'weigh-dispense',
+            name: 'Weigh and Dispense',
+            category: 'Manufacturing',
+            description: 'Pharmaceutical-grade weighing and dispensing workflow with barcode verification, scale integration, and batch tracking.',
+            longDescription: 'Streamline your weighing and dispensing process. Each dose step shows selected material info, task instructions, barcode scanning, weight input with scale integration, and batch traceability.',
+            icon: <Package size={28} color="#7c3aed" />,
+            bg: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
+            accent: '#7c3aed',
+            rating: 5.0,
+            installs: 'New',
+            features: ['Scale Integration', 'Barcode Verification', 'Batch Tracking'],
+            guide: {
+                operation: '1. Enter batch number & operator info\n2. For each material: scan barcode, transfer to scale, record weight\n3. Review all dispensed weights\n4. Complete and save batch record',
+                widgets: ['Barcode Scanner', 'Weight Input', 'Scale Reader', 'Material Info Card'],
+                components: ['Multi-dose Flow', 'Scale Integration', 'Batch Tracker'],
+                tables: [
+                    { name: 'WD_Dispense_Logs', description: 'Primary log of weigh & dispense batch records.' }
+                ],
+                triggers: [
+                    { event: 'GET_FROM_SCALE', function: 'Reads weight value from connected scale device.' },
+                    { event: 'COMPLETE_DISPENSING', function: 'Saves all weights and batch info to WD_Dispense_Logs table.' }
+                ],
+                mechanism: 'Each dose step verifies material barcode and records dispensed weight with scale integration support.'
             }
         }
     ];
@@ -135,6 +162,29 @@ const AppStore = () => {
                     }
                 } catch (iqcErr) {
                     console.warn('Could not create IQC table:', iqcErr);
+                }
+            } else if (templateId === 'weigh-dispense') {
+                templateApp = createWeighDispenseTemplate();
+                try {
+                    const wdTable = await createTable({
+                        name: 'WD_Dispense_Logs',
+                        fields: [
+                            { name: 'Batch_Number', type: 'text' },
+                            { name: 'Operator_Name', type: 'text' },
+                            { name: 'Weight_mat_plain_white', type: 'number' },
+                            { name: 'Weight_mat_calcium_ite', type: 'number' },
+                            { name: 'Weight_mat_titanium_ox', type: 'number' },
+                            { name: 'Dispense_Status', type: 'text' },
+                            { name: 'Timestamp', type: 'datetime' }
+                        ]
+                    });
+                    if (wdTable && wdTable.id) {
+                        const appStr = JSON.stringify(templateApp).replace(/wd_dispense_logs/g, wdTable.id);
+                        templateApp = JSON.parse(appStr);
+                        templateApp.config.appTables = [wdTable.id];
+                    }
+                } catch (wdErr) {
+                    console.warn('Could not create WD table:', wdErr);
                 }
             } else {
                 toast.error('Template not found', { id: loadingToast });
