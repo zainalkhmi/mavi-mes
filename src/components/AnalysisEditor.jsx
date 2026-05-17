@@ -60,6 +60,7 @@ const AnalysisEditor = () => {
     const [previewData, setPreviewData] = useState({ labels: [], values: [] });
     const [fetchingPreview, setFetchingPreview] = useState(false);
     const [isAiInsightOpen, setIsAiInsightOpen] = useState(false);
+    const [sidebarTab, setSidebarTab] = useState('data');
 
     const safeNum = (v, fallback = 0) => {
         const n = Number(v);
@@ -238,70 +239,59 @@ const AnalysisEditor = () => {
 
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc' }}>
-            {/* Top Bar */}
-            <div style={{
-                height: '64px', backgroundColor: 'white', borderBottom: '1px solid #e2e8f0',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px'
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <button onClick={() => navigate('/analytics')} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
-                        <ArrowLeft size={20} />
+            {/* Top Bar — Tulip-style breadcrumb */}
+            <div style={{ height:'56px', backgroundColor:'white', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 20px' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                    <button onClick={() => navigate('/analytics')} style={{ padding:'6px 10px', background:'none', border:'none', cursor:'pointer', color:'#4f46e5', fontSize:'0.85rem', fontWeight:600, display:'flex', alignItems:'center', gap:'6px', borderRadius:'6px' }}
+                            onMouseEnter={e => e.currentTarget.style.backgroundColor='#f0f0ff'} onMouseLeave={e => e.currentTarget.style.backgroundColor='transparent'}>
+                        <ArrowLeft size={16} /> Analytics
                     </button>
-                    <div style={{ width: '1px', height: '24px', backgroundColor: '#e2e8f0' }}></div>
-                    <div>
-                        <input
-                            value={analysis.name}
-                            onChange={(e) => setAnalysis({ ...analysis, name: e.target.value })}
-                            style={{ border: 'none', fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', outline: 'none', background: 'transparent' }}
-                        />
-                        <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Standalone Analysis Editor</div>
-                    </div>
+                    <ChevronRight size={14} color="#cbd5e1" />
+                    <input value={analysis.name} onChange={e => setAnalysis({...analysis, name: e.target.value})}
+                           style={{ border:'none', fontSize:'1rem', fontWeight:800, color:'#0f172a', outline:'none', background:'transparent', minWidth:'200px' }} />
+                    <span style={{ fontSize:'0.7rem', color:'#94a3b8', backgroundColor:'#f1f5f9', padding:'3px 10px', borderRadius:'6px', fontWeight:600 }}>{analysis.config.type}</span>
                 </div>
-                <button
-                    onClick={handleSave}
-                    disabled={loading}
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px',
-                        backgroundColor: '#4f46e5', color: 'white', border: 'none', borderRadius: '8px',
-                        fontWeight: 700, cursor: 'pointer', transition: 'opacity 0.2s'
-                    }}
-                >
-                    <Save size={18} /> {loading ? 'Saving...' : 'Save Analysis'}
-                </button>
+                <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                    <button onClick={() => setIsAiInsightOpen(true)} disabled={!analysis.config.tableId || previewData.labels.length === 0}
+                            style={{ display:'flex', alignItems:'center', gap:'6px', padding:'8px 14px', backgroundColor:'#f0f0ff', color:'#4f46e5', border:'1px solid #e0e7ff', borderRadius:'8px', fontWeight:700, cursor:'pointer', fontSize:'0.8rem', opacity:(!analysis.config.tableId || previewData.labels.length === 0)?0.5:1 }}>
+                        <Sparkles size={14} /> AI Insight
+                    </button>
+                    <button onClick={handleSave} disabled={loading}
+                            style={{ display:'flex', alignItems:'center', gap:'8px', padding:'8px 18px', backgroundColor:'#4f46e5', color:'white', border:'none', borderRadius:'8px', fontWeight:700, cursor:'pointer', fontSize:'0.85rem' }}>
+                        <Save size={16} /> {loading ? 'Saving...' : 'Save'}
+                    </button>
+                </div>
             </div>
 
-            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-                {/* Sidebar Configuration */}
-                <div style={{ width: '380px', backgroundColor: 'white', borderRight: '1px solid #e2e8f0', overflowY: 'auto', padding: '24px' }}>
-                    <div style={{ marginBottom: '30px' }}>
-                        <h4 style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <Play size={14} /> System Shortcuts
-                        </h4>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
+                {/* Sidebar — Tulip-style tabbed config */}
+                <div style={{ width:'360px', backgroundColor:'white', borderRight:'1px solid #e2e8f0', display:'flex', flexDirection:'column', flexShrink:0 }}>
+                    {/* Tabs */}
+                    <div style={{ display:'flex', borderBottom:'1px solid #e2e8f0', flexShrink:0 }}>
+                        {[{id:'data',icon:Database,label:'Data'},{id:'display',icon:Layout,label:'Display'},{id:'filters',icon:Filter,label:'Filters'}].map(tab => (
+                            <button key={tab.id} onClick={() => setSidebarTab(tab.id)}
+                                    style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:'6px', padding:'12px 0', border:'none', borderBottom: sidebarTab===tab.id ? '2px solid #4f46e5' : '2px solid transparent', backgroundColor:'transparent', cursor:'pointer', fontSize:'0.8rem', fontWeight: sidebarTab===tab.id ? 700 : 500, color: sidebarTab===tab.id ? '#4f46e5' : '#64748b', transition:'all 0.15s' }}>
+                                <tab.icon size={14} /> {tab.label}
+                            </button>
+                        ))}
+                    </div>
+                    <div style={{ flex:1, overflowY:'auto', padding:'20px' }}>
+
+                    {/* DATA TAB */}
+                    {sidebarTab === 'data' && (<>
+                    <div style={{ marginBottom:'24px' }}>
+                        <div style={{ fontSize:'0.7rem', fontWeight:800, color:'#94a3b8', textTransform:'uppercase', marginBottom:'10px' }}>Quick Presets</div>
+                        <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
                             {[
-                                { id: 'throughput', label: 'Total Throughput', desc: 'Count of all completions over time', config: { tableId: 'SYSTEM:COMPLETIONS', xAxisColumn: 'timestamp', yAxisColumn: 'id', aggregation: 'COUNT', type: 'BAR' } },
-                                { id: 'cycletime', label: 'Avg Cycle Time', desc: 'Average duration per completion', config: { tableId: 'SYSTEM:COMPLETIONS', xAxisColumn: 'timestamp', yAxisColumn: 'duration', aggregation: 'AVERAGE', type: 'LINE' } },
-                                { id: 'yield', label: 'Operator Yield', desc: 'Percentage of successful completions', config: { tableId: 'SYSTEM:COMPLETIONS', xAxisColumn: 'timestamp', yAxisColumn: 'status', aggregation: 'PERCENT_SUCCESS', type: 'PIE' } }
+                                { id:'throughput', label:'Total Throughput', desc:'Count of completions', config:{tableId:'SYSTEM:COMPLETIONS',xAxisColumn:'timestamp',yAxisColumn:'id',aggregation:'COUNT',type:'BAR'} },
+                                { id:'cycletime', label:'Avg Cycle Time', desc:'Average duration', config:{tableId:'SYSTEM:COMPLETIONS',xAxisColumn:'timestamp',yAxisColumn:'duration',aggregation:'AVERAGE',type:'LINE'} },
+                                { id:'yield', label:'Operator Yield', desc:'% successful completions', config:{tableId:'SYSTEM:COMPLETIONS',xAxisColumn:'timestamp',yAxisColumn:'status',aggregation:'PERCENT_SUCCESS',type:'PIE'} }
                             ].map(s => (
-                                <button
-                                    key={s.id}
-                                    onClick={() => {
-                                        setAnalysis(prev => ({
-                                            ...prev,
-                                            name: s.label,
-                                            config: { ...prev.config, ...s.config }
-                                        }));
-                                    }}
-                                    style={{
-                                        textAlign: 'left', padding: '12px', border: '1px solid #e2e8f0',
-                                        borderRadius: '12px', backgroundColor: 'white', cursor: 'pointer',
-                                        transition: 'all 0.2s'
-                                    }}
-                                    onMouseEnter={e => e.currentTarget.style.borderColor = '#4f46e5'}
-                                    onMouseLeave={e => e.currentTarget.style.borderColor = '#e2e8f0'}
-                                >
-                                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a' }}>{s.label}</div>
-                                    <div style={{ fontSize: '0.7rem', color: '#64748b' }}>{s.desc}</div>
+                                <button key={s.id} onClick={() => setAnalysis(prev => ({...prev, name:s.label, config:{...prev.config,...s.config}}))}
+                                        style={{ textAlign:'left', padding:'10px 12px', border:'1px solid #e2e8f0', borderRadius:'8px', backgroundColor:'white', cursor:'pointer', transition:'all 0.15s' }}
+                                        onMouseEnter={e => {e.currentTarget.style.borderColor='#4f46e5'; e.currentTarget.style.backgroundColor='#fafaff';}} onMouseLeave={e => {e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.backgroundColor='white';}}>
+                                    <div style={{ fontSize:'0.8rem', fontWeight:700, color:'#0f172a' }}>{s.label}</div>
+                                    <div style={{ fontSize:'0.7rem', color:'#94a3b8' }}>{s.desc}</div>
                                 </button>
                             ))}
                         </div>
@@ -405,8 +395,11 @@ const AnalysisEditor = () => {
                             </div>
                         </div>
                     </div>
+                    </>)}
 
-                    <div style={{ marginBottom: '30px' }}>
+                    {/* DISPLAY TAB */}
+                    {sidebarTab === 'display' && (<>
+                    <div style={{ marginBottom:'24px' }}>
                         <h4 style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Clock size={14} /> Time & Bucketing
                         </h4>
@@ -439,7 +432,37 @@ const AnalysisEditor = () => {
                         </div>
                     </div>
 
-                    <div style={{ marginBottom: '30px' }}>
+                    {/* Color Picker */}
+                    <div style={{ marginBottom:'24px' }}>
+                        <div style={{ fontSize:'0.7rem', fontWeight:800, color:'#94a3b8', textTransform:'uppercase', marginBottom:'10px' }}>Chart Color</div>
+                        <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
+                            {['#4f46e5','#0ea5e9','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#f97316','#6366f1'].map(c => (
+                                <button key={c} onClick={() => updateConfig({color:c})} style={{ width:28, height:28, borderRadius:'8px', backgroundColor:c, border: analysis.config.color===c ? '3px solid #0f172a' : '2px solid #e2e8f0', cursor:'pointer', transition:'transform 0.1s' }}
+                                        onMouseEnter={e => e.currentTarget.style.transform='scale(1.2)'} onMouseLeave={e => e.currentTarget.style.transform='scale(1)'} />
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* KPI Label */}
+                    {analysis.config.type === 'KPI' && (
+                        <div style={{ marginBottom:'24px' }}>
+                            <label style={{ display:'block', fontSize:'0.8rem', fontWeight:600, color:'#475569', marginBottom:'6px' }}>KPI Label</label>
+                            <input value={analysis.config.kpiLabel||''} onChange={e => updateConfig({kpiLabel:e.target.value})}
+                                   style={{ width:'100%', padding:'9px 12px', borderRadius:'8px', border:'1px solid #e2e8f0', fontSize:'0.85rem', outline:'none' }} />
+                        </div>
+                    )}
+
+                    {/* Description */}
+                    <div style={{ marginBottom:'24px' }}>
+                        <label style={{ display:'block', fontSize:'0.8rem', fontWeight:600, color:'#475569', marginBottom:'6px' }}>Description</label>
+                        <textarea value={analysis.description} onChange={e => setAnalysis({...analysis, description:e.target.value})} placeholder="Analysis description..."
+                                  style={{ width:'100%', padding:'10px 12px', borderRadius:'8px', border:'1px solid #e2e8f0', fontSize:'0.85rem', outline:'none', minHeight:'70px', resize:'vertical' }} />
+                    </div>
+                    </>)}
+
+                    {/* FILTERS TAB */}
+                    {sidebarTab === 'filters' && (<>
+                    <div style={{ marginBottom:'24px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                             <h4 style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <Filter size={14} /> Filters
@@ -580,40 +603,20 @@ const AnalysisEditor = () => {
                             )}
                         </div>
                     </div>
+                    </>)}
+                    </div>
                 </div>
 
-                {/* Preview Area */}
-                <div style={{ flex: 1, padding: '40px', display: 'flex', flexDirection: 'column', gap: '24px', overflowY: 'auto' }}>
-                    <div style={{ backgroundColor: 'white', borderRadius: '24px', padding: '40px', flex: 1, display: 'flex', flexDirection: 'column', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+                <div style={{ flex: 1, padding: '28px', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+                    <div style={{ backgroundColor: 'white', borderRadius: '16px', padding: '28px', flex: 1, display: 'flex', flexDirection: 'column', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', border: '1px solid #e2e8f0' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                             <div>
-                                <h2 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#1e293b', margin: 0 }}>Analysis Preview</h2>
-                                <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Real-time visualization of your configuration.</p>
+                                <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1e293b', margin: 0 }}>{analysis.name || 'Analysis Preview'}</h2>
+                                <p style={{ color: '#94a3b8', fontSize: '0.8rem', margin: '4px 0 0' }}>{analysis.config.aggregation} of {analysis.config.yAxisColumn || '—'} by {analysis.config.xAxisColumn || '—'}</p>
                             </div>
-                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                <button
-                                    onClick={() => setIsAiInsightOpen(true)}
-                                    disabled={!analysis.config.tableId || previewData.labels.length === 0}
-                                    style={{
-                                        backgroundColor: '#4f46e5',
-                                        color: 'white',
-                                        padding: '8px 16px',
-                                        borderRadius: '20px',
-                                        fontSize: '0.75rem',
-                                        fontWeight: 800,
-                                        border: 'none',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '8px',
-                                        boxShadow: '0 4px 10px rgba(79, 70, 229, 0.2)',
-                                        opacity: (!analysis.config.tableId || previewData.labels.length === 0) ? 0.5 : 1
-                                    }}
-                                >
-                                    <Sparkles size={14} /> GET AI INSIGHT
-                                </button>
-                                <div style={{ backgroundColor: '#f1f5f9', padding: '8px 16px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <Activity size={14} /> LIVE PREVIEW
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                <div style={{ backgroundColor: fetchingPreview ? '#fef3c7' : '#dcfce7', padding: '5px 12px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 700, color: fetchingPreview ? '#92400e' : '#166534', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                    <Activity size={12} /> {fetchingPreview ? 'LOADING' : 'LIVE'}
                                 </div>
                             </div>
                         </div>
@@ -738,17 +741,6 @@ const AnalysisEditor = () => {
                                 </div>
                             )}
                         </div>
-                    </div>
-
-                    {/* Metadata Panel */}
-                    <div style={{ backgroundColor: 'white', borderRadius: '24px', padding: '24px', border: '1px solid #e2e8f0' }}>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '12px' }}>Description</label>
-                        <textarea
-                            value={analysis.description}
-                            onChange={(e) => setAnalysis({ ...analysis, description: e.target.value })}
-                            placeholder="Add a description for this analysis..."
-                            style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '0.9rem', outline: 'none', minHeight: '80px', resize: 'vertical' }}
-                        />
                     </div>
                 </div>
             </div>

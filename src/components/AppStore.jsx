@@ -13,6 +13,7 @@ import { createWeighDispenseTemplate } from '../utils/weighDispenseTemplate';
 import { createAssyLineProductionTemplate } from '../utils/assyLineProductionTemplate';
 import { createInventoryAlertTemplate } from '../utils/inventoryAlertTemplate';
 import { createCarWorkshopTemplate } from '../utils/carWorkshopTemplate';
+import { createAndonSystemTemplate } from '../utils/andonSystemTemplate';
 
 import { saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { createTable, getTables, addTableRecord } from '../utils/database';
@@ -198,6 +199,33 @@ const AppStore = () => {
                     { event: 'LOW_PARTS', function: 'Alerts parts manager when stock < 5' }
                 ],
                 mechanism: 'Full workshop lifecycle with linked records, formulas (Labor_Cost, Line_Total), and automated notifications.'
+            }
+        },
+        {
+            id: 'andon-system',
+            name: 'Andon Alert System',
+            category: 'Manufacturing',
+            description: 'Empower operators to instantly raise issues, notify support teams, and track resolution metrics.',
+            longDescription: 'A complete Andon system for manufacturing lines. Includes a large touch-friendly operator call board, a central dashboard for supervisors to acknowledge and track active issues, and a resolution form to capture root causes and downtime metrics.',
+            icon: <Activity size={28} color="#f59e0b" />,
+            bg: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+            accent: '#f59e0b',
+            rating: 5.0,
+            installs: 'New',
+            features: ['Operator Call Board', 'Active Issue Dashboard', 'Resolution Tracking', 'Automated Alerts'],
+            guide: {
+                operation: '1. Operator taps issue category (Material, Maintenance, Quality, Help)\n2. Supervisor sees alert on dashboard & acknowledges\n3. Responder resolves issue & logs root cause\n4. System tracks downtime metrics automatically',
+                widgets: ['Large Action Buttons', 'Interactive Table', 'Form Inputs'],
+                components: ['Andon Call Board', 'Supervisor Dashboard', 'Resolution Form'],
+                tables: [
+                    { name: 'Andon_Events', description: 'Master log of all raised Andon alerts with timestamps.' },
+                    { name: 'Andon_Resolutions', description: 'Linked records detailing root causes and actions taken.' }
+                ],
+                triggers: [
+                    { event: 'ANDON_RAISED', function: 'Sends notification and logs start time.' },
+                    { event: 'ANDON_RESOLVED', function: 'Closes issue and logs resolution details.' }
+                ],
+                mechanism: 'Real-time issue escalation and tracking system to minimize production downtime.'
             }
         }
     ];
@@ -424,6 +452,37 @@ const AppStore = () => {
                     } catch(e) {}
                 } catch (wsErr) {
                     console.warn('Could not create workshop tables:', wsErr);
+                }
+            } else if (templateId === 'andon-system') {
+                templateApp = createAndonSystemTemplate();
+                try {
+                    const eventTable = await createTable({ name: 'Andon_Events', fields: [
+                        { name: 'Station_ID', type: 'text' }, { name: 'Alert_Category', type: 'text' },
+                        { name: 'Description', type: 'text' }, { name: 'Severity', type: 'text' },
+                        { name: 'Status', type: 'text' }, { name: 'Raised_By', type: 'text' },
+                        { name: 'Timestamp', type: 'datetime' },
+                        { name: 'Linked_Resolutions', type: 'linked_record', link_type: 'one_to_one', reverse_link_name: 'Parent_Event' }
+                    ] });
+                    const resTable = await createTable({ name: 'Andon_Resolutions', fields: [
+                        { name: 'Root_Cause', type: 'text' }, { name: 'Action_Taken', type: 'text' },
+                        { name: 'Downtime_Mins', type: 'number' }, { name: 'Responder', type: 'text' },
+                        { name: 'Timestamp', type: 'datetime' },
+                        { name: 'Parent_Event', type: 'linked_record', link_table_id: eventTable?.id, link_type: 'one_to_one', reverse_link_name: 'Linked_Resolutions' }
+                    ] });
+                    
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (eventTable?.id) { appStr = appStr.replace(/tbl_andon_events/g, eventTable.id); tIds.push(eventTable.id); }
+                    if (resTable?.id) { appStr = appStr.replace(/tbl_andon_resolutions/g, resTable.id); tIds.push(resTable.id); }
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                    
+                    try {
+                        const ea = JSON.parse(localStorage.getItem('mes_automations') || '[]');
+                        localStorage.setItem('mes_automations', JSON.stringify([...ea, ...(templateApp.config.automations||[]).map(a=>({...a,active:true}))]));
+                    } catch(e) {}
+                } catch (andonErr) {
+                    console.warn('Could not create andon tables:', andonErr);
                 }
             } else {
                 toast.error('Template not found', { id: loadingToast });
