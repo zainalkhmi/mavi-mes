@@ -356,7 +356,7 @@ export function createIncomingInspectionTemplate() {
         };
     });
 
-    // Final Review Step
+    // Final Review Step - uses TEXT_INPUT readOnly to display variable values
     const reviewStep = {
         id: `step_review_${ts}`,
         title: '6. Review & Sign-off',
@@ -367,44 +367,67 @@ export function createIncomingInspectionTemplate() {
                 x: 50, y: 30, w: 900, h: 40,
                 props: { text: '📋 Inspection Summary', fontSize: 26, fontWeight: 'bold', color: '#0f172a', textAlign: 'center' }
             },
+            // Part info row
             {
-                id: `sr_part_${ts}`, type: 'VARIABLE_TEXT',
-                x: 50, y: 90, w: 400, h: 40,
-                props: { label: 'Part Number', targetVariable: 'Part_Number' }
+                id: `sr_part_${ts}`, type: 'TEXT_INPUT',
+                x: 50, y: 90, w: 400, h: 50,
+                props: { label: 'Part Number', targetVariable: 'Part_Number', readOnly: true, dataSourceType: 'VARIABLE', varSource: 'Part_Number' }
             },
             {
-                id: `sr_lot_${ts}`, type: 'VARIABLE_TEXT',
-                x: 500, y: 90, w: 400, h: 40,
-                props: { label: 'Lot Number', targetVariable: 'Lot_Number' }
+                id: `sr_lot_${ts}`, type: 'TEXT_INPUT',
+                x: 500, y: 90, w: 400, h: 50,
+                props: { label: 'Lot Number', targetVariable: 'Lot_Number', readOnly: true, dataSourceType: 'VARIABLE', varSource: 'Lot_Number' }
             },
             {
-                id: `sr_supplier_${ts}`, type: 'VARIABLE_TEXT',
-                x: 50, y: 140, w: 400, h: 40,
-                props: { label: 'Supplier', targetVariable: 'Supplier' }
+                id: `sr_supplier_${ts}`, type: 'TEXT_INPUT',
+                x: 50, y: 155, w: 400, h: 50,
+                props: { label: 'Supplier', targetVariable: 'Supplier', readOnly: true, dataSourceType: 'VARIABLE', varSource: 'Supplier' }
             },
             {
-                id: `sr_qty_${ts}`, type: 'VARIABLE_TEXT',
-                x: 500, y: 140, w: 400, h: 40,
-                props: { label: 'Received Qty', targetVariable: 'Received_Qty' }
+                id: `sr_qty_${ts}`, type: 'TEXT_INPUT',
+                x: 500, y: 155, w: 400, h: 50,
+                props: { label: 'Received Qty', targetVariable: 'Received_Qty', readOnly: true, dataSourceType: 'VARIABLE', varSource: 'Received_Qty' }
             },
-            // Measurement results
-            ...inspections.filter(i => i.type === 'Dimensional Check').map((insp, i) => ({
-                id: `sr_res_${i}_${ts}`, type: 'VARIABLE_TEXT',
-                x: 50 + (i % 2 === 0 ? 0 : 450), y: 210 + Math.floor(i / 2) * 50, w: 400, h: 40,
-                props: {
-                    label: `${insp.title}: @${insp.varName} ${insp.unit}`,
-                    targetVariable: `${insp.varName}_Result`
+            // Section: Measurement Results
+            {
+                id: `sr_meas_title_${ts}`, type: 'TEXT',
+                x: 50, y: 225, w: 900, h: 25,
+                props: { text: '📏 Measurement Results', fontSize: 16, fontWeight: 'bold', color: '#1e40af' }
+            },
+            // Measurement values + judgment for each dimensional check
+            ...inspections.filter(i => i.type === 'Dimensional Check').flatMap((insp, i) => [
+                {
+                    id: `sr_mval_${i}_${ts}`, type: 'TEXT_INPUT',
+                    x: 50 + (i % 3) * 300, y: 260 + Math.floor(i / 3) * 60, w: 280, h: 50,
+                    props: {
+                        label: `${insp.title} (${insp.unit})`,
+                        targetVariable: insp.varName, readOnly: true,
+                        dataSourceType: 'VARIABLE', varSource: insp.varName
+                    }
                 }
-            })),
+            ]),
+            // Result badges for each dimensional check
+            ...inspections.filter(i => i.type === 'Dimensional Check').flatMap((insp, i) => [
+                {
+                    id: `sr_mres_${i}_${ts}`, type: 'TEXT_INPUT',
+                    x: 50 + (i % 3) * 300, y: 320 + Math.floor(i / 3) * 60, w: 280, h: 40,
+                    props: {
+                        label: `${insp.title} Judgment`,
+                        targetVariable: `${insp.varName}_Result`, readOnly: true,
+                        dataSourceType: 'VARIABLE', varSource: `${insp.varName}_Result`
+                    }
+                }
+            ]),
+            // Visual check result
             {
-                id: `sr_visual_${ts}`, type: 'VARIABLE_TEXT',
-                x: 50, y: 310, w: 400, h: 40,
-                props: { label: 'Lead Damage Check', targetVariable: 'Check_Lead_Damage' }
+                id: `sr_visual_${ts}`, type: 'TEXT_INPUT',
+                x: 50, y: 400, w: 400, h: 50,
+                props: { label: 'Lead Damage Check', targetVariable: 'Check_Lead_Damage', readOnly: true, dataSourceType: 'VARIABLE', varSource: 'Check_Lead_Damage' }
             },
             // Overall judgment
             {
                 id: `sr_judgment_${ts}`, type: 'RADIO_GROUP',
-                x: 50, y: 380, w: 900, h: 80,
+                x: 50, y: 470, w: 900, h: 80,
                 props: {
                     label: 'Final Inspection Judgment', options: ['ACCEPT', 'REJECT', 'CONDITIONAL ACCEPT'], required: true,
                     targetVariable: 'Overall_Result'
@@ -413,13 +436,13 @@ export function createIncomingInspectionTemplate() {
             // Notes
             {
                 id: `sr_notes_${ts}`, type: 'TEXT_AREA',
-                x: 50, y: 480, w: 900, h: 80,
+                x: 50, y: 570, w: 900, h: 80,
                 props: { label: 'Inspector Notes (Optional)', placeholder: 'Any observations or comments...', targetVariable: 'Inspection_Notes' }
             },
             // Submit button
             {
                 id: `sr_submit_${ts}`, type: 'BUTTON',
-                x: 200, y: 590, w: 600, h: 65,
+                x: 200, y: 680, w: 600, h: 65,
                 props: {
                     label: '✅ COMPLETE INSPECTION', text: '✅ COMPLETE INSPECTION',
                     backgroundColor: '#16a34a', color: 'white', fontSize: 20, fontWeight: 'bold',
