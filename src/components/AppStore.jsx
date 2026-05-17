@@ -94,7 +94,13 @@ const AppStore = () => {
                     { event: 'MEASUREMENT_SUBMIT', function: 'Compares measurement against spec limits and auto-judges PASS/FAIL.' },
                     { event: 'COMPLETE_INSPECTION', function: 'Saves all measurements and judgment to IQC_Inspections table.' }
                 ],
-                mechanism: 'Each inspection step validates measurements against configurable spec limits (LSL/USL) and calculates pass/fail automatically.'
+                mechanism: 'Each inspection step validates measurements against configurable spec limits (LSL/USL) and calculates pass/fail automatically.',
+                steps: [
+                    { name: 'Part Identification', description: 'User scans part barcode, enters lot number and supplier to begin the inspection process.' },
+                    { name: 'Dimensional Checks', description: 'Interactive steps to measure lengths and diameters using specified equipment, automatically verifying against LSL/USL.' },
+                    { name: 'Visual Inspection', description: 'Operator checks for visual defects like lead damage and logs the pass/fail result.' },
+                    { name: 'Review & Sign-off', description: 'Summary of all recorded measurements and overall pass/fail judgment with digital signature.' }
+                ]
             }
         },
         {
@@ -120,7 +126,13 @@ const AppStore = () => {
                     { event: 'GET_FROM_SCALE', function: 'Reads weight value from connected scale device.' },
                     { event: 'COMPLETE_DISPENSING', function: 'Saves all weights and batch info to WD_Dispense_Logs table.' }
                 ],
-                mechanism: 'Each dose step verifies material barcode and records dispensed weight with scale integration support.'
+                mechanism: 'Each dose step verifies material barcode and records dispensed weight with scale integration support.',
+                steps: [
+                    { name: 'Batch Setup', description: 'Input batch number and operator name to initiate a new dispensing session.' },
+                    { name: 'Material Verification', description: 'Scan the material barcode to confirm the correct raw material is being used.' },
+                    { name: 'Scale Dispensing', description: 'Connects to a scale to capture live weight data. Ensures target weight tolerances are met.' },
+                    { name: 'Batch Summary', description: 'Review all dispensed materials and finalize the batch record.' }
+                ]
             }
         },
         {
@@ -145,7 +157,13 @@ const AppStore = () => {
                     { event: 'ADD_DEFECT', function: 'Increments defect counter and alerts operator.' },
                     { event: 'FINISH_PRODUCTION', function: 'Calculates OEE and saves production record.' }
                 ],
-                mechanism: 'Real-time parts and defect counting with automatic Quality % calculation.'
+                mechanism: 'Real-time parts and defect counting with automatic Quality % calculation.',
+                steps: [
+                    { name: 'Order Selection', description: 'Select the active work order and start the production timer.' },
+                    { name: 'Production Dashboard', description: 'Main terminal for operators to log good parts and defects in real-time, displaying OEE metrics.' },
+                    { name: 'Downtime Logging', description: 'If the machine stops, operators select a downtime reason code to pause production time.' },
+                    { name: 'Shift End', description: 'Closes the work order, calculates final Quality & Performance KPIs, and saves the record.' }
+                ]
             }
         },
         {
@@ -173,7 +191,13 @@ const AppStore = () => {
                     { event: 'PICK_MATERIAL', function: 'Decrements stock and checks reorder threshold.' },
                     { event: 'LOW_STOCK_ALERT', function: 'Creates alert record when qty < reorder point.' }
                 ],
-                mechanism: 'Automated 24/7 inventory monitoring with threshold-based alerting and transaction logging.'
+                mechanism: 'Automated 24/7 inventory monitoring with threshold-based alerting and transaction logging.',
+                steps: [
+                    { name: 'Kitting Dashboard', description: 'Overview of required materials for a cell and current stock levels.' },
+                    { name: 'Material Picking', description: 'Operator scans a barcode to pick parts. Stock is deducted dynamically.' },
+                    { name: 'Low Stock Alerting', description: 'If stock falls below the Reorder Point, an automated alert is generated for purchasing.' },
+                    { name: 'Alert Management', description: 'Supervisors view and close active material shortage alerts.' }
+                ]
             }
         },
         {
@@ -202,7 +226,13 @@ const AppStore = () => {
                     { event: 'JOB_COMPLETE', function: 'Notifies customer when status = COMPLETED' },
                     { event: 'LOW_PARTS', function: 'Alerts parts manager when stock < 5' }
                 ],
-                mechanism: 'Full workshop lifecycle with linked records, formulas (Labor_Cost, Line_Total), and automated notifications.'
+                mechanism: 'Full workshop lifecycle with linked records, formulas (Labor_Cost, Line_Total), and automated notifications.',
+                steps: [
+                    { name: 'Vehicle Check-In', description: 'Capture customer details, license plate, and assign a bay number.' },
+                    { name: 'Multi-Point Inspection', description: 'Technician performs a standard checklist on engine, brakes, tires, and logs issues.' },
+                    { name: 'Service & Parts Entry', description: 'Log labor hours and consumed parts, automatically calculating costs.' },
+                    { name: 'Invoice Generation', description: 'Summarizes all costs into a final printable view for the customer.' }
+                ]
             }
         },
         {
@@ -229,7 +259,13 @@ const AppStore = () => {
                     { event: 'ANDON_RAISED', function: 'Sends notification and logs start time.' },
                     { event: 'ANDON_RESOLVED', function: 'Closes issue and logs resolution details.' }
                 ],
-                mechanism: 'Real-time issue escalation and tracking system to minimize production downtime.'
+                mechanism: 'Real-time issue escalation and tracking system to minimize production downtime.',
+                steps: [
+                    { name: 'Operator Call Board', description: 'Simple touch interface for line workers to trigger an Andon alert (Material, Quality, Help).' },
+                    { name: 'Supervisor Dashboard', description: 'Central view showing all active alerts across the plant for quick response.' },
+                    { name: 'Issue Acknowledgement', description: 'Responder claims the issue and stops the initial response timer.' },
+                    { name: 'Resolution Form', description: 'Log the root cause and actions taken before closing out the Andon event.' }
+                ]
             }
         },
         {
@@ -256,7 +292,12 @@ const AppStore = () => {
                 triggers: [
                     { event: 'REQUEST_MATERIAL', function: 'Creates a new entry in Order_Materials.' }
                 ],
-                mechanism: 'Interactive BOM checklist system integrated with material orders.'
+                mechanism: 'Interactive BOM checklist system integrated with material orders.',
+                steps: [
+                    { name: 'Requirements View', description: 'Displays all upcoming production orders and their statuses.' },
+                    { name: 'BOM Interactive View', description: 'Shows the Bill of Materials for a selected order with checkboxes to pick items.' },
+                    { name: 'Material Requisition', description: 'If parts are missing, operator can trigger a specific request to the warehouse.' }
+                ]
             }
         },
         {
@@ -281,7 +322,12 @@ const AppStore = () => {
                 triggers: [
                     { event: 'LOG_DEFECT', function: 'Creates a new defect record with "New" status.' }
                 ],
-                mechanism: 'End-to-end defect management with label printing and disposition workflows.'
+                mechanism: 'End-to-end defect management with label printing and disposition workflows.',
+                steps: [
+                    { name: 'Defect Logging', description: 'Operator inputs defect details, severity, and quantity.' },
+                    { name: 'Label Printing', description: 'Automatically prints a barcode routing label to tag the defective part.' },
+                    { name: 'Disposition Dashboard', description: 'Quality team reviews the defect and assigns a disposition (Rework, Scrap, Return).' }
+                ]
             }
         },
         {
@@ -307,7 +353,12 @@ const AppStore = () => {
                 triggers: [
                     { event: 'UPDATE_STATUS', function: 'Creates a new entry in Equipment_Status_History.' }
                 ],
-                mechanism: 'Comprehensive asset tracking integrated with a persistent activity log.'
+                mechanism: 'Comprehensive asset tracking integrated with a persistent activity log.',
+                steps: [
+                    { name: 'Asset Overview', description: 'List of all active machines/equipment and their current status.' },
+                    { name: 'Action Selection', description: 'Choose to perform a daily check, calibration, or log a malfunction.' },
+                    { name: 'History Tracking', description: 'Every action is logged in an immutable history table for audit compliance.' }
+                ]
             }
         },
         {
@@ -334,7 +385,14 @@ const AppStore = () => {
                     { event: 'CREATE_REQUEST', function: 'Updates card status to EMPTY and creates a Material Request.' },
                     { event: 'PROCESS_REQUEST', function: 'Updates request status tracking the material movement loop.' }
                 ],
-                mechanism: 'Seamless integration of four apps utilizing shared tables for continuous material replenishment.'
+                mechanism: 'Seamless integration of four apps utilizing shared tables for continuous material replenishment.',
+                steps: [
+                    { name: 'Kanban Manager', description: 'Master dashboard to view, create, edit, duplicate, and print Kanban cards.' },
+                    { name: 'Material Consumption', description: 'Operators scan a Kanban card to signal an empty bin and create a material request.' },
+                    { name: 'Water Spider Dashboard', description: 'Material handlers view open requests, pick them up, and set status to In Transit.' },
+                    { name: 'Material Supplier', description: 'Suppliers fulfill the request and mark the bin as Ready for Pickup.' },
+                    { name: 'Open Requests Detail', description: 'Detailed view for operators to track the exact status and location of a specific request.' }
+                ]
             }
         }
     ];
@@ -983,6 +1041,25 @@ const AppStore = () => {
                                         </h3>
                                         <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '16px', fontSize: '0.95rem', color: '#475569', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
                                             {selectedGuide.guide?.operation}
+                                        </div>
+                                    </section>
+
+                                    <section>
+                                        <h3 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <List size={18} color="#10b981" /> Step-by-Step Workflow
+                                        </h3>
+                                        <div style={{ display: 'grid', gap: '12px' }}>
+                                            {selectedGuide.guide?.steps?.map((step, index) => (
+                                                <div key={step.name} style={{ display: 'flex', gap: '16px', backgroundColor: 'white', border: '1px solid #e2e8f0', padding: '16px', borderRadius: '12px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                                                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#f1f5f9', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.85rem', flexShrink: 0 }}>
+                                                        {index + 1}
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontWeight: 800, color: '#0f172a', marginBottom: '4px' }}>{step.name}</div>
+                                                        <div style={{ fontSize: '0.85rem', color: '#64748b', lineHeight: 1.5 }}>{step.description}</div>
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     </section>
 
