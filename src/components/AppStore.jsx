@@ -16,6 +16,7 @@ import { createCarWorkshopTemplate } from '../utils/carWorkshopTemplate';
 import { createAndonSystemTemplate } from '../utils/andonSystemTemplate';
 import { createPicklistTemplate } from '../utils/picklistTemplate';
 import { createDefectTrackingTemplate } from '../utils/defectTrackingTemplate';
+import { createEquipmentManagementTemplate } from '../utils/equipmentManagementTemplate';
 
 import { saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { createTable, getTables, addTableRecord } from '../utils/database';
@@ -280,6 +281,32 @@ const AppStore = () => {
                     { event: 'LOG_DEFECT', function: 'Creates a new defect record with "New" status.' }
                 ],
                 mechanism: 'End-to-end defect management with label printing and disposition workflows.'
+            }
+        },
+        {
+            id: 'equipment-management',
+            name: 'Equipment Management',
+            category: 'Manufacturing',
+            description: 'Create and update status, calibration data, set tare values, and record malfunction events.',
+            longDescription: 'A complete equipment lifecycle management app. Users can add assets, view history logs, perform daily checks, calibrate scales, and report malfunctions. Integrates two relational tables for Assets and Status History.',
+            icon: <Wrench size={28} color="#0284c7" />,
+            bg: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+            accent: '#0284c7',
+            rating: 5.0,
+            installs: 'New',
+            features: ['Asset Registry', 'History Logging', 'Calibration Tracking', 'Malfunction Reporting'],
+            guide: {
+                operation: '1. Select or Add an equipment on the Overview page\n2. Click "Manage equipment" to view full details and history logs\n3. Execute specific actions (Clean, Daily Check, Calibrate, Tare)\n4. Report malfunctions instantly to update the asset status to "Out of Order"',
+                widgets: ['Interactive Table', 'Form Inputs', 'Radio Checklists'],
+                components: ['Overview Dashboard', 'History Log View', 'Calibration Form', 'Malfunction Report'],
+                tables: [
+                    { name: 'Asset', description: 'Master registry of all equipment, including types, statuses, and tare weights.' },
+                    { name: 'Equipment_Status_History', description: 'Log of all activities, performed by whom, and when.' }
+                ],
+                triggers: [
+                    { event: 'UPDATE_STATUS', function: 'Creates a new entry in Equipment_Status_History.' }
+                ],
+                mechanism: 'Comprehensive asset tracking integrated with a persistent activity log.'
             }
         }
     ];
@@ -584,6 +611,31 @@ const AppStore = () => {
                     templateApp.config.appTables = tIds;
                 } catch (defectErr) {
                     console.warn('Could not create defect tables:', defectErr);
+                }
+            } else if (templateId === 'equipment-management') {
+                templateApp = createEquipmentManagementTemplate();
+                try {
+                    const assetTable = await createTable({ name: 'Asset', fields: [
+                        { name: 'ID', type: 'text' }, { name: 'Name', type: 'text' },
+                        { name: 'Status', type: 'text' }, { name: 'Type', type: 'text' },
+                        { name: 'Tare_Weight', type: 'number' }, { name: 'Last_Calibration', type: 'datetime' },
+                        { name: 'Description', type: 'text' }
+                    ] });
+                    const historyTable = await createTable({ name: 'Equipment_Status_History', fields: [
+                        { name: 'Equipment_ID', type: 'text' }, { name: 'Activity_performed_by', type: 'text' },
+                        { name: 'Performed_Activity', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Batch_ID', type: 'text' }, { name: 'Comment', type: 'text' },
+                        { name: 'Date', type: 'datetime' }
+                    ] });
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (assetTable?.id) { appStr = appStr.replace(/tbl_asset/g, assetTable.id); tIds.push(assetTable.id); }
+                    if (historyTable?.id) { appStr = appStr.replace(/tbl_eq_history/g, historyTable.id); tIds.push(historyTable.id); }
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (eqmErr) {
+                    console.warn('Could not create equipment tables:', eqmErr);
                 }
             } else {
                 toast.error('Template not found', { id: loadingToast });
