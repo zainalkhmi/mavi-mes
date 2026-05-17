@@ -15,6 +15,7 @@ import { createInventoryAlertTemplate } from '../utils/inventoryAlertTemplate';
 import { createCarWorkshopTemplate } from '../utils/carWorkshopTemplate';
 import { createAndonSystemTemplate } from '../utils/andonSystemTemplate';
 import { createPicklistTemplate } from '../utils/picklistTemplate';
+import { createDefectTrackingTemplate } from '../utils/defectTrackingTemplate';
 
 import { saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { createTable, getTables, addTableRecord } from '../utils/database';
@@ -254,6 +255,31 @@ const AppStore = () => {
                     { event: 'REQUEST_MATERIAL', function: 'Creates a new entry in Order_Materials.' }
                 ],
                 mechanism: 'Interactive BOM checklist system integrated with material orders.'
+            }
+        },
+        {
+            id: 'defect-tracking',
+            name: 'Defect Tracking',
+            category: 'Quality',
+            description: 'Report and monitor defect events effectively, organize defect events, and provide rework details.',
+            longDescription: 'A complete defect tracking system inspired by standard manufacturing quality apps. Users can log defects, generate printable labels with barcodes, view defect details, and manage rework dispositions.',
+            icon: <ShieldAlert size={28} color="#dc2626" />,
+            bg: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+            accent: '#dc2626',
+            rating: 5.0,
+            installs: 'New',
+            features: ['Defect Logging Form', 'Barcode Label Generation', 'Disposition Management'],
+            guide: {
+                operation: '1. Select "Log Defect" to report an issue\n2. Print the defect label and attach it to the material\n3. Supervisor views details and assigns a disposition (Scrap/Rework/Use-as-Is)\n4. System tracks status and history',
+                widgets: ['Interactive Table', 'Form Inputs', 'Barcode Generator'],
+                components: ['Defect Dashboard', 'Defect Form', 'Label Generator', 'Disposition Control'],
+                tables: [
+                    { name: 'Defect_Events', description: 'Master log of all reported defects and their statuses.' }
+                ],
+                triggers: [
+                    { event: 'LOG_DEFECT', function: 'Creates a new defect record with "New" status.' }
+                ],
+                mechanism: 'End-to-end defect management with label printing and disposition workflows.'
             }
         }
     ];
@@ -539,6 +565,25 @@ const AppStore = () => {
                     templateApp.config.appTables = tIds;
                 } catch (pickErr) {
                     console.warn('Could not create picklist tables:', pickErr);
+                }
+            } else if (templateId === 'defect-tracking') {
+                templateApp = createDefectTrackingTemplate();
+                try {
+                    const defectTable = await createTable({ name: 'Defect_Events', fields: [
+                        { name: 'Material_ID', type: 'text' }, { name: 'Reported_Date', type: 'datetime' },
+                        { name: 'Reason', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Description', type: 'text' }, { name: 'Quantity', type: 'number' },
+                        { name: 'Location_Detected', type: 'text' }, { name: 'Reported_By', type: 'text' },
+                        { name: 'Severity', type: 'text' }, { name: 'Rework_Station', type: 'text' }
+                    ] });
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (defectTable?.id) { appStr = appStr.replace(/tbl_defect_events/g, defectTable.id); tIds.push(defectTable.id); }
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (defectErr) {
+                    console.warn('Could not create defect tables:', defectErr);
                 }
             } else {
                 toast.error('Template not found', { id: loadingToast });
