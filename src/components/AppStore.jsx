@@ -17,6 +17,7 @@ import { createAndonSystemTemplate } from '../utils/andonSystemTemplate';
 import { createPicklistTemplate } from '../utils/picklistTemplate';
 import { createDefectTrackingTemplate } from '../utils/defectTrackingTemplate';
 import { createEquipmentManagementTemplate } from '../utils/equipmentManagementTemplate';
+import { createKanbanAppSuiteTemplate } from '../utils/kanbanAppSuiteTemplate';
 
 import { saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { createTable, getTables, addTableRecord } from '../utils/database';
@@ -307,6 +308,33 @@ const AppStore = () => {
                     { event: 'UPDATE_STATUS', function: 'Creates a new entry in Equipment_Status_History.' }
                 ],
                 mechanism: 'Comprehensive asset tracking integrated with a persistent activity log.'
+            }
+        },
+        {
+            id: 'kanban-suite',
+            name: 'Kanban App Suite',
+            category: 'Manufacturing',
+            description: 'Lean manufacturing kanban system with card manager, material consumption, water spider, and supplier flows.',
+            longDescription: 'The Kanban app suite offers a lean and efficient framework tailored for material management, integrating the concept of "Kanban loops" to establish replenishment relationships between suppliers and consumers through customizable bins/cards. Includes Kanban Manager, Material Consumption, Water Spider, and Material Supplier modules seamlessly integrated.',
+            icon: <ArrowRight size={28} color="#2563eb" />,
+            bg: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+            accent: '#2563eb',
+            rating: 5.0,
+            installs: 'New',
+            features: ['Kanban Manager', 'Material Requests', 'Water Spider Flow', 'Label Printing'],
+            guide: {
+                operation: '1. Create and manage Kanban Cards in the Kanban Manager.\n2. Consumers request material when bins are empty.\n3. Water Spider picks up the request and moves the bin to the supplier.\n4. Supplier fills the bin and sends it back to the consuming location.',
+                widgets: ['Interactive Table', 'Form Inputs', 'Process Buttons'],
+                components: ['Kanban Manager View', 'Consumption Request', 'Water Spider Dashboard'],
+                tables: [
+                    { name: 'Kanban_Cards', description: 'Repository for all Kanban card-related information.' },
+                    { name: 'Material_Requests', description: 'Stores all requests to supply the material represented by a specific Kanban card.' }
+                ],
+                triggers: [
+                    { event: 'CREATE_REQUEST', function: 'Updates card status to EMPTY and creates a Material Request.' },
+                    { event: 'PROCESS_REQUEST', function: 'Updates request status tracking the material movement loop.' }
+                ],
+                mechanism: 'Seamless integration of four apps utilizing shared tables for continuous material replenishment.'
             }
         }
     ];
@@ -636,6 +664,30 @@ const AppStore = () => {
                     templateApp.config.appTables = tIds;
                 } catch (eqmErr) {
                     console.warn('Could not create equipment tables:', eqmErr);
+                }
+            } else if (templateId === 'kanban-suite') {
+                templateApp = createKanbanAppSuiteTemplate();
+                try {
+                    const kanbanCardsTable = await createTable({ name: 'Kanban_Cards', fields: [
+                        { name: 'Kanban_ID', type: 'text' }, { name: 'Part_Number', type: 'text' },
+                        { name: 'Part_Description', type: 'text' }, { name: 'Consuming_Location', type: 'text' },
+                        { name: 'Supply_Location', type: 'text' }, { name: 'QTY', type: 'number' },
+                        { name: 'Status', type: 'text' }, { name: 'Active', type: 'text' },
+                        { name: 'Image', type: 'text' }
+                    ] });
+                    const matReqTable = await createTable({ name: 'Material_Requests', fields: [
+                        { name: 'Kanban_ID', type: 'text' }, { name: 'Part_Number', type: 'text' },
+                        { name: 'Status', type: 'text' }, { name: 'Requested_Time', type: 'datetime' }
+                    ] });
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (kanbanCardsTable?.id) { appStr = appStr.replace(/tbl_kanban_cards/g, kanbanCardsTable.id); tIds.push(kanbanCardsTable.id); }
+                    if (matReqTable?.id) { appStr = appStr.replace(/tbl_material_requests/g, matReqTable.id); tIds.push(matReqTable.id); }
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (kanbanErr) {
+                    console.warn('Could not create kanban tables:', kanbanErr);
                 }
             } else {
                 toast.error('Template not found', { id: loadingToast });
