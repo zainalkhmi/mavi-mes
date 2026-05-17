@@ -18,6 +18,7 @@ import { createDefectTrackingTemplate } from '../utils/defectTrackingTemplate';
 import { createHospitalLabTemplate } from '../utils/hospitalLabTemplate';
 import { createDiabetesManagementTemplate } from '../utils/diabetesManagementTemplate';
 import { createAssyLineProductionTemplate } from '../utils/assyLineProductionTemplate';
+import { createIncomingInspectionTemplate } from '../utils/incomingInspectionTemplate';
 
 import { saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { createTable, getTables, addTableRecord } from '../utils/database';
@@ -276,6 +277,33 @@ const AppStore = () => {
                     { event: 'A1C_STAGNATION', function: 'Flags patients for specialist referral if A1C does not improve by 0.5% within 90 days.' }
                 ],
                 mechanism: 'Leverages multi-dimensional clinical logic to correlate vital signs with metabolic trends, generating personalized medical interventions.'
+            }
+        },
+        {
+            id: 'incoming-inspection',
+            name: 'Incoming Quality Inspection',
+            category: 'Quality',
+            description: 'Professional incoming material inspection with dimensional checks, visual inspection, equipment tracking, and spec limit validation.',
+            longDescription: 'Digitize your receiving inspection process. Each inspection step features a measurement guide image, calibrated equipment info, spec limits (LSL/USL), and real-time pass/fail judgment. Supports both dimensional and visual inspections.',
+            icon: <Search size={28} color="#0284c7" />,
+            bg: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+            accent: '#0284c7',
+            rating: 5.0,
+            installs: 'New',
+            features: ['Spec Limit Validation', 'Equipment Tracking', 'Auto Pass/Fail'],
+            guide: {
+                operation: '1. Scan part barcode & enter lot info\n2. Measure Overall Length with caliper\n3. Measure Outer Diameter with micrometer\n4. Check Shaft Extension\n5. Visual inspection for lead damage\n6. Review all results & sign-off',
+                widgets: ['Barcode Scanner', 'Tolerance Input', 'Pass/Fail Widget', 'Equipment Info Card', 'Inspection Guide Image'],
+                components: ['Multi-step Inspection Flow', 'Auto-judgment Engine', 'Equipment Tracker'],
+                tables: [
+                    { name: 'IQC_Inspections', description: 'Primary log of incoming inspections with all measurements.' },
+                    { name: 'IQC_Equipment', description: 'Tracks calibration status and availability of inspection tools.' }
+                ],
+                triggers: [
+                    { event: 'MEASUREMENT_SUBMIT', function: 'Compares measurement against spec limits and auto-judges PASS/FAIL.' },
+                    { event: 'COMPLETE_INSPECTION', function: 'Saves all measurements and judgment to IQC_Inspections table.' }
+                ],
+                mechanism: 'Each inspection step validates measurements against configurable spec limits (LSL/USL) and calculates pass/fail automatically.'
             }
         }
     ];
@@ -911,6 +939,33 @@ const AppStore = () => {
                     }
                 } catch (assyErr) {
                     console.warn('Could not create assy production table:', assyErr);
+                }
+            } else if (templateId === 'incoming-inspection') {
+                templateApp = createIncomingInspectionTemplate();
+                try {
+                    const iqcTable = await createTable({
+                        name: 'IQC_Inspections',
+                        fields: [
+                            { name: 'Part_Number', type: 'text' },
+                            { name: 'Lot_Number', type: 'text' },
+                            { name: 'Supplier', type: 'text' },
+                            { name: 'Received_Qty', type: 'number' },
+                            { name: 'Meas_Overall_Length', type: 'number' },
+                            { name: 'Meas_Outer_Diameter', type: 'number' },
+                            { name: 'Meas_Shaft_Extension', type: 'number' },
+                            { name: 'Check_Lead_Damage', type: 'text' },
+                            { name: 'Overall_Result', type: 'text' },
+                            { name: 'Inspector_Name', type: 'text' },
+                            { name: 'Timestamp', type: 'datetime' }
+                        ]
+                    });
+                    if (iqcTable && iqcTable.id) {
+                        const appStr = JSON.stringify(templateApp).replace(/iqc_inspections/g, iqcTable.id);
+                        templateApp = JSON.parse(appStr);
+                        templateApp.config.appTables = [iqcTable.id];
+                    }
+                } catch (iqcErr) {
+                    console.warn('Could not create IQC table:', iqcErr);
                 }
             } else {
 

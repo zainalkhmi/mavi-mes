@@ -27,14 +27,64 @@ import { getCurrentUser } from '../utils/auth';
 const ChatWidget = ({ currentStation, currentUser, onClose }) => {
   const [messages, setMessages] = useState([]);
   const [stations, setStations] = useState([]);
-  const [selectedContact, setSelectedContact] = useState(null); // { id: 'ALL', name: 'Group Chat' } or station object
-  const [view, setView] = useState('CONTACTS'); // 'CONTACTS' or 'CHAT'
+  const [selectedContact, setSelectedContact] = useState(null);
+  const [view, setView] = useState('CONTACTS');
   const [searchQuery, setSearchQuery] = useState('');
   const [inputText, setInputText] = useState('');
   const [isMinimized, setIsMinimized] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0); 
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+
+  const handleFileAttach = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !supabase) return;
+    setShowAttachMenu(false);
+    setUploading(true);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `chat/${Date.now()}_${file.name}`;
+      const { data, error } = await supabase.storage.from('manuals').upload(path, file);
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from('manuals').getPublicUrl(path);
+      const isImage = file.type.startsWith('image/');
+      const targetId = selectedContact?.id === 'ALL' ? null : selectedContact?.id;
+      await supabase.from('chat_messages').insert([{
+        sender_id: currentUser, sender_name: currentUser, station_id: currentStation,
+        target_station_id: targetId, content: urlData.publicUrl,
+        type: isImage ? 'IMAGE' : 'FILE', metadata: JSON.stringify({ fileName: file.name, fileSize: file.size, fileType: file.type }),
+        created_at: new Date().toISOString()
+      }]);
+    } catch (err) { alert('Upload gagal: ' + err.message); }
+    setUploading(false);
+    e.target.value = '';
+  };
+
+  const handleCameraCapture = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setShowAttachMenu(false);
+    setUploading(true);
+    try {
+      const path = `chat/cam_${Date.now()}.jpg`;
+      const { error } = await supabase.storage.from('manuals').upload(path, file);
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from('manuals').getPublicUrl(path);
+      const targetId = selectedContact?.id === 'ALL' ? null : selectedContact?.id;
+      await supabase.from('chat_messages').insert([{
+        sender_id: currentUser, sender_name: currentUser, station_id: currentStation,
+        target_station_id: targetId, content: urlData.publicUrl, type: 'IMAGE',
+        metadata: JSON.stringify({ fileName: 'Camera Photo', fileSize: file.size }),
+        created_at: new Date().toISOString()
+      }]);
+    } catch (err) { alert('Camera upload gagal: ' + err.message); }
+    setUploading(false);
+    e.target.value = '';
+  };
   
   const userSession = getCurrentUser();
   const userRole = userSession?.role?.toUpperCase() || 'OPERATOR';
@@ -223,7 +273,15 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
             <span style={{ fontSize: '0.65rem', opacity: 0.8 }}>online</span>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '15px' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          {view === 'CHAT' && (
+            <>
+              <button onClick={() => alert('Video call coming soon!')} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', opacity: 0.9 }} title="Video Call"><Video size={20} /></button>
+              <button onClick={() => alert('Voice call coming soon!')} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', opacity: 0.9 }} title="Voice Call">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+              </button>
+            </>
+          )}
           <button onClick={() => setIsMaximized(!isMaximized)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>{isMaximized ? <Minimize2 size={20} /> : <Maximize2 size={20} />}</button>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}><X size={20} /></button>
         </div>
@@ -254,7 +312,19 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
                 <div key={msg.id || i} style={{ alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '85%', marginBottom: '2px' }}>
                   <div style={{ padding: '6px 9px', borderRadius: '8px', backgroundColor: isMe ? '#dcf8c6' : 'white', boxShadow: '0 1px 0.5px rgba(0,0,0,0.13)', fontSize: '0.88rem' }}>
                     {!isMe && selectedContact.id === 'ALL' && <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#075e54', marginBottom: '2px' }}>{msg.sender_name} @ {msg.station_id}</div>}
-                    <div>{msg.content}</div>
+                    {msg.type === 'IMAGE' ? (
+                      <img src={msg.content} alt="photo" style={{ maxWidth: '100%', borderRadius: '6px', cursor: 'pointer' }} onClick={() => window.open(msg.content, '_blank')} />
+                    ) : msg.type === 'FILE' ? (
+                      <a href={msg.content} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px', backgroundColor: isMe ? '#c5e8b0' : '#f5f5f5', borderRadius: '6px', textDecoration: 'none', color: '#1e293b' }}>
+                        <File size={24} color="#6b7280" />
+                        <div style={{ flex: 1, overflow: 'hidden' }}>
+                          <div style={{ fontSize: '0.8rem', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{(() => { try { return JSON.parse(msg.metadata)?.fileName; } catch { return 'File'; } })()}</div>
+                          <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>{(() => { try { const s = JSON.parse(msg.metadata)?.fileSize; return s ? (s/1024).toFixed(1)+' KB' : ''; } catch { return ''; } })()}</div>
+                        </div>
+                      </a>
+                    ) : (
+                      <div>{msg.content}</div>
+                    )}
                     <div style={{ fontSize: '0.6rem', color: '#667781', textAlign: 'right', marginTop: '2px' }}>{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                   </div>
                 </div>
@@ -262,9 +332,34 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
             })}
             <div ref={messagesEndRef} />
           </div>
-          <form onSubmit={handleSendMessage} style={{ padding: '10px 16px', backgroundColor: '#f0f2f5', display: 'flex', gap: '8px' }}>
-            <input value={inputText} onChange={e => setInputText(e.target.value)} placeholder="Ketik pesan" style={{ flex: 1, padding: '9px 15px', borderRadius: '8px', border: 'none', outline: 'none' }} />
-            <button type="submit" style={{ width: '42px', height: '42px', borderRadius: '50%', backgroundColor: '#00a884', color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Send size={20} /></button>
+          {/* Attachment Menu Popup */}
+          {showAttachMenu && (
+            <div style={{ position: 'absolute', bottom: '65px', left: '16px', backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 8px 25px rgba(0,0,0,0.15)', padding: '12px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', zIndex: 10, minWidth: '220px' }}>
+              {[
+                { icon: <File size={22}/>, label: 'Document', color: '#7c3aed', action: () => fileInputRef.current?.click() },
+                { icon: <Camera size={22}/>, label: 'Camera', color: '#ec4899', action: () => cameraInputRef.current?.click() },
+                { icon: <Plus size={22}/>, label: 'Gallery', color: '#2563eb', action: () => { const inp = document.createElement('input'); inp.type='file'; inp.accept='image/*'; inp.onchange=(e)=>handleFileAttach(e); inp.click(); }},
+              ].map((item, i) => (
+                <button key={i} onClick={item.action} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', border: 'none', background: 'none', cursor: 'pointer', padding: '10px' }}>
+                  <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: item.color, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{item.icon}</div>
+                  <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>{item.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {/* Hidden file inputs */}
+          <input ref={fileInputRef} type="file" accept="*/*" style={{ display: 'none' }} onChange={handleFileAttach} />
+          <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleCameraCapture} />
+          {/* WhatsApp-style Input Bar */}
+          <form onSubmit={handleSendMessage} style={{ padding: '8px 10px', backgroundColor: '#f0f2f5', display: 'flex', gap: '6px', alignItems: 'center', position: 'relative' }}>
+            <button type="button" onClick={() => setShowAttachMenu(!showAttachMenu)} style={{ width: '38px', height: '38px', borderRadius: '50%', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#54656f', transform: showAttachMenu ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s' }}>
+              {uploading ? <Loader2 size={22} className="spin" /> : <Plus size={24} />}
+            </button>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', backgroundColor: 'white', borderRadius: '21px', padding: '4px 12px' }}>
+              <input value={inputText} onChange={e => setInputText(e.target.value)} placeholder="Ketik pesan" style={{ flex: 1, padding: '6px 0', border: 'none', outline: 'none', fontSize: '0.9rem' }} />
+              <button type="button" onClick={() => cameraInputRef.current?.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#54656f', padding: '4px' }}><Camera size={20} /></button>
+            </div>
+            <button type="submit" style={{ width: '42px', height: '42px', borderRadius: '50%', backgroundColor: '#00a884', color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Send size={20} /></button>
           </form>
         </>
       )}

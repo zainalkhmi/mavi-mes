@@ -20999,15 +20999,30 @@ const AppBuilder = () => {
                                                             style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                         >
                                                             <option value="">Select Function...</option>
+                                                            {appFunctions.length > 0 && (
+                                                                <optgroup label="📦 App Functions">
+                                                                    {appFunctions.map(fn => (
+                                                                        <option key={fn.id} value={fn.name}>{fn.name}</option>
+                                                                    ))}
+                                                                </optgroup>
+                                                            )}
                                                             {(() => {
                                                                 try {
                                                                     const functions = JSON.parse(localStorage.getItem('mes_functions') || '[]');
-                                                                    return functions.map(fn => (
-                                                                        <option key={fn.id} value={fn.name}>{fn.name}</option>
-                                                                    ));
+                                                                    if (functions.length === 0) return null;
+                                                                    return (
+                                                                        <optgroup label="⚡ Logic Functions">
+                                                                            {functions.map(fn => (
+                                                                                <option key={fn.id} value={fn.name}>{fn.name}</option>
+                                                                            ))}
+                                                                        </optgroup>
+                                                                    );
                                                                 } catch (e) { return null; }
                                                             })()}
                                                         </select>
+                                                        {!act.payload?.functionName && (
+                                                            <div style={{ fontSize: '0.65rem', color: '#f59e0b', minWidth: '120px' }}>⚠️ Pilih function</div>
+                                                        )}
                                                     </div>
                                                 );
                                             case 'PLAY_SOUND':
