@@ -5084,7 +5084,18 @@ const AppBuilder = () => {
                     break;
                 }
                 case 'SHOW_MESSAGE': {
-                    const { message, value, valueType, msgType } = action.payload;
+                    const { message, value, valueType, msgType, showIf } = action.payload;
+                    if (showIf) {
+                      try {
+                        let expr = String(showIf);
+                        (appVariables || []).forEach(v => {
+                          const regex = new RegExp(`@${v.name}`, 'gi');
+                          expr = expr.replace(regex, JSON.stringify(v.value ?? v.defaultValue ?? ''));
+                        });
+                        const shouldShow = new Function(`return !!(${expr})`)();
+                        if (!shouldShow) { console.log(`[Show Message] showIf=false, skipping`); break; }
+                      } catch (e) { console.warn('[Show Message] showIf error:', e); }
+                    }
                     const textToResolve = message !== undefined ? message : value;
                     const resolved = resolveValue(textToResolve, (valueType || 'STATIC'));
                     if (viewMode === 'PREVIEW' || runtimeCtx?.isTest) {

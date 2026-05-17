@@ -88,6 +88,7 @@ export function createIncomingInspectionTemplate() {
         { id: `var_qty_${ts}`, name: 'Received_Qty', type: 'number', defaultValue: 0, persisted: false },
         { id: `var_inspector_${ts}`, name: 'Inspector_Name', type: 'string', defaultValue: '@APP_INFO.USER', persisted: false },
         { id: `var_overall_${ts}`, name: 'Overall_Result', type: 'string', defaultValue: 'PENDING', persisted: false },
+        { id: `var_timestamp_${ts}`, name: 'Timestamp', type: 'string', defaultValue: '', persisted: false },
         ...inspections.map((insp, i) => ({
             id: `var_meas_${i}_${ts}`,
             name: insp.varName,
@@ -306,7 +307,21 @@ export function createIncomingInspectionTemplate() {
                                         value: `Number(@${insp.varName}) >= ${insp.lowerSpec} && Number(@${insp.varName}) <= ${insp.upperSpec} ? "PASS" : "FAIL"`
                                     }
                                 },
-                                { type: 'SHOW_MESSAGE', payload: { message: `${insp.title} measurement recorded ✓`, msgType: 'success' } },
+                                {
+                                    type: 'SHOW_MESSAGE',
+                                    payload: {
+                                        message: `${insp.title}: Measurement recorded`,
+                                        msgType: 'success'
+                                    }
+                                },
+                                {
+                                    type: 'SHOW_MESSAGE',
+                                    payload: {
+                                        message: `⚠️ WARNING: ${insp.title} OUT OF SPEC! Limit: ${insp.lowerSpec} - ${insp.upperSpec} ${insp.unit}`,
+                                        msgType: 'error',
+                                        showIf: `Number(@${insp.varName}) < ${insp.lowerSpec} || Number(@${insp.varName}) > ${insp.upperSpec}`
+                                    }
+                                },
                                 { type: 'NEXT_STEP' }
                             ]
                         }]
@@ -450,6 +465,14 @@ export function createIncomingInspectionTemplate() {
                         name: 'Submit Final Inspection',
                         event: 'ON_CLICK',
                         actions: [
+                            {
+                                type: 'SET_VARIABLE',
+                                payload: {
+                                    variable: 'Timestamp',
+                                    valueType: 'EXPRESSION',
+                                    value: 'new Date().toISOString()'
+                                }
+                            },
                             {
                                 type: 'TABLE_RECORD_CREATE',
                                 payload: { placeholderId: `rp_iqc_${ts}` }

@@ -2044,11 +2044,23 @@ const LiveTerminal = () => {
               }
             }
           } else if (type === 'SHOW_NOTIFICATION' || type === 'SHOW_MESSAGE' || type === 'DISPLAY_MESSAGE' || type === 'ALERT') {
+            // Support conditional showIf: only show if expression evaluates truthy
+            if (payload.showIf) {
+              try {
+                let expr = String(payload.showIf);
+                (appVariables || []).forEach(v => {
+                  const regex = new RegExp(`@${v.name}`, 'gi');
+                  expr = expr.replace(regex, JSON.stringify(v.value ?? v.defaultValue ?? ''));
+                });
+                const shouldShow = new Function(`return !!(${expr})`)();
+                if (!shouldShow) { console.log(`[Trigger] showIf=false, skipping:`, payload.message); continue; }
+              } catch (condErr) { console.warn('[Trigger] showIf eval error:', condErr); }
+            }
             const message = await resolveSourceValue(payload.valueType || payload.messageType || 'STATIC', payload.message || payload.value || payload.text || 'Notification', '', eventPayload);
             const msgType = payload.msgType || payload.notificationType || payload.type || 'success';
             console.log(`[Trigger] ${type}:`, message);
-            if (msgType === 'error') toast.error(message);
-            else if (msgType === 'warning') toast.error(message, { icon: '⚠️' });
+            if (msgType === 'error') toast.error(message, { duration: 5000 });
+            else if (msgType === 'warning') toast.error(message, { icon: '⚠️', duration: 5000 });
             else toast.success(message);
           } else if (type === 'RUN_FUNCTION') {
             const functionName = payload.functionName || payload.name || action.functionName;
