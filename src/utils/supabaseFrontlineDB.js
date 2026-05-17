@@ -174,20 +174,53 @@ export async function approveApp(appId, operatorId) {
 export async function deleteFrontlineApp(id) {
     const supabase = getSupabaseClient();
 
-    // Delete child rows first to avoid FK violations (e.g. completions_app_id_fkey)
-    const { error: completionsError } = await supabase
-        .from('completions')
-        .delete()
-        .eq('app_id', id);
-    if (completionsError) throw completionsError;
+    // Delete ALL child rows first to avoid FK violations
 
-    // Also clear queue rows referencing this app (if any)
-    const { error: queueError } = await supabase
-        .from('production_queue')
-        .delete()
-        .eq('app_id', id);
-    if (queueError) throw queueError;
+    // 1. player_sessions (player_sessions_app_id_fkey)
+    try {
+        const { error: sessError } = await supabase
+            .from('player_sessions')
+            .delete()
+            .eq('app_id', id);
+        if (sessError && sessError.code !== '42P01') {
+            console.warn('[Delete] player_sessions cleanup warning:', sessError.message);
+        }
+    } catch (e) { /* table may not exist */ }
 
+    // 2. completions (completions_app_id_fkey)
+    try {
+        const { error: completionsError } = await supabase
+            .from('completions')
+            .delete()
+            .eq('app_id', id);
+        if (completionsError && completionsError.code !== '42P01') {
+            console.warn('[Delete] completions cleanup warning:', completionsError.message);
+        }
+    } catch (e) { /* table may not exist */ }
+
+    // 3. production_queue
+    try {
+        const { error: queueError } = await supabase
+            .from('production_queue')
+            .delete()
+            .eq('app_id', id);
+        if (queueError && queueError.code !== '42P01') {
+            console.warn('[Delete] production_queue cleanup warning:', queueError.message);
+        }
+    } catch (e) { /* table may not exist */ }
+
+    // 4. audit_logs (if referencing app_id)
+    try {
+        const { error: auditError } = await supabase
+            .from('audit_logs')
+            .delete()
+            .eq('app_id', id);
+        if (auditError && auditError.code !== '42P01') {
+            // audit_logs may not have app_id column, that's OK
+        }
+    } catch (e) { /* column may not exist */ }
+
+    // Finally delete the app itself
     const { error } = await supabase
         .from('frontline_apps')
         .delete()

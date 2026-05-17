@@ -237,8 +237,7 @@ import iotConnector from '../utils/iotConnector';
 import { logEvent, AUDIT_EVENTS } from '../utils/auditLog';
 import ColorPicker from './ColorPicker';
 import ShapePicker from './ShapePicker';
-import { createShopfloorTemplate } from '../utils/shopfloorTemplate';
-import { createTuneUpTemplate } from '../utils/tuneUpTemplate';
+import { createIncomingInspectionTemplate } from '../utils/incomingInspectionTemplate';
 import automationEngine from '../utils/automationEngine';
 import hardwareService from '../utils/hardwareService';
 import obd2Service from '../utils/obd2Service';
@@ -7447,42 +7446,30 @@ const AppBuilder = () => {
     const handleCreateTemplateApp = async () => {
         setIsSaving(true);
         try {
-            const templateApp = createShopfloorTemplate();
-
-            // 1. Create a physical table for the template automatically
+            const templateApp = createIncomingInspectionTemplate();
             let logTableId = null;
             try {
                 const newTable = await createTable({
-                    name: `Shopfloor_Logs`, // Use a stable name to prevent daily clutter
-                    description: 'Automated table for shop floor data collection',
+                    name: 'IQC_Inspections',
                     fields: [
-                        { name: 'Work_Order', type: 'text' },
-                        { name: 'Operator', type: 'user' },
-                        { name: 'Station', type: 'station' },
-                        { name: 'Status', type: 'text' },
+                        { name: 'Part_Number', type: 'text' },
+                        { name: 'Lot_Number', type: 'text' },
+                        { name: 'Overall_Result', type: 'text' },
                         { name: 'Timestamp', type: 'datetime' }
                     ]
                 });
-                if (newTable && newTable.id) {
-                    logTableId = newTable.id;
-                }
-                // Refresh local tables state
+                if (newTable && newTable.id) logTableId = newTable.id;
                 const updatedTables = await getTables();
                 setTables(updatedTables);
             } catch (tErr) {
-                console.warn('Could not create automated table, proceeding with app only:', tErr);
+                console.warn('Could not create IQC table:', tErr);
             }
-
-            // 2. Link the table to the template's record placeholder if created
             if (logTableId) {
-                if (templateApp.config.recordPlaceholders && templateApp.config.recordPlaceholders.length > 0) {
-                    templateApp.config.recordPlaceholders[0].tableId = logTableId;
-                }
-                templateApp.config.appTables = [logTableId];
+                const appStr = JSON.stringify(templateApp).replace(/iqc_inspections/g, logTableId);
+                const parsed = JSON.parse(appStr);
+                parsed.config.appTables = [logTableId];
+                Object.assign(templateApp, parsed);
             }
-
-            // 3. Save the new app
-            // Map published -> is_published and approvalStatus -> approval_status
             const { id, ...templateData } = templateApp;
             const savedApp = await saveFrontlineApp({
                 ...templateData,
@@ -7490,85 +7477,23 @@ const AppBuilder = () => {
                 approval_status: templateApp.approvalStatus || 'DRAFT',
                 updated_at: new Date().toISOString()
             });
-
-            // 4. Refresh and load
             await loadApps();
             setIsCreateDrawerOpen(false);
             loadApp(savedApp || templateApp);
-
             setProUiDialog({
                 type: 'success',
-                message: 'Shopfloor Template Created Successfully!',
-                detail: 'Standard Work Instructions and automated logging table are ready.'
+                message: 'Incoming Inspection Template Created!',
+                detail: 'IQC inspection flow and database table are ready.'
             });
         } catch (error) {
             console.error('Failed to create template app:', error);
-            alert('Error generating template app: ' + (error.message || 'Unknown error') + '. Please check your connection.');
+            alert('Error: ' + (error.message || 'Unknown error'));
         } finally {
             setIsSaving(false);
         }
     };
 
-    const handleCreateTuneUpTemplate = async () => {
-        setIsSaving(true);
-        try {
-            const templateApp = createTuneUpTemplate();
-
-            // 1. Create a physical table for the template automatically
-            let logTableId = null;
-            try {
-                const newTable = await createTable({
-                    name: `TuneUp_Logs`,
-                    description: 'Automated table for vehicle tune up records',
-                    fields: [
-                        { name: 'Vehicle_VIN', type: 'text' },
-                        { name: 'Engine_Health_Score', type: 'number' },
-                        { name: 'Service_Status', type: 'text' },
-                        { name: 'Timestamp', type: 'datetime' }
-                    ]
-                });
-                if (newTable && newTable.id) {
-                    logTableId = newTable.id;
-                }
-                const updatedTables = await getTables();
-                setTables(updatedTables);
-            } catch (tErr) {
-                console.warn('Could not create automated table:', tErr);
-            }
-
-            if (logTableId) {
-                if (templateApp.config.recordPlaceholders && templateApp.config.recordPlaceholders.length > 0) {
-                    templateApp.config.recordPlaceholders[0].tableId = logTableId;
-                }
-                templateApp.config.appTables = [logTableId];
-            }
-
-            // 3. Save the new app
-            const { id, ...templateData } = templateApp;
-            const savedApp = await saveFrontlineApp({
-                ...templateData,
-                is_published: templateApp.published ?? false,
-                approval_status: templateApp.approvalStatus || 'DRAFT',
-                updated_at: new Date().toISOString()
-            });
-
-            // 4. Refresh and load
-            await loadApps();
-            setIsCreateDrawerOpen(false);
-            loadApp(savedApp || templateApp);
-
-            setProUiDialog({
-                type: 'success',
-                message: 'Pro Tune-Up Template Created Successfully!',
-                detail: 'OBD2 Diagnostics, AI Analysis, and Database logs are ready.'
-            });
-        } catch (error) {
-            console.error('Failed to create tune-up app:', error);
-            alert('Error generating template app: ' + (error.message || 'Unknown error'));
-        } finally {
-            setIsSaving(false);
-        }
-    };
+    const handleCreateTuneUpTemplate = handleCreateTemplateApp;
 
     const handleLocalImageUpload = async (e, compId) => {
         const file = e.target.files?.[0];

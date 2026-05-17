@@ -10,8 +10,7 @@ import { getAllFrontlineApps, getProductionQueue, logPlayerSession, saveFrontlin
 import { getStations, getEdgeDevices, createTable, getTables } from '../utils/database';
 import iotConnector from '../utils/iotConnector';
 import { useLanguage } from '../contexts/LanguageContext';
-import { createShopfloorTemplate } from '../utils/shopfloorTemplate';
-import { createQCTemplate } from '../utils/qcTemplate';
+import { createIncomingInspectionTemplate } from '../utils/incomingInspectionTemplate';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -575,20 +574,12 @@ function ESignatureModal({ operator, onClose, onSign }) {
 function NewAppModal({ onConfirm, onCancel }) {
     const templates = [
         {
-            id: 'qc',
-            name: 'QC Inspection',
-            description: 'Standard QVC inspection with measurement collection and auto-judgment.',
-            icon: <Sparkles size={24} color="#8b5cf6" />,
-            bg: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
-            accent: '#8b5cf6'
-        },
-        {
-            id: 'shopfloor',
-            name: 'Shopfloor Workflow',
-            description: '5-step Standard Work Application with built-in production logging.',
-            icon: <Settings2 size={24} color="#10b981" />,
-            bg: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
-            accent: '#10b981'
+            id: 'incoming-inspection',
+            name: 'Incoming Quality Inspection',
+            description: 'Professional incoming material inspection with dimensional checks and auto pass/fail.',
+            icon: <Search size={24} color="#0284c7" />,
+            bg: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+            accent: '#0284c7'
         }
     ];
 
@@ -906,57 +897,26 @@ const AppPlayer = () => {
         setIsCreating(true);
         try {
             let templateApp;
-            if (templateId === 'qc') {
-                let qcData = createQCTemplate();
-                // Initialize QC Table
-                let actualTableId = 'qvc';
-                try {
-                    const tables = await getTables();
-                    let qvcTable = tables.find(t => t.name === 'QVC Inspection' || t.id === 'qvc');
-                    if (!qvcTable) {
-                        qvcTable = await createTable({
-                            name: 'QVC Inspection',
-                            fields: [
-                                { name: 'part_id', type: 'text' },
-                                { name: 'operator', type: 'text' },
-                                { name: 'status', type: 'text' },
-                                { name: 'measurement', type: 'number' },
-                                { name: 'timestamp', type: 'datetime' }
-                            ]
-                        });
-                    }
-                    if (qvcTable && qvcTable.id) {
-                        actualTableId = qvcTable.id;
-                    }
-                } catch (err) {
-                    console.error('Error initializing QC table:', err);
+            templateApp = createIncomingInspectionTemplate();
+            try {
+                const iqcTable = await createTable({
+                    name: 'IQC_Inspections',
+                    fields: [
+                        { name: 'Part_Number', type: 'text' },
+                        { name: 'Lot_Number', type: 'text' },
+                        { name: 'Supplier', type: 'text' },
+                        { name: 'Received_Qty', type: 'number' },
+                        { name: 'Overall_Result', type: 'text' },
+                        { name: 'Timestamp', type: 'datetime' }
+                    ]
+                });
+                if (iqcTable && iqcTable.id) {
+                    const appStr = JSON.stringify(templateApp).replace(/iqc_inspections/g, iqcTable.id);
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = [iqcTable.id];
                 }
-                const qcDataStr = JSON.stringify(qcData).replace(/"qvc"/g, `"${actualTableId}"`);
-                templateApp = JSON.parse(qcDataStr);
-            } else {
-                templateApp = createShopfloorTemplate();
-                // Initialize Shopfloor Table
-                try {
-                    const newTable = await createTable({
-                        name: `Shopfloor_Logs`,
-                        description: 'Automated table for shop floor data collection',
-                        fields: [
-                            { name: 'Work_Order', type: 'text' },
-                            { name: 'Operator', type: 'user' },
-                            { name: 'Station', type: 'station' },
-                            { name: 'Status', type: 'text' },
-                            { name: 'Timestamp', type: 'datetime' }
-                        ]
-                    });
-                    if (newTable && newTable.id) {
-                        if (templateApp.config.recordPlaceholders && templateApp.config.recordPlaceholders.length > 0) {
-                            templateApp.config.recordPlaceholders[0].tableId = newTable.id;
-                        }
-                        templateApp.config.appTables = [newTable.id];
-                    }
-                } catch (tErr) {
-                    console.warn('Could not create automated table:', tErr);
-                }
+            } catch (tErr) {
+                console.warn('Could not create IQC table:', tErr);
             }
 
             // Save the new app
