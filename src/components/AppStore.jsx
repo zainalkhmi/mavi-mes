@@ -14,6 +14,7 @@ import { createAssyLineProductionTemplate } from '../utils/assyLineProductionTem
 import { createInventoryAlertTemplate } from '../utils/inventoryAlertTemplate';
 import { createCarWorkshopTemplate } from '../utils/carWorkshopTemplate';
 import { createAndonSystemTemplate } from '../utils/andonSystemTemplate';
+import { createPicklistTemplate } from '../utils/picklistTemplate';
 
 import { saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { createTable, getTables, addTableRecord } from '../utils/database';
@@ -226,6 +227,33 @@ const AppStore = () => {
                     { event: 'ANDON_RESOLVED', function: 'Closes issue and logs resolution details.' }
                 ],
                 mechanism: 'Real-time issue escalation and tracking system to minimize production downtime.'
+            }
+        },
+        {
+            id: 'picklist',
+            name: 'Kitting Picklist',
+            category: 'Warehouse',
+            description: 'Facilitate the kitting process with a comprehensive list of all materials needed in an assembly line.',
+            longDescription: 'A complete picklist template based on Tulip\'s standard picklist functionality. Includes a view requirements table, a view BOM (Bill of Materials) screen with interactive checklists, and a form to request new materials.',
+            icon: <Package size={28} color="#059669" />,
+            bg: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)',
+            accent: '#059669',
+            rating: 5.0,
+            installs: 'New',
+            features: ['BOM Integration', 'Requirements Dashboard', 'Material Requisition'],
+            guide: {
+                operation: '1. Review requirements dashboard\n2. Select an order to view its BOM\n3. Pick components and check them off the list\n4. Request additional material if shortages occur',
+                widgets: ['Interactive Table', 'Checklists', 'Images'],
+                components: ['Requirements View', 'BOM View', 'Request View'],
+                tables: [
+                    { name: 'Item_Master', description: 'Item definitions and types.' },
+                    { name: 'Order_Materials', description: 'Individual orders for products or materials.' },
+                    { name: 'Manufacturing_BOM', description: 'Parent-child item relationships.' }
+                ],
+                triggers: [
+                    { event: 'REQUEST_MATERIAL', function: 'Creates a new entry in Order_Materials.' }
+                ],
+                mechanism: 'Interactive BOM checklist system integrated with material orders.'
             }
         }
     ];
@@ -483,6 +511,34 @@ const AppStore = () => {
                     } catch(e) {}
                 } catch (andonErr) {
                     console.warn('Could not create andon tables:', andonErr);
+                }
+            } else if (templateId === 'picklist') {
+                templateApp = createPicklistTemplate();
+                try {
+                    const itemMasterTable = await createTable({ name: 'Item_Master', fields: [
+                        { name: 'Item_Name', type: 'text' }, { name: 'Description', type: 'text' },
+                        { name: 'UOM', type: 'text' }, { name: 'Type', type: 'text' }
+                    ] });
+                    const orderMatTable = await createTable({ name: 'Order_Materials', fields: [
+                        { name: 'Product_Name', type: 'text' }, { name: 'Type', type: 'text' },
+                        { name: 'QTY_Required', type: 'number' }, { name: 'QTY_Complete', type: 'number' },
+                        { name: 'Due_Date', type: 'datetime' }, { name: 'Status', type: 'text' },
+                        { name: 'Location', type: 'text' }
+                    ] });
+                    const bomTable = await createTable({ name: 'Manufacturing_BOM', fields: [
+                        { name: 'Parent_Item', type: 'text' }, { name: 'Child_Item', type: 'text' },
+                        { name: 'Child_Item_QTY', type: 'number' }
+                    ] });
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (itemMasterTable?.id) { appStr = appStr.replace(/tbl_item_master/g, itemMasterTable.id); tIds.push(itemMasterTable.id); }
+                    if (orderMatTable?.id) { appStr = appStr.replace(/tbl_order_materials/g, orderMatTable.id); tIds.push(orderMatTable.id); }
+                    if (bomTable?.id) { appStr = appStr.replace(/tbl_manufacturing_bom/g, bomTable.id); tIds.push(bomTable.id); }
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (pickErr) {
+                    console.warn('Could not create picklist tables:', pickErr);
                 }
             } else {
                 toast.error('Template not found', { id: loadingToast });
