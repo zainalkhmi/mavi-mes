@@ -10,6 +10,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { createIncomingInspectionTemplate } from '../utils/incomingInspectionTemplate';
 import { createWeighDispenseTemplate } from '../utils/weighDispenseTemplate';
+import { createAssyLineProductionTemplate } from '../utils/assyLineProductionTemplate';
 
 import { saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { createTable, getTables, addTableRecord } from '../utils/database';
@@ -58,7 +59,7 @@ const AppStore = () => {
             });
         }
     };
-    const categories = ['All', 'Quality', 'Manufacturing'];
+    const categories = ['All', 'Quality', 'Manufacturing', 'Production'];
 
 
     const templates = [
@@ -113,6 +114,31 @@ const AppStore = () => {
                     { event: 'COMPLETE_DISPENSING', function: 'Saves all weights and batch info to WD_Dispense_Logs table.' }
                 ],
                 mechanism: 'Each dose step verifies material barcode and records dispensed weight with scale integration support.'
+            }
+        },
+        {
+            id: 'assy-line-production',
+            name: 'Assembly Line Production',
+            category: 'Production',
+            description: 'Machine Terminal for assembly line production tracking with OEE metrics, parts/defect counting, and downtime management.',
+            longDescription: 'Full-featured production terminal inspired by Tulip Machine Terminal. Track work orders, count parts and defects in real-time, monitor Quality and Uptime KPIs, log downtime reasons, and submit production results.',
+            icon: <Cpu size={28} color="#dc2626" />,
+            bg: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+            accent: '#dc2626',
+            rating: 5.0,
+            installs: 'New',
+            features: ['Parts Counter', 'Defect Tracking', 'Downtime Log', 'OEE KPIs'],
+            guide: {
+                operation: '1. Enter work order & line info\n2. Count parts and defects in real-time\n3. Log downtime events with reasons\n4. Monitor Quality & Uptime KPIs\n5. Submit production results',
+                widgets: ['Counter Buttons', 'KPI Display', 'Downtime Input', 'Status Selector'],
+                components: ['Machine Terminal Dashboard', 'Production Summary'],
+                tables: [{ name: 'Assy_Production_Logs', description: 'Production result records per work order.' }],
+                triggers: [
+                    { event: 'ADD_PART', function: 'Increments parts made counter.' },
+                    { event: 'ADD_DEFECT', function: 'Increments defect counter and alerts operator.' },
+                    { event: 'FINISH_PRODUCTION', function: 'Calculates OEE and saves production record.' }
+                ],
+                mechanism: 'Real-time parts and defect counting with automatic Quality % calculation.'
             }
         }
     ];
@@ -185,6 +211,48 @@ const AppStore = () => {
                     }
                 } catch (wdErr) {
                     console.warn('Could not create WD table:', wdErr);
+                }
+            } else if (templateId === 'assy-line-production') {
+                templateApp = createAssyLineProductionTemplate();
+                try {
+                    const ordersTable = await createTable({ name: 'Production_Orders', fields: [
+                        { name: 'Work_Order_ID', type: 'text' }, { name: 'Line_Assy', type: 'text' },
+                        { name: 'Shift', type: 'text' }, { name: 'Machine_ID', type: 'text' },
+                        { name: 'Article', type: 'text' }, { name: 'Target_Qty', type: 'number' },
+                        { name: 'Parts_Made', type: 'number' }, { name: 'Defects', type: 'number' },
+                        { name: 'Quality_Pct', type: 'number' }, { name: 'Status_Produksi', type: 'text' },
+                        { name: 'Operator', type: 'text' }, { name: 'Timestamp', type: 'datetime' },
+                        { name: 'Linked_Counts', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_Order' },
+                        { name: 'Linked_Downtime', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_Order' },
+                        { name: 'Linked_Notes', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_Order' }
+                    ] });
+                    const countsTable = await createTable({ name: 'Production_Counts', fields: [
+                        { name: 'Work_Order_ID', type: 'text' }, { name: 'Count_Interval', type: 'text' },
+                        { name: 'Interval_Parts', type: 'number' }, { name: 'Interval_Defects', type: 'number' },
+                        { name: 'Operator', type: 'text' }, { name: 'Timestamp', type: 'datetime' },
+                        { name: 'Parent_Order', type: 'linked_record', link_table_id: ordersTable?.id, link_type: 'many_to_one', reverse_link_name: 'Linked_Counts' }
+                    ] });
+                    const downtimeTable = await createTable({ name: 'Downtime_Events', fields: [
+                        { name: 'Work_Order_ID', type: 'text' }, { name: 'Downtime_Reason', type: 'text' },
+                        { name: 'Downtime_Minutes', type: 'number' }, { name: 'Fault_Code', type: 'text' },
+                        { name: 'Machine_ID', type: 'text' }, { name: 'Operator', type: 'text' }, { name: 'Timestamp', type: 'datetime' },
+                        { name: 'Parent_Order', type: 'linked_record', link_table_id: ordersTable?.id, link_type: 'many_to_one', reverse_link_name: 'Linked_Downtime' }
+                    ] });
+                    const notesTable = await createTable({ name: 'Production_Notes', fields: [
+                        { name: 'Work_Order_ID', type: 'text' }, { name: 'Note_Text', type: 'text' },
+                        { name: 'Operator', type: 'text' }, { name: 'Timestamp', type: 'datetime' },
+                        { name: 'Parent_Order', type: 'linked_record', link_table_id: ordersTable?.id, link_type: 'many_to_one', reverse_link_name: 'Linked_Notes' }
+                    ] });
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (ordersTable?.id) { appStr = appStr.replace(/tbl_prod_orders/g, ordersTable.id); tIds.push(ordersTable.id); }
+                    if (countsTable?.id) { appStr = appStr.replace(/tbl_prod_counts/g, countsTable.id); tIds.push(countsTable.id); }
+                    if (downtimeTable?.id) { appStr = appStr.replace(/tbl_prod_downtime/g, downtimeTable.id); tIds.push(downtimeTable.id); }
+                    if (notesTable?.id) { appStr = appStr.replace(/tbl_prod_notes/g, notesTable.id); tIds.push(notesTable.id); }
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (prodErr) {
+                    console.warn('Could not create production tables:', prodErr);
                 }
             } else {
                 toast.error('Template not found', { id: loadingToast });
