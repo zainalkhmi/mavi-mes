@@ -12,6 +12,7 @@ import { createIncomingInspectionTemplate } from '../utils/incomingInspectionTem
 import { createWeighDispenseTemplate } from '../utils/weighDispenseTemplate';
 import { createAssyLineProductionTemplate } from '../utils/assyLineProductionTemplate';
 import { createInventoryAlertTemplate } from '../utils/inventoryAlertTemplate';
+import { createCarWorkshopTemplate } from '../utils/carWorkshopTemplate';
 
 import { saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { createTable, getTables, addTableRecord } from '../utils/database';
@@ -60,7 +61,7 @@ const AppStore = () => {
             });
         }
     };
-    const categories = ['All', 'Quality', 'Manufacturing', 'Production', 'Warehouse'];
+    const categories = ['All', 'Quality', 'Manufacturing', 'Production', 'Warehouse', 'Automotive'];
 
 
     const templates = [
@@ -168,6 +169,35 @@ const AppStore = () => {
                     { event: 'LOW_STOCK_ALERT', function: 'Creates alert record when qty < reorder point.' }
                 ],
                 mechanism: 'Automated 24/7 inventory monitoring with threshold-based alerting and transaction logging.'
+            }
+        },
+        {
+            id: 'car-workshop',
+            name: 'Car Workshop Pro',
+            category: 'Automotive',
+            description: 'Complete car workshop management — vehicle check-in, service tracking, multi-point inspection, parts & invoicing.',
+            longDescription: '4-step workflow: Check-In → Service & Parts → Vehicle Inspection → Invoice & Close. Multi-table linked architecture with formula fields, automated notifications, and low-parts alerts.',
+            icon: <Boxes size={28} color="#dc2626" />,
+            bg: 'linear-gradient(135deg, #fef2f2 0%, #fecaca 100%)',
+            accent: '#dc2626',
+            rating: 5.0,
+            installs: 'New',
+            features: ['Vehicle Check-In', 'Multi-Point Inspection', 'Parts & Invoice', 'Job Notifications'],
+            guide: {
+                operation: '1. Scan license plate & create work order\n2. Add services & parts\n3. Multi-point vehicle inspection\n4. Generate invoice & close',
+                widgets: ['Barcode', 'Radio Group', 'Interactive Table', 'Image Capture'],
+                components: ['Check-In Form', 'Service Dashboard', 'Inspection Checklist', 'Invoice Summary'],
+                tables: [
+                    { name: 'Workshop_Orders', description: 'Master work orders with vehicle & customer info' },
+                    { name: 'Service_Items', description: 'Services performed with labor cost formula' },
+                    { name: 'Vehicle_Inspections', description: '6-point inspection results' },
+                    { name: 'Parts_Used', description: 'Parts consumed with line total formula' }
+                ],
+                triggers: [
+                    { event: 'JOB_COMPLETE', function: 'Notifies customer when status = COMPLETED' },
+                    { event: 'LOW_PARTS', function: 'Alerts parts manager when stock < 5' }
+                ],
+                mechanism: 'Full workshop lifecycle with linked records, formulas (Labor_Cost, Line_Total), and automated notifications.'
             }
         }
     ];
@@ -342,6 +372,58 @@ const AppStore = () => {
                     } catch (regErr) { console.warn('Could not register automations:', regErr); }
                 } catch (invErr) {
                     console.warn('Could not create inventory tables:', invErr);
+                }
+            } else if (templateId === 'car-workshop') {
+                templateApp = createCarWorkshopTemplate();
+                try {
+                    const woTable = await createTable({ name: 'Workshop_Orders', fields: [
+                        { name: 'License_Plate', type: 'text' }, { name: 'Vehicle_Make', type: 'text' },
+                        { name: 'Vehicle_Model', type: 'text' }, { name: 'Vehicle_Year', type: 'text' },
+                        { name: 'Mileage', type: 'number' }, { name: 'Customer_Name', type: 'text' },
+                        { name: 'Customer_Phone', type: 'text' }, { name: 'Technician', type: 'text' },
+                        { name: 'Bay_Number', type: 'text' }, { name: 'Priority', type: 'text' },
+                        { name: 'WO_Status', type: 'text' }, { name: 'Timestamp', type: 'datetime' },
+                        { name: 'Linked_Services', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_WO' },
+                        { name: 'Linked_Inspections', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_WO' },
+                        { name: 'Linked_Parts', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_WO' }
+                    ] });
+                    const svcTable = await createTable({ name: 'Service_Items', fields: [
+                        { name: 'Service_Type', type: 'text' }, { name: 'Description', type: 'text' },
+                        { name: 'Labor_Hours', type: 'number' }, { name: 'Labor_Rate', type: 'number' },
+                        { name: 'Labor_Cost', type: 'formula', formulaExpression: 'Labor_Hours * Labor_Rate' },
+                        { name: 'Technician', type: 'text' }, { name: 'Timestamp', type: 'datetime' },
+                        { name: 'Parent_WO', type: 'linked_record', link_table_id: woTable?.id, link_type: 'many_to_one', reverse_link_name: 'Linked_Services' }
+                    ] });
+                    const inspTable = await createTable({ name: 'Vehicle_Inspections', fields: [
+                        { name: 'Engine', type: 'text' }, { name: 'Brakes', type: 'text' },
+                        { name: 'Tires', type: 'text' }, { name: 'Fluids', type: 'text' },
+                        { name: 'Lights', type: 'text' }, { name: 'Suspension', type: 'text' },
+                        { name: 'Notes', type: 'text' }, { name: 'Timestamp', type: 'datetime' },
+                        { name: 'Parent_WO', type: 'linked_record', link_table_id: woTable?.id, link_type: 'many_to_one', reverse_link_name: 'Linked_Inspections' }
+                    ] });
+                    const partsTable = await createTable({ name: 'Parts_Used', fields: [
+                        { name: 'Part_Name', type: 'text' }, { name: 'Qty', type: 'number' },
+                        { name: 'Unit_Price', type: 'number' },
+                        { name: 'Line_Total', type: 'formula', formulaExpression: 'Qty * Unit_Price' },
+                        { name: 'Timestamp', type: 'datetime' },
+                        { name: 'Parent_WO', type: 'linked_record', link_table_id: woTable?.id, link_type: 'many_to_one', reverse_link_name: 'Linked_Parts' }
+                    ] });
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (woTable?.id) { appStr = appStr.replace(/tbl_ws_orders/g, woTable.id); tIds.push(woTable.id); }
+                    if (svcTable?.id) { appStr = appStr.replace(/tbl_ws_services/g, svcTable.id); tIds.push(svcTable.id); }
+                    if (inspTable?.id) { appStr = appStr.replace(/tbl_ws_inspections/g, inspTable.id); tIds.push(inspTable.id); }
+                    if (partsTable?.id) { appStr = appStr.replace(/tbl_ws_parts/g, partsTable.id); tIds.push(partsTable.id); }
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                    try {
+                        const ea = JSON.parse(localStorage.getItem('mes_automations') || '[]');
+                        const ef = JSON.parse(localStorage.getItem('mes_functions') || '[]');
+                        localStorage.setItem('mes_automations', JSON.stringify([...ea, ...(templateApp.config.automations||[]).map(a=>({...a,active:true}))]));
+                        localStorage.setItem('mes_functions', JSON.stringify([...ef, ...(templateApp.config.functions||[]).map(f=>({...f,active:true}))]));
+                    } catch(e) {}
+                } catch (wsErr) {
+                    console.warn('Could not create workshop tables:', wsErr);
                 }
             } else {
                 toast.error('Template not found', { id: loadingToast });
