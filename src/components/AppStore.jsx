@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { createIncomingInspectionTemplate } from '../utils/incomingInspectionTemplate';
 import { createWeighDispenseTemplate } from '../utils/weighDispenseTemplate';
 import { createAssyLineProductionTemplate } from '../utils/assyLineProductionTemplate';
+import { createInventoryAlertTemplate } from '../utils/inventoryAlertTemplate';
 
 import { saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { createTable, getTables, addTableRecord } from '../utils/database';
@@ -59,7 +60,7 @@ const AppStore = () => {
             });
         }
     };
-    const categories = ['All', 'Quality', 'Manufacturing', 'Production'];
+    const categories = ['All', 'Quality', 'Manufacturing', 'Production', 'Warehouse'];
 
 
     const templates = [
@@ -139,6 +140,34 @@ const AppStore = () => {
                     { event: 'FINISH_PRODUCTION', function: 'Calculates OEE and saves production record.' }
                 ],
                 mechanism: 'Real-time parts and defect counting with automatic Quality % calculation.'
+            }
+        },
+        {
+            id: 'inventory-alert',
+            name: 'Inventory Status & Alerting',
+            category: 'Warehouse',
+            description: 'Automated inventory monitoring with low-stock alerts, kitting dashboard, material picking, and reorder management.',
+            longDescription: 'Monitor hundreds of materials 24/7. Automatic reorder alerts when stock drops below threshold. Kitting dashboard with cell performance KPIs, material transactions, and pick-to-light support.',
+            icon: <Boxes size={28} color="#ea580c" />,
+            bg: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
+            accent: '#ea580c',
+            rating: 5.0,
+            installs: 'New',
+            features: ['Low Stock Alerts', 'Kitting Dashboard', 'Material Picking', 'Reorder Automation'],
+            guide: {
+                operation: '1. View kitting dashboard & cell performance\n2. Scan material barcode to pick\n3. Record transaction (pick/receive/adjust)\n4. Auto-alert if stock < reorder point\n5. Review alerts & manage reorders',
+                widgets: ['Interactive Table', 'Barcode Scanner', 'KPI Counters', 'Alert System'],
+                components: ['Kitting Dashboard', 'Material Picker', 'Alert Manager'],
+                tables: [
+                    { name: 'Inventory_Materials', description: 'Master material data with qty and reorder points.' },
+                    { name: 'Inventory_Transactions', description: 'Pick/receive/adjust transactions linked to materials.' },
+                    { name: 'Inventory_Alerts', description: 'Auto-generated low stock alerts.' }
+                ],
+                triggers: [
+                    { event: 'PICK_MATERIAL', function: 'Decrements stock and checks reorder threshold.' },
+                    { event: 'LOW_STOCK_ALERT', function: 'Creates alert record when qty < reorder point.' }
+                ],
+                mechanism: 'Automated 24/7 inventory monitoring with threshold-based alerting and transaction logging.'
             }
         }
     ];
@@ -253,6 +282,66 @@ const AppStore = () => {
                     templateApp.config.appTables = tIds;
                 } catch (prodErr) {
                     console.warn('Could not create production tables:', prodErr);
+                }
+            } else if (templateId === 'inventory-alert') {
+                templateApp = createInventoryAlertTemplate();
+                try {
+                    // 1. Suppliers table
+                    const supTable = await createTable({ name: 'Inventory_Suppliers', fields: [
+                        { name: 'Supplier_Name', type: 'text' }, { name: 'Contact', type: 'text' },
+                        { name: 'Lead_Days', type: 'number' }, { name: 'Rating', type: 'text' },
+                        { name: 'Linked_Materials', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Supplier' }
+                    ] });
+                    // 2. Materials table with formula fields
+                    const matTable = await createTable({ name: 'Inventory_Materials', fields: [
+                        { name: 'Material_Name', type: 'text' }, { name: 'Item_Number', type: 'text' },
+                        { name: 'Current_Qty', type: 'number' }, { name: 'Reorder_Point', type: 'number' },
+                        { name: 'Unit_Cost', type: 'number' }, { name: 'Location', type: 'text' },
+                        { name: 'Status', type: 'text' }, { name: 'Unit', type: 'text' },
+                        { name: 'Stock_Value', type: 'formula', formulaExpression: 'Current_Qty * Unit_Cost' },
+                        { name: 'Reorder_Gap', type: 'formula', formulaExpression: 'Current_Qty - Reorder_Point' },
+                        { name: 'Supplier', type: 'linked_record', link_table_id: supTable?.id, link_type: 'many_to_one', reverse_link_name: 'Linked_Materials' },
+                        { name: 'Linked_Transactions', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_Material' },
+                        { name: 'Linked_Alerts', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_Material' }
+                    ] });
+                    // 3. Transactions table
+                    const txTable = await createTable({ name: 'Inventory_Transactions', fields: [
+                        { name: 'Order_ID', type: 'text' }, { name: 'Item_Number', type: 'text' },
+                        { name: 'Material_Name', type: 'text' }, { name: 'Qty', type: 'number' },
+                        { name: 'Type', type: 'text' }, { name: 'Unit_Cost', type: 'number' },
+                        { name: 'Line_Value', type: 'formula', formulaExpression: 'Qty * Unit_Cost' },
+                        { name: 'Operator', type: 'text' }, { name: 'Timestamp', type: 'datetime' },
+                        { name: 'Parent_Material', type: 'linked_record', link_table_id: matTable?.id, link_type: 'many_to_one', reverse_link_name: 'Linked_Transactions' }
+                    ] });
+                    // 4. Alerts table
+                    const alertTable = await createTable({ name: 'Inventory_Alerts', fields: [
+                        { name: 'Material_Name', type: 'text' }, { name: 'Item_Number', type: 'text' },
+                        { name: 'Current_Qty', type: 'number' }, { name: 'Reorder_Point', type: 'number' },
+                        { name: 'Alert_Type', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Timestamp', type: 'datetime' },
+                        { name: 'Parent_Material', type: 'linked_record', link_table_id: matTable?.id, link_type: 'many_to_one', reverse_link_name: 'Linked_Alerts' }
+                    ] });
+                    // Replace placeholders with real UUIDs
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (matTable?.id) { appStr = appStr.replace(/tbl_inv_materials/g, matTable.id); tIds.push(matTable.id); }
+                    if (txTable?.id) { appStr = appStr.replace(/tbl_inv_transactions/g, txTable.id); tIds.push(txTable.id); }
+                    if (alertTable?.id) { appStr = appStr.replace(/tbl_inv_alerts/g, alertTable.id); tIds.push(alertTable.id); }
+                    if (supTable?.id) { appStr = appStr.replace(/tbl_inv_suppliers/g, supTable.id); tIds.push(supTable.id); }
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                    // Register Automations & Functions in localStorage
+                    try {
+                        const existingAutos = JSON.parse(localStorage.getItem('mes_automations') || '[]');
+                        const existingFns = JSON.parse(localStorage.getItem('mes_functions') || '[]');
+                        const newAutos = (templateApp.config.automations || []).map(a => ({ ...a, active: true }));
+                        const newFns = (templateApp.config.functions || []).map(f => ({ ...f, active: true }));
+                        localStorage.setItem('mes_automations', JSON.stringify([...existingAutos, ...newAutos]));
+                        localStorage.setItem('mes_functions', JSON.stringify([...existingFns, ...newFns]));
+                        console.log('[AppStore] Registered', newAutos.length, 'automations and', newFns.length, 'functions');
+                    } catch (regErr) { console.warn('Could not register automations:', regErr); }
+                } catch (invErr) {
+                    console.warn('Could not create inventory tables:', invErr);
                 }
             } else {
                 toast.error('Template not found', { id: loadingToast });
