@@ -2106,6 +2106,68 @@ const LiveTerminal = () => {
             handleNextStep();
           } else if (action.type === 'PREV_STEP') {
             handlePrevStep();
+          } else if (action.type === 'PRINT_SCREEN') {
+            const targetId = String(action.payload?.targetId || '');
+            setTimeout(() => {
+              if (targetId) {
+                let x, y, w, h;
+                let isCoordinateBased = false;
+
+                if (targetId.startsWith('rect:')) {
+                  [x, y, w, h] = targetId.split(':')[1].split(',').map(Number);
+                  isCoordinateBased = true;
+                } else {
+                  const targetComp = appComponents.find(c => c.id === targetId);
+                  if (targetComp && targetComp.type === 'PRINT_AREA') {
+                    x = targetComp.x;
+                    y = targetComp.y;
+                    w = targetComp.w;
+                    h = targetComp.h;
+                    isCoordinateBased = true;
+                  }
+                }
+
+                if (isCoordinateBased) {
+                  const style = document.createElement('style');
+                  style.id = 'print-style-injected';
+                  style.innerHTML = `
+                    @media print {
+                      body * { visibility: hidden; }
+                      #terminal-canvas-content { 
+                        visibility: visible !important; 
+                        position: absolute !important; 
+                        left: -${x}px !important; 
+                        top: -${y}px !important;
+                        width: ${x + w}px !important;
+                        height: ${y + h}px !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        overflow: hidden !important;
+                      }
+                      #terminal-canvas-content * { visibility: visible; }
+                    }
+                  `;
+                  document.head.appendChild(style);
+                  window.print();
+                  document.head.removeChild(style);
+                } else {
+                  const style = document.createElement('style');
+                  style.id = 'print-style-injected';
+                  style.innerHTML = `
+                    @media print {
+                      body * { visibility: hidden; }
+                      #${targetId}, #${targetId} * { visibility: visible; }
+                      #${targetId} { position: absolute; left: 0; top: 0; width: 100%; max-width: 100%; margin: 0; padding: 0; }
+                    }
+                  `;
+                  document.head.appendChild(style);
+                  window.print();
+                  document.head.removeChild(style);
+                }
+              } else {
+                window.print();
+              }
+            }, 300);
           } else if (action.type === 'COMPLETE_APP') {
             await handleCompleteApp();
           } else if (action.type === 'CANCEL_APP') {
@@ -3426,6 +3488,22 @@ const LiveTerminal = () => {
     };
 
     switch (comp.type) {
+      case 'PRINT_AREA':
+        return (
+          <div style={{
+            width: '100%',
+            height: '100%',
+            border: (!selectedApp || !selectedApp.is_published) ? '2px dashed #ef4444' : 'none',
+            backgroundColor: 'transparent',
+            pointerEvents: 'none'
+          }}>
+            {(!selectedApp || !selectedApp.is_published) && (
+               <div style={{ position: 'absolute', top: '-24px', right: 0, background: '#ef4444', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                   Print Area Boundary
+               </div>
+            )}
+          </div>
+        );
       case 'TEXT': return <div style={{ fontSize: (resolvedProps.fontSize || 16) + 'px', color: resolvedProps.color || '#0f172a', fontWeight: resolvedProps.fontWeight, fontStyle: resolvedProps.fontStyle, textDecoration: resolvedProps.textDecoration, textAlign: resolvedProps.textAlign }}>{resolvedProps.text}</div>;
       case 'TIMER': return (
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
@@ -5293,6 +5371,76 @@ const LiveTerminal = () => {
         return (
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)`, gap: '1px', width: '100%', height: '100%', backgroundColor: '#e2e8f0' }}>
             {Array.from({ length: rows * cols }).map((_, i) => <div key={i} style={{ backgroundColor: isDark ? '#1e293b' : 'white' }} />)}
+          </div>
+        );
+      }
+      // ── LEAN_DASHBOARD_WIDGET ──
+      case 'LEAN_DASHBOARD_WIDGET': {
+        const incidents = String(resolveValue(comp.props.targetVariable) || comp.props.incidents || 'YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY').toUpperCase();
+        const letter = comp.props.letter || 'P';
+        const monthDate = new Date(resolveValue(comp.props.month) || comp.props.month || Date.now());
+        const monthName = monthDate.toLocaleDateString('default', { month: 'long', year: 'numeric' });
+        const location = resolveValue(comp.props.location) || comp.props.location || 'Boston';
+        
+        const pathDataMap = {
+          'P': 'M 25,90 L 25,20 A 25,25 0 1,1 25,70',
+          'S': 'M 75,25 C 75,-5 25,-5 25,25 C 25,50 75,50 75,75 C 75,105 25,105 25,75',
+          'Q': 'M 50,20 A 30,30 0 1,0 50,80 A 30,30 0 1,0 50,20',
+          'D': 'M 25,10 L 25,90 A 40,40 0 0,0 25,10',
+          'C': 'M 75,20 A 35,35 0 1,0 75,80'
+        };
+        const titleMap = { 'P': 'PEOPLE', 'S': 'SAFETY', 'Q': 'QUALITY', 'D': 'DELIVERY', 'C': 'COST' };
+        const colorMap = { 'P': '#fbbf24', 'S': '#a3e635', 'Q': '#ef4444', 'D': '#ec4899', 'C': '#3b82f6' };
+        
+        const pathData = pathDataMap[letter] || pathDataMap['P'];
+        
+        const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
+        const currentDay = new Date().getDate();
+        const isCurrentMonth = new Date().getMonth() === monthDate.getMonth() && new Date().getFullYear() === monthDate.getFullYear();
+        
+        return (
+          <div style={{ backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', height: '100%' }}>
+            <div style={{ width: '100%', backgroundColor: colorMap[letter], color: 'white', textAlign: 'center', padding: '8px', fontSize: '1.5rem', fontWeight: 900, letterSpacing: '0.1em' }}>
+              {titleMap[letter]}
+            </div>
+            <div style={{ textAlign: 'center', marginTop: '8px' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a' }}>{location}</div>
+              <div style={{ fontSize: '0.85rem', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a' }}>{monthName}</div>
+            </div>
+            <div style={{ flex: 1, width: '100%', marginTop: '16px', position: 'relative' }}>
+              <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
+                <path d={pathData} fill="none" stroke={isDark ? '#334155' : '#e2e8f0'} strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" />
+                {letter === 'Q' && <path d="M 60,70 L 85,95" fill="none" stroke={isDark ? '#334155' : '#e2e8f0'} strokeWidth="16" strokeLinecap="round" />}
+                {Array.from({ length: 31 }).map((_, i) => {
+                  if (i >= daysInMonth) return null;
+                  const isFuture = isCurrentMonth && (i + 1 > currentDay);
+                  const statusChar = incidents.charAt(i) || 'N';
+                  const color = isFuture ? '#94a3b8' : (statusChar === 'Y' ? '#22c55e' : '#ef4444');
+                  return (
+                    <path 
+                      key={i}
+                      d={pathData}
+                      fill="none"
+                      stroke={color}
+                      strokeWidth="12"
+                      pathLength="31"
+                      strokeDasharray="0.95 31"
+                      strokeDashoffset={-i}
+                      style={{ cursor: comp.props.preventUpdates ? 'default' : 'pointer', transition: 'stroke 0.3s' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (comp.props.preventUpdates) return;
+                        let newIncidents = incidents.padEnd(31, 'N').split('');
+                        newIncidents[i] = newIncidents[i] === 'Y' ? 'N' : 'Y';
+                        const newStr = newIncidents.join('');
+                        syncVariableForComp(comp, newStr);
+                        fireWidgetTriggers(comp, 'ON_CLICK', { day: i + 1, status: newIncidents[i] });
+                      }}
+                    />
+                  );
+                })}
+              </svg>
+            </div>
           </div>
         );
       }

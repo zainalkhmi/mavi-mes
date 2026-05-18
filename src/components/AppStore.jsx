@@ -18,6 +18,7 @@ import { createPicklistTemplate } from '../utils/picklistTemplate';
 import { createDefectTrackingTemplate } from '../utils/defectTrackingTemplate';
 import { createEquipmentManagementTemplate } from '../utils/equipmentManagementTemplate';
 import { createKanbanAppSuiteTemplate } from '../utils/kanbanAppSuiteTemplate';
+import { createLeanDashboardTemplate } from '../utils/leanDashboardTemplate';
 
 import { saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { createTable, getTables, addTableRecord } from '../utils/database';
@@ -394,6 +395,34 @@ const AppStore = () => {
                     { name: 'Open Requests Detail', description: 'Detailed view for operators to track the exact status and location of a specific request.' }
                 ]
             }
+        },
+        {
+            id: 'lean-dashboard',
+            name: 'Lean Dashboard Widgets',
+            category: 'Analytic',
+            description: 'Visualize cell performance across 5 key KPIS (People, Safety, Quality, Delivery, and Cost).',
+            longDescription: 'Replace traditional paper-based shift dashboards with the lean dashboard Widget. Use this Widget as a quick reference to visualize cell performance. Operators or supervisors can update the status for the day by clicking the widget, with green indicating a good result and red indicating a poor result.',
+            icon: <Activity size={28} color="#059669" />,
+            bg: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)',
+            accent: '#059669',
+            rating: 5.0,
+            installs: 'New',
+            features: ['PSQDC Tracking', 'Interactive Letter Widgets', 'Real-time Updates'],
+            guide: {
+                operation: '1. Click on a day segment to toggle its status (Good/Bad).\n2. View the full month layout in real-time.\n3. Data is stored and updated dynamically.',
+                widgets: ['Lean Dashboard Widget', 'Text'],
+                components: ['Lean Dashboard'],
+                tables: [
+                    { name: 'tbl_lean_data', description: 'Table for storing monthly incident strings for PSQDC.' }
+                ],
+                triggers: [
+                    { event: 'ON_CLICK', function: 'Toggles the day status and updates the underlying variable string.' }
+                ],
+                mechanism: 'Custom rendering of letter widgets split into up to 31 daily segments.',
+                steps: [
+                    { name: 'Lean Dashboard', description: 'The main dashboard layout with 5 KPI letter widgets.' }
+                ]
+            }
         }
     ];
 
@@ -747,6 +776,26 @@ const AppStore = () => {
                 } catch (kanbanErr) {
                     console.warn('Could not create kanban tables:', kanbanErr);
                 }
+            } else if (templateId === 'lean-dashboard') {
+                templateApp = createLeanDashboardTemplate();
+                try {
+                    const leanTable = await createTable({ name: 'tbl_lean_data', fields: [
+                        { name: 'Month', type: 'datetime' },
+                        { name: 'Location', type: 'text' },
+                        { name: 'Incidents_P', type: 'text' },
+                        { name: 'Incidents_S', type: 'text' },
+                        { name: 'Incidents_Q', type: 'text' },
+                        { name: 'Incidents_D', type: 'text' },
+                        { name: 'Incidents_C', type: 'text' }
+                    ]});
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (leanTable?.id) { appStr = appStr.replace(/tbl_lean_data/g, leanTable.id); tIds.push(leanTable.id); }
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (leanErr) {
+                    console.warn('Could not create lean table:', leanErr);
+                }
             } else {
                 toast.error('Template not found', { id: loadingToast });
                 return;
@@ -816,7 +865,7 @@ const AppStore = () => {
                             key={cat}
                             onClick={() => setActiveCategory(cat)}
                             style={{
-                                padding: '10px 24px', borderRadius: '100px', border: 'none',
+                                padding: '10px 24px', borderRadius: '100px',
                                 backgroundColor: activeCategory === cat ? '#0f172a' : 'white',
                                 color: activeCategory === cat ? 'white' : '#64748b',
                                 fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer',

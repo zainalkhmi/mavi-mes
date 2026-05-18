@@ -848,6 +848,24 @@ const COMPONENT_TYPES = {
         defaultSize: { w: 320, h: 180 },
         defaultProps: { analysisId: '', title: 'Live Analysis', refreshSeconds: 10, visible: true, triggers: [], visibilityCondition: null, rotation: 0 }
     },
+    LEAN_DASHBOARD_WIDGET: {
+        id: 'LEAN_DASHBOARD_WIDGET',
+        label: 'Lean Dashboard',
+        icon: LayoutDashboard,
+        defaultSize: { w: 260, h: 320 },
+        defaultProps: {
+            letter: 'P',
+            incidents: 'YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY',
+            targetVariable: '',
+            month: new Date().toISOString(),
+            location: 'Boston',
+            preventUpdates: false,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
     VIDEO: {
         id: 'VIDEO',
         label: 'Video',
@@ -1342,7 +1360,8 @@ const COMPONENT_TYPES = {
     BARCODE_SCANNER_NON_VISIBLE: { id: 'BARCODE_SCANNER_NON_VISIBLE', label: 'Scanner (Non-visible)', icon: ScanLine, defaultProps: { triggers: [], visibilityCondition: null, rotation: 0 } },
     NUMBER_INPUT: { id: 'NUMBER_INPUT', label: 'Number Input', icon: Hash, defaultProps: { triggers: [], visibilityCondition: null, rotation: 0 } },
     MENU: { id: 'MENU', label: 'Menu', icon: Menu, defaultProps: { triggers: [], visibilityCondition: null, rotation: 0 } },
-    TIMER: { id: 'TIMER', label: 'Timer', icon: Clock, defaultProps: { triggers: [], visibilityCondition: null, rotation: 0 } }
+    TIMER: { id: 'TIMER', label: 'Timer', icon: Clock, defaultProps: { triggers: [], visibilityCondition: null, rotation: 0 } },
+    PRINT_AREA: { id: 'PRINT_AREA', label: 'Print Area', icon: Square, defaultSize: { w: 200, h: 200 }, defaultProps: { border: '2px dashed #ef4444', backgroundColor: 'transparent', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } }
 };
 
 
@@ -1357,7 +1376,7 @@ const CATEGORIZED_COMPONENTS = {
             'SLIDER', 'DROPDOWN', 'MULTI_SELECT', 'LIST_PICKER', 'LIST_VIEW',
             'DATE_PICKER', 'DATETIME_PICKER', 'IMAGE', 'EMBED_WEB', 'VIDEO_PLAYER',
             'FILE_PICKER', 'IMAGE_PICKER', 'SIGNATURE_PAD', 'SIGNATURE',
-            'NOTIFIER', 'CUSTOM_WIDGET'
+            'NOTIFIER', 'CUSTOM_WIDGET', 'PRINT_AREA'
         ]
     },
     QUALITY: {
@@ -3991,6 +4010,8 @@ const AppBuilder = () => {
     //     // --- Builder Polish State ---
     const [snapToGrid, setSnapToGrid] = useState(false);
     const [showGrid, setShowGrid] = useState(false);
+    const [printAreaSelectionMode, setPrintAreaSelectionMode] = useState(null);
+    const [printAreaPreview, setPrintAreaPreview] = useState(null);
 
     const GRID_SIZE = 20;
 
@@ -5219,8 +5240,7 @@ const AppBuilder = () => {
                     break;
                 }
                 case 'CREATE_RECORD':
-                case 'UPDATE_RECORD':
-                case 'TABLE_RECORD_SAVE': {
+                case 'UPDATE_RECORD': {
                     const { tableId, mappings, recordId: rawRecordId } = action.payload;
                     const resolvedData = {};
                     Object.entries(mappings || {}).forEach(([col, mapObj]) => {
@@ -7375,6 +7395,14 @@ const AppBuilder = () => {
                 merged.label = incomingProps.text;
             }
 
+            // Keep varSource and targetVariable in sync so data-binding works consistently across widgets
+            if (Object.prototype.hasOwnProperty.call(incomingProps, 'varSource') && !Object.prototype.hasOwnProperty.call(incomingProps, 'targetVariable')) {
+                merged.targetVariable = incomingProps.varSource;
+            }
+            if (Object.prototype.hasOwnProperty.call(incomingProps, 'targetVariable') && !Object.prototype.hasOwnProperty.call(incomingProps, 'varSource')) {
+                merged.varSource = incomingProps.targetVariable;
+            }
+
             return merged;
         };
 
@@ -8373,6 +8401,27 @@ const AppBuilder = () => {
                     bottom: (yMax - rect.top) / zoomScale
                 };
 
+                if (printAreaSelectionMode) {
+                    const snap = (val) => Math.round(val / GRID_SIZE) * GRID_SIZE;
+                    const sLeft = snap(boxOnCanvas.left);
+                    const sTop = snap(boxOnCanvas.top);
+                    const sRight = snap(boxOnCanvas.right);
+                    const sBottom = snap(boxOnCanvas.bottom);
+                    
+                    const printAreaStr = `rect:${sLeft},${sTop},${sRight - sLeft},${sBottom - sTop}`;
+                    const nextTrigger = JSON.parse(JSON.stringify(triggerEditor.trigger));
+                    if (printAreaSelectionMode.isElse) {
+                        nextTrigger.elseActions[printAreaSelectionMode.aIdx].payload.targetId = printAreaStr;
+                    } else {
+                        nextTrigger.clauses[printAreaSelectionMode.cIdx].actions[printAreaSelectionMode.aIdx].payload.targetId = printAreaStr;
+                    }
+                    setTriggerEditor(prev => ({ ...prev, trigger: nextTrigger, isHidden: false }));
+                    setPrintAreaSelectionMode(null);
+                    setSelectionBox(null);
+                    setShowGrid(false);
+                    return;
+                }
+
                 const comps = currentStepId === 'BASE' ? baseComponents : currentStep.components;
                 const newlySelected = comps.filter(c => {
                     const cRight = c.x + c.w;
@@ -8494,10 +8543,11 @@ const AppBuilder = () => {
     const isComponentDatasourceMapped = (comp) => {
         const props = comp?.props || {};
         const rawType = props.dataSourceType || 'VARIABLE';
-        const isLegacySystemInfo = rawType === 'VARIABLE' && String(props.varSource || '').startsWith('APP_INFO.');
+        const varSource = props.varSource || props.targetVariable || '';
+        const isLegacySystemInfo = rawType === 'VARIABLE' && String(varSource).startsWith('APP_INFO.');
         const normalizedType = isLegacySystemInfo ? 'SYSTEM_INFO' : rawType;
-        if (normalizedType === 'VARIABLE') return Boolean(String(props.varSource || '').trim());
-        if (normalizedType === 'SYSTEM_INFO') return String(props.varSource || '').startsWith('APP_INFO.');
+        if (normalizedType === 'VARIABLE') return Boolean(String(varSource).trim());
+        if (normalizedType === 'SYSTEM_INFO') return String(varSource).startsWith('APP_INFO.');
         if (normalizedType === 'IOT') return Boolean(props.iotTopicId);
         if (normalizedType === 'TABLE_RECORD') {
             const cfg = props.bindingConfig || {};
@@ -8511,7 +8561,8 @@ const AppBuilder = () => {
     const renderDataSourceSection = (selectedComp) => {
         const showUnmappedWarning = shouldShowDatasourceWarning(selectedComp);
         const rawType = selectedComp.props.dataSourceType || 'VARIABLE';
-        const isLegacySystemInfo = rawType === 'VARIABLE' && String(selectedComp.props.varSource || '').startsWith('APP_INFO.');
+        const varSource = selectedComp.props.varSource || selectedComp.props.targetVariable || '';
+        const isLegacySystemInfo = rawType === 'VARIABLE' && String(varSource).startsWith('APP_INFO.');
         const normalizedType = isLegacySystemInfo ? 'SYSTEM_INFO' : rawType;
 
         return (
@@ -8535,8 +8586,11 @@ const AppBuilder = () => {
                             if (nextType === 'SYSTEM_INFO') {
                                 updateComponentProps(selectedComp.id, {
                                     dataSourceType: 'SYSTEM_INFO',
-                                    varSource: String(selectedComp.props.varSource || '').startsWith('APP_INFO.')
-                                        ? selectedComp.props.varSource
+                                    varSource: String(varSource).startsWith('APP_INFO.')
+                                        ? varSource
+                                        : 'APP_INFO.USER',
+                                    targetVariable: String(varSource).startsWith('APP_INFO.')
+                                        ? varSource
                                         : 'APP_INFO.USER'
                                 });
                                 return;
@@ -8545,7 +8599,8 @@ const AppBuilder = () => {
                             if (nextType === 'VARIABLE') {
                                 updateComponentProps(selectedComp.id, {
                                     dataSourceType: 'VARIABLE',
-                                    varSource: appVariables[0]?.name || ''
+                                    varSource: appVariables[0]?.name || '',
+                                    targetVariable: appVariables[0]?.name || ''
                                 });
                                 return;
                             }
@@ -8617,8 +8672,11 @@ const AppBuilder = () => {
                         </div>
                     ) : normalizedType === 'SYSTEM_INFO' ? (
                         <select
-                            value={String(selectedComp.props.varSource || '').startsWith('APP_INFO.') ? selectedComp.props.varSource : 'APP_INFO.USER'}
-                            onChange={(e) => updateComponentProps(selectedComp.id, { varSource: e.target.value })}
+                            value={String(varSource).startsWith('APP_INFO.') ? varSource : 'APP_INFO.USER'}
+                            onChange={(e) => updateComponentProps(selectedComp.id, { 
+                                varSource: e.target.value,
+                                targetVariable: e.target.value
+                            })}
                             style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)', fontSize: '0.85rem' }}
                         >
                             <option value="APP_INFO.USER">Logged-in User</option>
@@ -8630,17 +8688,20 @@ const AppBuilder = () => {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             <select
                                 value={
-                                    appVariables.some(v => v.name === selectedComp.props.varSource) || 
-                                    (selectedComp.props.varSource && selectedComp.props.varSource.startsWith('@'))
-                                        ? selectedComp.props.varSource 
-                                        : (selectedComp.props.varSource ? 'MANUAL' : '')
+                                    appVariables.some(v => v.name === varSource) || 
+                                    (varSource && varSource.startsWith('@'))
+                                        ? varSource 
+                                        : (varSource ? 'MANUAL' : '')
                                 }
                                 onChange={(e) => {
                                     const val = e.target.value;
                                     if (val === 'MANUAL') {
                                         // Keep current value but allow manual editing
                                     } else {
-                                        updateComponentProps(selectedComp.id, { varSource: val });
+                                        updateComponentProps(selectedComp.id, { 
+                                            varSource: val,
+                                            targetVariable: val
+                                        });
                                     }
                                 }}
                                 style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)', fontSize: '0.85rem' }}
@@ -8893,6 +8954,34 @@ const AppBuilder = () => {
         };
 
         switch (comp.type) {
+            case 'PRINT_AREA':
+                return (
+                    <div style={{
+                        width: '100%',
+                        height: '100%',
+                        border: comp.props.border || '2px dashed #ef4444',
+                        backgroundColor: 'transparent',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        position: 'relative'
+                    }}>
+                        <div style={{
+                            position: 'absolute',
+                            top: '-24px',
+                            right: 0,
+                            background: '#ef4444',
+                            color: 'white',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontSize: '0.7rem',
+                            fontWeight: 'bold',
+                            whiteSpace: 'nowrap'
+                        }}>
+                            Print Area Boundary
+                        </div>
+                    </div>
+                );
             case 'TEXT':
                 const isTxtVisible = comp.props.visible !== false;
                 if (!isTxtVisible && viewMode === 'PREVIEW') return null;
@@ -13096,6 +13185,45 @@ const AppBuilder = () => {
                                         }} />
                                     )}
 
+                                    {/* Print Area Preview */}
+                                    {printAreaPreview && (
+                                        <div style={{
+                                            position: 'absolute',
+                                            left: `${printAreaPreview.x}px`,
+                                            top: `${printAreaPreview.y}px`,
+                                            width: `${printAreaPreview.w}px`,
+                                            height: `${printAreaPreview.h}px`,
+                                            border: '2px dashed #ef4444',
+                                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                            zIndex: 9998,
+                                            pointerEvents: 'none'
+                                        }}>
+                                            <div style={{ position: 'absolute', top: '-24px', right: '-2px', background: '#ef4444', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 'bold' }}>
+                                                Print Area Preview
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Print Area Action Overlay */}
+                                    {(printAreaSelectionMode || printAreaPreview) && (
+                                        <div style={{ position: 'fixed', top: '80px', left: '50%', transform: 'translateX(-50%)', zIndex: 10000, background: 'var(--bg-panel)', padding: '12px 24px', borderRadius: '50px', boxShadow: '0 8px 30px rgba(0,0,0,0.15)', border: '1px solid #3b82f6', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                            <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                                                {printAreaPreview ? 'Print Area Preview Mode' : 'Draw a rectangle on the canvas to select Print Area'}
+                                            </div>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setPrintAreaSelectionMode(null);
+                                                    setPrintAreaPreview(null);
+                                                    setTriggerEditor(prev => ({ ...prev, isHidden: false }));
+                                                }}
+                                                style={{ padding: '6px 16px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '20px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 'bold' }}
+                                            >
+                                                {printAreaPreview ? 'Close Preview' : 'Cancel'}
+                                            </button>
+                                        </div>
+                                    )}
+
                                     {/* Alignment Guides (AutoCAD style) */}
                                     {activeGuides.v.map((x, i) => (
                                         <div key={`v-${i}`} style={{ position: 'absolute', top: 0, left: x, width: '1px', height: '100%', backgroundColor: 'rgba(249, 115, 22, 0.4)', zIndex: 999, pointerEvents: 'none', borderLeft: '1px dashed #f97316' }} />
@@ -13281,9 +13409,9 @@ const AppBuilder = () => {
                                                     width: comp.w + 'px',
                                                     height: comp.h + 'px',
                                                     padding: viewMode === 'PREVIEW' ? '0' : '0',
-                                                    backgroundColor: viewMode === 'PREVIEW' ? 'transparent' : (isChromeless ? 'transparent' : (isSelected ? 'rgba(59, 130, 246, 0.05)' : 'white')),
-                                                    borderRadius: isChromeless || viewMode === 'PREVIEW' ? '0' : '8px',
-                                                    border: viewMode === 'PREVIEW' ? 'none' : (isSelected ? '2px solid #3b82f6' : (isChromeless ? 'none' : '1px solid #e2e8f0')),
+                                                    backgroundColor: viewMode === 'PREVIEW' ? 'transparent' : ((isChromeless || comp.type === 'PRINT_AREA') ? 'transparent' : (isSelected ? 'rgba(59, 130, 246, 0.05)' : 'white')),
+                                                    borderRadius: (isChromeless || comp.type === 'PRINT_AREA') || viewMode === 'PREVIEW' ? '0' : '8px',
+                                                    border: viewMode === 'PREVIEW' ? 'none' : (isSelected ? '2px solid #3b82f6' : ((isChromeless || comp.type === 'PRINT_AREA') ? 'none' : '1px solid #e2e8f0')),
                                                     boxSizing: 'border-box',
                                                     cursor: isCanvasLocked ? 'default' : (dragState?.ids?.includes(comp.id) ? 'grabbing' : 'grab'),
                                                     display: 'flex',
@@ -20354,7 +20482,7 @@ const AppBuilder = () => {
                 </div>
             )}
 
-            {triggerEditor.isOpen && triggerEditor.trigger && (
+            {triggerEditor.isOpen && triggerEditor.trigger && !triggerEditor.isHidden && (
                 <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(51, 65, 85, 0.4)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, color: 'var(--text-primary)' }}>
                     <div style={{ backgroundColor: '#e5e7eb', width: 'min(980px, 98vw)', height: '95vh', borderRadius: '4px', border: '1px solid #94a3b8', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', overflow: 'hidden' }}>
                         {/* Header */}
@@ -21025,6 +21153,54 @@ const AppBuilder = () => {
                                                         </div>
                                                     </div>
                                                 );
+                                            case 'PRINT_SCREEN':
+                                                const printAreas = currentStep?.components?.filter(c => c.type === 'PRINT_AREA') || [];
+                                                return (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)', minWidth: '80px' }}>Print Target</label>
+                                                        <div style={{ display: 'flex', gap: '8px', flex: 1 }}>
+                                                            <select
+                                                                value={act.payload.targetId || ''}
+                                                                onChange={(e) => updatePayload({ targetId: e.target.value })}
+                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                                                            >
+                                                                <option value="">Print Entire Screen</option>
+                                                                {printAreas.map(c => (
+                                                                    <option key={c.id} value={c.id}>
+                                                                        {c.props?.label || `Print Area (${c.id})`}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    const val = act.payload.targetId;
+                                                                    if (val?.startsWith('rect:')) {
+                                                                        const [x, y, w, h] = val.split(':')[1].split(',').map(Number);
+                                                                        setPrintAreaPreview({ x, y, w, h });
+                                                                        setTriggerEditor(prev => ({ ...prev, isHidden: true }));
+                                                                    } else {
+                                                                        const targetComp = currentStep?.components?.find(c => c.id === val);
+                                                                        if (targetComp) {
+                                                                            setPrintAreaPreview({
+                                                                                x: targetComp.x,
+                                                                                y: targetComp.y,
+                                                                                w: targetComp.w,
+                                                                                h: targetComp.h
+                                                                            });
+                                                                            setTriggerEditor(prev => ({ ...prev, isHidden: true }));
+                                                                        } else {
+                                                                            alert('Please select an active Print Area from the dropdown to preview.');
+                                                                        }
+                                                                    }
+                                                                }}
+                                                                style={{ padding: '8px 12px', background: 'var(--bg-panel)', color: 'var(--text-secondary)', border: '1px solid var(--border-secondary)', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                                            >
+                                                                Preview
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
                                             case 'COMPLETE_APP':
                                             case 'CANCEL_APP':
                                                 return <div style={{ fontSize: '0.85rem', color: 'var(--text-quaternary)', fontStyle: 'italic', padding: '8px' }}>No additional parameters required.</div>;
@@ -21335,6 +21511,7 @@ const AppBuilder = () => {
                                                                                     </optgroup>
                                                                                     <optgroup label="App & Navigation">
                                                                                         <option value="APP_REFRESH">App: Refresh All Data</option>
+                                                                                        <option value="PRINT_SCREEN">App: Print Screen / Area</option>
                                                                                         {(() => {
                                                                                             const isTransitionActionType = (t) => ['GO_TO_STEP', 'NEXT_STEP', 'PREV_STEP', 'COMPLETE_APP', 'CANCEL_APP'].includes(String(t || ''));
                                                                                             const actionsList = triggerEditor.trigger?.clauses?.[cIdx]?.actions || [];
@@ -21449,6 +21626,7 @@ const AppBuilder = () => {
                                                                                     <option value="OBD2_CLEAR_DTC">OBD2: Clear Error Codes</option>
                                                                                 </optgroup>
                                                                                 <optgroup label="App & Navigation">
+                                                                                    <option value="PRINT_SCREEN">App: Print Screen / Area</option>
                                                                                     {(() => {
                                                                                         const isTransitionActionType = (t) => ['GO_TO_STEP', 'NEXT_STEP', 'PREV_STEP', 'COMPLETE_APP', 'CANCEL_APP'].includes(String(t || ''));
                                                                                         const actionsList = triggerEditor.trigger?.elseActions || [];
