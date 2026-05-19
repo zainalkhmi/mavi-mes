@@ -3,7 +3,7 @@ import {
     Layout, Sparkles, Settings2, Package, Wrench, ArrowRight, CheckCircle2,
     Search, Filter, Star, Zap, Info, Rocket, Database, ShieldCheck,
     ChevronRight, ShoppingBag, Plus, Award, Boxes, ShieldAlert, BookOpen, X, Trash2,
-    List, Cpu, Settings, FileText, PlayCircle, Activity, HeartPulse,
+    List, Cpu, Settings, FileText, PlayCircle, Activity, HeartPulse, Truck,
     Image as ImageIcon
 } from 'lucide-react';
 
@@ -19,6 +19,12 @@ import { createDefectTrackingTemplate } from '../utils/defectTrackingTemplate';
 import { createEquipmentManagementTemplate } from '../utils/equipmentManagementTemplate';
 import { createKanbanAppSuiteTemplate } from '../utils/kanbanAppSuiteTemplate';
 import { createLeanDashboardTemplate } from '../utils/leanDashboardTemplate';
+import { createOrderManagementTemplate } from '../utils/orderManagementTemplate';
+import { createReviewAndShipTemplate } from '../utils/reviewAndShipTemplate';
+import { createOrderExecutionTemplate } from '../utils/orderExecutionTemplate';
+import { createAndonManagementTemplate } from '../utils/andonManagementTemplate';
+import { createAndonTerminalTemplate } from '../utils/andonTerminalTemplate';
+import { createPerformanceVisibilityDashboardTemplate } from '../utils/performanceVisibilityDashboardTemplate';
 
 import { saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { createTable, getTables, addTableRecord } from '../utils/database';
@@ -67,7 +73,7 @@ const AppStore = () => {
             });
         }
     };
-    const categories = ['All', 'Quality', 'Manufacturing', 'Production', 'Warehouse', 'Automotive'];
+    const categories = ['All', 'Quality', 'Manufacturing', 'Production', 'MES Production Suite', 'Warehouse', 'Automotive', 'Analytic'];
 
 
     const templates = [
@@ -421,6 +427,202 @@ const AppStore = () => {
                 mechanism: 'Custom rendering of letter widgets split into up to 31 daily segments.',
                 steps: [
                     { name: 'Lean Dashboard', description: 'The main dashboard layout with 5 KPI letter widgets.' }
+                ]
+            }
+        },
+        {
+            id: 'order-management',
+            name: 'Order Management',
+            category: 'MES Production Suite',
+            description: 'Manage work order creation, release, and track production station history & inspections.',
+            longDescription: 'The Order Management app is a part of the composable MES Production Management suite. Use it to view detailed information of work orders, streamline order flow, and synchronize components of the supply chain.',
+            icon: <FileText size={28} color="#0369a1" />,
+            bg: 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)',
+            accent: '#0369a1',
+            rating: 5.0,
+            installs: 'New',
+            features: ['Work Order Creation', 'Release Management', 'Station History', 'Inspection Tracking'],
+            guide: {
+                operation: '1. View open work orders and filter by status.\n2. Create new work orders with required quantity and material.\n3. Open order details to manage release and print a traveler.',
+                widgets: ['Interactive Table', 'Form Inputs', 'Record Display'],
+                components: ['Order Dashboard', 'Order Details', 'Traveler'],
+                tables: [
+                    { name: 'Work_Orders', description: 'Master table for all order artifacts.' },
+                    { name: 'Bill_Of_Materials', description: 'Genealogy records and parent-child dependencies.' },
+                    { name: 'Station_Activity_History', description: 'Log of historical activity across stations.' },
+                    { name: 'Notes_And_Comments', description: 'Log notes tied to work orders.' },
+                    { name: 'Inspection_Results', description: 'Log of inspection results against materials.' }
+                ],
+                triggers: [
+                    { event: 'CREATE_ORDER', function: 'Generates a new work order with CREATED status.' },
+                    { event: 'RELEASE_ORDER', function: 'Updates work order status to RELEASED.' }
+                ],
+                mechanism: 'Uses relational logic to display station history and notes linked to the selected parent work order.',
+                steps: [
+                    { name: 'View Work Orders', description: 'Main dashboard to filter and select work orders.' },
+                    { name: 'Create Work Order', description: 'Form to input requirements and target dates for new orders.' },
+                    { name: 'View Details', description: 'Displays full order context, notes, and activity history.' },
+                    { name: 'Traveler', description: 'Printable view with order barcodes and routing details.' }
+                ]
+            }
+        },
+        {
+            id: 'review-and-ship',
+            name: 'Review and Ship',
+            category: 'MES Production Suite',
+            description: 'Review details of work orders before shipping them from the manufacturing area.',
+            longDescription: 'This simple application is for reviewing the details of work orders before shipping them from the manufacturing area. This app helps with logging the completion of the work order for increased visibility and streamlined work order management.',
+            icon: <Truck size={28} color="#f59e0b" />,
+            bg: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+            accent: '#f59e0b',
+            rating: 4.9,
+            installs: 'New',
+            features: ['Order Review', 'Shipping Dispatch', 'Label Printing'],
+            guide: {
+                operation: '1. Select a completed work order from the list.\n2. Review quantities and mark as Shipped.\n3. Print the shipping label.',
+                widgets: ['Interactive Table', 'Record Display', 'Checkbox'],
+                components: ['Review Dashboard', 'Shipping Label'],
+                tables: [
+                    { name: 'Work_Orders', description: 'Master table for all order artifacts. Shared with Order Management.' }
+                ],
+                triggers: [
+                    { event: 'MARK_AS_SHIPPED', function: 'Updates the Work Order status to SHIPPED.' }
+                ],
+                mechanism: 'Filters Work_Orders for COMPLETED status and allows status transition to SHIPPED.',
+                steps: [
+                    { name: 'View Work Orders', description: 'Dashboard to find orders ready for shipping.' },
+                    { name: 'Review Details', description: 'Checklist and validation before shipping.' },
+                    { name: 'Packaging Label', description: 'Printable label with shipping barcode.' }
+                ]
+            }
+        },
+        {
+            id: 'order-execution',
+            name: 'Order Execution',
+            category: 'MES Production Suite',
+            description: 'Select a work order and execute assembly operations while logging production output.',
+            longDescription: 'The Order Execution app is part of the composable MES Production Management suite. The main function of the application is to select a work order and execute the assembly operations. Users can log units and look at assembly instructions on the same screen.',
+            icon: <PlayCircle size={28} color="#10b981" />,
+            bg: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)',
+            accent: '#10b981',
+            rating: 4.8,
+            installs: 'New',
+            features: ['Assembly Instructions', 'Production Logging', 'Performance Tracking'],
+            guide: {
+                operation: '1. Select a RELEASED work order.\n2. Follow assembly instructions on the screen.\n3. Log quantity produced to create units.\n4. Mark order as COMPLETED.',
+                widgets: ['Interactive Table', 'Record Display', 'Form Inputs'],
+                components: ['Order Dashboard', 'Assembly View', 'Label Printing'],
+                tables: [
+                    { name: 'Work_Orders', description: 'Master table for all order artifacts.' },
+                    { name: 'Units', description: 'Table logging individual produced units/batches.' },
+                    { name: 'Station_Activity_History', description: 'Log of historical activity across stations.' },
+                    { name: 'Stations', description: 'Table tracking station states and operators.' }
+                ],
+                triggers: [
+                    { event: 'LOG_PRODUCTION', function: 'Creates a Unit record and logs station history.' }
+                ],
+                mechanism: 'Changes order status to IN PROGRESS and logs created units against the selected order.',
+                steps: [
+                    { name: 'View Released Orders', description: 'Dashboard to find released orders.' },
+                    { name: 'In Progress', description: 'Execution interface with instructions and logging.' },
+                    { name: 'Label', description: 'Printable product label.' }
+                ]
+            }
+        },
+        {
+            id: 'andon-management',
+            name: 'Andon Management',
+            category: 'MES Production Suite',
+            description: 'Monitor station statuses in real time, assign users, and resolve open Andon and alert events.',
+            longDescription: 'The Andon Management application helps users monitor station statuses in real time. It allows viewing of open Andon and alert events, ensuring that issues are not only identified but also actively addressed to enhance productivity and efficiency.',
+            icon: <ShieldAlert size={28} color="#dc2626" />,
+            bg: 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)',
+            accent: '#dc2626',
+            rating: 4.8,
+            installs: 'New',
+            features: ['Real-time Monitoring', 'Issue Resolution', 'Event History'],
+            guide: {
+                operation: '1. Monitor the Station Status Table for issues.\n2. Open an Andon event or Alert event to view details.\n3. Assign an owner, add comments, and resolve the alert.',
+                widgets: ['Interactive Table', 'Record Display', 'Text Inputs'],
+                components: ['Station Status', 'Alert Details', 'Event History'],
+                tables: [
+                    { name: 'Stations', description: 'Tracks the current running/down status of stations.' },
+                    { name: 'Actions', description: 'Table logging open alerts and Andon events.' }
+                ],
+                triggers: [
+                    { event: 'ASSIGN_USER', function: 'Updates the Owner field on the action record.' },
+                    { event: 'RESOLVE_ALERT', function: 'Updates the Status to Closed.' }
+                ],
+                mechanism: 'Filters Actions by open status for immediate resolution, and by closed status for historical review.',
+                steps: [
+                    { name: 'Station Status Table', description: 'Main view of all stations.' },
+                    { name: 'View Andon', description: 'Address Andon events causing downtime.' },
+                    { name: 'View Alerts', description: 'Resolve alerts that need attention.' },
+                    { name: 'View History', description: 'Browse closed events and actions taken.' }
+                ]
+            }
+        },
+        {
+            id: 'andon-terminal',
+            name: 'Andon Terminal',
+            category: 'MES Production Suite',
+            description: 'Report downtime events and create alerts directly from the factory floor.',
+            longDescription: 'The Andon Terminal app enables end-users to report downtime events to the station supervisor and create alerts. This empowers operators to contextualize ongoing issues and provides the quickest path to understanding and acting upon downtime.',
+            icon: <Activity size={28} color="#f97316" />,
+            bg: 'linear-gradient(135deg, #ffedd5 0%, #fed7aa 100%)',
+            accent: '#f97316',
+            rating: 4.7,
+            installs: 'New',
+            features: ['Downtime Reporting', 'Alert Creation', 'Operator Empowerment'],
+            guide: {
+                operation: '1. Select a Work Order to start production.\n2. In the Main Page, use Create Alert for non-blocking issues.\n3. Use Create Andon for blocking downtime (this will stop production).\n4. Resolve Andon events to resume work.',
+                widgets: ['Interactive Table', 'Form Inputs', 'Record Display'],
+                components: ['Order Selection', 'Main Terminal', 'Event Logging'],
+                tables: [
+                    { name: 'Work_Orders', description: 'Tracks the order being worked on.' },
+                    { name: 'Stations', description: 'Updates station running/down state.' },
+                    { name: 'Actions', description: 'Logs the created alerts and andon events.' },
+                    { name: 'Station_Activity_History', description: 'Records the downtime events and duration.' }
+                ],
+                triggers: [
+                    { event: 'CREATE_ANDON', function: 'Creates an Action record and updates Station Status to DOWN.' },
+                    { event: 'RESOLVE_ANDON', function: 'Updates Station Status back to RUNNING.' }
+                ],
+                mechanism: 'Acts as the input source for the Actions table, which is then managed by the Andon Management app.',
+                steps: [
+                    { name: 'Select Order', description: 'Choose a work order and begin production.' },
+                    { name: 'Main Page', description: 'Central hub for the operator.' },
+                    { name: 'Create Alert', description: 'Log a warning without stopping work.' },
+                    { name: 'Andon', description: 'Log a blocking issue and halt work.' },
+                    { name: 'Open Alerts', description: 'Review and resolve pending alerts.' }
+                ]
+            }
+        },
+        {
+            id: 'performance-visibility-dashboard',
+            name: 'Performance Visibility',
+            category: 'MES Production Suite',
+            description: 'Visualize shop floor data, OEE metrics, uptime, and downtime reasons.',
+            longDescription: 'The Performance Visibility Dashboard is part of the composable MES Production Management app suite. It visualizes data logged on the shop floor, containing crucial information about the production such as up and downtime events, and showcases OEE metrics: Availability, Performance, and Quality.',
+            icon: <HeartPulse size={28} color="#8b5cf6" />,
+            bg: 'linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%)',
+            accent: '#8b5cf6',
+            rating: 4.9,
+            installs: 'New',
+            features: ['OEE Calculation', 'Downtime Pareto', 'Live Status'],
+            guide: {
+                operation: '1. View the main dashboard for real-time station statuses and downtime reasons.\n2. Navigate to the OEE Metrics step to view Availability, Performance, and Quality breakdowns.',
+                widgets: ['Bar Chart', 'Donut Chart', 'Interactive Table'],
+                components: ['Performance Dashboard', 'OEE Metrics'],
+                tables: [
+                    { name: 'Stations', description: 'Real-time statuses of the stations.' },
+                    { name: 'Station_Activity_History', description: 'Log of historical activity across stations.' }
+                ],
+                triggers: [],
+                mechanism: 'Aggregates data from Station Activity History to compute running times, downtime counts, and OEE.',
+                steps: [
+                    { name: 'Dashboard', description: 'Main analytics view for uptime and downtime.' },
+                    { name: 'OEE Metrics', description: 'Holistic OEE calculation view.' }
                 ]
             }
         }
@@ -795,6 +997,239 @@ const AppStore = () => {
                     templateApp.config.appTables = tIds;
                 } catch (leanErr) {
                     console.warn('Could not create lean table:', leanErr);
+                }
+            } else if (templateId === 'order-management') {
+                templateApp = createOrderManagementTemplate();
+                try {
+                    const woTable = await createTable({ name: 'Work_Orders', fields: [
+                        { name: 'Operator', type: 'text' }, { name: 'Parent_Order_ID', type: 'text' },
+                        { name: 'Material_Definition_ID', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Location', type: 'text' }, { name: 'QTY_Required', type: 'number' },
+                        { name: 'QTY_Complete', type: 'number' }, { name: 'QTY_Scrap', type: 'number' },
+                        { name: 'Due_Date', type: 'datetime' }, { name: 'Start_Date', type: 'datetime' },
+                        { name: 'Complete_Date', type: 'datetime' }, { name: 'Customer_ID', type: 'text' },
+                        { name: 'Linked_History', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_WO' },
+                        { name: 'Linked_Notes', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_WO' },
+                        { name: 'Linked_Inspections', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_WO' }
+                    ]});
+                    const bomTable = await createTable({ name: 'Bill_Of_Materials', fields: [
+                        { name: 'Parent_Material_Definition_ID', type: 'text' }, { name: 'Parent_Material_Description', type: 'text' },
+                        { name: 'Component_Material_Definition_ID', type: 'text' }, { name: 'Component_Material_Description', type: 'text' },
+                        { name: 'Component_Quantity', type: 'number' }, { name: 'Component_UoM', type: 'text' },
+                        { name: 'Point_of_Use', type: 'text' }
+                    ]});
+                    const shTable = await createTable({ name: 'Station_Activity_History', fields: [
+                        { name: 'Station_ID', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Start_Date_Time', type: 'datetime' }, { name: 'End_Date_Time', type: 'datetime' },
+                        { name: 'Duration', type: 'number' }, { name: 'Material_Definition_ID', type: 'text' },
+                        { name: 'Target_Quantity', type: 'number' }, { name: 'Actual_Quantity', type: 'number' },
+                        { name: 'Defects', type: 'number' }, { name: 'Downtime_reason', type: 'text' },
+                        { name: 'Comments', type: 'text' }, { name: 'Unit_ID', type: 'text' },
+                        { name: 'Parent_WO', type: 'linked_record', link_table_id: woTable?.id, link_type: 'many_to_one', reverse_link_name: 'Linked_History' }
+                    ]});
+                    const notesTable = await createTable({ name: 'Notes_And_Comments', fields: [
+                        { name: 'Reference_ID', type: 'text' }, { name: 'Location', type: 'text' },
+                        { name: 'Notes', type: 'text' }, { name: 'Sender', type: 'text' },
+                        { name: 'Updated_by', type: 'text' }, { name: 'Recipient', type: 'text' },
+                        { name: 'Notes_Photo', type: 'text' },
+                        { name: 'Parent_WO', type: 'linked_record', link_table_id: woTable?.id, link_type: 'many_to_one', reverse_link_name: 'Linked_Notes' }
+                    ]});
+                    const irTable = await createTable({ name: 'Inspection_Results', fields: [
+                        { name: 'Unit_ID', type: 'text' }, { name: 'Material_Definition_ID', type: 'text' },
+                        { name: 'Type', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Procedure', type: 'text' }, { name: 'Location', type: 'text' },
+                        { name: 'Photo', type: 'text' }, { name: 'Passed', type: 'text' },
+                        { name: 'Operator', type: 'text' }, { name: 'Text_Value', type: 'text' },
+                        { name: 'Measured', type: 'number' }, { name: 'Target', type: 'number' },
+                        { name: 'LSL', type: 'number' }, { name: 'USL', type: 'number' },
+                        { name: 'Parent_WO', type: 'linked_record', link_table_id: woTable?.id, link_type: 'many_to_one', reverse_link_name: 'Linked_Inspections' }
+                    ]});
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (woTable?.id) { appStr = appStr.replace(/tbl_om_work_orders/g, woTable.id); tIds.push(woTable.id); }
+                    if (bomTable?.id) { appStr = appStr.replace(/tbl_om_bom/g, bomTable.id); tIds.push(bomTable.id); }
+                    if (shTable?.id) { appStr = appStr.replace(/tbl_om_station_history/g, shTable.id); tIds.push(shTable.id); }
+                    if (notesTable?.id) { appStr = appStr.replace(/tbl_om_notes/g, notesTable.id); tIds.push(notesTable.id); }
+                    if (irTable?.id) { appStr = appStr.replace(/tbl_om_inspection_results/g, irTable.id); tIds.push(irTable.id); }
+                    
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (omErr) {
+                    console.warn('Could not create order management tables:', omErr);
+                }
+            } else if (templateId === 'review-and-ship') {
+                templateApp = createReviewAndShipTemplate();
+                try {
+                    const woTable = await createTable({ name: 'Work_Orders', fields: [
+                        { name: 'Operator', type: 'text' }, { name: 'Parent_Order_ID', type: 'text' },
+                        { name: 'Material_Definition_ID', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Location', type: 'text' }, { name: 'QTY_Required', type: 'number' },
+                        { name: 'QTY_Complete', type: 'number' }, { name: 'QTY_Scrap', type: 'number' },
+                        { name: 'Due_Date', type: 'datetime' }, { name: 'Start_Date', type: 'datetime' },
+                        { name: 'Complete_Date', type: 'datetime' }, { name: 'Customer_ID', type: 'text' },
+                        { name: 'Linked_History', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_WO' },
+                        { name: 'Linked_Notes', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_WO' },
+                        { name: 'Linked_Inspections', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_WO' }
+                    ]});
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (woTable?.id) { appStr = appStr.replace(/tbl_rs_work_orders/g, woTable.id); tIds.push(woTable.id); }
+                    
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (rsErr) {
+                    console.warn('Could not create review and ship tables:', rsErr);
+                }
+            } else if (templateId === 'order-execution') {
+                templateApp = createOrderExecutionTemplate();
+                try {
+                    const woTable = await createTable({ name: 'Work_Orders', fields: [
+                        { name: 'Operator', type: 'text' }, { name: 'Parent_Order_ID', type: 'text' },
+                        { name: 'Material_Definition_ID', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Location', type: 'text' }, { name: 'QTY_Required', type: 'number' },
+                        { name: 'QTY_Complete', type: 'number' }, { name: 'QTY_Scrap', type: 'number' },
+                        { name: 'Due_Date', type: 'datetime' }, { name: 'Start_Date', type: 'datetime' },
+                        { name: 'Complete_Date', type: 'datetime' }, { name: 'Customer_ID', type: 'text' }
+                    ]});
+                    const unitsTable = await createTable({ name: 'Units', fields: [
+                        { name: 'Material_Definition_ID', type: 'text' }, { name: 'Material_Definition_Type', type: 'text' },
+                        { name: 'Status', type: 'text' }, { name: 'Location', type: 'text' },
+                        { name: 'QTY', type: 'number' }, { name: 'Unit_of_Measure', type: 'text' },
+                        { name: 'Work_Order_ID', type: 'text' }, { name: 'Completed_Date', type: 'datetime' },
+                        { name: 'Produced_By', type: 'text' }, { name: 'Parent_Unit_ID', type: 'text' }
+                    ]});
+                    const shTable = await createTable({ name: 'Station_Activity_History', fields: [
+                        { name: 'Station_ID', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Start_Date_Time', type: 'datetime' }, { name: 'End_Date_Time', type: 'datetime' },
+                        { name: 'Duration', type: 'number' }, { name: 'Material_Definition_ID', type: 'text' },
+                        { name: 'Target_Quantity', type: 'number' }, { name: 'Actual_Quantity', type: 'number' },
+                        { name: 'Defects', type: 'number' }, { name: 'Downtime_reason', type: 'text' },
+                        { name: 'Comments', type: 'text' }, { name: 'Unit_ID', type: 'text' }, { name: 'Work_Order_ID', type: 'text' }
+                    ]});
+                    const stationsTable = await createTable({ name: 'Stations', fields: [
+                        { name: 'Status', type: 'text' }, { name: 'Status_Color', type: 'text' },
+                        { name: 'Status_Detail', type: 'text' }, { name: 'Process_Cell', type: 'text' },
+                        { name: 'Operator', type: 'text' }, { name: 'Work_Order_ID', type: 'text' },
+                        { name: 'Material_Definition_ID', type: 'text' }
+                    ]});
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (woTable?.id) { appStr = appStr.replace(/tbl_oe_work_orders/g, woTable.id); tIds.push(woTable.id); }
+                    if (unitsTable?.id) { appStr = appStr.replace(/tbl_oe_units/g, unitsTable.id); tIds.push(unitsTable.id); }
+                    if (shTable?.id) { appStr = appStr.replace(/tbl_oe_station_history/g, shTable.id); tIds.push(shTable.id); }
+                    if (stationsTable?.id) { appStr = appStr.replace(/tbl_oe_stations/g, stationsTable.id); tIds.push(stationsTable.id); }
+                    
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (oeErr) {
+                    console.warn('Could not create order execution tables:', oeErr);
+                }
+            } else if (templateId === 'andon-management') {
+                templateApp = createAndonManagementTemplate();
+                try {
+                    const stationsTable = await createTable({ name: 'Stations', fields: [
+                        { name: 'Status', type: 'text' }, { name: 'Status_Color', type: 'text' },
+                        { name: 'Status_Detail', type: 'text' }, { name: 'Process_Cell', type: 'text' },
+                        { name: 'Operator', type: 'text' }, { name: 'Work_Order_ID', type: 'text' },
+                        { name: 'Material_Definition_ID', type: 'text' }
+                    ]});
+                    const actionsTable = await createTable({ name: 'Actions', fields: [
+                        { name: 'Material_Definition_ID', type: 'text' }, { name: 'Title', type: 'text' },
+                        { name: 'Location', type: 'text' }, { name: 'Severity', type: 'text' },
+                        { name: 'Status', type: 'text' }, { name: 'Work_Order_ID', type: 'text' },
+                        { name: 'Unit_ID', type: 'text' }, { name: 'Comments', type: 'text' },
+                        { name: 'Photo', type: 'text' }, { name: 'Reported_by', type: 'text' },
+                        { name: 'Owner', type: 'text' }, { name: 'Type', type: 'text' },
+                        { name: 'Actions_Taken', type: 'text' }, { name: 'Due_date', type: 'datetime' }
+                    ]});
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (stationsTable?.id) { appStr = appStr.replace(/tbl_am_stations/g, stationsTable.id); tIds.push(stationsTable.id); }
+                    if (actionsTable?.id) { appStr = appStr.replace(/tbl_am_actions/g, actionsTable.id); tIds.push(actionsTable.id); }
+                    
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (amErr) {
+                    console.warn('Could not create andon management tables:', amErr);
+                }
+            } else if (templateId === 'andon-terminal') {
+                templateApp = createAndonTerminalTemplate();
+                try {
+                    const woTable = await createTable({ name: 'Work_Orders', fields: [
+                        { name: 'Operator', type: 'text' }, { name: 'Parent_Order_ID', type: 'text' },
+                        { name: 'Material_Definition_ID', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Location', type: 'text' }, { name: 'QTY_Required', type: 'number' },
+                        { name: 'QTY_Complete', type: 'number' }, { name: 'QTY_Scrap', type: 'number' },
+                        { name: 'Due_Date', type: 'datetime' }, { name: 'Start_Date', type: 'datetime' },
+                        { name: 'Complete_Date', type: 'datetime' }, { name: 'Customer_ID', type: 'text' }
+                    ]});
+                    const stationsTable = await createTable({ name: 'Stations', fields: [
+                        { name: 'Status', type: 'text' }, { name: 'Status_Color', type: 'text' },
+                        { name: 'Status_Detail', type: 'text' }, { name: 'Process_Cell', type: 'text' },
+                        { name: 'Operator', type: 'text' }, { name: 'Work_Order_ID', type: 'text' },
+                        { name: 'Material_Definition_ID', type: 'text' }
+                    ]});
+                    const actionsTable = await createTable({ name: 'Actions', fields: [
+                        { name: 'Material_Definition_ID', type: 'text' }, { name: 'Title', type: 'text' },
+                        { name: 'Location', type: 'text' }, { name: 'Severity', type: 'text' },
+                        { name: 'Status', type: 'text' }, { name: 'Work_Order_ID', type: 'text' },
+                        { name: 'Unit_ID', type: 'text' }, { name: 'Comments', type: 'text' },
+                        { name: 'Photo', type: 'text' }, { name: 'Reported_by', type: 'text' },
+                        { name: 'Owner', type: 'text' }, { name: 'Type', type: 'text' },
+                        { name: 'Actions_Taken', type: 'text' }, { name: 'Due_date', type: 'datetime' }
+                    ]});
+                    const shTable = await createTable({ name: 'Station_Activity_History', fields: [
+                        { name: 'Station_ID', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Start_Date_Time', type: 'datetime' }, { name: 'End_Date_Time', type: 'datetime' },
+                        { name: 'Duration', type: 'number' }, { name: 'Material_Definition_ID', type: 'text' },
+                        { name: 'Target_Quantity', type: 'number' }, { name: 'Actual_Quantity', type: 'number' },
+                        { name: 'Defects', type: 'number' }, { name: 'Downtime_reason', type: 'text' },
+                        { name: 'Comments', type: 'text' }, { name: 'Unit_ID', type: 'text' }, { name: 'Work_Order_ID', type: 'text' }
+                    ]});
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (woTable?.id) { appStr = appStr.replace(/tbl_at_work_orders/g, woTable.id); tIds.push(woTable.id); }
+                    if (stationsTable?.id) { appStr = appStr.replace(/tbl_at_stations/g, stationsTable.id); tIds.push(stationsTable.id); }
+                    if (actionsTable?.id) { appStr = appStr.replace(/tbl_at_actions/g, actionsTable.id); tIds.push(actionsTable.id); }
+                    if (shTable?.id) { appStr = appStr.replace(/tbl_at_station_history/g, shTable.id); tIds.push(shTable.id); }
+                    
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (atErr) {
+                    console.warn('Could not create andon terminal tables:', atErr);
+                }
+            } else if (templateId === 'performance-visibility-dashboard') {
+                templateApp = createPerformanceVisibilityDashboardTemplate();
+                try {
+                    const stationsTable = await createTable({ name: 'Stations', fields: [
+                        { name: 'Status', type: 'text' }, { name: 'Status_Color', type: 'text' },
+                        { name: 'Status_Detail', type: 'text' }, { name: 'Process_Cell', type: 'text' },
+                        { name: 'Operator', type: 'text' }, { name: 'Work_Order_ID', type: 'text' },
+                        { name: 'Material_Definition_ID', type: 'text' }
+                    ]});
+                    const shTable = await createTable({ name: 'Station_Activity_History', fields: [
+                        { name: 'Station_ID', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Start_Date_Time', type: 'datetime' }, { name: 'End_Date_Time', type: 'datetime' },
+                        { name: 'Duration', type: 'number' }, { name: 'Material_Definition_ID', type: 'text' },
+                        { name: 'Target_Quantity', type: 'number' }, { name: 'Actual_Quantity', type: 'number' },
+                        { name: 'Defects', type: 'number' }, { name: 'Downtime_reason', type: 'text' },
+                        { name: 'Comments', type: 'text' }, { name: 'Unit_ID', type: 'text' }, { name: 'Work_Order_ID', type: 'text' }
+                    ]});
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (stationsTable?.id) { appStr = appStr.replace(/tbl_pvd_stations/g, stationsTable.id); tIds.push(stationsTable.id); }
+                    if (shTable?.id) { appStr = appStr.replace(/tbl_pvd_station_history/g, shTable.id); tIds.push(shTable.id); }
+                    
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (pvdErr) {
+                    console.warn('Could not create PVD tables:', pvdErr);
                 }
             } else {
                 toast.error('Template not found', { id: loadingToast });
