@@ -3205,6 +3205,10 @@ const AppStore = () => {
             const { id, ...templateData } = templateApp;
             const savedApp = await saveFrontlineApp({
                 ...templateData,
+                config: {
+                    ...(templateData.config || {}),
+                    isLocked: true
+                },
                 is_published: false,
                 approval_status: 'DRAFT',
                 updated_at: new Date().toISOString()

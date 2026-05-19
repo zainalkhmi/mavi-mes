@@ -1941,6 +1941,24 @@ const ListPickerWidget = ({ comp, viewMode, onWidgetInteraction, setActiveListPi
     );
 };
 
+const getFriendlyTriggerName = (trig, defaultType = 'Widget') => {
+    if (!trig) return 'Unnamed Trigger';
+    if (trig.name) return trig.name;
+    const evt = (trig.event || trig.on || '').replace('ON_', '').replace(/_/g, ' ');
+    const act = (trig.action || trig.type || '').replace(/_/g, ' ');
+    if (evt && act) {
+        const prettyEvt = evt.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+        const prettyAct = act.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+        return `${prettyAct} (${prettyEvt})`;
+    }
+    if (evt) {
+        const prettyEvt = evt.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+        return `${prettyEvt} Trigger`;
+    }
+    const prettyDefault = defaultType.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+    return `${prettyDefault} Trigger`;
+};
+
 const AppBuilder = () => {
     const [appName, setAppName] = useState(DEFAULT_FRONTLINE_APP_NAME);
     const [appMeta, setAppMeta] = useState({
@@ -4203,6 +4221,13 @@ const AppBuilder = () => {
 
     const duplicateWidget = (compToCopy) => {
         if (!compToCopy) return;
+        if (isCanvasLocked) {
+            toast.error("Kanvas terkunci. Silakan klik tombol 'Buka' (Unlock) untuk mengedit.", {
+                icon: '🔒',
+                style: { borderRadius: '10px', background: '#333', color: '#fff' }
+            });
+            return;
+        }
         saveHistory();
 
         const newComp = JSON.parse(JSON.stringify(compToCopy));
@@ -5894,7 +5919,7 @@ const AppBuilder = () => {
                     if (viewMode === 'PREVIEW' || viewMode === 'RUN') {
                         window.parent.postMessage({
                             type: 'TRIGGER_FIRED',
-                            triggerName: trig.name || (trig.event || trig.on || 'Unnamed').replace('ON_', '').replace(/_/g, ' ') + ' Trigger',
+                            triggerName: getFriendlyTriggerName(trig),
                             eventId: evt.eventId,
                             source: currentStep?.title || 'App',
                             timestamp: new Date().toISOString()
@@ -7324,6 +7349,13 @@ const AppBuilder = () => {
     };
 
     const addComponent = (typeId, overrideProps = {}) => {
+        if (isCanvasLocked) {
+            toast.error("Kanvas terkunci. Silakan klik tombol 'Buka' (Unlock) untuk mengedit.", {
+                icon: '🔒',
+                style: { borderRadius: '10px', background: '#333', color: '#fff' }
+            });
+            return null;
+        }
         saveHistory();
         const { type: overrideType, ...restOverrideProps } = overrideProps || {};
         const resolvedTypeId = typeId === 'SHAPE' ? normalizeShapeType(overrideType) : typeId;
@@ -7383,6 +7415,13 @@ const AppBuilder = () => {
     };
 
     const deleteComponent = (id) => {
+        if (isCanvasLocked) {
+            toast.error("Kanvas terkunci. Silakan klik tombol 'Buka' (Unlock) untuk mengedit.", {
+                icon: '🔒',
+                style: { borderRadius: '10px', background: '#333', color: '#fff' }
+            });
+            return;
+        }
         const comp = [...baseComponents, ...steps.flatMap(s => s.components || [])].find(c => c.id === id);
         if (!comp) return;
 
@@ -7463,6 +7502,13 @@ const AppBuilder = () => {
 
     const pasteComponent = () => {
         if (!clipboard) return;
+        if (isCanvasLocked) {
+            toast.error("Kanvas terkunci. Silakan klik tombol 'Buka' (Unlock) untuk mengedit.", {
+                icon: '🔒',
+                style: { borderRadius: '10px', background: '#333', color: '#fff' }
+            });
+            return;
+        }
         saveHistory();
 
         const baseName = clipboard.name || COMPONENT_TYPES[clipboard.type]?.label || clipboard.type;
@@ -7589,6 +7635,13 @@ const AppBuilder = () => {
     };
 
     const updateComponentProps = (id, newProps) => {
+        if (isCanvasLocked && viewMode === 'DESIGN') {
+            toast.error("Kanvas terkunci. Silakan klik tombol 'Buka' (Unlock) untuk mengedit.", {
+                icon: '🔒',
+                style: { borderRadius: '10px', background: '#333', color: '#fff' }
+            });
+            return;
+        }
         saveHistory();
 
         const mergePropsWithRenameSync = (existingProps = {}, incomingProps = {}) => {
@@ -7629,6 +7682,13 @@ const AppBuilder = () => {
     };
 
     const updateComponentDisplayName = (id, newDisplayName) => {
+        if (isCanvasLocked && viewMode === 'DESIGN') {
+            toast.error("Kanvas terkunci. Silakan klik tombol 'Buka' (Unlock) untuk mengedit.", {
+                icon: '🔒',
+                style: { borderRadius: '10px', background: '#333', color: '#fff' }
+            });
+            return;
+        }
         saveHistory();
         if (currentStepId === 'BASE') {
             setBaseComponents(baseComponents.map(c =>
@@ -7646,6 +7706,13 @@ const AppBuilder = () => {
 
     const updateComponentName = (id, newName) => {
         if (!newName || !newName.trim()) return;
+        if (isCanvasLocked && viewMode === 'DESIGN') {
+            toast.error("Kanvas terkunci. Silakan klik tombol 'Buka' (Unlock) untuk mengedit.", {
+                icon: '🔒',
+                style: { borderRadius: '10px', background: '#333', color: '#fff' }
+            });
+            return;
+        }
         saveHistory();
 
         // Sanitize name: lowercase, no spaces, only alphanumeric and underscore
@@ -7709,6 +7776,10 @@ const AppBuilder = () => {
             const { id, ...templateData } = templateApp;
             const savedApp = await saveFrontlineApp({
                 ...templateData,
+                config: {
+                    ...(templateData.config || {}),
+                    isLocked: true
+                },
                 is_published: templateApp.published ?? false,
                 approval_status: templateApp.approvalStatus || 'DRAFT',
                 updated_at: new Date().toISOString()
@@ -7861,7 +7932,8 @@ const AppBuilder = () => {
                     leftSidebarEnabled,
                     rightSidebarEnabled,
                     copilotEnabled,
-                    stepListEnabled
+                    stepListEnabled,
+                    isLocked: isCanvasLocked
                 },
                 version: appMeta.version,
                 approval_status: appMeta.approval_status,
@@ -8241,9 +8313,11 @@ const AppBuilder = () => {
         setCurrentStepId(appSteps[0].id);
         setSelectedCompIds([]);
         setViewMode('DESIGN');
+        setIsCanvasLocked(config.isLocked !== false);
     };
 
     const resetBuilder = () => {
+        setIsCanvasLocked(false);
         setAppName('New Frontline App');
         setAppCategory('Shop Floor');
         setSteps([{ id: 'screen_1', title: 'Screen 1', stepType: 'Screen', cycleTimeSeconds: 60, formSubmit: createDefaultFormSubmitConfig(false), components: [], triggers: [] }]);
@@ -14209,7 +14283,7 @@ const AppBuilder = () => {
                                                                                             }}
                                                                                             title="Click to rename"
                                                                                         >
-                                                                                            {trig.name || 'Unnamed Trigger'}
+                                                                                            {getFriendlyTriggerName(trig)}
                                                                                         </span>
                                                                                     </div>
                                                                                     <div style={{ display: 'flex', gap: '4px' }}>
@@ -19503,7 +19577,7 @@ const AppBuilder = () => {
                                                                             }} />
                                                                         </div>
                                                                         <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>{trig.name}</span>
+                                                                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>{getFriendlyTriggerName(trig)}</span>
                                                                             <span style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)' }}>{trig.event}</span>
                                                                         </div>
                                                                     </div>
@@ -19933,7 +20007,7 @@ const AppBuilder = () => {
                                                                                         }}
                                                                                         title="Click to rename"
                                                                                     >
-                                                                                        {trig.name || 'Unnamed Trigger'}
+                                                                                        {getFriendlyTriggerName(trig)}
                                                                                     </span>
                                                                                 </div>
                                                                                 <div style={{ display: 'flex', gap: '6px' }}>

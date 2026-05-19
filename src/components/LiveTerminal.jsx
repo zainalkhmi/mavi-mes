@@ -2257,25 +2257,40 @@ const LiveTerminal = () => {
               }
             }
           } else if (['TABLE_RECORD_LOAD', 'TABLE_RECORD_CREATE', 'TABLE_RECORD_CREATE_OR_LOAD', 'TABLE_RECORD_SAVE', 'TABLE_RECORD_DELETE'].includes(action.type)) {
-            let { placeholderId, idType = 'STATIC', idValue = '' } = action.payload || action || {};
+            const payloadData = action.payload || action || {};
+            let placeholderId = payloadData.placeholderId || payloadData.recordPlaceholderId || payloadData.placeholder;
+            const { idType = 'STATIC', idValue = '', tableId } = payloadData;
             
-            // Resolve placeholder by ID first, then fallback to name match
             const allPlaceholders = recordPlaceholders || [];
             
-            // Fallback: If no placeholderId provided for a SAVE action, try the first one
-            if (!placeholderId && action.type === 'TABLE_RECORD_SAVE' && allPlaceholders.length > 0) {
-               placeholderId = allPlaceholders[0].id;
-               console.log(`[TABLE_RECORD] No placeholderId specified for SAVE. Falling back to first placeholder: ${placeholderId}`);
+            let placeholder = null;
+            if (placeholderId) {
+              placeholder = allPlaceholders.find(rp => rp.id === placeholderId)
+                || allPlaceholders.find(rp => String(rp.name).toLowerCase() === String(placeholderId).toLowerCase());
             }
 
-            let placeholder = allPlaceholders.find(rp => rp.id === placeholderId)
-              || allPlaceholders.find(rp => String(rp.name).toLowerCase() === String(placeholderId).toLowerCase());
+            // Fallback: search by tableId if placeholder is not resolved yet
+            if (!placeholder && tableId) {
+              placeholder = allPlaceholders.find(rp => rp.tableId === tableId);
+              if (placeholder) {
+                console.log(`[TABLE_RECORD] Resolved placeholder by tableId "${tableId}": ${placeholder.id} (${placeholder.name})`);
+              }
+            }
+
+            // Fallback: If no placeholder found and action is SAVE, try the first placeholder
+            if (!placeholder && action.type === 'TABLE_RECORD_SAVE' && allPlaceholders.length > 0) {
+               placeholder = allPlaceholders[0];
+               console.log(`[TABLE_RECORD] Falling back to first placeholder for SAVE: ${placeholder.id}`);
+            }
 
             if (!placeholder?.tableId) {
               toast.error(`❌ Placeholder "${placeholderId || 'kosong'}" tidak ditemukan atau tidak terhubung ke tabel.`);
-              console.error(`[TABLE_RECORD] Placeholder not found: "${placeholderId}"`, allPlaceholders);
+              console.error(`[TABLE_RECORD] Placeholder not found: "${placeholderId || 'kosong'}"`, allPlaceholders);
               continue;
             }
+
+            // Standardize placeholderId to the resolved placeholder's actual ID
+            placeholderId = placeholder.id;
             console.log(`[TABLE_RECORD] Resolved placeholder: "${placeholderId}" → id=${placeholder.id}, table=${placeholder.tableId}`, placeholder);
 
             const resolvedId = await resolveSourceValue(idType, idValue, '', eventPayload);

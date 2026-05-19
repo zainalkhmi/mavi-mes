@@ -73,6 +73,7 @@ export function createInventoryManagementTemplate() {
                 },
                 triggers: [
                     {
+                        name: 'Load Selected Inventory Item',
                         event: 'ON_ROW_SELECT', type: 'DATA', action: 'TABLE_RECORD_LOAD',
                         tableId: T.inventoryItems, recordPlaceholderId: `r1_${ts}`, linkVariable: 'Selected_Inv_ID'
                     }
@@ -83,7 +84,7 @@ export function createInventoryManagementTemplate() {
                 x: 20, y: 440, w: 600, h: 45,
                 props: { text: '+ Create inventory item', backgroundColor: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', fontWeight: 'bold' },
                 triggers: [
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_create_item_${ts}` }
+                    { name: 'Go to Create Item Step', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_create_item_${ts}` }
                 ]
             },
             {
@@ -104,7 +105,7 @@ export function createInventoryManagementTemplate() {
                 x: 640, y: 280, w: 300, h: 45,
                 props: { text: '➕ Add QTY', backgroundColor: '#2563eb', color: 'white', fontWeight: 'bold' },
                 triggers: [
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_add_qty_${ts}` }
+                    { name: 'Go to Add QTY Step', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_add_qty_${ts}` }
                 ]
             },
             {
@@ -112,7 +113,7 @@ export function createInventoryManagementTemplate() {
                 x: 640, y: 335, w: 300, h: 45,
                 props: { text: '➖ Remove QTY', backgroundColor: '#2563eb', color: 'white', fontWeight: 'bold' },
                 triggers: [
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_remove_qty_${ts}` }
+                    { name: 'Go to Remove QTY Step', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_remove_qty_${ts}` }
                 ]
             },
             {
@@ -120,7 +121,7 @@ export function createInventoryManagementTemplate() {
                 x: 640, y: 390, w: 300, h: 45,
                 props: { text: '✎ Edit status', backgroundColor: '#2563eb', color: 'white', fontWeight: 'bold' },
                 triggers: [
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_edit_status_${ts}` }
+                    { name: 'Go to Edit Status Step', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_edit_status_${ts}` }
                 ]
             },
             {
@@ -128,7 +129,7 @@ export function createInventoryManagementTemplate() {
                 x: 350, y: 495, w: 280, h: 50,
                 props: { text: 'Material request history', backgroundColor: '#1d4ed8', color: 'white', fontWeight: 'bold' },
                 triggers: [
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_req_history_${ts}` }
+                    { name: 'Go to Request History Step', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_req_history_${ts}` }
                 ]
             },
             {
@@ -136,7 +137,7 @@ export function createInventoryManagementTemplate() {
                 x: 660, y: 495, w: 280, h: 50,
                 props: { text: 'View kanban cards', backgroundColor: '#1d4ed8', color: 'white', fontWeight: 'bold' },
                 triggers: [
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_view_kanban_${ts}` }
+                    { name: 'Go to View Kanban Cards Step', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_view_kanban_${ts}` }
                 ]
             }
         ]
@@ -167,7 +168,7 @@ export function createInventoryManagementTemplate() {
                 id: `f2_btn_${ts}`, type: 'BUTTON',
                 x: 370, y: 90, w: 110, h: 25,
                 props: { text: 'Get Item by ID', backgroundColor: '#2563eb', color: 'white', fontSize: 11 },
-                triggers: [{ event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Item definition fetched!', messageType: 'success' }]
+                triggers: [{ name: 'Show Fetch Success Message', event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Item definition fetched!', messageType: 'success' }]
             },
             {
                 id: `f3_${ts}`, type: 'TEXT',
@@ -233,7 +234,7 @@ export function createInventoryManagementTemplate() {
                 id: `f_cancel_${ts}`, type: 'BUTTON',
                 x: 280, y: 440, w: 180, h: 50,
                 props: { text: '✕ Cancel', backgroundColor: '#e2e8f0', color: 'black' },
-                triggers: [{ event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_main_${ts}` }]
+                triggers: [{ name: 'Cancel and Go Back', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_main_${ts}` }]
             },
             {
                 id: `f_save_${ts}`, type: 'BUTTON',
@@ -241,6 +242,7 @@ export function createInventoryManagementTemplate() {
                 props: { text: '✓ Save', backgroundColor: '#71a36d', color: 'white', fontWeight: 'bold' },
                 triggers: [
                     {
+                        name: 'Save New Inventory Item',
                         event: 'ON_CLICK', type: 'DATA', action: 'TABLE_RECORD_CREATE',
                         tableId: T.inventoryItems,
                         mapping: {
@@ -254,8 +256,8 @@ export function createInventoryManagementTemplate() {
                             'Material_Definition_Type': '@New_Item_Type'
                         }
                     },
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Inventory item created successfully!', messageType: 'success' },
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_main_${ts}` }
+                    { name: 'Show Success Message', event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Inventory item created successfully!', messageType: 'success' },
+                    { name: 'Go back to Main Step', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_main_${ts}` }
                 ]
             }
         ]
@@ -294,7 +296,7 @@ export function createInventoryManagementTemplate() {
                 id: `aq_cancel_${ts}`, type: 'BUTTON',
                 x: 280, y: 390, w: 180, h: 50,
                 props: { text: '✕ Cancel', backgroundColor: '#e2e8f0', color: 'black' },
-                triggers: [{ event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_main_${ts}` }]
+                triggers: [{ name: 'Cancel and Go Back', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_main_${ts}` }]
             },
             {
                 id: `aq_save_${ts}`, type: 'BUTTON',
@@ -302,14 +304,15 @@ export function createInventoryManagementTemplate() {
                 props: { text: '➕ Add QTY', backgroundColor: '#2f7535', color: 'white', fontWeight: 'bold' },
                 triggers: [
                     {
+                        name: 'Save Added Quantity',
                         event: 'ON_CLICK', type: 'DATA', action: 'TABLE_RECORD_SAVE',
                         recordPlaceholderId: `r1_${ts}`,
                         mapping: {
                             'QTY': '{{@Selected_Inventory_Item.QTY + @Qty_Adjustment}}'
                         }
                     },
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Quantity added successfully!', messageType: 'success' },
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_main_${ts}` }
+                    { name: 'Show Success Message', event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Quantity added successfully!', messageType: 'success' },
+                    { name: 'Go back to Main Step', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_main_${ts}` }
                 ]
             }
         ]
@@ -348,7 +351,7 @@ export function createInventoryManagementTemplate() {
                 id: `rq_cancel_${ts}`, type: 'BUTTON',
                 x: 280, y: 390, w: 180, h: 50,
                 props: { text: '✕ Cancel', backgroundColor: '#e2e8f0', color: 'black' },
-                triggers: [{ event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_main_${ts}` }]
+                triggers: [{ name: 'Cancel and Go Back', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_main_${ts}` }]
             },
             {
                 id: `rq_save_${ts}`, type: 'BUTTON',
@@ -356,14 +359,15 @@ export function createInventoryManagementTemplate() {
                 props: { text: '➖ Remove QTY', backgroundColor: '#2f7535', color: 'white', fontWeight: 'bold' },
                 triggers: [
                     {
+                        name: 'Save Removed Quantity',
                         event: 'ON_CLICK', type: 'DATA', action: 'TABLE_RECORD_SAVE',
                         recordPlaceholderId: `r1_${ts}`,
                         mapping: {
                             'QTY': '{{@Selected_Inventory_Item.QTY - @Qty_Adjustment}}'
                         }
                     },
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Quantity removed successfully!', messageType: 'success' },
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_main_${ts}` }
+                    { name: 'Show Success Message', event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Quantity removed successfully!', messageType: 'success' },
+                    { name: 'Go back to Main Step', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_main_${ts}` }
                 ]
             }
         ]
@@ -402,7 +406,7 @@ export function createInventoryManagementTemplate() {
                 id: `es_cancel_${ts}`, type: 'BUTTON',
                 x: 280, y: 390, w: 180, h: 50,
                 props: { text: '✕ Cancel', backgroundColor: '#e2e8f0', color: 'black' },
-                triggers: [{ event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_main_${ts}` }]
+                triggers: [{ name: 'Cancel and Go Back', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_main_${ts}` }]
             },
             {
                 id: `es_save_${ts}`, type: 'BUTTON',
@@ -410,14 +414,15 @@ export function createInventoryManagementTemplate() {
                 props: { text: '✎ Edit status', backgroundColor: '#2f7535', color: 'white', fontWeight: 'bold' },
                 triggers: [
                     {
+                        name: 'Save Updated Status',
                         event: 'ON_CLICK', type: 'DATA', action: 'TABLE_RECORD_SAVE',
                         recordPlaceholderId: `r1_${ts}`,
                         mapping: {
                             'Status': '@New_Status_Val'
                         }
                     },
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Status updated successfully!', messageType: 'success' },
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_main_${ts}` }
+                    { name: 'Show Success Message', event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Status updated successfully!', messageType: 'success' },
+                    { name: 'Go back to Main Step', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_main_${ts}` }
                 ]
             }
         ]
@@ -474,7 +479,7 @@ export function createInventoryManagementTemplate() {
                 id: `filter_stat_btn_${ts}`, type: 'BUTTON',
                 x: 390, y: 75, w: 100, h: 35,
                 props: { text: 'Select options', backgroundColor: '#e2e8f0', color: 'black', fontSize: 12 },
-                triggers: [{ event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Status filters opened', messageType: 'info' }]
+                triggers: [{ name: 'Open Status Filters Window', event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Status filters opened', messageType: 'info' }]
             },
             // Table underneath filters
             {
@@ -487,6 +492,7 @@ export function createInventoryManagementTemplate() {
                 },
                 triggers: [
                     {
+                        name: 'Load Selected Material Request',
                         event: 'ON_ROW_SELECT', type: 'DATA', action: 'TABLE_RECORD_LOAD',
                         tableId: T.materialRequests, recordPlaceholderId: `r3_${ts}`, linkVariable: 'Selected_Inv_ID'
                     }
@@ -566,7 +572,7 @@ export function createInventoryManagementTemplate() {
                 id: `rh_btn_prev_${ts}`, type: 'BUTTON',
                 x: 20, y: 490, w: 200, h: 45,
                 props: { text: '← View inventory items', backgroundColor: '#2563eb', color: 'white', fontWeight: 'bold' },
-                triggers: [{ event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_main_${ts}` }]
+                triggers: [{ name: 'Go back to Main Step', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_main_${ts}` }]
             }
         ]
     };
@@ -607,7 +613,7 @@ export function createInventoryManagementTemplate() {
                 id: `f_kb_cons_sel_${ts}`, type: 'BUTTON', // Select an option dropdown mock
                 x: 360, y: 30, w: 200, h: 35,
                 props: { text: 'Select an option  ▼', backgroundColor: 'white', color: 'black', border: '1px solid #cbd5e1' },
-                triggers: [{ event: 'ON_CLICK', type: 'LOGIC', action: 'SET_VARIABLE', variableId: 'Filter_KB_ConsLoc', value: 'Assembly' }]
+                triggers: [{ name: 'Filter by Consuming Location', event: 'ON_CLICK', type: 'LOGIC', action: 'SET_VARIABLE', variableId: 'Filter_KB_ConsLoc', value: 'Assembly' }]
             },
             {
                 id: `f_kb_sup_lbl_${ts}`, type: 'TEXT',
@@ -618,7 +624,7 @@ export function createInventoryManagementTemplate() {
                 id: `f_kb_sup_sel_${ts}`, type: 'BUTTON',
                 x: 570, y: 30, w: 180, h: 35,
                 props: { text: 'Select an option  ▼', backgroundColor: 'white', color: 'black', border: '1px solid #cbd5e1' },
-                triggers: [{ event: 'ON_CLICK', type: 'LOGIC', action: 'SET_VARIABLE', variableId: 'Filter_KB_SupLoc', value: 'Supermarket' }]
+                triggers: [{ name: 'Filter by Supplying Location', event: 'ON_CLICK', type: 'LOGIC', action: 'SET_VARIABLE', variableId: 'Filter_KB_SupLoc', value: 'Supermarket' }]
             },
             {
                 id: `f_kb_act_lbl_${ts}`, type: 'TEXT',
@@ -629,7 +635,7 @@ export function createInventoryManagementTemplate() {
                 id: `f_kb_act_tgl_${ts}`, type: 'BUTTON', // Toggle Switch
                 x: 760, y: 30, w: 100, h: 35,
                 props: { text: 'ON [Active Only]', backgroundColor: '#2563eb', color: 'white', borderRadius: '15px' },
-                triggers: [{ event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Toggled active filter!', messageType: 'info' }]
+                triggers: [{ name: 'Toggle Active Filter', event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Toggled active filter!', messageType: 'info' }]
             },
             // Table underneath the filters
             {
@@ -642,6 +648,7 @@ export function createInventoryManagementTemplate() {
                 },
                 triggers: [
                     {
+                        name: 'Load Selected Kanban Card',
                         event: 'ON_ROW_SELECT', type: 'DATA', action: 'TABLE_RECORD_LOAD',
                         tableId: T.kanbanCards, recordPlaceholderId: `r2_${ts}`, linkVariable: 'Selected_Kanban_ID'
                     }
@@ -652,7 +659,7 @@ export function createInventoryManagementTemplate() {
                 id: `vk_edit_${ts}`, type: 'BUTTON',
                 x: 20, y: 410, w: 120, h: 40,
                 props: { text: '✎ Edit card', backgroundColor: '#dbeafe', color: '#1e40af', fontWeight: 'bold', fontSize: 13 },
-                triggers: [{ event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_edit_kanban_${ts}` }]
+                triggers: [{ name: 'Go to Edit Kanban Card Step', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_edit_kanban_${ts}` }]
             },
             {
                 id: `vk_dup_${ts}`, type: 'BUTTON',
@@ -660,6 +667,7 @@ export function createInventoryManagementTemplate() {
                 props: { text: '📋 Duplicate card', backgroundColor: '#2563eb', color: 'white', fontWeight: 'bold', fontSize: 13 },
                 triggers: [
                     {
+                        name: 'Duplicate Kanban Card',
                         event: 'ON_CLICK', type: 'DATA', action: 'TABLE_RECORD_CREATE',
                         tableId: T.kanbanCards,
                         mapping: {
@@ -673,27 +681,27 @@ export function createInventoryManagementTemplate() {
                             'Active': true
                         }
                     },
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Card duplicated with incremental ID!', messageType: 'success' }
+                    { name: 'Show Success Message', event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Card duplicated with incremental ID!', messageType: 'success' }
                 ]
             },
             {
                 id: `vk_print_${ts}`, type: 'BUTTON',
                 x: 790, y: 410, w: 140, h: 40,
                 props: { text: '🖨 Print label', backgroundColor: '#2563eb', color: 'white', fontWeight: 'bold', fontSize: 13 },
-                triggers: [{ event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_print_label_${ts}` }]
+                triggers: [{ name: 'Go to Print Label Step', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_print_label_${ts}` }]
             },
             // Footer bottom buttons
             {
                 id: `vk_btn_prev_${ts}`, type: 'BUTTON',
                 x: 20, y: 495, w: 180, h: 45,
                 props: { text: 'View inventory items', backgroundColor: '#2563eb', color: 'white', fontWeight: 'bold' },
-                triggers: [{ event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_main_${ts}` }]
+                triggers: [{ name: 'Go back to Main Step', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_main_${ts}` }]
             },
             {
                 id: `vk_btn_create_${ts}`, type: 'BUTTON',
                 x: 760, y: 495, w: 180, h: 45,
                 props: { text: '+ Create new card', backgroundColor: '#2563eb', color: 'white', fontWeight: 'bold' },
-                triggers: [{ event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_create_kanban_${ts}` }]
+                triggers: [{ name: 'Go to Create Kanban Card Step', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_create_kanban_${ts}` }]
             }
         ]
     };
@@ -759,7 +767,7 @@ export function createInventoryManagementTemplate() {
                 id: `ck_sel_sup_${ts}`, type: 'BUTTON',
                 x: 30, y: 220, w: 200, h: 35,
                 props: { text: 'Select an option  ▼', backgroundColor: 'white', color: 'black', border: '1px solid #cbd5e1' },
-                triggers: [{ event: 'ON_CLICK', type: 'LOGIC', action: 'SET_VARIABLE', variableId: 'New_Kanban_Supplier', value: 'Supermarket' }]
+                triggers: [{ name: 'Select Supplier Location', event: 'ON_CLICK', type: 'LOGIC', action: 'SET_VARIABLE', variableId: 'New_Kanban_Supplier', value: 'Supermarket' }]
             },
             {
                 id: `ck_lbl_cons_${ts}`, type: 'TEXT',
@@ -770,7 +778,7 @@ export function createInventoryManagementTemplate() {
                 id: `ck_sel_cons_${ts}`, type: 'BUTTON',
                 x: 250, y: 220, w: 200, h: 35,
                 props: { text: 'Select an option  ▼', backgroundColor: 'white', color: 'black', border: '1px solid #cbd5e1' },
-                triggers: [{ event: 'ON_CLICK', type: 'LOGIC', action: 'SET_VARIABLE', variableId: 'New_Kanban_ConsLoc', value: 'Assembly' }]
+                triggers: [{ name: 'Select Consuming Location', event: 'ON_CLICK', type: 'LOGIC', action: 'SET_VARIABLE', variableId: 'New_Kanban_ConsLoc', value: 'Assembly' }]
             },
             // Inside card Clear button
             {
@@ -778,9 +786,9 @@ export function createInventoryManagementTemplate() {
                 x: 350, y: 270, w: 100, h: 35,
                 props: { text: 'Clear', backgroundColor: '#e2e8f0', color: 'black' },
                 triggers: [
-                    { event: 'ON_CLICK', type: 'LOGIC', action: 'CLEAR_VARIABLE', variableId: 'New_Kanban_Part' },
-                    { event: 'ON_CLICK', type: 'LOGIC', action: 'CLEAR_VARIABLE', variableId: 'New_Kanban_Desc' },
-                    { event: 'ON_CLICK', type: 'LOGIC', action: 'CLEAR_VARIABLE', variableId: 'New_Kanban_ID' }
+                    { name: 'Clear Part Number', event: 'ON_CLICK', type: 'LOGIC', action: 'CLEAR_VARIABLE', variableId: 'New_Kanban_Part' },
+                    { name: 'Clear Description', event: 'ON_CLICK', type: 'LOGIC', action: 'CLEAR_VARIABLE', variableId: 'New_Kanban_Desc' },
+                    { name: 'Clear Card ID', event: 'ON_CLICK', type: 'LOGIC', action: 'CLEAR_VARIABLE', variableId: 'New_Kanban_ID' }
                 ]
             },
             // Right Panel: Image viewfinder box + Upload button
@@ -794,8 +802,8 @@ export function createInventoryManagementTemplate() {
                 x: 820, y: 270, w: 100, h: 35,
                 props: { text: '⚙ Upload', backgroundColor: '#3b82f6', color: 'white', fontSize: 13 },
                 triggers: [
-                    { event: 'ON_CLICK', type: 'LOGIC', action: 'SET_VARIABLE', variableId: 'New_Kanban_Image', value: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=400&q=80' },
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Image Uploaded successfully!', messageType: 'success' }
+                    { name: 'Upload Kanban Image Link', event: 'ON_CLICK', type: 'LOGIC', action: 'SET_VARIABLE', variableId: 'New_Kanban_Image', value: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=400&q=80' },
+                    { name: 'Show Upload Success Message', event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Image Uploaded successfully!', messageType: 'success' }
                 ]
             },
             // Footer buttons (✕ Cancel on left, + Create on right)
@@ -803,7 +811,7 @@ export function createInventoryManagementTemplate() {
                 id: `ck_btn_cancel_${ts}`, type: 'BUTTON',
                 x: 20, y: 495, w: 120, h: 45,
                 props: { text: '✕ Cancel', backgroundColor: '#cbd5e1', color: 'black' },
-                triggers: [{ event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_view_kanban_${ts}` }]
+                triggers: [{ name: 'Cancel and Go Back', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_view_kanban_${ts}` }]
             },
             {
                 id: `ck_btn_create_${ts}`, type: 'BUTTON',
@@ -811,6 +819,7 @@ export function createInventoryManagementTemplate() {
                 props: { text: '+ Create', backgroundColor: '#3b82f6', color: 'white', fontWeight: 'bold' },
                 triggers: [
                     {
+                        name: 'Create Kanban Card',
                         event: 'ON_CLICK', type: 'DATA', action: 'TABLE_RECORD_CREATE',
                         tableId: T.kanbanCards,
                         mapping: {
@@ -825,8 +834,8 @@ export function createInventoryManagementTemplate() {
                             'Image': '{{@New_Kanban_Image}}'
                         }
                     },
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'New Kanban Card created successfully!', messageType: 'success' },
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_view_kanban_${ts}` }
+                    { name: 'Show Success Message', event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'New Kanban Card created successfully!', messageType: 'success' },
+                    { name: 'Go back to View Kanban Step', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_view_kanban_${ts}` }
                 ]
             }
         ]
@@ -902,11 +911,12 @@ export function createInventoryManagementTemplate() {
                 props: { text: 'Deactivate card', backgroundColor: '#b91c1c', color: 'white', fontWeight: 'bold' },
                 triggers: [
                     {
+                        name: 'Deactivate Kanban Card',
                         event: 'ON_CLICK', type: 'DATA', action: 'TABLE_RECORD_SAVE',
                         recordPlaceholderId: `r2_${ts}`, mapping: { 'Active': false }
                     },
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Kanban Card deactivated successfully!', messageType: 'success' },
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_view_kanban_${ts}` }
+                    { name: 'Show Success Message', event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Kanban Card deactivated successfully!', messageType: 'success' },
+                    { name: 'Go back to View Kanban Step', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_view_kanban_${ts}` }
                 ]
             },
             {
@@ -915,11 +925,12 @@ export function createInventoryManagementTemplate() {
                 props: { text: 'Activate card', backgroundColor: '#15803d', color: 'white', fontWeight: 'bold' },
                 triggers: [
                     {
+                        name: 'Activate Kanban Card',
                         event: 'ON_CLICK', type: 'DATA', action: 'TABLE_RECORD_SAVE',
                         recordPlaceholderId: `r2_${ts}`, mapping: { 'Active': true }
                     },
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Kanban Card activated successfully!', messageType: 'success' },
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_view_kanban_${ts}` }
+                    { name: 'Show Success Message', event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Kanban Card activated successfully!', messageType: 'success' },
+                    { name: 'Go back to View Kanban Step', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_view_kanban_${ts}` }
                 ]
             },
             // Footer cancel button (✕ Cancel)
@@ -927,7 +938,7 @@ export function createInventoryManagementTemplate() {
                 id: `ek_btn_cancel_${ts}`, type: 'BUTTON',
                 x: 20, y: 495, w: 120, h: 45,
                 props: { text: '✕ Cancel', backgroundColor: '#cbd5e1', color: 'black' },
-                triggers: [{ event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_view_kanban_${ts}` }]
+                triggers: [{ name: 'Cancel and Go Back', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_view_kanban_${ts}` }]
             }
         ]
     };
@@ -956,15 +967,15 @@ export function createInventoryManagementTemplate() {
                 x: 320, y: 350, w: 320, h: 50,
                 props: { text: '🖨 Send to Zebra/Label Printer', backgroundColor: '#10b981', color: 'white', fontWeight: 'bold' },
                 triggers: [
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Label sent to printer queue!', messageType: 'success' },
-                    { event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_view_kanban_${ts}` }
+                    { name: 'Print Kanban Container Label', event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Label sent to printer queue!', messageType: 'success' },
+                    { name: 'Go back to View Kanban Step', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_view_kanban_${ts}` }
                 ]
             },
             {
                 id: `pl_back_${ts}`, type: 'BUTTON',
                 x: 320, y: 415, w: 320, h: 40,
                 props: { text: 'Back', backgroundColor: '#e2e8f0', color: 'black' },
-                triggers: [{ event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_view_kanban_${ts}` }]
+                triggers: [{ name: 'Go back to View Kanban Step', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_view_kanban_${ts}` }]
             }
         ]
     };
