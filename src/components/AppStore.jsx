@@ -4,7 +4,7 @@ import {
     Search, Filter, Star, Zap, Info, Rocket, Database, ShieldCheck,
     ChevronRight, ShoppingBag, Plus, Award, Boxes, ShieldAlert, BookOpen, X, Trash2,
     List, Cpu, Settings, FileText, PlayCircle, Activity, HeartPulse, Truck,
-    Image as ImageIcon
+    Image as ImageIcon, BarChart3
 } from 'lucide-react';
 
 import { useNavigate } from 'react-router-dom';
@@ -29,6 +29,13 @@ import { createPerformanceVisibilityTerminalTemplate } from '../utils/performanc
 import { createMachineMonitoringTerminalTemplate } from '../utils/machineMonitoringTerminalTemplate';
 import { createOperationsManagementDashboardTemplate } from '../utils/operationsManagementDashboardTemplate';
 import { createMaterialHandlingTemplate } from '../utils/materialHandlingTemplate';
+import { createMaterialRequestTemplate } from '../utils/materialRequestTemplate';
+import { createMaterialLoadingReceivingTemplate } from '../utils/materialLoadingReceivingTemplate';
+import { createInventoryManagementTemplate } from '../utils/inventoryManagementTemplate';
+import { createInventoryDashboardTemplate } from '../utils/inventoryDashboardTemplate';
+import { createReplenishmentTemplate } from '../utils/replenishmentTemplate';
+import { createMaterialWarehouseTemplate } from '../utils/materialWarehouseTemplate';
+import { createQualityInspectionSuiteTemplate } from '../utils/qualityInspectionSuiteTemplate';
 
 import { saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { createTable, getTables, addTableRecord } from '../utils/database';
@@ -758,6 +765,236 @@ const AppStore = () => {
                 steps: [
                     { name: 'Kanban Request', description: 'List of all pending requests.' },
                     { name: 'Confirm', description: 'Review location data and update delivery status.' }
+                ]
+            }
+        },
+        {
+            id: 'material-request',
+            name: 'Material Request',
+            category: 'Inventory App Suite',
+            description: 'Create material replenishment requests for kanban bins that are currently out of stock.',
+            longDescription: 'The Material Request app is a part of the composable MES Inventory app suite. It enables operators to request materials efficiently, reducing downtime and ensuring smooth assembly line operations by streamlining material replenishment processes.',
+            icon: <Boxes size={28} color="#eab308" />,
+            bg: 'linear-gradient(135deg, #fef08a 0%, #fde047 100%)',
+            accent: '#eab308',
+            rating: 4.8,
+            installs: 'New',
+            features: ['Kanban Trigger', 'Barcode Scanning', 'Simple Confirm'],
+            guide: {
+                operation: '1. On the Request Material step, scan a barcode or select an empty Kanban Card from the table.\n2. Review the selected card details (Part Number, QTY).\n3. Click Create New Request and confirm the order on the next screen.\n4. Wait for Material Handling to deliver the parts.',
+                widgets: ['Interactive Table', 'Record Display'],
+                components: ['Kanban Browser', 'Request Confirm'],
+                tables: [
+                    { name: 'Material_Requests', description: 'Destination table where new replenishment requests are generated.' },
+                    { name: 'Kanban_Cards', description: 'Source table mapping all physical bins to part numbers.' }
+                ],
+                triggers: [
+                    { event: 'CREATE_REQUEST', function: 'Inserts a new row in Material_Requests with status REQUESTED.' }
+                ],
+                mechanism: 'Initiates a digital pull signal that populates the backlog of the Material Handling application.',
+                steps: [
+                    { name: 'Request Material', description: 'Select kanban bin to replenish.' },
+                    { name: 'Confirm', description: 'Double check details before submission.' }
+                ]
+            }
+        },
+        {
+            id: 'material-loading-receiving',
+            name: 'Loading & Receiving',
+            category: 'Inventory App Suite',
+            description: 'Track and handle newly received materials, setup gates, and maintain FIFO backlog sequences.',
+            longDescription: 'The Material Loading and Receiving app is part of Tulip’s composable MES Inventory app suite. It facilitates real-time tracking of arrived trucks and materials, gate allocations, proof of unloading capture, and historical log lookups.',
+            icon: <Truck size={28} color="#06b6d4" />,
+            bg: 'linear-gradient(135deg, #cffafe 0%, #a5f3fc 100%)',
+            accent: '#06b6d4',
+            rating: 4.9,
+            installs: 'New',
+            features: ['Truck Arrivals Log', 'FIFO Unloading Backlog', 'Dynamic Gate Setup'],
+            guide: {
+                operation: '1. On the Home Menu, choose Truck Arrival, FIFO Board, or History.\n2. In Truck Arrival, log details and assign an active gate (or create a new Gate).\n3. Use the FIFO Board to select arrived shipments in order and confirm unloading.\n4. In History, search and view past arrivals with proof photos.',
+                widgets: ['Interactive Tables', 'Form Inputs', 'Proof Camera/Link'],
+                components: ['Home Switcher', 'FIFO Queue Manager', 'Gate Registrar'],
+                tables: [
+                    { name: 'Equipment_Assets', description: 'Primary table storing shipment states (Arrived, Unloading, Complete) and proof images.' },
+                    { name: 'Locations', description: 'Represents gates in the warehouse where trucks are assigned.' }
+                ],
+                triggers: [
+                    { event: 'CONFIRM_ARRIVAL', function: 'Creates record in Equipment_Assets with status Arrived.' },
+                    { event: 'COMPLETE_UNLOAD', function: 'Updates status to Complete and registers proof image.' }
+                ],
+                mechanism: 'Acts as the entry point of raw inventory into the facility, mapping physical assets to physical gates.',
+                steps: [
+                    { name: 'Home', description: 'Main navigation interface.' },
+                    { name: 'Truck Arrival', description: 'Input carrier, manifest, and assign gate.' },
+                    { name: 'Add New Gate', description: 'Quick setup of a gate location.' },
+                    { name: 'Upload Image', description: 'Log container/manifest picture.' },
+                    { name: 'FIFO Board', description: 'Unload backlog queue.' },
+                    { name: 'Unload Confirmation', description: 'Close loop with unloading photo proof.' },
+                    { name: 'View History', description: 'Searchable historical archive.' }
+                ]
+            }
+        },
+        {
+            id: 'inventory-management',
+            name: 'Inventory Management',
+            category: 'Inventory App Suite',
+            description: 'Comprehensive inventory manager handling stock adjustments, material definitions, and Kanban configurations.',
+            longDescription: 'The Inventory Management app is a part of Tulip’s composable MES Inventory app suite. It enables stock additions/removals, editing statuses, viewing complete Kanban loops, printing container labels, and auditing historical request logs.',
+            icon: <Settings size={28} color="#10b981" />,
+            bg: 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)',
+            accent: '#10b981',
+            rating: 5.0,
+            installs: 'New',
+            features: ['Stock Adjustments (Add/Remove QTY)', 'Print Bin Labels', 'Kanban Loop Maintenance'],
+            guide: {
+                operation: '1. On the Main Screen, select an item to view details, then click Add QTY, Remove QTY, or Edit status.\n2. Click Create inventory item to define new stock registers.\n3. Navigate to View Kanban cards to duplicate cards, print Zebra labels, or toggle active status.\n4. Auditing is simplified via the Material request history step.',
+                widgets: ['Interactive Table', 'Record Display', 'Dynamic Adjustment Modals'],
+                components: ['Stock Adjustment Desk', 'Kanban Loop Registry', 'Label Printer Module'],
+                tables: [
+                    { name: 'Inventory_Items', description: 'Primary inventory tracking logs (ID, QTY, Location, Status).' },
+                    { name: 'Kanban_Cards', description: 'Holds definitions of storage containers.' },
+                    { name: 'Material_Requests', description: 'Historical record of replenishment logs.' },
+                    { name: 'Material_Definitions', description: 'Standard blueprint data for raw/final parts.' }
+                ],
+                triggers: [
+                    { event: 'ADD_QTY', function: 'Increments QTY field in selected Inventory_Items record.' },
+                    { event: 'DUPLICATE_CARD', function: 'Creates new Kanban card record with incremented ID.' }
+                ],
+                mechanism: 'Serves as the single source of truth for stock levels and container layouts, coordinating supply signals between shop floor nodes.',
+                steps: [
+                    { name: 'Main Screen', description: 'Control dashboard with stock tables.' },
+                    { name: 'Create Inventory Item', description: 'Registration of new raw parts.' },
+                    { name: 'Add QTY', description: 'Increment inventory quantities.' },
+                    { name: 'Remove QTY', description: 'Decrement inventory quantities.' },
+                    { name: 'Edit Status', description: 'Change item states (e.g. Quarantined, Available).' },
+                    { name: 'Material Request History', description: 'Searchable audit log.' },
+                    { name: 'View Kanban Cards', description: 'Container catalog list.' },
+                    { name: 'Create Kanban Card', description: 'Register a new container.' },
+                    { name: 'Edit Kanban Card', description: 'Activate/Deactivate toggle.' },
+                    { name: 'Print Label', description: 'Printer queue dispatch.' }
+                ]
+            }
+        },
+        {
+            id: 'inventory-dashboard',
+            name: 'Inventory Dashboard',
+            category: 'Inventory App Suite',
+            description: 'Show and visualize material replenishment cycles, pending requests, and stock out patterns.',
+            longDescription: 'The Inventory Dashboard is a part of Tulip’s composable MES Inventory app suite. It visualizes data from the shop floor, tracking cycle times, bottleneck areas, and current inventory requests.',
+            icon: <BarChart3 size={28} color="#10b981" />,
+            bg: 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)',
+            accent: '#10b981',
+            rating: 4.8,
+            installs: 'New',
+            features: ['Live Cycle Time Gauges', 'Replenishment Schedule Tables', 'Automated Stock Out Warning Indicators'],
+            guide: {
+                operation: '1. Review Today\'s deliveries counters (Warehouse, Machine Shop, Supermarket) on the left panel.\n2. Monitor the current queue schedule tables in the middle column.\n3. Track cycle-time KPIs and review Frequent Empty Signals in the stock-outs table.',
+                widgets: ['KPI Numbers', 'Filtered Schedule Tables', 'Dynamic Stock Out Grid'],
+                components: ['Performance Summary Panel', 'Live Logistics Dispatch Board', 'Warehouse Analytics Module'],
+                tables: [
+                    { name: 'Material_Requests', description: 'Stores status logs of replenishment loops.' }
+                ],
+                triggers: [
+                    { event: 'REFRESH', function: 'Pulls the latest status counts and updates average cycle time metrics.' }
+                ],
+                mechanism: 'Collects transactional timestamps from upstream frontline applications and maps them into real-time visual KPI tiles.',
+                steps: [
+                    { name: 'Inventory Dashboard', description: 'Combined real-time analytics dashboard.' }
+                ]
+            }
+        },
+        {
+            id: 'replenishment',
+            name: 'Replenishment',
+            category: 'Inventory App Suite',
+            description: 'Act as a mini-inventory supermarket on the shop floor, fulfilling and creating replenishment signals.',
+            longDescription: 'The Replenishment app is a part of Tulip’s composable MES Inventory app suite. It manages supermarket storage bins near production, enabling operators to fulfill pending material requests and trigger replenishment orders.',
+            icon: <Zap size={28} color="#1d4ed8" />,
+            bg: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
+            accent: '#1d4ed8',
+            rating: 4.9,
+            installs: 'New',
+            features: ['Open Requests Monitor', 'Active Location Filters', 'Direct Supermarket Request Trigger'],
+            guide: {
+                operation: '1. Open "View Open Material Requests" step to check pending container fulfillments.\n2. Select "Request Material for a Kanban Card" to view active bins.\n3. Choose an empty container card and click "Create New Request" to notify the central warehouse.',
+                widgets: ['Pending Requests Table', 'Location Kanban Cards Grid', 'Fulfillment Photo Proof Box'],
+                components: ['Supermarket Control Board', 'Direct Warehouse Pull Signal', 'FIFO Dispatch Queue'],
+                tables: [
+                    { name: 'Material_Requests', description: 'Tracks pending and completed replenishment events.' },
+                    { name: 'Kanban_Cards', description: 'Lists active supermarket bin cards.' }
+                ],
+                triggers: [
+                    { event: 'CREATE_REQUEST', function: 'Inserts a new replenishment signal with REQUESTED status.' }
+                ],
+                mechanism: 'Integrates supermarket inventory status changes directly with Material Handling logistics for rapid restocking.',
+                steps: [
+                    { name: 'View Open Material Requests', description: 'Monitor pending shopfloor container fulfillments.' },
+                    { name: 'Select Kanban Card', description: 'Identify active supermarket bins to restock.' },
+                    { name: 'Confirm', description: 'Final order confirmation trigger.' }
+                ]
+            }
+        },
+        {
+            id: 'material-warehouse',
+            name: 'Material Warehouse',
+            category: 'Inventory App Suite',
+            description: 'Store newly arrived materials into the warehouse or coordinate item movements between bin locations.',
+            longDescription: 'The Material Warehouse application enables warehouse operators to transact new stock or execute physical bin relocations with visual confirmation steps, optimizing logistics flow.',
+            icon: <Truck size={28} color="#eab308" />,
+            bg: 'linear-gradient(135deg, #fef9c3 0%, #fef08a 100%)',
+            accent: '#eab308',
+            rating: 4.8,
+            installs: 'New',
+            features: ['Relocation Backlog Grid', 'Interactive Quantity Modifiers', 'Location Scan Target Verification'],
+            guide: {
+                operation: '1. Select "Add Item to Inventory" or "Change Item Location" from the home menu.\n2. Scan the container barcode or manually input quantities using the dynamic modifier block.\n3. Validate the destination warehouse bin location on the Inventory table confirmation step.',
+                widgets: ['Scan Simulation Viewport', 'Quantity Calculator Box', 'Inventory Items Detail Panel'],
+                components: ['Warehouse Reception Deck', 'Stock Relocation Controller', 'Inventory Master Registry'],
+                tables: [
+                    { name: 'Inventory_Items', description: 'Tracks live item levels and location areas.' },
+                    { name: 'Material_Definitions', description: 'References static part metadata profiles.' }
+                ],
+                triggers: [
+                    { event: 'TRANSACT_ITEM', function: 'Performs upserts on Inventory Items, recalculating quantity and changing locations.' }
+                ],
+                mechanism: 'Fosters real-time synchronization between reception gates, rack storage configurations, and material replenishment signals.',
+                steps: [
+                    { name: 'Home', description: 'Flow selection hub.' },
+                    { name: 'Scan Item', description: 'Camera viewport mock scan.' },
+                    { name: 'Type item', description: 'Quantity modifiers and material details.' },
+                    { name: 'Scan Location', description: 'Location scan confirmation.' },
+                    { name: 'Inventory', description: 'Final records registry details.' }
+                ]
+            }
+        },
+        {
+            id: 'quality-inspection-suite',
+            name: 'Quality Inspection Suite',
+            category: 'Composable MES for Discrete Manufacturing',
+            description: 'Compare dynamic testing apps vs composed quality inspection apps with guided visual instructions.',
+            longDescription: 'Explore the two primary options when digitizing quality processes: generic Dynamic testing runs (configured via table-driven inspection plans) and highly customized Composed guided inspection apps with cylinder alignment reference instructions.',
+            icon: <Sparkles size={28} color="#06b6d4" />,
+            bg: 'linear-gradient(135deg, #ecfeff 0%, #cffafe 100%)',
+            accent: '#06b6d4',
+            rating: 4.9,
+            installs: 'New',
+            features: ['Dynamic Plan Reviewer', 'Numeric Test Entry Panel', 'Visual Assembly Instructions'],
+            guide: {
+                operation: '1. Open "Review plan" to inspect dynamic parameters loaded from database tables.\n2. Proceed to "Record numeric results" to enter and validate weight/dimensions against spec limits.\n3. Open "Inspect unit" to run a composed, guided checklist on cylinder end-caps with assembly photo assistance.',
+                widgets: ['Dynamic Plan Backlog Grid', 'Numeric Spec Limits Board', 'Composed Checklist Viewport'],
+                components: ['Quality Plan Architect', 'Test Execution Terminal', 'Visual Assembly Inspector'],
+                tables: [
+                    { name: 'Inspection_Plans', description: 'Tracks target weight and tolerances.' },
+                    { name: 'Inspection_Results', description: 'Stores recorded measurements and checklist confirmations.' }
+                ],
+                triggers: [
+                    { event: 'CONFIRM_PLAN', function: 'Verifies planning parameters and progresses to numeric recording.' }
+                ],
+                mechanism: 'Contrast the rapid setup and low maintenance of dynamic testing apps with the extreme customizability of composed work instruction workflows.',
+                steps: [
+                    { name: 'Review plan', description: 'Verify composed dynamic quality checklist rows.' },
+                    { name: 'Record numeric results', description: 'Input values against dynamic limits.' },
+                    { name: 'Inspect unit', description: 'Composed guided visual checklist.' }
                 ]
             }
         }
@@ -1500,6 +1737,241 @@ const AppStore = () => {
                     templateApp.config.appTables = tIds;
                 } catch (mhErr) {
                     console.warn('Could not create Material Handling tables:', mhErr);
+                }
+            } else if (templateId === 'material-request') {
+                templateApp = createMaterialRequestTemplate();
+                try {
+                    const mrTable = await createTable({ name: 'Material_Requests', fields: [
+                        { name: 'Item', type: 'text' }, { name: 'Requesting_Location', type: 'text' },
+                        { name: 'Supplier', type: 'text' }, { name: 'Kanban_ID', type: 'text' },
+                        { name: 'Quantity', type: 'number' }, { name: 'Status', type: 'text' },
+                        { name: 'Status_Color', type: 'text' }, { name: 'Requestor', type: 'text' },
+                        { name: 'Assignee', type: 'text' }, { name: 'Requested', type: 'datetime' },
+                        { name: 'Started', type: 'datetime' }, { name: 'Completed', type: 'datetime' },
+                        { name: 'Bin', type: 'text' }, { name: 'Compiled_by', type: 'text' },
+                        { name: 'Ready_for_pick_time', type: 'datetime' }, { name: 'Delivered_by', type: 'text' }
+                    ]});
+                    const kcTable = await createTable({ name: 'Kanban_Cards', fields: [
+                        { name: 'Part_Number', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Consuming_location', type: 'text' }, { name: 'Supplier', type: 'text' },
+                        { name: 'QTY', type: 'number' }, { name: 'Part_Description', type: 'text' },
+                        { name: 'Status_Color', type: 'text' }, { name: 'Image', type: 'text' },
+                        { name: 'Active', type: 'boolean' }, { name: 'Lead_Time', type: 'number' }
+                    ]});
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (mrTable?.id) { appStr = appStr.replace(/tbl_mr_material_requests/g, mrTable.id); tIds.push(mrTable.id); }
+                    if (kcTable?.id) { appStr = appStr.replace(/tbl_mr_kanban_cards/g, kcTable.id); tIds.push(kcTable.id); }
+                    
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (mrErr) {
+                    console.warn('Could not create Material Request tables:', mrErr);
+                }
+            } else if (templateId === 'material-loading-receiving') {
+                templateApp = createMaterialLoadingReceivingTemplate();
+                try {
+                    const assetsTable = await createTable({ name: 'Equipment_Assets', fields: [
+                        { name: 'Name', type: 'text' }, { name: 'Description', type: 'text' },
+                        { name: 'Status', type: 'text' }, { name: 'Location', type: 'text' },
+                        { name: 'Type', type: 'text' }, { name: 'Last_Calibration', type: 'datetime' },
+                        { name: 'Calibration_Cadence', type: 'number' }, { name: 'Container_image', type: 'text' },
+                        { name: 'Asset_Image', type: 'text' }, { name: 'User', type: 'text' }
+                    ]});
+                    const locationsTable = await createTable({ name: 'Locations', fields: [
+                        { name: 'Location_Area', type: 'text' }, { name: 'Bin_Number', type: 'text' },
+                        { name: 'Light_Kit_Number', type: 'number' }, { name: 'Type', type: 'text' },
+                        { name: 'Status', type: 'text' }
+                    ]});
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (assetsTable?.id) { appStr = appStr.replace(/tbl_mlr_assets/g, assetsTable.id); tIds.push(assetsTable.id); }
+                    if (locationsTable?.id) { appStr = appStr.replace(/tbl_mlr_locations/g, locationsTable.id); tIds.push(locationsTable.id); }
+                    
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (mlrErr) {
+                    console.warn('Could not create Material Loading tables:', mlrErr);
+                }
+            } else if (templateId === 'inventory-management') {
+                templateApp = createInventoryManagementTemplate();
+                try {
+                    const mrTable = await createTable({ name: 'Material_Requests', fields: [
+                        { name: 'Item', type: 'text' }, { name: 'Requesting_Location', type: 'text' },
+                        { name: 'Supplier', type: 'text' }, { name: 'Kanban_ID', type: 'text' },
+                        { name: 'Quantity', type: 'number' }, { name: 'Status', type: 'text' },
+                        { name: 'Status_Color', type: 'text' }, { name: 'Requestor', type: 'text' },
+                        { name: 'Assignee', type: 'text' }, { name: 'Requested', type: 'datetime' },
+                        { name: 'Started', type: 'datetime' }, { name: 'Completed', type: 'datetime' },
+                        { name: 'Bin', type: 'text' }, { name: 'Compiled_by', type: 'text' },
+                        { name: 'Ready_for_pick_time', type: 'datetime' }, { name: 'Delivered_by', type: 'text' }
+                    ]});
+                    const kcTable = await createTable({ name: 'Kanban_Cards', fields: [
+                        { name: 'Part_Number', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Consuming_location', type: 'text' }, { name: 'Supplier', type: 'text' },
+                        { name: 'QTY', type: 'number' }, { name: 'Part_Description', type: 'text' },
+                        { name: 'Status_Color', type: 'text' }, { name: 'Image', type: 'text' },
+                        { name: 'Active', type: 'boolean' }, { name: 'Lead_Time', type: 'number' }
+                    ]});
+                    const mdTable = await createTable({ name: 'Material_Definitions', fields: [
+                        { name: 'Name', type: 'text' }, { name: 'Type', type: 'text' },
+                        { name: 'Description', type: 'text' }, { name: 'Image', type: 'text' },
+                        { name: 'Status', type: 'text' }, { name: 'Unit_of_Measure', type: 'text' },
+                        { name: 'Version_Revision', type: 'text' }, { name: 'Vendor_ID', type: 'text' },
+                        { name: 'Target_Cycle_Time', type: 'number' }
+                    ]});
+                    const iiTable = await createTable({ name: 'Inventory_Items', fields: [
+                        { name: 'Material_Definition_ID', type: 'text' }, { name: 'Material_Definition_Type', type: 'text' },
+                        { name: 'Status', type: 'text' }, { name: 'Location_ID', type: 'text' },
+                        { name: 'Location_Area', type: 'text' }, { name: 'QTY', type: 'number' },
+                        { name: 'Unit_Of_Measure', type: 'text' }
+                    ]});
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (mrTable?.id) { appStr = appStr.replace(/tbl_im_material_requests/g, mrTable.id); tIds.push(mrTable.id); }
+                    if (kcTable?.id) { appStr = appStr.replace(/tbl_im_kanban_cards/g, kcTable.id); tIds.push(kcTable.id); }
+                    if (mdTable?.id) { appStr = appStr.replace(/tbl_im_material_definitions/g, mdTable.id); tIds.push(mdTable.id); }
+                    if (iiTable?.id) { appStr = appStr.replace(/tbl_im_inventory_items/g, iiTable.id); tIds.push(iiTable.id); }
+                    
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (imErr) {
+                    console.warn('Could not create Inventory Management tables:', imErr);
+                }
+            } else if (templateId === 'inventory-dashboard') {
+                templateApp = createInventoryDashboardTemplate();
+                try {
+                    const mrTable = await createTable({ name: 'Material_Requests', fields: [
+                        { name: 'Item', type: 'text' }, { name: 'Requesting_Location', type: 'text' },
+                        { name: 'Supplier', type: 'text' }, { name: 'Kanban_ID', type: 'text' },
+                        { name: 'Quantity', type: 'number' }, { name: 'Status', type: 'text' },
+                        { name: 'Status_Color', type: 'text' }, { name: 'Requestor', type: 'text' },
+                        { name: 'Assignee', type: 'text' }, { name: 'Requested', type: 'datetime' },
+                        { name: 'Started', type: 'datetime' }, { name: 'Completed', type: 'datetime' },
+                        { name: 'Bin', type: 'text' }, { name: 'Compiled_by', type: 'text' },
+                        { name: 'Ready_for_pick_time', type: 'datetime' }, { name: 'Delivered_by', type: 'text' }
+                    ]});
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (mrTable?.id) { appStr = appStr.replace(/tbl_im_material_requests/g, mrTable.id); tIds.push(mrTable.id); }
+                    
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (dbErr) {
+                    console.warn('Could not create Inventory Dashboard tables:', dbErr);
+                }
+            } else if (templateId === 'replenishment') {
+                templateApp = createReplenishmentTemplate();
+                try {
+                    const mrTable = await createTable({ name: 'Material_Requests', fields: [
+                        { name: 'Item', type: 'text' }, { name: 'Requesting_Location', type: 'text' },
+                        { name: 'Supplier', type: 'text' }, { name: 'Kanban_ID', type: 'text' },
+                        { name: 'Quantity', type: 'number' }, { name: 'Status', type: 'text' },
+                        { name: 'Status_Color', type: 'text' }, { name: 'Requestor', type: 'text' },
+                        { name: 'Assignee', type: 'text' }, { name: 'Requested', type: 'datetime' },
+                        { name: 'Started', type: 'datetime' }, { name: 'Completed', type: 'datetime' },
+                        { name: 'Bin', type: 'text' }, { name: 'Compiled_by', type: 'text' },
+                        { name: 'Ready_for_pick_time', type: 'datetime' }, { name: 'Delivered_by', type: 'text' }
+                    ]});
+
+                    const kbTable = await createTable({ name: 'Kanban_Cards', fields: [
+                        { name: 'Part_Number', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Consuming_location', type: 'text' }, { name: 'Supplier', type: 'text' },
+                        { name: 'QTY', type: 'number' }, { name: 'Part_Description', type: 'text' },
+                        { name: 'Status_Color', type: 'text' }, { name: 'Image', type: 'text' },
+                        { name: 'Active', type: 'boolean' }, { name: 'Lead_Time', type: 'number' }
+                    ]});
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (mrTable?.id) { appStr = appStr.replace(/tbl_rep_material_requests/g, mrTable.id); tIds.push(mrTable.id); }
+                    if (kbTable?.id) { appStr = appStr.replace(/tbl_rep_kanban_cards/g, kbTable.id); tIds.push(kbTable.id); }
+                    
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (repErr) {
+                    console.warn('Could not create Replenishment tables:', repErr);
+                }
+            } else if (templateId === 'material-warehouse') {
+                templateApp = createMaterialWarehouseTemplate();
+                try {
+                    const invTable = await createTable({ name: 'Inventory_Items', fields: [
+                        { name: 'Material_Definition_ID', type: 'text' }, { name: 'Location_ID', type: 'text' },
+                        { name: 'Location_Area', type: 'text' }, { name: 'QTY', type: 'number' },
+                        { name: 'Unit_Of_Measure', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Material_Definition_Type', type: 'text' }
+                    ]});
+
+                    const mdTable = await createTable({ name: 'Material_Definitions', fields: [
+                        { name: 'Name', type: 'text' }, { name: 'Type', type: 'text' },
+                        { name: 'Description', type: 'text' }, { name: 'Image', type: 'text' },
+                        { name: 'Status', type: 'text' }, { name: 'Unit_Of_Measure', type: 'text' },
+                        { name: 'Version_Revision', type: 'text' }, { name: 'Vendor_ID', type: 'text' },
+                        { name: 'Target_Cycle_Time', type: 'number' }
+                    ]});
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (invTable?.id) { appStr = appStr.replace(/tbl_mw_inventory_items/g, invTable.id); tIds.push(invTable.id); }
+                    if (mdTable?.id) { appStr = appStr.replace(/tbl_mw_material_definitions/g, mdTable.id); tIds.push(mdTable.id); }
+                    
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (mwErr) {
+                    console.warn('Could not create Material Warehouse tables:', mwErr);
+                }
+            } else if (templateId === 'quality-inspection-suite') {
+                templateApp = createQualityInspectionSuiteTemplate();
+                try {
+                    const plTable = await createTable({ name: 'Inspection_Plans', fields: [
+                        { name: 'Product_ID', type: 'text' }, { name: 'Inspection_Name', type: 'text' },
+                        { name: 'Inspection_Description', type: 'text' }, { name: 'Target', type: 'number' },
+                        { name: 'UoM', type: 'text' }
+                    ]});
+
+                    const rsTable = await createTable({ name: 'Inspection_Results', fields: [
+                        { name: 'Work_Order_ID', type: 'text' }, { name: 'Inspection_Plan_ID', type: 'text' },
+                        { name: 'Operator', type: 'text' }, { name: 'Recorded_Value', type: 'number' },
+                        { name: 'Status', type: 'text' }, { name: 'Comments', type: 'text' }
+                    ]});
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (plTable?.id) { appStr = appStr.replace(/tbl_qi_inspection_plans/g, plTable.id); tIds.push(plTable.id); }
+                    if (rsTable?.id) { appStr = appStr.replace(/tbl_qi_inspection_results/g, rsTable.id); tIds.push(rsTable.id); }
+                    
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+
+                    // Pre-populate with sample dynamic inspection plans
+                    if (plTable?.id) {
+                        await addTableRecord({
+                            tableId: plTable.id,
+                            fields: {
+                                'Product_ID': 'DEMO-CYL-B1',
+                                'Inspection_Name': 'Weight check',
+                                'Inspection_Description': 'Weigh the unit',
+                                'Target': 200,
+                                'UoM': 'g'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: plTable.id,
+                            fields: {
+                                'Product_ID': 'DEMO-CYL-B1',
+                                'Inspection_Name': 'Functional test',
+                                'Inspection_Description': 'Applying the recommended pressure...',
+                                'Target': 5,
+                                'UoM': 'bar'
+                            }
+                        });
+                    }
+                } catch (qiErr) {
+                    console.warn('Could not create Quality Inspection tables:', qiErr);
                 }
             } else {
                 toast.error('Template not found', { id: loadingToast });
