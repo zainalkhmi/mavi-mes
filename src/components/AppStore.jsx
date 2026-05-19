@@ -28,6 +28,7 @@ import { createPerformanceVisibilityDashboardTemplate } from '../utils/performan
 import { createPerformanceVisibilityTerminalTemplate } from '../utils/performanceVisibilityTerminalTemplate';
 import { createMachineMonitoringTerminalTemplate } from '../utils/machineMonitoringTerminalTemplate';
 import { createOperationsManagementDashboardTemplate } from '../utils/operationsManagementDashboardTemplate';
+import { createMaterialHandlingTemplate } from '../utils/materialHandlingTemplate';
 
 import { saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { createTable, getTables, addTableRecord } from '../utils/database';
@@ -76,7 +77,7 @@ const AppStore = () => {
             });
         }
     };
-    const categories = ['All', 'Quality', 'Manufacturing', 'Production', 'MES Production Suite', 'Warehouse', 'Automotive', 'Analytic'];
+    const categories = ['All', 'Quality', 'Manufacturing', 'Production', 'MES Production Suite', 'Inventory App Suite', 'Warehouse', 'Automotive', 'Analytic'];
 
 
     const templates = [
@@ -727,6 +728,36 @@ const AppStore = () => {
                     { name: 'Dashboard', description: 'Four-panel view for the daily standup.' },
                     { name: 'Create Action', description: 'Pre-filled escalation form.' },
                     { name: 'View actions', description: 'Interactive table of all pending tasks.' }
+                ]
+            }
+        },
+        {
+            id: 'material-handling',
+            name: 'Material Handling',
+            category: 'Inventory App Suite',
+            description: 'Process and deliver material replenishment requests created by shop floor stations.',
+            longDescription: 'The Material Handling app is part of the composable MES Inventory app suite. It enables request selection and dynamic management of material movement by status—open, requested, or ready to deliver—helping users optimize material flow and reduce inventory surplus stocks.',
+            icon: <Truck size={28} color="#f97316" />,
+            bg: 'linear-gradient(135deg, #ffedd5 0%, #fed7aa 100%)',
+            accent: '#f97316',
+            rating: 4.8,
+            installs: 'New',
+            features: ['Replenishment Loop', 'Status Tracking', 'Kanban Management'],
+            guide: {
+                operation: '1. In Kanban Request, review all pending material requests from the shop floor.\n2. Select a request and click Process to open the Confirm step.\n3. Update the request status (e.g., Request Ready to Deliver or Delivered to location) based on physical handoff.\n4. Close the request once material is fully replenished.',
+                widgets: ['Interactive Table', 'Record Display', 'Dynamic Action Buttons'],
+                components: ['Kanban Table', 'Action Confirmation', 'Image Viewer'],
+                tables: [
+                    { name: 'Material_Requests', description: 'Stores the state and routing of all material movement tasks.' },
+                    { name: 'Kanban_Cards', description: 'Identifies the containers and material data.' }
+                ],
+                triggers: [
+                    { event: 'UPDATE_STATUS', function: 'Modifies the current status of the Material_Requests record.' }
+                ],
+                mechanism: 'Acts as the execution node for the replenishment pull system by closing loops created by requesting stations.',
+                steps: [
+                    { name: 'Kanban Request', description: 'List of all pending requests.' },
+                    { name: 'Confirm', description: 'Review location data and update delivery status.' }
                 ]
             }
         }
@@ -1438,6 +1469,37 @@ const AppStore = () => {
                     templateApp.config.appTables = tIds;
                 } catch (omdErr) {
                     console.warn('Could not create OMD tables:', omdErr);
+                }
+            } else if (templateId === 'material-handling') {
+                templateApp = createMaterialHandlingTemplate();
+                try {
+                    const mrTable = await createTable({ name: 'Material_Requests', fields: [
+                        { name: 'Item', type: 'text' }, { name: 'Requesting_Location', type: 'text' },
+                        { name: 'Supplier', type: 'text' }, { name: 'Kanban_ID', type: 'text' },
+                        { name: 'Quantity', type: 'number' }, { name: 'Status', type: 'text' },
+                        { name: 'Status_Color', type: 'text' }, { name: 'Requestor', type: 'text' },
+                        { name: 'Assignee', type: 'text' }, { name: 'Requested', type: 'datetime' },
+                        { name: 'Started', type: 'datetime' }, { name: 'Completed', type: 'datetime' },
+                        { name: 'Bin', type: 'text' }, { name: 'Compiled_by', type: 'text' },
+                        { name: 'Ready_for_pick_time', type: 'datetime' }, { name: 'Delivered_by', type: 'text' }
+                    ]});
+                    const kcTable = await createTable({ name: 'Kanban_Cards', fields: [
+                        { name: 'Part_Number', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Consuming_location', type: 'text' }, { name: 'Supplier', type: 'text' },
+                        { name: 'QTY', type: 'number' }, { name: 'Part_Description', type: 'text' },
+                        { name: 'Status_Color', type: 'text' }, { name: 'Image', type: 'text' },
+                        { name: 'Active', type: 'boolean' }, { name: 'Lead_Time', type: 'number' }
+                    ]});
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (mrTable?.id) { appStr = appStr.replace(/tbl_mh_material_requests/g, mrTable.id); tIds.push(mrTable.id); }
+                    if (kcTable?.id) { appStr = appStr.replace(/tbl_mh_kanban_cards/g, kcTable.id); tIds.push(kcTable.id); }
+                    
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (mhErr) {
+                    console.warn('Could not create Material Handling tables:', mhErr);
                 }
             } else {
                 toast.error('Template not found', { id: loadingToast });
