@@ -25,6 +25,9 @@ import { createOrderExecutionTemplate } from '../utils/orderExecutionTemplate';
 import { createAndonManagementTemplate } from '../utils/andonManagementTemplate';
 import { createAndonTerminalTemplate } from '../utils/andonTerminalTemplate';
 import { createPerformanceVisibilityDashboardTemplate } from '../utils/performanceVisibilityDashboardTemplate';
+import { createPerformanceVisibilityTerminalTemplate } from '../utils/performanceVisibilityTerminalTemplate';
+import { createMachineMonitoringTerminalTemplate } from '../utils/machineMonitoringTerminalTemplate';
+import { createOperationsManagementDashboardTemplate } from '../utils/operationsManagementDashboardTemplate';
 
 import { saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { createTable, getTables, addTableRecord } from '../utils/database';
@@ -623,6 +626,107 @@ const AppStore = () => {
                 steps: [
                     { name: 'Dashboard', description: 'Main analytics view for uptime and downtime.' },
                     { name: 'OEE Metrics', description: 'Holistic OEE calculation view.' }
+                ]
+            }
+        },
+        {
+            id: 'performance-visibility-terminal',
+            name: 'Performance Terminal',
+            category: 'MES Production Suite',
+            description: 'Log running events, downtime reasons, good parts, and defects on the floor.',
+            longDescription: 'The Performance Visibility Terminal application is an operator-friendly user interface designed to log events (running, downtime, changeovers), downtime reasons, and the number of good parts and defects. It operates in manual, low-volume assembly environments where tracking unit by unit is not a necessity.',
+            icon: <Cpu size={28} color="#06b6d4" />,
+            bg: 'linear-gradient(135deg, #cffafe 0%, #a5f3fc 100%)',
+            accent: '#06b6d4',
+            rating: 4.8,
+            installs: 'New',
+            features: ['Status Logging', 'Defect Tracking', 'Operator View'],
+            guide: {
+                operation: '1. Select the current Work Order to begin logging.\n2. In the Main step, change machine statuses (Running, Down, Idle, Off, Setup) as appropriate.\n3. Log Good Parts or Defects continuously. If selecting DOWN, specify a downtime reason.',
+                widgets: ['Interactive Table', 'Status Buttons', 'Number Input'],
+                components: ['Status Controller', 'Part Logging', 'Downtime Selector'],
+                tables: [
+                    { name: 'Work_Orders', description: 'Loads orders and increments completed quantities.' },
+                    { name: 'Stations', description: 'Current status state for the local station.' },
+                    { name: 'Station_Activity_History', description: 'Logs the granular history of all status changes and quantities.' },
+                    { name: 'Material_Definitions', description: 'Used to reference target cycle times.' }
+                ],
+                triggers: [
+                    { event: 'LOG_GOOD_PARTS', function: 'Creates an entry in Station_Activity_History and increments order completion.' },
+                    { event: 'CHANGE_STATUS_DOWN', function: 'Updates the variable Current_Status, requires reason, and saves to History.' }
+                ],
+                mechanism: 'Acts as the primary data collection point for the Performance Visibility Dashboard.',
+                steps: [
+                    { name: 'Select Order', description: 'Choose the work order from the table.' },
+                    { name: 'Main', description: 'Status switching and quantity logging.' },
+                    { name: 'Change Status Down', description: 'Forces selection of a downtime reason.' },
+                    { name: 'Analytics', description: 'Quick view of recent performance.' }
+                ]
+            }
+        },
+        {
+            id: 'machine-monitoring-terminal',
+            name: 'Machine Monitoring',
+            category: 'MES Production Suite',
+            description: 'Track machine utilization, log downtime reasons, and monitor performance and OEE.',
+            longDescription: 'The Machine Monitoring Terminal app is designed for operators and supervisors to track machine utilization and performance. By bolestering machine uptime and capturing operator input, this terminal aids in optimizing asset utilization and achieving a deeper understanding of performance.',
+            icon: <Settings size={28} color="#eab308" />,
+            bg: 'linear-gradient(135deg, #fef08a 0%, #fde047 100%)',
+            accent: '#eab308',
+            rating: 4.9,
+            installs: 'New',
+            features: ['Machine Timelines', 'Notes & Comments', 'OEE Tracking'],
+            guide: {
+                operation: '1. Select an order and bind the session to a Machine ID.\n2. Set an Ideal Run Rate for target tracking.\n3. Log Parts, Defects, and Station Notes during operation.\n4. If stopped, select a downtime reason to inform the root-cause analysis.',
+                widgets: ['Machine Timeline', 'Form Inputs', 'Interactive Table'],
+                components: ['Machine Monitor', 'Notes Log', 'Downtime Selector'],
+                tables: [
+                    { name: 'Work_Orders', description: 'Tracks the order being fulfilled by the machine.' },
+                    { name: 'Notes_Comments', description: 'Logs free-text notes submitted by operators at the machine.' }
+                ],
+                triggers: [
+                    { event: 'ADD_NOTE', function: 'Creates a record in Notes_Comments tied to the Work Order.' },
+                    { event: 'FINISH_PRODUCTION', function: 'Updates WO Status to COMPLETED and unbinds the Machine.' }
+                ],
+                mechanism: 'Integrates natively with Machine Timeline widgets to visualize running states and captures contextual operator inputs.',
+                steps: [
+                    { name: 'Select Order', description: 'Pick order and input Machine ID.' },
+                    { name: 'Change Over', description: 'Set target parameters.' },
+                    { name: 'Machine Terminal', description: 'Primary heads-up display and logging.' },
+                    { name: 'Downtime Reason', description: 'Categorize stoppage events.' },
+                    { name: 'Notes', description: 'Review and add station notes.' }
+                ]
+            }
+        },
+        {
+            id: 'operations-management-dashboard',
+            name: 'Operations Dashboard',
+            category: 'MES Production Suite',
+            description: 'Simple dashboard showing the most important metrics for Safety, Quality, Performance, and Downtime.',
+            longDescription: 'The Operations Management Dashboard application features a simple dashboard that serves as a great starting point for daily standups to discuss high-level metrics. It connects seamlessly with the other Composable MES applications to visualize the real-time operational status of your factory.',
+            icon: <Layout size={28} color="#0ea5e9" />,
+            bg: 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)',
+            accent: '#0ea5e9',
+            rating: 4.8,
+            installs: 'New',
+            features: ['High-level Metrics', 'Issue Escalation', 'Standup Ready'],
+            guide: {
+                operation: '1. Open the dashboard to see Safety, Performance, Quality, and Downtime status panels.\n2. If a metric indicates a problem (red), click on it to automatically prepopulate the Create Action step.\n3. Assign an action owner and describe the issue to escalate it.\n4. Use the View Actions screen to track open tasks.',
+                widgets: ['Dynamic Panels', 'Text Inputs', 'Interactive Table'],
+                components: ['Status Dashboard', 'Escalation Form', 'Action Tracker'],
+                tables: [
+                    { name: 'Station_Activity_History', description: 'Data source for calculating the dashboard metrics.' },
+                    { name: 'Actions', description: 'Target table where escalated issues are stored.' }
+                ],
+                triggers: [
+                    { event: 'PANEL_CLICK', function: 'Sets the Selected_Action_Type variable and navigates to Create Action.' },
+                    { event: 'CREATE_ACTION', function: 'Saves the issue into the Actions table and alerts the supervisor.' }
+                ],
+                mechanism: 'Translates high-level analytic red flags into actionable tasks that route directly to the Andon management layer.',
+                steps: [
+                    { name: 'Dashboard', description: 'Four-panel view for the daily standup.' },
+                    { name: 'Create Action', description: 'Pre-filled escalation form.' },
+                    { name: 'View actions', description: 'Interactive table of all pending tasks.' }
                 ]
             }
         }
@@ -1230,6 +1334,110 @@ const AppStore = () => {
                     templateApp.config.appTables = tIds;
                 } catch (pvdErr) {
                     console.warn('Could not create PVD tables:', pvdErr);
+                }
+            } else if (templateId === 'performance-visibility-terminal') {
+                templateApp = createPerformanceVisibilityTerminalTemplate();
+                try {
+                    const woTable = await createTable({ name: 'Work_Orders', fields: [
+                        { name: 'Operator', type: 'text' }, { name: 'Parent_Order_ID', type: 'text' },
+                        { name: 'Material_Definition_ID', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Location', type: 'text' }, { name: 'QTY_Required', type: 'number' },
+                        { name: 'QTY_Complete', type: 'number' }, { name: 'QTY_Scrap', type: 'number' },
+                        { name: 'Due_Date', type: 'datetime' }, { name: 'Start_Date', type: 'datetime' },
+                        { name: 'Complete_Date', type: 'datetime' }, { name: 'Customer_ID', type: 'text' }
+                    ]});
+                    const stationsTable = await createTable({ name: 'Stations', fields: [
+                        { name: 'Status', type: 'text' }, { name: 'Status_Color', type: 'text' },
+                        { name: 'Status_Detail', type: 'text' }, { name: 'Process_Cell', type: 'text' },
+                        { name: 'Operator', type: 'text' }, { name: 'Work_Order_ID', type: 'text' },
+                        { name: 'Material_Definition_ID', type: 'text' }
+                    ]});
+                    const shTable = await createTable({ name: 'Station_Activity_History', fields: [
+                        { name: 'Station_ID', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Start_Date_Time', type: 'datetime' }, { name: 'End_Date_Time', type: 'datetime' },
+                        { name: 'Duration', type: 'number' }, { name: 'Material_Definition_ID', type: 'text' },
+                        { name: 'Target_Quantity', type: 'number' }, { name: 'Actual_Quantity', type: 'number' },
+                        { name: 'Defects', type: 'number' }, { name: 'Downtime_reason', type: 'text' },
+                        { name: 'Comments', type: 'text' }, { name: 'Unit_ID', type: 'text' }, { name: 'Work_Order_ID', type: 'text' }
+                    ]});
+                    const mdTable = await createTable({ name: 'Material_Definitions', fields: [
+                        { name: 'Name', type: 'text' }, { name: 'Type', type: 'text' },
+                        { name: 'Description', type: 'text' }, { name: 'Image', type: 'text' },
+                        { name: 'Status', type: 'text' }, { name: 'Unit_of_Measure', type: 'text' },
+                        { name: 'Version_Revision', type: 'text' }, { name: 'Vendor_ID', type: 'text' },
+                        { name: 'Target_Cycle_Time', type: 'number' }
+                    ]});
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (woTable?.id) { appStr = appStr.replace(/tbl_pvt_work_orders/g, woTable.id); tIds.push(woTable.id); }
+                    if (stationsTable?.id) { appStr = appStr.replace(/tbl_pvt_stations/g, stationsTable.id); tIds.push(stationsTable.id); }
+                    if (shTable?.id) { appStr = appStr.replace(/tbl_pvt_station_history/g, shTable.id); tIds.push(shTable.id); }
+                    if (mdTable?.id) { appStr = appStr.replace(/tbl_pvt_material_definitions/g, mdTable.id); tIds.push(mdTable.id); }
+                    
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (pvtErr) {
+                    console.warn('Could not create PVT tables:', pvtErr);
+                }
+            } else if (templateId === 'machine-monitoring-terminal') {
+                templateApp = createMachineMonitoringTerminalTemplate();
+                try {
+                    const woTable = await createTable({ name: 'Work_Orders', fields: [
+                        { name: 'Operator', type: 'text' }, { name: 'Parent_Order_ID', type: 'text' },
+                        { name: 'Material_Definition_ID', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Location', type: 'text' }, { name: 'QTY_Required', type: 'number' },
+                        { name: 'QTY_Complete', type: 'number' }, { name: 'QTY_Scrap', type: 'number' },
+                        { name: 'Due_Date', type: 'datetime' }, { name: 'Start_Date', type: 'datetime' },
+                        { name: 'Complete_Date', type: 'datetime' }, { name: 'Customer_ID', type: 'text' }
+                    ]});
+                    const ncTable = await createTable({ name: 'Notes_Comments', fields: [
+                        { name: 'Reference_ID', type: 'text' }, { name: 'Location', type: 'text' },
+                        { name: 'Notes', type: 'text' }, { name: 'Sender', type: 'text' },
+                        { name: 'Updated_by', type: 'text' }, { name: 'Recipient', type: 'text' },
+                        { name: 'Notes_Photo', type: 'text' }
+                    ]});
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (woTable?.id) { appStr = appStr.replace(/tbl_mmt_work_orders/g, woTable.id); tIds.push(woTable.id); }
+                    if (ncTable?.id) { appStr = appStr.replace(/tbl_mmt_notes/g, ncTable.id); tIds.push(ncTable.id); }
+                    
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (mmtErr) {
+                    console.warn('Could not create MMT tables:', mmtErr);
+                }
+            } else if (templateId === 'operations-management-dashboard') {
+                templateApp = createOperationsManagementDashboardTemplate();
+                try {
+                    const shTable = await createTable({ name: 'Station_Activity_History', fields: [
+                        { name: 'Station_ID', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Start_Date_Time', type: 'datetime' }, { name: 'End_Date_Time', type: 'datetime' },
+                        { name: 'Duration', type: 'number' }, { name: 'Material_Definition_ID', type: 'text' },
+                        { name: 'Target_Quantity', type: 'number' }, { name: 'Actual_Quantity', type: 'number' },
+                        { name: 'Defects', type: 'number' }, { name: 'Downtime_reason', type: 'text' },
+                        { name: 'Comments', type: 'text' }, { name: 'Unit_ID', type: 'text' }, { name: 'Work_Order_ID', type: 'text' }
+                    ]});
+                    const actionsTable = await createTable({ name: 'Actions', fields: [
+                        { name: 'Material_Definition_ID', type: 'text' }, { name: 'Title', type: 'text' },
+                        { name: 'Location', type: 'text' }, { name: 'Severity', type: 'text' },
+                        { name: 'Status', type: 'text' }, { name: 'Work_Order_ID', type: 'text' },
+                        { name: 'Unit_ID', type: 'text' }, { name: 'Comments', type: 'text' },
+                        { name: 'Photo', type: 'text' }, { name: 'Reported_by', type: 'text' },
+                        { name: 'Owner', type: 'text' }, { name: 'Type', type: 'text' },
+                        { name: 'Actions_Taken', type: 'text' }, { name: 'Due_date', type: 'datetime' }
+                    ]});
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (shTable?.id) { appStr = appStr.replace(/tbl_omd_station_history/g, shTable.id); tIds.push(shTable.id); }
+                    if (actionsTable?.id) { appStr = appStr.replace(/tbl_omd_actions/g, actionsTable.id); tIds.push(actionsTable.id); }
+                    
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (omdErr) {
+                    console.warn('Could not create OMD tables:', omdErr);
                 }
             } else {
                 toast.error('Template not found', { id: loadingToast });
