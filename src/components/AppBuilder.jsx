@@ -430,6 +430,93 @@ const COMPONENT_TYPES = {
             conditionalFormattingRules: []
         }
     },
+    LABEL: {
+        id: 'LABEL',
+        label: 'Label',
+        icon: Type,
+        defaultSize: { w: 120, h: 32 },
+        defaultProps: {
+            text: 'Label text',
+            fontSize: 14,
+            textcolor: 'var(--text-primary)',
+            color: 'var(--text-primary)',
+            backgroundColor: 'transparent',
+            fontBold: false,
+            fontWeight: 'normal',
+            fontItalic: false,
+            fontTypeface: 'DEFAULT',
+            htmlFormat: false,
+            hasMargins: true,
+            textAlignment: 0,
+            visible: true,
+            height: -1,
+            width: -1,
+            heightPercent: -1,
+            widthPercent: -1,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0,
+            conditionalFormattingRules: []
+        }
+    },
+    HEADING: {
+        id: 'HEADING',
+        label: 'Heading',
+        icon: Type,
+        defaultSize: { w: 200, h: 40 },
+        defaultProps: {
+            text: 'Heading Text',
+            fontSize: 22,
+            textcolor: 'var(--text-primary)',
+            color: 'var(--text-primary)',
+            backgroundColor: 'transparent',
+            fontBold: true,
+            fontWeight: 'bold',
+            fontItalic: false,
+            fontTypeface: 'DEFAULT',
+            htmlFormat: false,
+            hasMargins: true,
+            textAlignment: 0,
+            visible: true,
+            height: -1,
+            width: -1,
+            heightPercent: -1,
+            widthPercent: -1,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0,
+            conditionalFormattingRules: []
+        }
+    },
+    PARAGRAPH: {
+        id: 'PARAGRAPH',
+        label: 'Paragraph',
+        icon: Type,
+        defaultSize: { w: 300, h: 80 },
+        defaultProps: {
+            text: 'Paragraph text content...',
+            fontSize: 14,
+            textcolor: 'var(--text-primary)',
+            color: 'var(--text-primary)',
+            backgroundColor: 'transparent',
+            fontBold: false,
+            fontWeight: 'normal',
+            fontItalic: false,
+            fontTypeface: 'DEFAULT',
+            htmlFormat: false,
+            hasMargins: true,
+            textAlignment: 0,
+            visible: true,
+            height: -1,
+            width: -1,
+            heightPercent: -1,
+            widthPercent: -1,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0,
+            conditionalFormattingRules: []
+        }
+    },
     LIST_PICKER: {
         id: 'LIST_PICKER',
         label: 'ListPicker',
@@ -1974,6 +2061,49 @@ const AppBuilder = () => {
     const [recordPlaceholders, setRecordPlaceholders] = useState([]);
     const [recordPlaceholderData, setRecordPlaceholderData] = useState({});
 
+    const renderTargetVariableOptions = () => {
+        const options = [];
+        options.push(<option key="static" value="">None (Static)</option>);
+        
+        // Group for App Variables
+        const varOpts = appVariables.map(v => (
+            <option key={`var-${v.name}`} value={v.name}>{v.name}</option>
+        ));
+        if (varOpts.length > 0) {
+            options.push(<optgroup key="vars" label="App Variables">{varOpts}</optgroup>);
+        }
+        
+        // Group for Record Placeholders
+        recordPlaceholders.forEach(rp => {
+            const table = tables.find(t => t.id === rp.tableId);
+            const columns = table?.columns || [];
+            if (columns.length > 0) {
+                options.push(
+                    <optgroup key={`rp-group-${rp.id}`} label={`Placeholder: ${rp.name} (${table.name || 'Table'})`}>
+                        {columns.map(col => (
+                            <option key={`rp-col-${rp.id}-${col}`} value={`${rp.name}.${col}`}>
+                                {`${rp.name}.${col}`}
+                            </option>
+                        ))}
+                    </optgroup>
+                );
+            } else {
+                const fallbackCols = ['ID', 'Name', 'Description', 'Type', 'QTY', 'Status', 'Unit_of_Measure', 'Vendor_ID'];
+                options.push(
+                    <optgroup key={`rp-group-fb-${rp.id}`} label={`Placeholder: ${rp.name} (Linked Columns)`}>
+                        {fallbackCols.map(col => (
+                            <option key={`rp-col-fb-${rp.id}-${col}`} value={`${rp.name}.${col}`}>
+                                {`${rp.name}.${col}`}
+                            </option>
+                        ))}
+                    </optgroup>
+                );
+            }
+        });
+        
+        return options;
+    };
+
     // --- History / Undo Stack ---
     const [builderStack, setBuilderStack] = useState({ undo: [], redo: [] });
 
@@ -2256,15 +2386,21 @@ const AppBuilder = () => {
                         }
                     }
 
+                    const rawTriggers = payload.triggers || payload.props?.triggers;
+                    const mergedProps = sanitizeAiProps({
+                        ...(COMPONENT_TYPES[resolvedType]?.defaultProps || {}),
+                        ...(payload.props || {})
+                    });
+                    if (rawTriggers) {
+                        mergedProps.triggers = rawTriggers;
+                    }
+
                     const newComp = {
                         id: `w_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                         displayName: payload.displayName || COMPONENT_TYPES[resolvedType]?.label || resolvedType,
                         ...payload,
                         type: resolvedType,
-                        props: sanitizeAiProps({
-                            ...(COMPONENT_TYPES[resolvedType]?.defaultProps || {}),
-                            ...(payload.props || {})
-                        })
+                        props: mergedProps
                     };
                     if (currentStepId === 'BASE') {
                         setBaseComponents(prev => [...prev, newComp]);
@@ -4225,6 +4361,78 @@ const AppBuilder = () => {
     useEffect(() => {
         // Migration: ensure trigger has clauses if missing
         if (triggerEditor.isOpen && triggerEditor.trigger && !triggerEditor.trigger.clauses) {
+            const convertFlatActionToBuilderAction = (trig) => {
+                if (!trig) return null;
+                
+                let resolvedType = trig.type;
+                if (!resolvedType || ['LOGIC', 'DATA', 'NAVIGATION'].includes(String(resolvedType).toUpperCase())) {
+                    resolvedType = trig.action || trig.type;
+                }
+                
+                const t = String(resolvedType || '').toUpperCase().replace(/[\s-]/g, '_');
+                let type = resolvedType;
+                let payload = { ...(trig.payload || {}) };
+                
+                if (t.includes('LOAD') && (t.includes('RECORD') || t.includes('ROW') || t.includes('TABLE'))) {
+                    type = 'TABLE_RECORD_LOAD';
+                    payload.placeholderId = trig.recordPlaceholderId || trig.placeholderId || trig.placeholder || payload.placeholderId || '';
+                    payload.tableId = trig.tableId || payload.tableId || '';
+                    if (trig.linkVariable) {
+                        payload.idType = 'VARIABLE';
+                        payload.idValue = trig.linkVariable;
+                    } else {
+                        payload.idType = trig.idType || payload.idType || 'STATIC';
+                        payload.idValue = trig.idValue || payload.idValue || '';
+                    }
+                } else if ((t.includes('CREATE') || t.includes('INSERT')) && (t.includes('RECORD') || t.includes('ROW') || t.includes('TABLE'))) {
+                    type = 'TABLE_RECORD_CREATE';
+                    payload.tableId = trig.tableId || payload.tableId || '';
+                    payload.mapping = trig.mapping || payload.mapping || {};
+                } else if ((t.includes('SAVE') || (t.includes('UPDATE') && !t.includes('VARIABLE'))) && (t.includes('RECORD') || t.includes('ROW') || t.includes('TABLE'))) {
+                    type = 'TABLE_RECORD_SAVE';
+                    payload.placeholderId = trig.recordPlaceholderId || trig.placeholderId || trig.placeholder || payload.placeholderId || '';
+                    payload.tableId = trig.tableId || payload.tableId || '';
+                    payload.mapping = trig.mapping || payload.mapping || {};
+                } else if (t.includes('DELETE') && (t.includes('RECORD') || t.includes('ROW'))) {
+                    type = 'TABLE_RECORD_DELETE';
+                    payload.placeholderId = trig.recordPlaceholderId || trig.placeholderId || trig.placeholder || payload.placeholderId || '';
+                    payload.tableId = trig.tableId || payload.tableId || '';
+                } else if (t.includes('LOAD') || t === 'TABLE_RECORD_LOAD') {
+                    type = 'TABLE_RECORD_LOAD';
+                    payload.placeholderId = trig.recordPlaceholderId || trig.placeholderId || trig.placeholder || payload.placeholderId || '';
+                    payload.tableId = trig.tableId || payload.tableId || '';
+                    if (trig.linkVariable) {
+                        payload.idType = 'VARIABLE';
+                        payload.idValue = trig.linkVariable;
+                    } else {
+                        payload.idType = trig.idType || payload.idType || 'STATIC';
+                        payload.idValue = trig.idValue || payload.idValue || '';
+                    }
+                } else if (((t.includes('SET') || t.includes('UPDATE') || t.includes('CHANGE')) && t.includes('VARIABLE')) || t === 'SET_VARIABLE') {
+                    type = 'SET_VARIABLE';
+                    payload.varPath = trig.variableId || trig.variableName || trig.variable || trig.varPath || payload.varPath || '';
+                    payload.value = trig.value !== undefined ? trig.value : (trig.expression || payload.value || '');
+                    payload.valueType = trig.valueType || payload.valueType || 'STATIC';
+                } else if (t === 'NAVIGATE_STEP' || t === 'NAVIGATE' || t === 'GOTO_STEP' || t === 'GOTO' || t === 'GO_TO_STEP') {
+                    type = 'GO_TO_STEP';
+                    payload.stepId = trig.stepId || trig.targetId || trig.screen || payload.stepId || '';
+                } else if (t.includes('NOTIFICATION') || t.includes('TOAST') || t.includes('SHOW_MESSAGE') || t === 'ALERT' || t === 'SHOW_NOTIFICATION') {
+                    type = 'SHOW_NOTIFICATION';
+                    payload.message = trig.message || trig.text || payload.message || 'Notification';
+                    payload.msgType = trig.messageType || trig.msgType || trig.notificationType || payload.msgType || 'success';
+                }
+                
+                return { type, payload };
+            };
+
+            let migratedActions = [];
+            if (Array.isArray(triggerEditor.trigger.actions)) {
+                migratedActions = triggerEditor.trigger.actions.map(act => convertFlatActionToBuilderAction(act)).filter(Boolean);
+            } else if (triggerEditor.trigger.action || triggerEditor.trigger.type) {
+                const converted = convertFlatActionToBuilderAction(triggerEditor.trigger);
+                if (converted) migratedActions = [converted];
+            }
+
             setTriggerEditor(prev => ({
                 ...prev,
                 trigger: {
@@ -4233,7 +4441,7 @@ const AppBuilder = () => {
                         id: `c_${Date.now()}`,
                         match: prev.trigger.conditionMatch || 'ALL',
                         conditions: prev.trigger.conditions || [],
-                        actions: prev.trigger.actions || []
+                        actions: migratedActions
                     }]
                 }
             }));
@@ -7963,16 +8171,46 @@ const AppBuilder = () => {
             ...s,
             cycleTimeSeconds: clampNonNegativeInt(s.cycleTimeSeconds ?? s.stepCycleTimeSeconds, 60),
             formSubmit: normalizeFormSubmitConfig(s),
-            components: (s.components || []).map(c => ({
+            components: (s.components || []).map(c => {
+                let triggers = c.props?.triggers;
+                if (!triggers && Array.isArray(c.triggers)) {
+                    triggers = c.triggers;
+                }
+                const updatedProps = { ...(c.props || {}) };
+                if (triggers) {
+                    updatedProps.triggers = triggers;
+                }
+                return {
+                    ...c,
+                    props: updatedProps,
+                    x: c.x ?? 50,
+                    y: c.y ?? 50,
+                    w: c.w ?? 300,
+                    h: c.h ?? 120
+                };
+            })
+        }));
+        setSteps(appSteps);
+        
+        const baseComps = (config.baseComponents || []).map(c => {
+            let triggers = c.props?.triggers;
+            if (!triggers && Array.isArray(c.triggers)) {
+                triggers = c.triggers;
+            }
+            const updatedProps = { ...(c.props || {}) };
+            if (triggers) {
+                updatedProps.triggers = triggers;
+            }
+            return {
                 ...c,
+                props: updatedProps,
                 x: c.x ?? 50,
                 y: c.y ?? 50,
                 w: c.w ?? 300,
                 h: c.h ?? 120
-            }))
-        }));
-        setSteps(appSteps);
-        setBaseComponents(config.baseComponents || []);
+            };
+        });
+        setBaseComponents(baseComps);
         setAppVariables(config.appVariables || []);
         setAppTriggers(config.appTriggers || []);
         setAppFunctions(config.appFunctions || []);
@@ -8983,6 +9221,9 @@ const AppBuilder = () => {
                     </div>
                 );
             case 'TEXT':
+            case 'LABEL':
+            case 'HEADING':
+            case 'PARAGRAPH':
                 const isTxtVisible = comp.props.visible !== false;
                 if (!isTxtVisible && viewMode === 'PREVIEW') return null;
 
@@ -14445,7 +14686,7 @@ const AppBuilder = () => {
                                                 )}
 
                                                 {/* Generic & Specific Property Editors */}
-                                                {selectedComp.type === 'TEXT' && (
+                                                {['TEXT', 'LABEL', 'HEADING', 'PARAGRAPH'].includes(selectedComp.type) && (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                                         {/* Section: Content */}
                                                         {(sidebarSearch === '' || 'content text label html format margins'.includes(sidebarSearch.toLowerCase())) && (
@@ -14723,10 +14964,7 @@ const AppBuilder = () => {
                                                                         onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
                                                                         style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
                                                                     >
-                                                                        <option value="">None (Static)</option>
-                                                                        {appVariables.map(v => (
-                                                                            <option key={v.name} value={v.name}>{v.name}</option>
-                                                                        ))}
+                                                                        {renderTargetVariableOptions()}
                                                                     </select>
                                                                     <div style={{ marginTop: '6px', fontSize: '0.65rem', color: '#94a3b8', fontStyle: 'italic' }}>
                                                                         Pilih variable atau ketik "Placeholder.Column" untuk simpan otomatis.
@@ -16250,10 +16488,7 @@ const AppBuilder = () => {
                                                                         onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
                                                                         style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
                                                                     >
-                                                                        <option value="">None (Static)</option>
-                                                                        {appVariables.map(v => (
-                                                                            <option key={v.name} value={v.name}>{v.name}</option>
-                                                                        ))}
+                                                                        {renderTargetVariableOptions()}
                                                                     </select>
                                                                     <div style={{ marginTop: '6px', fontSize: '0.65rem', color: '#94a3b8', fontStyle: 'italic' }}>
                                                                         Pilih variable atau ketik "Placeholder.Column" untuk simpan otomatis.
@@ -16316,10 +16551,7 @@ const AppBuilder = () => {
                                                                 onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
                                                                 style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
                                                             >
-                                                                <option value="">None (Static)</option>
-                                                                {appVariables.map(v => (
-                                                                    <option key={v.name} value={v.name}>{v.name}</option>
-                                                                ))}
+                                                                {renderTargetVariableOptions()}
                                                             </select>
                                                         </div>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -16372,10 +16604,7 @@ const AppBuilder = () => {
                                                                 onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
                                                                 style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
                                                             >
-                                                                <option value="">None (Static)</option>
-                                                                {appVariables.map(v => (
-                                                                    <option key={v.name} value={v.name}>{v.name}</option>
-                                                                ))}
+                                                                {renderTargetVariableOptions()}
                                                             </select>
                                                         </div>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -16472,10 +16701,7 @@ const AppBuilder = () => {
                                                                 onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
                                                                 style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
                                                             >
-                                                                <option value="">None (Static)</option>
-                                                                {appVariables.map(v => (
-                                                                    <option key={v.name} value={v.name}>{v.name}</option>
-                                                                ))}
+                                                                {renderTargetVariableOptions()}
                                                             </select>
                                                         </div>
                                                     </>
@@ -16605,10 +16831,7 @@ const AppBuilder = () => {
                                                                 onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
                                                                 style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
                                                             >
-                                                                <option value="">None (Static)</option>
-                                                                {appVariables.map(v => (
-                                                                    <option key={v.name} value={v.name}>{v.name}</option>
-                                                                ))}
+                                                                {renderTargetVariableOptions()}
                                                             </select>
                                                         </div>
                                                         <button
@@ -16671,10 +16894,7 @@ const AppBuilder = () => {
                                                                 onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
                                                                 style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
                                                             >
-                                                                <option value="">None (Static)</option>
-                                                                {appVariables.map(v => (
-                                                                    <option key={v.name} value={v.name}>{v.name}</option>
-                                                                ))}
+                                                                {renderTargetVariableOptions()}
                                                             </select>
                                                         </div>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -16732,10 +16952,7 @@ const AppBuilder = () => {
                                                                 onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
                                                                 style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
                                                             >
-                                                                <option value="">None (Static)</option>
-                                                                {appVariables.map(v => (
-                                                                    <option key={v.name} value={v.name}>{v.name}</option>
-                                                                ))}
+                                                                {renderTargetVariableOptions()}
                                                             </select>
                                                         </div>
                                                         <div className="prop-group">
@@ -16745,10 +16962,7 @@ const AppBuilder = () => {
                                                                 onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
                                                                 style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
                                                             >
-                                                                <option value="">None (Static)</option>
-                                                                {appVariables.map(v => (
-                                                                    <option key={v.name} value={v.name}>{v.name}</option>
-                                                                ))}
+                                                                {renderTargetVariableOptions()}
                                                             </select>
                                                         </div>
                                                         <button
@@ -17008,10 +17222,7 @@ const AppBuilder = () => {
                                                                 onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
                                                                 style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
                                                             >
-                                                                <option value="">Tidak ada</option>
-                                                                {appVariables.map(v => (
-                                                                    <option key={v.name} value={v.name}>{v.name}</option>
-                                                                ))}
+                                                                {renderTargetVariableOptions()}
                                                             </select>
                                                             {appVariables.length === 0 && (
                                                                 <div style={{ marginTop: '6px', fontSize: '0.65rem', color: '#94a3b8' }}>
@@ -17671,10 +17882,7 @@ const AppBuilder = () => {
                                                                         onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
                                                                         style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
                                                                     >
-                                                                        <option value="">None (Static)</option>
-                                                                        {appVariables.map(v => (
-                                                                            <option key={v.name} value={v.name}>{v.name}</option>
-                                                                        ))}
+                                                                        {renderTargetVariableOptions()}
                                                                     </select>
                                                                 </div>
                                                             </div>

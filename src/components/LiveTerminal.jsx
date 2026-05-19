@@ -470,11 +470,33 @@ const LiveTerminal = () => {
   }, []);
 
   const syncVariableForComp = (comp, value) => {
-
     if (!comp) return;
     const varName = comp.props?.targetVariable || (comp.props?.dataSourceType === 'VARIABLE' ? comp.props?.varSource : null);
-    if (varName) {
-      setAppVariables(prev => prev.map(v => v.name === varName ? { ...v, value } : v));
+    if (varName && typeof varName === 'string') {
+      const cleanVarName = varName.startsWith('@') ? varName.substring(1) : varName;
+      if (cleanVarName.includes('.')) {
+        const [pName, ...fPath] = cleanVarName.split('.');
+        const placeholder = recordPlaceholders.find(rp => rp.name === pName || rp.id === pName);
+        if (placeholder) {
+          setRecordPlaceholderData(prev => {
+            const currentRecord = prev[placeholder.id] || {};
+            const updatedRecord = { ...currentRecord };
+            let cur = updatedRecord;
+            for (let i = 0; i < fPath.length - 1; i++) {
+              const part = fPath[i];
+              if (!cur[part] || typeof cur[part] !== 'object') {
+                cur[part] = {};
+              }
+              cur[part] = { ...cur[part] };
+              cur = cur[part];
+            }
+            cur[fPath[fPath.length - 1]] = value;
+            return { ...prev, [placeholder.id]: updatedRecord };
+          });
+        }
+      } else {
+        setAppVariables(prev => prev.map(v => v.name === cleanVarName ? { ...v, value } : v));
+      }
     }
   };
   useEffect(() => {
@@ -1398,21 +1420,40 @@ const LiveTerminal = () => {
 
     // Resolve Mustache-style placeholders in strings first
     if (typeof rawValue === 'string' && rawValue.includes('{{')) {
+      if (rawValue.startsWith('{{') && rawValue.endsWith('}}') && !rawValue.slice(2, -2).includes('{{')) {
+        const innerExpr = rawValue.slice(2, -2).trim();
+        try {
+          return evaluateExpression(innerExpr, eventPayload);
+        } catch (e) {
+          console.warn('[resolveSourceValue] Failed to evaluate expression:', innerExpr, e);
+        }
+      }
+
       rawValue = rawValue.replace(/\{\{EVENT\.PAYLOAD\}\}/g, eventPayload || '');
       rawValue = rawValue.replace(/\{\{EVENT\.VALUE\}\}/g, eventPayload || '');
-
-      // Resolve variables: {{VARIABLE.VarName}} - Support spaces and dots
-      rawValue = rawValue.replace(/\{\{VARIABLE\.([^}]+)\}\}/g, (match, varName) => {
-        const cleanName = varName.trim();
-        const v = appVariables.find(av => av.name === cleanName || av.id === cleanName);
-        return v ? String(v.value ?? '') : '';
-      });
 
       // Resolve app info: {{APP_INFO.USER}}, etc.
       rawValue = rawValue.replace(/\{\{APP_INFO\.([a-zA-Z0-9_.]+)\}\}/g, (match, infoKey) => {
         if (infoKey === 'USER') return appContext.user || '';
         if (infoKey === 'STATION') return appContext.station || '';
         return match;
+      });
+
+      // Resolve variables and fields: {{VARIABLE.VarName}}, {{@VarName}}, or [Placeholder.Field]
+      const templateRegex = /\{\{([^}]+)\}\}/g;
+      rawValue = rawValue.replace(templateRegex, (match, expression) => {
+        const cleanExpr = expression.trim();
+        try {
+          // If it starts with @, evaluate expression directly; otherwise evaluate with @ prefix
+          const exprToEval = cleanExpr.startsWith('@') || cleanExpr.startsWith('[') ? cleanExpr : '@' + cleanExpr;
+          const resolved = evaluateExpression(exprToEval);
+          return resolved !== undefined && resolved !== null ? String(resolved) : '';
+        } catch {
+          // Fallback to simple variable lookup
+          const cleanName = cleanExpr.startsWith('@') ? cleanExpr.substring(1) : cleanExpr;
+          const v = appVariables.find(av => av.name === cleanName || av.id === cleanName);
+          return v ? String(v.value ?? '') : match;
+        }
       });
     }
 
@@ -1665,10 +1706,15 @@ const LiveTerminal = () => {
           if (placeholder) {
             const data = recordPlaceholderData[placeholder.id];
             if (data) {
-              let res = data[fName];
-              if (res === undefined) {
-                const key = Object.keys(data).find(k => k.toLowerCase() === fName.toLowerCase());
-                if (key) res = data[key];
+              let res;
+              if (fName.toLowerCase() === 'id' || fName.toLowerCase() === 'recordid') {
+                res = data.recordId || data.ID || data.id;
+              } else {
+                res = data[fName];
+                if (res === undefined) {
+                  const key = Object.keys(data).find(k => k.toLowerCase() === fName.toLowerCase());
+                  if (key) res = data[key];
+                }
               }
               return res ?? '';
             }
@@ -1684,12 +1730,18 @@ const LiveTerminal = () => {
           const data = recordPlaceholderData[placeholder.id];
           if (data) {
             let current = data;
-            for (const part of fPath) {
+            for (let i = 0; i < fPath.length; i++) {
+              const part = fPath[i];
               if (current && typeof current === 'object') {
-                let next = current[part];
-                if (next === undefined) {
-                  const key = Object.keys(current).find(k => k.toLowerCase() === part.toLowerCase());
-                  if (key) next = current[key];
+                let next;
+                if (i === 0 && (part.toLowerCase() === 'id' || part.toLowerCase() === 'recordid')) {
+                  next = current.recordId || current.ID || current.id;
+                } else {
+                  next = current[part];
+                  if (next === undefined) {
+                    const key = Object.keys(current).find(k => k.toLowerCase() === part.toLowerCase());
+                    if (key) next = current[key];
+                  }
                 }
                 current = next;
               } else {
@@ -2274,6 +2326,21 @@ const LiveTerminal = () => {
                 const tableDef = await getTableById(placeholder.tableId);
                 const columns = tableDef?.columns || [];
 
+                // Apply explicit mappings if provided in trigger action payload
+                const actionMapping = action.payload?.mapping || action.payload?.mappings || action.mapping || action.mappings;
+                if (actionMapping && typeof actionMapping === 'object') {
+                  for (const [colName, expr] of Object.entries(actionMapping)) {
+                    if (['id', 'createdat', 'updatedat'].includes(colName.toLowerCase())) continue;
+                    const resolvedVal = await resolveSourceValue('STATIC', expr, '', eventPayload);
+                    if (resolvedVal !== undefined && resolvedVal !== null) {
+                      console.log(`[saveById] Explicit mapping found for column "${colName}":`, resolvedVal);
+                      updatedData[colName] = resolvedVal;
+                      harvestedColsThisSession.add(colName);
+                      fieldsFound++;
+                    }
+                  }
+                }
+
                 // AGGRESSIVE SCAN: Search ALL components (Apps & Manuals)
                 // AGGRESSIVE SCAN: Search ALL components (Apps & Manuals)
                 // Prioritize components on the CURRENT step to avoid matching empty fields from other steps
@@ -2625,13 +2692,116 @@ const LiveTerminal = () => {
       }
     };
 
-    const clauses = trigger.clauses || [
-      {
+    let normalizedClauses = [];
+    if (trigger.clauses && trigger.clauses.length > 0) {
+      normalizedClauses = JSON.parse(JSON.stringify(trigger.clauses));
+    } else if (trigger.actions && trigger.actions.length > 0) {
+      normalizedClauses = [{
         match: trigger.conditionMatch || 'ALL',
         conditions: trigger.conditions || [],
-        actions: trigger.actions || []
+        actions: JSON.parse(JSON.stringify(trigger.actions))
+      }];
+    } else if (trigger.action || trigger.type) {
+      // Flat trigger itself is a single action
+      const singleAction = JSON.parse(JSON.stringify(trigger));
+      normalizedClauses = [{
+        match: 'ALL',
+        conditions: trigger.conditions || [],
+        actions: [singleAction]
+      }];
+    } else {
+      normalizedClauses = [{
+        match: 'ALL',
+        conditions: [],
+        actions: []
+      }];
+    }
+
+    // Normalize each action inside each clause
+    normalizedClauses.forEach(clause => {
+      if (Array.isArray(clause.actions)) {
+        clause.actions = clause.actions.map(action => {
+          if (!action) return action;
+          
+          // Map type from action if type is missing or too generic (like 'LOGIC' or 'DATA' or 'NAVIGATION')
+          let resolvedType = action.type;
+          if (!resolvedType || ['LOGIC', 'DATA', 'NAVIGATION'].includes(String(resolvedType).toUpperCase())) {
+            resolvedType = action.action || action.type;
+          }
+          
+          const t = String(resolvedType || '').toUpperCase().replace(/[\s-]/g, '_');
+          const normalized = { ...action };
+          
+          if (t.includes('LOAD') && (t.includes('RECORD') || t.includes('ROW'))) normalized.type = 'TABLE_RECORD_LOAD';
+          else if ((t.includes('CREATE') || t.includes('INSERT')) && (t.includes('RECORD') || t.includes('ROW') || t.includes('TABLE'))) normalized.type = 'TABLE_RECORD_CREATE';
+          else if ((t.includes('SAVE') || (t.includes('UPDATE') && !t.includes('VARIABLE'))) && (t.includes('RECORD') || t.includes('ROW') || t.includes('TABLE'))) normalized.type = 'TABLE_RECORD_SAVE';
+          else if (t.includes('DELETE') && (t.includes('RECORD') || t.includes('ROW'))) normalized.type = 'TABLE_RECORD_DELETE';
+          else if (t.includes('LOAD') || t === 'TABLE_RECORD_LOAD') normalized.type = 'TABLE_RECORD_LOAD';
+          else if ((t.includes('SET') || t.includes('UPDATE') || t.includes('CHANGE')) && t.includes('VARIABLE')) normalized.type = 'SET_VARIABLE';
+          else if (t === 'SET_VARIABLE') normalized.type = 'SET_VARIABLE';
+          else if (t === 'NAVIGATE_STEP' || t === 'NAVIGATE' || t === 'GOTO_STEP' || t === 'GOTO' || t === 'GO_TO_STEP') normalized.type = 'GO_TO_STEP';
+          else if (t.includes('NOTIFICATION') || t.includes('TOAST') || t.includes('SHOW_MESSAGE') || t === 'ALERT' || t === 'SHOW_NOTIFICATION') normalized.type = 'SHOW_NOTIFICATION';
+          else normalized.type = resolvedType;
+
+          if (!normalized.payload) {
+            const p = { ...action };
+            
+            // SET_VARIABLE
+            if (normalized.type === 'SET_VARIABLE') {
+              p.varPath = action.variableId || action.variableName || action.variable || action.varPath || '';
+              p.value = action.value !== undefined ? action.value : (action.expression || '');
+              p.valueType = action.valueType || (String(p.value).includes('{{') ? 'STATIC' : 'STATIC');
+            }
+            // TABLE_RECORD_*
+            else if (normalized.type.startsWith('TABLE_RECORD_')) {
+              p.placeholderId = action.recordPlaceholderId || action.placeholderId || action.placeholder || '';
+              if (action.linkVariable) {
+                p.idType = 'VARIABLE';
+                p.idValue = action.linkVariable;
+              } else {
+                p.idType = action.idType || 'STATIC';
+                p.idValue = action.idValue || '';
+              }
+              if (action.tableId) p.tableId = action.tableId;
+            }
+            // GO_TO_STEP
+            else if (normalized.type === 'GO_TO_STEP') {
+              p.stepId = action.stepId || action.targetId || action.screen || '';
+            }
+            // SHOW_NOTIFICATION
+            else if (normalized.type === 'SHOW_NOTIFICATION') {
+              p.message = action.message || action.text || 'Notification';
+              p.msgType = action.messageType || action.msgType || action.notificationType || 'success';
+            }
+            
+            normalized.payload = p;
+          } else {
+            // Even if payload exists, make sure to normalize nested attributes
+            const p = { ...normalized.payload };
+            if (normalized.type === 'SET_VARIABLE') {
+              p.varPath = p.varPath || action.variableId || action.variableName || action.variable || '';
+              p.value = p.value !== undefined ? p.value : (action.value !== undefined ? action.value : (p.expression || action.expression || ''));
+            } else if (normalized.type.startsWith('TABLE_RECORD_')) {
+              p.placeholderId = p.placeholderId || action.recordPlaceholderId || action.placeholder || '';
+              if (action.linkVariable && !p.idValue) {
+                p.idType = 'VARIABLE';
+                p.idValue = action.linkVariable;
+              }
+            } else if (normalized.type === 'GO_TO_STEP') {
+              p.stepId = p.stepId || action.stepId || action.targetId || action.screen || '';
+            } else if (normalized.type === 'SHOW_NOTIFICATION') {
+              p.message = p.message || action.message || action.text || 'Notification';
+              p.msgType = p.msgType || action.messageType || action.msgType || action.notificationType || 'success';
+            }
+            normalized.payload = p;
+          }
+          
+          return normalized;
+        });
       }
-    ];
+    });
+
+    const clauses = normalizedClauses;
 
     for (const clause of clauses) {
       let passed = true;
@@ -2664,13 +2834,25 @@ const LiveTerminal = () => {
     }
 
     // 2. Execute Legacy Actions Triggers
-    if (!comp || !comp.props?.triggers) return;
-    const trigList = comp.props.triggers.filter(t => t.event === eventId || (!t.event && (['BUTTON', 'COMPLETE_BUTTON'].includes(comp.type) ? eventId === 'ON_CLICK' : eventId === 'ON_CHANGE')));
+    if (!comp) return;
+    const triggersSource = comp.props?.triggers || comp.triggers;
+    if (!triggersSource) return;
+    const trigList = triggersSource.filter(t => t.event === eventId || (!t.event && (['BUTTON', 'COMPLETE_BUTTON'].includes(comp.type) ? eventId === 'ON_CLICK' : eventId === 'ON_CHANGE')));
+    
+    const getFriendlyName = (trig, defaultType) => {
+      if (trig.name) return trig.name;
+      const evt = (trig.event || '').replace('ON_', '').replace(/_/g, ' ');
+      const act = (trig.action || trig.type || '').replace(/_/g, ' ');
+      if (evt && act) return `${evt} (${act})`;
+      if (evt) return `${evt} Trigger`;
+      return `${defaultType} Trigger`;
+    };
+
     for (const trig of trigList) {
       // Log trigger execution for App Player Dev Mode
       window.parent.postMessage({
         type: 'TRIGGER_FIRED',
-        triggerName: trig.name || 'Unnamed Trigger',
+        triggerName: getFriendlyName(trig, comp.type || 'Widget'),
         eventId: eventId,
         source: comp.props?.label || comp.type,
         timestamp: new Date().toISOString()
@@ -2684,10 +2866,20 @@ const LiveTerminal = () => {
     // Legacy Actions Triggers
     if (!step || !step.triggers) return;
     const trigList = step.triggers.filter(t => t.event === eventId);
+    
+    const getFriendlyName = (trig, defaultType) => {
+      if (trig.name) return trig.name;
+      const evt = (trig.event || '').replace('ON_', '').replace(/_/g, ' ');
+      const act = (trig.action || trig.type || '').replace(/_/g, ' ');
+      if (evt && act) return `${evt} (${act})`;
+      if (evt) return `${evt} Trigger`;
+      return `${defaultType} Trigger`;
+    };
+
     for (const trig of trigList) {
       window.parent.postMessage({
         type: 'TRIGGER_FIRED',
-        triggerName: trig.name || 'Unnamed Trigger',
+        triggerName: getFriendlyName(trig, step.title || 'Step'),
         eventId: eventId,
         source: step.title || 'Step',
         timestamp: new Date().toISOString()
@@ -3461,8 +3653,19 @@ const LiveTerminal = () => {
     const propsToResolve = ['text', 'label', 'defaultValue', 'value', 'placeholder', 'src', 'title', 'url', 'varSource', 'targetVariable'];
     propsToResolve.forEach(p => {
       const val = resolvedProps[p];
-      if (typeof val === 'string' && val.startsWith('@')) {
-        resolvedProps[p] = safeRender(resolveValue(val));
+      if (typeof val === 'string') {
+        if (val.startsWith('@')) {
+          resolvedProps[p] = safeRender(resolveValue(val));
+        } else if (val.includes('{{@')) {
+          let resolvedVal = val;
+          const templateRegex = /\{\{@([^}]+)\}\}/g;
+          resolvedVal = resolvedVal.replace(templateRegex, (match, expression) => {
+            const cleanExpr = expression.trim();
+            const resolved = resolveValue('@' + cleanExpr);
+            return resolved !== undefined && resolved !== null ? String(safeRender(resolved)) : '';
+          });
+          resolvedProps[p] = resolvedVal;
+        }
       } else if (val && typeof val === 'object' && val.type === 'EXPRESSION') {
         resolvedProps[p] = safeRender(evaluateExpression(val.value));
       }
@@ -3481,9 +3684,30 @@ const LiveTerminal = () => {
     const syncVariable = (value) => {
       let varName = comp.props?.targetVariable || (comp.props?.dataSourceType === 'VARIABLE' ? comp.props?.varSource : null);
       if (varName && typeof varName === 'string') {
-        // Strip @ prefix if present for matching with appVariables
         const cleanVarName = varName.startsWith('@') ? varName.substring(1) : varName;
-        setAppVariables(prev => prev.map(v => v.name === cleanVarName ? { ...v, value } : v));
+        if (cleanVarName.includes('.')) {
+          const [pName, ...fPath] = cleanVarName.split('.');
+          const placeholder = recordPlaceholders.find(rp => rp.name === pName || rp.id === pName);
+          if (placeholder) {
+            setRecordPlaceholderData(prev => {
+              const currentRecord = prev[placeholder.id] || {};
+              const updatedRecord = { ...currentRecord };
+              let cur = updatedRecord;
+              for (let i = 0; i < fPath.length - 1; i++) {
+                const part = fPath[i];
+                if (!cur[part] || typeof cur[part] !== 'object') {
+                  cur[part] = {};
+                }
+                cur[part] = { ...cur[part] };
+                cur = cur[part];
+              }
+              cur[fPath[fPath.length - 1]] = value;
+              return { ...prev, [placeholder.id]: updatedRecord };
+            });
+          }
+        } else {
+          setAppVariables(prev => prev.map(v => v.name === cleanVarName ? { ...v, value } : v));
+        }
       }
     };
 
@@ -3504,7 +3728,57 @@ const LiveTerminal = () => {
             )}
           </div>
         );
-      case 'TEXT': return <div style={{ fontSize: (resolvedProps.fontSize || 16) + 'px', color: resolvedProps.color || '#0f172a', fontWeight: resolvedProps.fontWeight, fontStyle: resolvedProps.fontStyle, textDecoration: resolvedProps.textDecoration, textAlign: resolvedProps.textAlign }}>{resolvedProps.text}</div>;
+      case 'TEXT':
+      case 'LABEL':
+      case 'HEADING':
+      case 'PARAGRAPH': {
+        const txtAlignMap = { 0: 'left', 1: 'center', 2: 'right' };
+        const textContent = resolvedProps.text || resolvedProps.label || '';
+        const getFontFamily = (typeface) => {
+          switch (typeface) {
+            case 'SERIF': return 'serif';
+            case 'SANS_SERIF': return 'sans-serif';
+            case 'MONOSPACE': return 'monospace';
+            default: return 'inherit';
+          }
+        };
+
+        const labelStyles = {
+          width: '100%',
+          height: '100%',
+          backgroundColor: resolvedProps.backgroundColor || 'transparent',
+          color: resolvedProps.textColor || resolvedProps.color || (isDark ? '#f8fafc' : '#0f172a'),
+          fontSize: `${resolvedProps.fontSize || 14}px`,
+          fontWeight: (resolvedProps.fontBold || resolvedProps.fontWeight === 'bold') ? 'bold' : 'normal',
+          fontStyle: resolvedProps.fontItalic ? 'italic' : (resolvedProps.fontStyle || 'normal'),
+          textAlign: txtAlignMap[resolvedProps.textAlignment] || resolvedProps.textAlign || 'left',
+          padding: resolvedProps.hasMargins !== false ? (resolvedProps.padding || '4px 8px') : '0px',
+          wordBreak: 'break-word',
+          whiteSpace: 'pre-wrap',
+          fontFamily: getFontFamily(resolvedProps.fontTypeface),
+          textDecoration: resolvedProps.textDecoration || 'none',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: resolvedProps.textAlignment === 1 ? 'center' : 'flex-start',
+          alignItems: resolvedProps.textAlignment === 1 ? 'center' : 'flex-start',
+          boxSizing: 'border-box'
+        };
+
+        if (resolvedProps.htmlFormat) {
+          return (
+            <div
+              style={labelStyles}
+              dangerouslySetInnerHTML={{ __html: textContent }}
+            />
+          );
+        }
+
+        return (
+          <div style={labelStyles}>
+            {textContent}
+          </div>
+        );
+      }
       case 'TIMER': return (
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <div style={{ fontSize: '2.5rem', fontWeight: 900, fontFamily: 'monospace', color: comp.props.color || '#2e7d32' }}>{formatTime(timer)}</div>
@@ -3833,8 +4107,12 @@ const LiveTerminal = () => {
         );
       }
       case 'TEXT_INPUT': return (
-        <div>
-          <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}{comp.props.required ? ' *' : ''}</div>
+        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+          {(resolvedProps.label || resolvedProps.text) && (
+            <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '4px' }}>
+              {resolvedProps.label || resolvedProps.text}{comp.props.required ? ' *' : ''}
+            </div>
+          )}
           <input
             id={`input-${comp.id}`}
             type="text"
@@ -3847,18 +4125,27 @@ const LiveTerminal = () => {
             }}
             placeholder={resolvedProps.placeholder || 'Type here...'}
             style={{
-              width: '100%', padding: '12px',
-              border: `2px solid ${isDark ? '#334155' : '#e2e8f0'}`,
-              borderRadius: '6px', fontSize: '1rem', outline: 'none',
+              width: '100%',
+              flex: 1,
+              padding: '10px 12px',
+              border: `1.5px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+              borderRadius: '6px',
+              fontSize: `${comp.props.fontSize || 14}px`,
+              outline: 'none',
               backgroundColor: isDark ? '#0f172a' : 'white',
-              color: isDark ? '#f8fafc' : '#0f172a'
+              color: isDark ? '#f8fafc' : '#0f172a',
+              boxSizing: 'border-box'
             }}
           />
         </div>
       );
       case 'TEXT_AREA': return (
-        <div>
-          <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{comp.props.label}{comp.props.required ? ' *' : ''}</div>
+        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+          {(resolvedProps.label || resolvedProps.text) && (
+            <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '4px' }}>
+              {resolvedProps.label || resolvedProps.text}{comp.props.required ? ' *' : ''}
+            </div>
+          )}
           <textarea
             id={`input-${comp.id}`}
             value={textAreaValues[comp.id] != null ? textAreaValues[comp.id] : (comp.props.defaultValue || '')}
@@ -3871,18 +4158,28 @@ const LiveTerminal = () => {
             placeholder={comp.props.placeholder || 'Type notes...'}
             rows={comp.props.rows || 4}
             style={{
-              width: '100%', padding: '12px',
-              border: `2px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`,
-              borderRadius: '6px', fontSize: '1rem', outline: 'none', resize: 'vertical',
-              backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : 'white',
-              color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a'
+              width: '100%',
+              flex: 1,
+              padding: '10px 12px',
+              border: `1.5px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+              borderRadius: '6px',
+              fontSize: `${comp.props.fontSize || 14}px`,
+              outline: 'none',
+              resize: 'vertical',
+              backgroundColor: isDark ? '#0f172a' : 'white',
+              color: isDark ? '#f8fafc' : '#0f172a',
+              boxSizing: 'border-box'
             }}
           />
         </div>
       );
       case 'DROPDOWN': return (
-        <div>
-          <div style={{ fontSize: '0.75rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}{comp.props.required ? ' *' : ''}</div>
+        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+          {(resolvedProps.label || resolvedProps.text) && (
+            <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '4px' }}>
+              {resolvedProps.label || resolvedProps.text}{comp.props.required ? ' *' : ''}
+            </div>
+          )}
           <select
             id={`input-${comp.id}`}
             value={dropdownValues[comp.id] != null ? dropdownValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : (resolvedProps.defaultValue || ''))}
@@ -3893,16 +4190,21 @@ const LiveTerminal = () => {
               fireWidgetTriggers(comp, 'ON_CHANGE');
             }}
             style={{
-              width: '100%', padding: '12px',
-              border: `2px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`,
-              borderRadius: '6px', fontSize: '1rem', outline: 'none',
-              backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : 'white',
-              color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a'
+              width: '100%',
+              flex: 1,
+              padding: '10px 12px',
+              border: `1.5px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+              borderRadius: '6px',
+              fontSize: `${comp.props.fontSize || 14}px`,
+              outline: 'none',
+              backgroundColor: isDark ? '#0f172a' : 'white',
+              color: isDark ? '#f8fafc' : '#0f172a',
+              boxSizing: 'border-box'
             }}
           >
-            <option value="" style={{ backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white' }}>Select...</option>
+            <option value="" style={{ backgroundColor: isDark ? '#1e293b' : 'white' }}>Select...</option>
             {(comp.props.options || comp.props.elements || []).map((opt, i) => (
-              <option key={i} value={opt} style={{ backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white' }}>{opt}</option>
+              <option key={i} value={opt} style={{ backgroundColor: isDark ? '#1e293b' : 'white' }}>{opt}</option>
             ))}
           </select>
         </div>
@@ -4130,8 +4432,67 @@ const LiveTerminal = () => {
           {comp.props.url ? <iframe src={comp.props.url} style={{ width: '100%', height: '300px', border: 'none' }} title={comp.props.title} /> : <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>No PDF URL configured</div>}
         </div>
       );
-      case 'BUTTON': return (<button onClick={() => handleButtonAction(comp.props, comp)} style={{ padding: '14px 28px', backgroundColor: comp.props.backgroundColor || '#007bff', color: comp.props.color || '#fff', border: 'none', borderRadius: '6px', fontSize: (comp.props.fontSize || 14) + 'px', fontWeight: comp.props.fontWeight || 700, cursor: 'pointer', width: '100%', textAlign: comp.props.textAlign || 'center' }}>{resolvedProps.label}</button>);
-      case 'COMPLETE_BUTTON': return (<button onClick={() => handleButtonAction({ action: 'COMPLETE' }, comp)} style={{ padding: '16px', backgroundColor: comp.props.backgroundColor || '#10b981', color: comp.props.color || '#fff', border: 'none', borderRadius: '6px', fontSize: (comp.props.fontSize || 18) + 'px', fontWeight: 900, cursor: 'pointer', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}><CheckCircle2 size={22} />{resolvedProps.label || 'COMPLETE'}</button>);
+      case 'BUTTON':
+      case 'FILE_PICKER':
+      case 'IMAGE_PICKER':
+      case 'CONTACT_PICKER':
+      case 'PHONE_NUMBER_PICKER': {
+        const borderRadiusMap = { 0: '6px', 1: '16px', 2: '0px', 3: '50%' };
+        const alignmentMap = { 0: 'flex-start', 1: 'center', 2: 'flex-end' };
+        
+        return (
+          <button
+            onClick={() => handleButtonAction(comp.props, comp)}
+            style={{
+              width: '100%',
+              height: '100%',
+              padding: '10px 16px',
+              backgroundColor: resolvedProps.image ? 'transparent' : (resolvedProps.backgroundColor || '#2563eb'),
+              backgroundImage: resolvedProps.image ? `url(${resolvedProps.image})` : 'none',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              color: resolvedProps.textColor || resolvedProps.color || '#ffffff',
+              border: 'none',
+              borderRadius: borderRadiusMap[resolvedProps.shape] || '6px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              boxSizing: 'border-box',
+              justifyContent: alignmentMap[resolvedProps.textAlignment] || alignmentMap[resolvedProps.textAlign] || 'center',
+              transition: 'all 0.2s',
+              fontWeight: (resolvedProps.fontBold || resolvedProps.fontWeight === 'bold' || resolvedProps.fontWeight === 700) ? 'bold' : 'normal',
+              fontSize: `${resolvedProps.fontSize || 14}px`,
+            }}
+          >
+            {resolvedProps.text || resolvedProps.label || 'Button'}
+          </button>
+        );
+      }
+      case 'COMPLETE_BUTTON': return (
+        <button
+          onClick={() => handleButtonAction({ action: 'COMPLETE' }, comp)}
+          style={{
+            padding: '16px',
+            backgroundColor: resolvedProps.backgroundColor || '#10b981',
+            color: resolvedProps.textColor || resolvedProps.color || '#fff',
+            border: 'none',
+            borderRadius: '6px',
+            fontSize: `${resolvedProps.fontSize || 18}px`,
+            fontWeight: 900,
+            cursor: 'pointer',
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '10px',
+            boxSizing: 'border-box'
+          }}
+        >
+          <CheckCircle2 size={22} />
+          {resolvedProps.text || resolvedProps.label || 'COMPLETE'}
+        </button>
+      );
       case 'QUANTITY_LOGGER': {
         const lg = quantityLog[comp.id] || { completed: 0, target: comp.props.targetQty || 100 };
         const pct = Math.min(100, Math.round((lg.completed / lg.target) * 100));
@@ -4262,30 +4623,91 @@ const LiveTerminal = () => {
         );
       }
       case 'NUMBER_INPUT': return (
-        <div>
-          <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>{resolvedProps.label}</div>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <button onClick={() => {
-              const currentVal = sanitizeNumberInputValue(numberInputValues[comp.id] != null ? numberInputValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : resolvedProps.defaultValue), 0);
-              const newVal = Math.max(comp.props.min != null ? comp.props.min : 0, currentVal - 1);
-              setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal }));
-              syncVariable(newVal);
-              fireWidgetTriggers(comp, 'ON_CHANGE');
-            }} style={{ width: '40px', height: '44px', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', color: '#475569', fontSize: '1.2rem', cursor: 'pointer' }}>-</button>
-            <input type="number" value={sanitizeNumberInputValue(numberInputValues[comp.id] != null ? numberInputValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : resolvedProps.defaultValue), 0)} onChange={e => {
-              const newVal = parseFloat(e.target.value) || 0;
-              setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal }));
-              syncVariable(newVal);
-              fireWidgetTriggers(comp, 'ON_CHANGE');
-            }} style={{ flex: 1, padding: '10px', border: '2px solid #e2e8f0', borderRadius: '6px', fontSize: '1.1rem', textAlign: 'center', outline: 'none' }} />
-            <button onClick={() => {
-              const currentVal = sanitizeNumberInputValue(numberInputValues[comp.id] != null ? numberInputValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : resolvedProps.defaultValue), 0);
-              const newVal = Math.min(comp.props.max != null ? comp.props.max : 9999, currentVal + 1);
-              setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal }));
-              syncVariable(newVal);
-              fireWidgetTriggers(comp, 'ON_CHANGE');
-            }} style={{ width: '40px', height: '44px', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', color: '#475569', fontSize: '1.2rem', cursor: 'pointer' }}>+</button>
-            {comp.props.unit && <span style={{ fontSize: '0.9rem', color: '#475569', fontWeight: 600 }}>{safeRender(comp.props.unit)}</span>}
+        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+          {(resolvedProps.label || resolvedProps.text) && (
+            <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '4px' }}>
+              {resolvedProps.label || resolvedProps.text}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: 1 }}>
+            <button
+              onClick={() => {
+                const currentVal = sanitizeNumberInputValue(numberInputValues[comp.id] != null ? numberInputValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : resolvedProps.defaultValue), 0);
+                const newVal = Math.max(comp.props.min != null ? comp.props.min : 0, currentVal - 1);
+                setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal }));
+                syncVariable(newVal);
+                fireWidgetTriggers(comp, 'ON_CHANGE');
+              }}
+              style={{
+                width: '40px',
+                height: '100%',
+                border: `1.5px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                borderRadius: '6px',
+                backgroundColor: isDark ? '#1e293b' : 'white',
+                color: isDark ? '#f8fafc' : '#475569',
+                fontSize: '1.2rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxSizing: 'border-box'
+              }}
+            >
+              -
+            </button>
+            <input
+              type="number"
+              value={sanitizeNumberInputValue(numberInputValues[comp.id] != null ? numberInputValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : resolvedProps.defaultValue), 0)}
+              onChange={e => {
+                const newVal = parseFloat(e.target.value) || 0;
+                setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal }));
+                syncVariable(newVal);
+                fireWidgetTriggers(comp, 'ON_CHANGE');
+              }}
+              style={{
+                flex: 1,
+                height: '100%',
+                padding: '10px',
+                border: `1.5px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                borderRadius: '6px',
+                fontSize: `${comp.props.fontSize || 16}px`,
+                textAlign: 'center',
+                outline: 'none',
+                backgroundColor: isDark ? '#0f172a' : 'white',
+                color: isDark ? '#f8fafc' : '#0f172a',
+                boxSizing: 'border-box'
+              }}
+            />
+            <button
+              onClick={() => {
+                const currentVal = sanitizeNumberInputValue(numberInputValues[comp.id] != null ? numberInputValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : resolvedProps.defaultValue), 0);
+                const newVal = Math.min(comp.props.max != null ? comp.props.max : 9999, currentVal + 1);
+                setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal }));
+                syncVariable(newVal);
+                fireWidgetTriggers(comp, 'ON_CHANGE');
+              }}
+              style={{
+                width: '40px',
+                height: '100%',
+                border: `1.5px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                borderRadius: '6px',
+                backgroundColor: isDark ? '#1e293b' : 'white',
+                color: isDark ? '#f8fafc' : '#475569',
+                fontSize: '1.2rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxSizing: 'border-box'
+              }}
+            >
+              +
+            </button>
+            {comp.props.unit && (
+              <span style={{ fontSize: '0.9rem', color: isDark ? '#94a3b8' : '#475569', fontWeight: 600 }}>
+                {safeRender(comp.props.unit)}
+              </span>
+            )}
           </div>
         </div>
       );
@@ -4506,6 +4928,12 @@ const LiveTerminal = () => {
               if (filterVal === undefined || filterVal === null || filterVal === '') return true;
 
               const colName = f.columnName || f.field || f.column;
+              if (!colName) {
+                return Object.entries(row).some(([key, val]) => {
+                  if (typeof val === 'object' || val === null) return false;
+                  return String(val).toLowerCase().includes(String(filterVal).toLowerCase());
+                });
+              }
               const rowVal = row[colName];
               
               // Case-insensitive inclusion match
@@ -4573,6 +5001,7 @@ const LiveTerminal = () => {
 
                           fireWidgetTriggers(comp, 'ON_CHANGE');
                           fireWidgetTriggers(comp, 'RowSelected');
+                          fireWidgetTriggers(comp, 'ON_ROW_SELECT', newSelected);
                         }}
                         style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer', backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'white', transition: 'background-color 0.2s' }}
                       >
@@ -5254,8 +5683,8 @@ const LiveTerminal = () => {
       }
       // ── RECORD_DISPLAY ──
       case 'RECORD_DISPLAY': {
-        const ph = (recordPlaceholders || []).find(p => p.id === comp.props.placeholderId);
-        const rec = ph?.currentRecord || {};
+        const ph = (recordPlaceholders || []).find(p => p.id === comp.props.placeholderId || p.name === comp.props.placeholderId);
+        const rec = ph ? (recordPlaceholderData[ph.id] || {}) : {};
         const fields = comp.props.fieldsToShow?.length > 0 ? comp.props.fieldsToShow : Object.keys(rec).slice(0, 6);
         return (
           <div style={{ backgroundColor: isDark ? '#0f172a' : '#f8fafc', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', padding: '16px' }}>

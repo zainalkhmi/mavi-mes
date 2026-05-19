@@ -1812,7 +1812,7 @@ const AppStore = () => {
                             fields: {
                                 'Item': 'DEMO-CYL-A1', 'Requesting_Location': 'Station 1',
                                 'Supplier': 'Supplier A', 'Kanban_ID': 'KB-001',
-                                'Quantity': 10, 'Status': 'PENDING',
+                                'Quantity': 10, 'Status': 'REQUESTED',
                                 'Status_Color': '#facc15', 'Requestor': 'Adam Veres',
                                 'Requested': iso
                             }
@@ -1822,8 +1822,38 @@ const AppStore = () => {
                             fields: {
                                 'Item': 'FASTENER-M6', 'Requesting_Location': 'Station 2',
                                 'Supplier': 'Fastener Inc', 'Kanban_ID': 'KB-002',
-                                'Quantity': 200, 'Status': 'IN PROGRESS',
+                                'Quantity': 200, 'Status': 'ACTIVE',
                                 'Status_Color': '#3b82f6', 'Requestor': 'Lianna Churchill',
+                                'Requested': iso
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'solenoid-valve-v2', 'Requesting_Location': 'Station 3',
+                                'Supplier': 'SMC Pneumatics', 'Kanban_ID': 'KB-003',
+                                'Quantity': 15, 'Status': 'ACTIVE',
+                                'Status_Color': '#3b82f6', 'Requestor': 'Adam Veres',
+                                'Requested': iso
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'M4-MACHINE-SCREW', 'Requesting_Location': 'Station 4',
+                                'Supplier': 'Fastener Inc', 'Kanban_ID': 'KB-004',
+                                'Quantity': 500, 'Status': 'COMPLETED',
+                                'Status_Color': '#22c55e', 'Requestor': 'David Miller',
+                                'Requested': iso
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'steel-bracket-b1', 'Requesting_Location': 'Station 5',
+                                'Supplier': 'Apex Metalworks', 'Kanban_ID': 'KB-005',
+                                'Quantity': 30, 'Status': 'CANCELLED',
+                                'Status_Color': '#ef4444', 'Requestor': 'Sarah Jenkins',
                                 'Requested': iso
                             }
                         });
@@ -1836,6 +1866,42 @@ const AppStore = () => {
                                 'Consuming_location': 'Station 1', 'Supplier': 'Supplier A',
                                 'QTY': 10, 'Part_Description': 'Double-acting pneumatic cylinder',
                                 'Status_Color': '#ef4444', 'Active': true, 'Lead_Time': 4
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: kcTable.id,
+                            fields: {
+                                'Part_Number': 'FASTENER-M6', 'Status': 'FULL',
+                                'Consuming_location': 'Station 2', 'Supplier': 'Fastener Inc',
+                                'QTY': 200, 'Part_Description': 'M6 Socket Head Cap Screw',
+                                'Status_Color': '#22c55e', 'Active': true, 'Lead_Time': 1
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: kcTable.id,
+                            fields: {
+                                'Part_Number': 'solenoid-valve-v2', 'Status': 'EMPTY',
+                                'Consuming_location': 'Station 3', 'Supplier': 'SMC Pneumatics',
+                                'QTY': 15, 'Part_Description': '5/2 Way Solenoid Valve',
+                                'Status_Color': '#ef4444', 'Active': true, 'Lead_Time': 3
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: kcTable.id,
+                            fields: {
+                                'Part_Number': 'M4-MACHINE-SCREW', 'Status': 'FULL',
+                                'Consuming_location': 'Station 4', 'Supplier': 'Fastener Inc',
+                                'QTY': 500, 'Part_Description': 'M4 Machine Screw 12mm',
+                                'Status_Color': '#22c55e', 'Active': true, 'Lead_Time': 2
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: kcTable.id,
+                            fields: {
+                                'Part_Number': 'steel-bracket-b1', 'Status': 'TRANSIT',
+                                'Consuming_location': 'Station 5', 'Supplier': 'Apex Metalworks',
+                                'QTY': 30, 'Part_Description': 'Heavy Duty Right-Angle Bracket',
+                                'Status_Color': '#3b82f6', 'Active': true, 'Lead_Time': 5
                             }
                         });
                     }
@@ -1878,8 +1944,48 @@ const AppStore = () => {
                             fields: {
                                 'Item': 'DEMO-CYL-A1', 'Requesting_Location': 'Station 1',
                                 'Supplier': 'Supplier A', 'Kanban_ID': 'KB-001',
-                                'Quantity': 10, 'Status': 'PENDING',
+                                'Quantity': 10, 'Status': 'REQUESTED',
                                 'Status_Color': '#facc15', 'Requestor': 'Adam Veres',
+                                'Requested': iso
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'FASTENER-M6', 'Requesting_Location': 'Station 2',
+                                'Supplier': 'Fastener Inc', 'Kanban_ID': 'KB-002',
+                                'Quantity': 200, 'Status': 'ACTIVE',
+                                'Status_Color': '#3b82f6', 'Requestor': 'Lianna Churchill',
+                                'Requested': iso
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'solenoid-valve-v2', 'Requesting_Location': 'Station 3',
+                                'Supplier': 'SMC Pneumatics', 'Kanban_ID': 'KB-003',
+                                'Quantity': 15, 'Status': 'ACTIVE',
+                                'Status_Color': '#3b82f6', 'Requestor': 'Adam Veres',
+                                'Requested': iso
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'M4-MACHINE-SCREW', 'Requesting_Location': 'Station 4',
+                                'Supplier': 'Fastener Inc', 'Kanban_ID': 'KB-004',
+                                'Quantity': 500, 'Status': 'COMPLETED',
+                                'Status_Color': '#22c55e', 'Requestor': 'David Miller',
+                                'Requested': iso
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'steel-bracket-b1', 'Requesting_Location': 'Station 5',
+                                'Supplier': 'Apex Metalworks', 'Kanban_ID': 'KB-005',
+                                'Quantity': 30, 'Status': 'CANCELLED',
+                                'Status_Color': '#ef4444', 'Requestor': 'Sarah Jenkins',
                                 'Requested': iso
                             }
                         });
@@ -1892,6 +1998,42 @@ const AppStore = () => {
                                 'Consuming_location': 'Station 1', 'Supplier': 'Supplier A',
                                 'QTY': 10, 'Part_Description': 'Double-acting pneumatic cylinder',
                                 'Status_Color': '#ef4444', 'Active': true, 'Lead_Time': 4
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: kcTable.id,
+                            fields: {
+                                'Part_Number': 'FASTENER-M6', 'Status': 'FULL',
+                                'Consuming_location': 'Station 2', 'Supplier': 'Fastener Inc',
+                                'QTY': 200, 'Part_Description': 'M6 Socket Head Cap Screw',
+                                'Status_Color': '#22c55e', 'Active': true, 'Lead_Time': 1
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: kcTable.id,
+                            fields: {
+                                'Part_Number': 'solenoid-valve-v2', 'Status': 'EMPTY',
+                                'Consuming_location': 'Station 3', 'Supplier': 'SMC Pneumatics',
+                                'QTY': 15, 'Part_Description': '5/2 Way Solenoid Valve',
+                                'Status_Color': '#ef4444', 'Active': true, 'Lead_Time': 3
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: kcTable.id,
+                            fields: {
+                                'Part_Number': 'M4-MACHINE-SCREW', 'Status': 'FULL',
+                                'Consuming_location': 'Station 4', 'Supplier': 'Fastener Inc',
+                                'QTY': 500, 'Part_Description': 'M4 Machine Screw 12mm',
+                                'Status_Color': '#22c55e', 'Active': true, 'Lead_Time': 2
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: kcTable.id,
+                            fields: {
+                                'Part_Number': 'steel-bracket-b1', 'Status': 'TRANSIT',
+                                'Consuming_location': 'Station 5', 'Supplier': 'Apex Metalworks',
+                                'QTY': 30, 'Part_Description': 'Heavy Duty Right-Angle Bracket',
+                                'Status_Color': '#3b82f6', 'Active': true, 'Lead_Time': 5
                             }
                         });
                     }
@@ -1933,6 +2075,42 @@ const AppStore = () => {
                                 'User': 'Adam Veres'
                             }
                         });
+                        await addTableRecord({
+                            tableId: assetsTable.id,
+                            fields: {
+                                'Name': 'Pallet Jack #2', 'Description': 'Crown manual pallet jack',
+                                'Status': 'AVAILABLE', 'Location': 'Receiving Dock',
+                                'Type': 'Pallet Jack', 'Calibration_Cadence': 180,
+                                'User': 'Lianna Churchill'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: assetsTable.id,
+                            fields: {
+                                'Name': 'Scales Station 1', 'Description': 'Mettler Toledo industrial platform scale',
+                                'Status': 'IN_USE', 'Location': 'Station 1',
+                                'Type': 'Weighing Scale', 'Calibration_Cadence': 90,
+                                'User': 'Adam Veres'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: assetsTable.id,
+                            fields: {
+                                'Name': 'Overhead Crane A', 'Description': 'Demag 5-ton overhead hoist crane',
+                                'Status': 'MAINTENANCE', 'Location': 'Bay B',
+                                'Type': 'Crane', 'Calibration_Cadence': 365,
+                                'User': 'David Miller'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: assetsTable.id,
+                            fields: {
+                                'Name': 'Barcode Scanner #5', 'Description': 'Zebra rugged industrial scanner gun',
+                                'Status': 'AVAILABLE', 'Location': 'Tool Crib',
+                                'Type': 'Barcode Gun', 'Calibration_Cadence': 180,
+                                'User': 'Sarah Jenkins'
+                            }
+                        });
                     }
                     if (locationsTable?.id) {
                         await addTableRecord({
@@ -1947,6 +2125,27 @@ const AppStore = () => {
                             fields: {
                                 'Location_Area': 'Warehouse Area A', 'Bin_Number': 'BIN-04',
                                 'Light_Kit_Number': 2, 'Type': 'Rack', 'Status': 'ACTIVE'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: locationsTable.id,
+                            fields: {
+                                'Location_Area': 'Receiving Dock', 'Bin_Number': 'REC-01',
+                                'Light_Kit_Number': 3, 'Type': 'Dock', 'Status': 'ACTIVE'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: locationsTable.id,
+                            fields: {
+                                'Location_Area': 'Assembly Line 1', 'Bin_Number': 'ASSY-02',
+                                'Light_Kit_Number': 4, 'Type': 'Workstation', 'Status': 'ACTIVE'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: locationsTable.id,
+                            fields: {
+                                'Location_Area': 'Quality Station', 'Bin_Number': 'QA-05',
+                                'Light_Kit_Number': 5, 'Type': 'QA-Bin', 'Status': 'ACTIVE'
                             }
                         });
                     }
@@ -2004,8 +2203,48 @@ const AppStore = () => {
                             fields: {
                                 'Item': 'DEMO-CYL-A1', 'Requesting_Location': 'Station 1',
                                 'Supplier': 'Supplier A', 'Kanban_ID': 'KB-001',
-                                'Quantity': 10, 'Status': 'PENDING',
+                                'Quantity': 10, 'Status': 'REQUESTED',
                                 'Status_Color': '#facc15', 'Requestor': 'Adam Veres',
+                                'Requested': iso
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'FASTENER-M6', 'Requesting_Location': 'Station 2',
+                                'Supplier': 'Fastener Inc', 'Kanban_ID': 'KB-002',
+                                'Quantity': 200, 'Status': 'ACTIVE',
+                                'Status_Color': '#3b82f6', 'Requestor': 'Lianna Churchill',
+                                'Requested': iso
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'solenoid-valve-v2', 'Requesting_Location': 'Station 3',
+                                'Supplier': 'SMC Pneumatics', 'Kanban_ID': 'KB-003',
+                                'Quantity': 15, 'Status': 'ACTIVE',
+                                'Status_Color': '#3b82f6', 'Requestor': 'Adam Veres',
+                                'Requested': iso
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'M4-MACHINE-SCREW', 'Requesting_Location': 'Station 4',
+                                'Supplier': 'Fastener Inc', 'Kanban_ID': 'KB-004',
+                                'Quantity': 500, 'Status': 'COMPLETED',
+                                'Status_Color': '#22c55e', 'Requestor': 'David Miller',
+                                'Requested': iso
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'steel-bracket-b1', 'Requesting_Location': 'Station 5',
+                                'Supplier': 'Apex Metalworks', 'Kanban_ID': 'KB-005',
+                                'Quantity': 30, 'Status': 'CANCELLED',
+                                'Status_Color': '#ef4444', 'Requestor': 'Sarah Jenkins',
                                 'Requested': iso
                             }
                         });
@@ -2020,6 +2259,42 @@ const AppStore = () => {
                                 'Status_Color': '#ef4444', 'Active': true, 'Lead_Time': 4
                             }
                         });
+                        await addTableRecord({
+                            tableId: kcTable.id,
+                            fields: {
+                                'Part_Number': 'FASTENER-M6', 'Status': 'FULL',
+                                'Consuming_location': 'Station 2', 'Supplier': 'Fastener Inc',
+                                'QTY': 200, 'Part_Description': 'M6 Socket Head Cap Screw',
+                                'Status_Color': '#22c55e', 'Active': true, 'Lead_Time': 1
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: kcTable.id,
+                            fields: {
+                                'Part_Number': 'solenoid-valve-v2', 'Status': 'EMPTY',
+                                'Consuming_location': 'Station 3', 'Supplier': 'SMC Pneumatics',
+                                'QTY': 15, 'Part_Description': '5/2 Way Solenoid Valve',
+                                'Status_Color': '#ef4444', 'Active': true, 'Lead_Time': 3
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: kcTable.id,
+                            fields: {
+                                'Part_Number': 'M4-MACHINE-SCREW', 'Status': 'FULL',
+                                'Consuming_location': 'Station 4', 'Supplier': 'Fastener Inc',
+                                'QTY': 500, 'Part_Description': 'M4 Machine Screw 12mm',
+                                'Status_Color': '#22c55e', 'Active': true, 'Lead_Time': 2
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: kcTable.id,
+                            fields: {
+                                'Part_Number': 'steel-bracket-b1', 'Status': 'TRANSIT',
+                                'Consuming_location': 'Station 5', 'Supplier': 'Apex Metalworks',
+                                'QTY': 30, 'Part_Description': 'Heavy Duty Right-Angle Bracket',
+                                'Status_Color': '#3b82f6', 'Active': true, 'Lead_Time': 5
+                            }
+                        });
                     }
                     if (mdTable?.id) {
                         await addTableRecord({
@@ -2031,6 +2306,42 @@ const AppStore = () => {
                                 'Vendor_ID': 'VEND-998', 'Target_Cycle_Time': 45
                             }
                         });
+                        await addTableRecord({
+                            tableId: mdTable.id,
+                            fields: {
+                                'Name': 'Socket Head Cap Screw', 'Type': 'Fastener',
+                                'Description': 'FASTENER-M6 standard screw', 'Status': 'APPROVED',
+                                'Unit_of_Measure': 'pcs', 'Version_Revision': 'B',
+                                'Vendor_ID': 'VEND-881', 'Target_Cycle_Time': 5
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mdTable.id,
+                            fields: {
+                                'Name': 'Solenoid Valve', 'Type': 'Pneumatic',
+                                'Description': 'solenoid-valve-v2 24VDC', 'Status': 'APPROVED',
+                                'Unit_of_Measure': 'pcs', 'Version_Revision': 'A',
+                                'Vendor_ID': 'VEND-202', 'Target_Cycle_Time': 30
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mdTable.id,
+                            fields: {
+                                'Name': 'Machine Screw', 'Type': 'Fastener',
+                                'Description': 'M4-MACHINE-SCREW 12mm steel', 'Status': 'APPROVED',
+                                'Unit_of_Measure': 'pcs', 'Version_Revision': 'C',
+                                'Vendor_ID': 'VEND-881', 'Target_Cycle_Time': 3
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mdTable.id,
+                            fields: {
+                                'Name': 'Steel Bracket', 'Type': 'Structure',
+                                'Description': 'steel-bracket-b1 heavy duty bracket', 'Status': 'APPROVED',
+                                'Unit_of_Measure': 'pcs', 'Version_Revision': 'A',
+                                'Vendor_ID': 'VEND-404', 'Target_Cycle_Time': 15
+                            }
+                        });
                     }
                     if (iiTable?.id) {
                         await addTableRecord({
@@ -2039,6 +2350,38 @@ const AppStore = () => {
                                 'Material_Definition_ID': 'DEMO-CYL-A1', 'Material_Definition_Type': 'Pneumatic',
                                 'Status': 'AVAILABLE', 'Location_ID': 'BIN-12',
                                 'Location_Area': 'Rack A', 'QTY': 45, 'Unit_Of_Measure': 'pcs'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: iiTable.id,
+                            fields: {
+                                'Material_Definition_ID': 'FASTENER-M6', 'Material_Definition_Type': 'Fastener',
+                                'Status': 'AVAILABLE', 'Location_ID': 'BIN-04',
+                                'Location_Area': 'Rack B', 'QTY': 1200, 'Unit_Of_Measure': 'pcs'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: iiTable.id,
+                            fields: {
+                                'Material_Definition_ID': 'solenoid-valve-v2', 'Material_Definition_Type': 'Pneumatic',
+                                'Status': 'RESTRICTED', 'Location_ID': 'BIN-08',
+                                'Location_Area': 'QA Hold', 'QTY': 15, 'Unit_Of_Measure': 'pcs'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: iiTable.id,
+                            fields: {
+                                'Material_Definition_ID': 'M4-MACHINE-SCREW', 'Material_Definition_Type': 'Fastener',
+                                'Status': 'AVAILABLE', 'Location_ID': 'BIN-15',
+                                'Location_Area': 'Rack C', 'QTY': 3500, 'Unit_Of_Measure': 'pcs'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: iiTable.id,
+                            fields: {
+                                'Material_Definition_ID': 'steel-bracket-b1', 'Material_Definition_Type': 'Structure',
+                                'Status': 'AVAILABLE', 'Location_ID': 'BIN-22',
+                                'Location_Area': 'Rack D', 'QTY': 180, 'Unit_Of_Measure': 'pcs'
                             }
                         });
                     }
@@ -2073,7 +2416,7 @@ const AppStore = () => {
                             fields: {
                                 'Item': 'DEMO-CYL-A1', 'Requesting_Location': 'Station 1',
                                 'Supplier': 'Supplier A', 'Kanban_ID': 'KB-001',
-                                'Quantity': 10, 'Status': 'PENDING',
+                                'Quantity': 10, 'Status': 'REQUESTED',
                                 'Status_Color': '#facc15', 'Requestor': 'Adam Veres',
                                 'Requested': iso
                             }
@@ -2083,8 +2426,38 @@ const AppStore = () => {
                             fields: {
                                 'Item': 'FASTENER-M6', 'Requesting_Location': 'Station 2',
                                 'Supplier': 'Fastener Inc', 'Kanban_ID': 'KB-002',
-                                'Quantity': 200, 'Status': 'IN PROGRESS',
+                                'Quantity': 200, 'Status': 'ACTIVE',
                                 'Status_Color': '#3b82f6', 'Requestor': 'Lianna Churchill',
+                                'Requested': iso
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'solenoid-valve-v2', 'Requesting_Location': 'Station 3',
+                                'Supplier': 'SMC Pneumatics', 'Kanban_ID': 'KB-003',
+                                'Quantity': 15, 'Status': 'ACTIVE',
+                                'Status_Color': '#3b82f6', 'Requestor': 'Adam Veres',
+                                'Requested': iso
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'M4-MACHINE-SCREW', 'Requesting_Location': 'Station 4',
+                                'Supplier': 'Fastener Inc', 'Kanban_ID': 'KB-004',
+                                'Quantity': 500, 'Status': 'COMPLETED',
+                                'Status_Color': '#22c55e', 'Requestor': 'David Miller',
+                                'Requested': iso
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'steel-bracket-b1', 'Requesting_Location': 'Station 5',
+                                'Supplier': 'Apex Metalworks', 'Kanban_ID': 'KB-005',
+                                'Quantity': 30, 'Status': 'CANCELLED',
+                                'Status_Color': '#ef4444', 'Requestor': 'Sarah Jenkins',
                                 'Requested': iso
                             }
                         });
@@ -2129,8 +2502,48 @@ const AppStore = () => {
                             fields: {
                                 'Item': 'DEMO-CYL-A1', 'Requesting_Location': 'Station 1',
                                 'Supplier': 'Supplier A', 'Kanban_ID': 'KB-001',
-                                'Quantity': 10, 'Status': 'PENDING',
+                                'Quantity': 10, 'Status': 'REQUESTED',
                                 'Status_Color': '#facc15', 'Requestor': 'Adam Veres',
+                                'Requested': iso
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'FASTENER-M6', 'Requesting_Location': 'Station 2',
+                                'Supplier': 'Fastener Inc', 'Kanban_ID': 'KB-002',
+                                'Quantity': 200, 'Status': 'ACTIVE',
+                                'Status_Color': '#3b82f6', 'Requestor': 'Lianna Churchill',
+                                'Requested': iso
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'solenoid-valve-v2', 'Requesting_Location': 'Station 3',
+                                'Supplier': 'SMC Pneumatics', 'Kanban_ID': 'KB-003',
+                                'Quantity': 15, 'Status': 'ACTIVE',
+                                'Status_Color': '#3b82f6', 'Requestor': 'Adam Veres',
+                                'Requested': iso
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'M4-MACHINE-SCREW', 'Requesting_Location': 'Station 4',
+                                'Supplier': 'Fastener Inc', 'Kanban_ID': 'KB-004',
+                                'Quantity': 500, 'Status': 'COMPLETED',
+                                'Status_Color': '#22c55e', 'Requestor': 'David Miller',
+                                'Requested': iso
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'steel-bracket-b1', 'Requesting_Location': 'Station 5',
+                                'Supplier': 'Apex Metalworks', 'Kanban_ID': 'KB-005',
+                                'Quantity': 30, 'Status': 'CANCELLED',
+                                'Status_Color': '#ef4444', 'Requestor': 'Sarah Jenkins',
                                 'Requested': iso
                             }
                         });
@@ -2143,6 +2556,42 @@ const AppStore = () => {
                                 'Consuming_location': 'Station 1', 'Supplier': 'Supplier A',
                                 'QTY': 10, 'Part_Description': 'Double-acting pneumatic cylinder',
                                 'Status_Color': '#ef4444', 'Active': true, 'Lead_Time': 4
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: kbTable.id,
+                            fields: {
+                                'Part_Number': 'FASTENER-M6', 'Status': 'FULL',
+                                'Consuming_location': 'Station 2', 'Supplier': 'Fastener Inc',
+                                'QTY': 200, 'Part_Description': 'M6 Socket Head Cap Screw',
+                                'Status_Color': '#22c55e', 'Active': true, 'Lead_Time': 1
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: kbTable.id,
+                            fields: {
+                                'Part_Number': 'solenoid-valve-v2', 'Status': 'EMPTY',
+                                'Consuming_location': 'Station 3', 'Supplier': 'SMC Pneumatics',
+                                'QTY': 15, 'Part_Description': '5/2 Way Solenoid Valve',
+                                'Status_Color': '#ef4444', 'Active': true, 'Lead_Time': 3
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: kbTable.id,
+                            fields: {
+                                'Part_Number': 'M4-MACHINE-SCREW', 'Status': 'FULL',
+                                'Consuming_location': 'Station 4', 'Supplier': 'Fastener Inc',
+                                'QTY': 500, 'Part_Description': 'M4 Machine Screw 12mm',
+                                'Status_Color': '#22c55e', 'Active': true, 'Lead_Time': 2
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: kbTable.id,
+                            fields: {
+                                'Part_Number': 'steel-bracket-b1', 'Status': 'TRANSIT',
+                                'Consuming_location': 'Station 5', 'Supplier': 'Apex Metalworks',
+                                'QTY': 30, 'Part_Description': 'Heavy Duty Right-Angle Bracket',
+                                'Status_Color': '#3b82f6', 'Active': true, 'Lead_Time': 5
                             }
                         });
                     }
@@ -2180,9 +2629,46 @@ const AppStore = () => {
                         await addTableRecord({
                             tableId: invTable.id,
                             fields: {
+                                'ID': 'DEMO-CYL-A1_BIN-12',
                                 'Material_Definition_ID': 'DEMO-CYL-A1', 'Location_ID': 'BIN-12',
                                 'Location_Area': 'Rack A', 'QTY': 45, 'Unit_Of_Measure': 'pcs',
                                 'Status': 'AVAILABLE', 'Material_Definition_Type': 'Pneumatic'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: invTable.id,
+                            fields: {
+                                'ID': 'FASTENER-M6_BIN-04',
+                                'Material_Definition_ID': 'FASTENER-M6', 'Location_ID': 'BIN-04',
+                                'Location_Area': 'Rack B', 'QTY': 1200, 'Unit_Of_Measure': 'pcs',
+                                'Status': 'AVAILABLE', 'Material_Definition_Type': 'Fastener'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: invTable.id,
+                            fields: {
+                                'ID': 'solenoid-valve-v2_BIN-08',
+                                'Material_Definition_ID': 'solenoid-valve-v2', 'Location_ID': 'BIN-08',
+                                'Location_Area': 'QA Hold', 'QTY': 15, 'Unit_Of_Measure': 'pcs',
+                                'Status': 'RESTRICTED', 'Material_Definition_Type': 'Pneumatic'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: invTable.id,
+                            fields: {
+                                'ID': 'M4-MACHINE-SCREW_BIN-15',
+                                'Material_Definition_ID': 'M4-MACHINE-SCREW', 'Location_ID': 'BIN-15',
+                                'Location_Area': 'Rack C', 'QTY': 3500, 'Unit_Of_Measure': 'pcs',
+                                'Status': 'AVAILABLE', 'Material_Definition_Type': 'Fastener'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: invTable.id,
+                            fields: {
+                                'ID': 'steel-bracket-b1_BIN-22',
+                                'Material_Definition_ID': 'steel-bracket-b1', 'Location_ID': 'BIN-22',
+                                'Location_Area': 'Rack D', 'QTY': 180, 'Unit_Of_Measure': 'pcs',
+                                'Status': 'AVAILABLE', 'Material_Definition_Type': 'Structure'
                             }
                         });
                     }
@@ -2190,10 +2676,51 @@ const AppStore = () => {
                         await addTableRecord({
                             tableId: mdTable.id,
                             fields: {
+                                'ID': 'DEMO-CYL-A1',
                                 'Name': 'Double-acting cylinder', 'Type': 'Pneumatic',
                                 'Description': 'DEMO-CYL-A1 assembly', 'Status': 'APPROVED',
                                 'Unit_Of_Measure': 'pcs', 'Version_Revision': 'A',
                                 'Vendor_ID': 'VEND-998', 'Target_Cycle_Time': 45
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mdTable.id,
+                            fields: {
+                                'ID': 'FASTENER-M6',
+                                'Name': 'Socket Head Cap Screw', 'Type': 'Fastener',
+                                'Description': 'FASTENER-M6 standard screw', 'Status': 'APPROVED',
+                                'Unit_Of_Measure': 'pcs', 'Version_Revision': 'B',
+                                'Vendor_ID': 'VEND-881', 'Target_Cycle_Time': 5
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mdTable.id,
+                            fields: {
+                                'ID': 'solenoid-valve-v2',
+                                'Name': 'Solenoid Valve', 'Type': 'Pneumatic',
+                                'Description': 'solenoid-valve-v2 24VDC', 'Status': 'APPROVED',
+                                'Unit_Of_Measure': 'pcs', 'Version_Revision': 'A',
+                                'Vendor_ID': 'VEND-202', 'Target_Cycle_Time': 30
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mdTable.id,
+                            fields: {
+                                'ID': 'M4-MACHINE-SCREW',
+                                'Name': 'Machine Screw', 'Type': 'Fastener',
+                                'Description': 'M4-MACHINE-SCREW 12mm steel', 'Status': 'APPROVED',
+                                'Unit_Of_Measure': 'pcs', 'Version_Revision': 'C',
+                                'Vendor_ID': 'VEND-881', 'Target_Cycle_Time': 3
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mdTable.id,
+                            fields: {
+                                'ID': 'steel-bracket-b1',
+                                'Name': 'Steel Bracket', 'Type': 'Structure',
+                                'Description': 'steel-bracket-b1 heavy duty bracket', 'Status': 'APPROVED',
+                                'Unit_Of_Measure': 'pcs', 'Version_Revision': 'A',
+                                'Vendor_ID': 'VEND-404', 'Target_Cycle_Time': 15
                             }
                         });
                     }
@@ -2245,6 +2772,93 @@ const AppStore = () => {
                                 'UoM': 'bar'
                             }
                         });
+                        await addTableRecord({
+                            tableId: plTable.id,
+                            fields: {
+                                'Product_ID': 'DEMO-CYL-A1',
+                                'Inspection_Name': 'Dimensional validation',
+                                'Inspection_Description': 'Measure the cylinder outer diameter',
+                                'Target': 25,
+                                'UoM': 'mm'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: plTable.id,
+                            fields: {
+                                'Product_ID': 'solenoid-valve-v2',
+                                'Inspection_Name': 'Voltage check',
+                                'Inspection_Description': 'Ensure solenoid actuation voltage matches spec',
+                                'Target': 24,
+                                'UoM': 'V'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: plTable.id,
+                            fields: {
+                                'Product_ID': 'steel-bracket-b1',
+                                'Inspection_Name': 'Deflection load test',
+                                'Inspection_Description': 'Apply 50kg force and measure bending deflection',
+                                'Target': 0.1,
+                                'UoM': 'mm'
+                            }
+                        });
+                    }
+                    if (rsTable?.id) {
+                        await addTableRecord({
+                            tableId: rsTable.id,
+                            fields: {
+                                'Work_Order_ID': 'WO-51130425022025',
+                                'Inspection_Plan_ID': 'Weight check',
+                                'Operator': 'Adam Veres',
+                                'Recorded_Value': 200.5,
+                                'Status': 'PASS',
+                                'Comments': 'Perfectly within variance limit.'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: rsTable.id,
+                            fields: {
+                                'Work_Order_ID': 'WO-51130425022025',
+                                'Inspection_Plan_ID': 'Functional test',
+                                'Operator': 'Adam Veres',
+                                'Recorded_Value': 4.2,
+                                'Status': 'FAIL',
+                                'Comments': 'Pressure did not sustain. Seal leakage detected.'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: rsTable.id,
+                            fields: {
+                                'Work_Order_ID': 'WO-8874102941',
+                                'Inspection_Plan_ID': 'Dimensional validation',
+                                'Operator': 'Lianna Churchill',
+                                'Recorded_Value': 25.02,
+                                'Status': 'PASS',
+                                'Comments': 'Within tolerance.'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: rsTable.id,
+                            fields: {
+                                'Work_Order_ID': 'WO-8874102942',
+                                'Inspection_Plan_ID': 'Voltage check',
+                                'Operator': 'David Miller',
+                                'Recorded_Value': 24.1,
+                                'Status': 'PASS',
+                                'Comments': 'Actuated instantly.'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: rsTable.id,
+                            fields: {
+                                'Work_Order_ID': 'WO-8874102943',
+                                'Inspection_Plan_ID': 'Deflection load test',
+                                'Operator': 'Sarah Jenkins',
+                                'Recorded_Value': 0.08,
+                                'Status': 'PASS',
+                                'Comments': 'High rigidity confirmed.'
+                            }
+                        });
                     }
                 } catch (qiErr) {
                     console.warn('Could not create Quality Inspection tables:', qiErr);
@@ -2285,6 +2899,106 @@ const AppStore = () => {
                                 'Description': 'Visual inspection failed due to cylinder misalignment at alignment reference point 1.',
                                 'Status': 'PENDING MRB REVIEW',
                                 'Operator': 'Adam Veres'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: dfTable.id,
+                            fields: {
+                                'Work_Order_ID': 'WO-51130425022026',
+                                'Unit_ID': 'PU-58130425022029',
+                                'Material_Definition_ID': 'FASTENER-M6',
+                                'Reason': 'Thread pitch out of tolerance',
+                                'Description': 'Thread pitch checker rejected screw due to tight mating fit.',
+                                'Status': 'SCRAP',
+                                'Operator': 'Lianna Churchill'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: dfTable.id,
+                            fields: {
+                                'Work_Order_ID': 'WO-8874102941',
+                                'Unit_ID': 'PU-98210398',
+                                'Material_Definition_ID': 'solenoid-valve-v2',
+                                'Reason': 'Coil short-circuit',
+                                'Description': 'Actuation test failed during high-temperature run. Internal coil shorted.',
+                                'Status': 'UNDER REWORK',
+                                'Operator': 'David Miller'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: dfTable.id,
+                            fields: {
+                                'Work_Order_ID': 'WO-8874102942',
+                                'Unit_ID': 'PU-98210405',
+                                'Material_Definition_ID': 'steel-bracket-b1',
+                                'Reason': 'Surface finish scratches',
+                                'Description': 'Zinc coating scratched off during transfer from stamping die.',
+                                'Status': 'APPROVED AS IS',
+                                'Operator': 'Sarah Jenkins'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: dfTable.id,
+                            fields: {
+                                'Work_Order_ID': 'WO-8874102943',
+                                'Unit_ID': 'PU-98210412',
+                                'Material_Definition_ID': 'DEMO-CYL-A1',
+                                'Reason': 'End-cap seal leak',
+                                'Description': 'Air pressure bubbled at end cap under 6 bar static load.',
+                                'Status': 'PENDING MRB REVIEW',
+                                'Operator': 'David Miller'
+                            }
+                        });
+                    }
+                    if (cpTable?.id) {
+                        await addTableRecord({
+                            tableId: cpTable.id,
+                            fields: {
+                                'Defect_Event_ID': 'PU-58130425022025',
+                                'Root_Cause': 'Die wear on alignment press',
+                                'Action_Plan': 'Regrind and re-align die 4 on the alignment press.',
+                                'Assigned_To': 'Maintenance Group A',
+                                'Status': 'OPEN'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: cpTable.id,
+                            fields: {
+                                'Defect_Event_ID': 'PU-58130425022029',
+                                'Root_Cause': 'Vendor incoming quality control failure',
+                                'Action_Plan': 'Issue formal CAR to Fastener Inc. Audit incoming batch 88A.',
+                                'Assigned_To': 'Supplier Quality Engineering',
+                                'Status': 'OPEN'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: cpTable.id,
+                            fields: {
+                                'Defect_Event_ID': 'PU-98210398',
+                                'Root_Cause': 'Excessive heat at testing station',
+                                'Action_Plan': 'Install cooling duct to testing station 2.',
+                                'Assigned_To': 'Facilities Team',
+                                'Status': 'CLOSED'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: cpTable.id,
+                            fields: {
+                                'Defect_Event_ID': 'PU-98210405',
+                                'Root_Cause': 'Chute friction on stamping press',
+                                'Action_Plan': 'Add Teflon lining to discharge chute.',
+                                'Assigned_To': 'Stamping Operator Team',
+                                'Status': 'CLOSED'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: cpTable.id,
+                            fields: {
+                                'Defect_Event_ID': 'PU-98210412',
+                                'Root_Cause': 'O-ring seal pinch during assembly',
+                                'Action_Plan': 'Lubricate seal groove prior to end-cap press.',
+                                'Assigned_To': 'Assembly Line 1 Supervisor',
+                                'Status': 'OPEN'
                             }
                         });
                     }
@@ -2346,6 +3060,137 @@ const AppStore = () => {
                                 'Description': 'Seal pressure drop exceeded 0.5 bar/min during end-cap testing.',
                                 'Status': 'PENDING MRB REVIEW',
                                 'Operator': 'Adam Veres'
+                            }
+                        });
+
+                        await addTableRecord({
+                            tableId: dfTable.id,
+                            fields: {
+                                'Work_Order_ID': 'WO-51130425022026',
+                                'Unit_ID': 'PU-58130425022029',
+                                'Material_Definition_ID': 'FASTENER-M6',
+                                'Reason': 'Thread pitch out of tolerance',
+                                'Description': 'Thread pitch checker rejected screw due to tight mating fit.',
+                                'Status': 'SCRAP',
+                                'Operator': 'Lianna Churchill',
+                                'Disposition': 'SCRAP',
+                                'MRB_Justification': 'Fasteners cannot be cost-effectively reworked.'
+                            }
+                        });
+
+                        await addTableRecord({
+                            tableId: dfTable.id,
+                            fields: {
+                                'Work_Order_ID': 'WO-8874102941',
+                                'Unit_ID': 'PU-98210405',
+                                'Material_Definition_ID': 'steel-bracket-b1',
+                                'Reason': 'Surface finish scratches',
+                                'Description': 'Zinc coating scratched off during transfer from stamping die.',
+                                'Status': 'APPROVED AS IS',
+                                'Operator': 'Sarah Jenkins',
+                                'Disposition': 'USE AS IS',
+                                'MRB_Justification': 'Structural integrity unaffected. Cosmetics acceptable for hidden internal chassis location.'
+                            }
+                        });
+
+                        await addTableRecord({
+                            tableId: dfTable.id,
+                            fields: {
+                                'Work_Order_ID': 'WO-8874102941',
+                                'Unit_ID': 'PU-98210412',
+                                'Material_Definition_ID': 'solenoid-valve-v2',
+                                'Reason': 'Coil short-circuit',
+                                'Description': 'Actuation test failed during high-temperature run. Internal coil shorted.',
+                                'Status': 'REWORKED',
+                                'Operator': 'David Miller',
+                                'Disposition': 'REWORK',
+                                'MRB_Justification': 'Solenoid assembly coil block swapped and re-potted.',
+                                'Rework_Instructions': 'Swap solenoid coil block with a certified QA stock unit, re-pot, and cycle-test 20 times.',
+                                'Rework_Assignee': 'David Miller',
+                                'Rework_Station': 'Rework Station 1'
+                            }
+                        });
+                    }
+                    if (woTable?.id) {
+                        await addTableRecord({
+                            tableId: woTable.id,
+                            fields: {
+                                'Operator': 'Adam Veres',
+                                'Parent_Order_ID': 'WO-8874102941',
+                                'Material_Definition_ID': 'DEMO-CYL-B1',
+                                'Status': 'RUNNING',
+                                'Location': 'Assembly Line 1',
+                                'QTY_Required': 100,
+                                'QTY_Complete': 45,
+                                'QTY_Scrap': 2,
+                                'Due_Date': iso,
+                                'Start_Date': iso,
+                                'Customer_ID': 'CUST-HONDA'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: woTable.id,
+                            fields: {
+                                'Operator': 'Lianna Churchill',
+                                'Parent_Order_ID': 'WO-51130425022026',
+                                'Material_Definition_ID': 'FASTENER-M6',
+                                'Status': 'COMPLETED',
+                                'Location': 'Stamping Station 2',
+                                'QTY_Required': 5000,
+                                'QTY_Complete': 5000,
+                                'QTY_Scrap': 12,
+                                'Due_Date': iso,
+                                'Start_Date': iso,
+                                'Complete_Date': iso,
+                                'Customer_ID': 'CUST-TOYOTA'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: woTable.id,
+                            fields: {
+                                'Operator': 'David Miller',
+                                'Parent_Order_ID': 'WO-8874102942',
+                                'Material_Definition_ID': 'solenoid-valve-v2',
+                                'Status': 'PLANNED',
+                                'Location': 'Sub-assembly 3',
+                                'QTY_Required': 250,
+                                'QTY_Complete': 0,
+                                'QTY_Scrap': 0,
+                                'Due_Date': iso,
+                                'Customer_ID': 'CUST-FORD'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: woTable.id,
+                            fields: {
+                                'Operator': 'Sarah Jenkins',
+                                'Parent_Order_ID': 'WO-8874102943',
+                                'Material_Definition_ID': 'steel-bracket-b1',
+                                'Status': 'RUNNING',
+                                'Location': 'Stamping Area 1',
+                                'QTY_Required': 1500,
+                                'QTY_Complete': 980,
+                                'QTY_Scrap': 8,
+                                'Due_Date': iso,
+                                'Start_Date': iso,
+                                'Customer_ID': 'CUST-TESLA'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: woTable.id,
+                            fields: {
+                                'Operator': 'Adam Veres',
+                                'Parent_Order_ID': 'WO-8874102944',
+                                'Material_Definition_ID': 'DEMO-CYL-A1',
+                                'Status': 'COMPLETED',
+                                'Location': 'Assembly Line 1',
+                                'QTY_Required': 80,
+                                'QTY_Complete': 80,
+                                'QTY_Scrap': 1,
+                                'Due_Date': iso,
+                                'Start_Date': iso,
+                                'Complete_Date': iso,
+                                'Customer_ID': 'CUST-GM'
                             }
                         });
                     }
