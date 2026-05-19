@@ -11382,6 +11382,60 @@ const AppBuilder = () => {
                     </div>
                 );
 
+            case 'LEAN_DASHBOARD_WIDGET': {
+                const letter = comp.props.letter || 'P';
+                const incidents = comp.props.incidents || 'YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY';
+                const monthName = 'Preview Month';
+                const location = comp.props.location || 'Boston';
+                
+                const pathDataMap = {
+                  'P': 'M 25,90 L 25,20 A 25,25 0 1,1 25,70',
+                  'S': 'M 75,25 C 75,-5 25,-5 25,25 C 25,50 75,50 75,75 C 75,105 25,105 25,75',
+                  'Q': 'M 50,20 A 30,30 0 1,0 50,80 A 30,30 0 1,0 50,20',
+                  'D': 'M 25,10 L 25,90 A 40,40 0 0,0 25,10',
+                  'C': 'M 75,20 A 35,35 0 1,0 75,80'
+                };
+                const titleMap = { 'P': 'PEOPLE', 'S': 'SAFETY', 'Q': 'QUALITY', 'D': 'DELIVERY', 'C': 'COST' };
+                const colorMap = { 'P': '#fbbf24', 'S': '#a3e635', 'Q': '#ef4444', 'D': '#ec4899', 'C': '#3b82f6' };
+                
+                const pathData = pathDataMap[letter] || pathDataMap['P'];
+                const isDark = builderTheme === 'DARK';
+
+                return (
+                  <div style={{ backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', height: '100%' }}>
+                    <div style={{ width: '100%', backgroundColor: colorMap[letter], color: 'white', textAlign: 'center', padding: '8px', fontSize: '1.5rem', fontWeight: 900, letterSpacing: '0.1em' }}>
+                      {titleMap[letter]}
+                    </div>
+                    <div style={{ textAlign: 'center', marginTop: '8px' }}>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a' }}>{location}</div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a' }}>{monthName}</div>
+                    </div>
+                    <div style={{ flex: 1, width: '100%', marginTop: '16px', position: 'relative' }}>
+                      <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
+                        <path d={pathData} fill="none" stroke={isDark ? '#334155' : '#e2e8f0'} strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" />
+                        {letter === 'Q' && <path d="M 60,70 L 85,95" fill="none" stroke={isDark ? '#334155' : '#e2e8f0'} strokeWidth="16" strokeLinecap="round" />}
+                        {Array.from({ length: 31 }).map((_, i) => {
+                          const statusChar = incidents.charAt(i) || 'N';
+                          const color = statusChar === 'Y' ? '#22c55e' : '#ef4444';
+                          return (
+                            <path 
+                              key={i}
+                              d={pathData}
+                              fill="none"
+                              stroke={color}
+                              strokeWidth="12"
+                              pathLength="31"
+                              strokeDasharray="0.95 31"
+                              strokeDashoffset={-i}
+                            />
+                          );
+                        })}
+                      </svg>
+                    </div>
+                  </div>
+                );
+            }
+
             case 'VARIABLE_TEXT': {
                 let vv = `@${comp.props.targetVariable || 'Variable'}`;
                 if (viewMode === 'PREVIEW') {
