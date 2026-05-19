@@ -307,7 +307,7 @@ export function createQualityInspectionSuiteTemplate() {
         id: `app_qi_${ts}`,
         name: 'Quality Inspection Suite',
         description: 'Digitize inspection plans and execute either dynamic testing runs or composed guided quality inspections.',
-        category: 'Composable MES for Discrete Manufacturing',
+        category: 'Quality',
         type: 'FRONT-LINE',
         published: true,
         approvalStatus: 'APPROVED',

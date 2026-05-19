@@ -36,6 +36,7 @@ import { createInventoryDashboardTemplate } from '../utils/inventoryDashboardTem
 import { createReplenishmentTemplate } from '../utils/replenishmentTemplate';
 import { createMaterialWarehouseTemplate } from '../utils/materialWarehouseTemplate';
 import { createQualityInspectionSuiteTemplate } from '../utils/qualityInspectionSuiteTemplate';
+import { createFrontlineQmsTemplate } from '../utils/frontlineQmsTemplate';
 
 import { saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { createTable, getTables, addTableRecord } from '../utils/database';
@@ -970,7 +971,7 @@ const AppStore = () => {
         {
             id: 'quality-inspection-suite',
             name: 'Quality Inspection Suite',
-            category: 'Composable MES for Discrete Manufacturing',
+            category: 'Quality',
             description: 'Compare dynamic testing apps vs composed quality inspection apps with guided visual instructions.',
             longDescription: 'Explore the two primary options when digitizing quality processes: generic Dynamic testing runs (configured via table-driven inspection plans) and highly customized Composed guided inspection apps with cylinder alignment reference instructions.',
             icon: <Sparkles size={28} color="#06b6d4" />,
@@ -995,6 +996,38 @@ const AppStore = () => {
                     { name: 'Review plan', description: 'Verify composed dynamic quality checklist rows.' },
                     { name: 'Record numeric results', description: 'Input values against dynamic limits.' },
                     { name: 'Inspect unit', description: 'Composed guided visual checklist.' }
+                ]
+            }
+        },
+        {
+            id: 'frontline-qms',
+            name: 'Frontline QMS',
+            category: 'Quality',
+            description: 'Manage shopfloor quality deviations, defects, and raise corrective actions (CAPA) inside the Frontline QMS suite.',
+            longDescription: 'Standardize defect tracking, visual inspections, and CAPA logging directly on the shop floor. Features robust workflow actions for Material Review Boards (MRB) to scrap, rework, or approve deviations.',
+            icon: <ShieldCheck size={28} color="#0d9488" />,
+            bg: 'linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%)',
+            accent: '#0d9488',
+            rating: 5.0,
+            installs: 'New',
+            features: ['MRB Scrap/Rework Actions', 'Visual Defect Inspector', 'CAPA Root Cause Logger'],
+            guide: {
+                operation: '1. Select a defect from the active backlog on the Material Review Board.\n2. Tap "Manage Selected Defect" to choose a resolution: Scrap, Rework, or Use-as-is.\n3. Execute "Run Unit Inspection" for cylinder assembly quality verification.\n4. Complete the "Raise CAPA Event" forms with 5-Why analysis details for compliance.',
+                widgets: ['MRB Defect backlog grid', 'Resolution command center', 'Visual inspection guide', 'CAPA submission block'],
+                components: ['Defect Tracker Terminal', 'MRB Resolution deck', 'CAPA Incident Architect'],
+                tables: [
+                    { name: 'Defect_Events', description: 'Primary registry for quality deviations.' },
+                    { name: 'CAPA_Incidents', description: 'Stores engineering investigations and preventive plans.' }
+                ],
+                triggers: [
+                    { event: 'RESOLVE_DEFECT', function: 'Performs state transitions (SCRAP / REWORK / USE_AS_IS) on the defect record.' }
+                ],
+                mechanism: 'Bridges shop floor quality execution directly with engineering CAPA control loops, improving response time and traceability.',
+                steps: [
+                    { name: 'Material Review Board', description: 'Grid of all active quality incidents.' },
+                    { name: 'Manage defect - unit', description: 'Scrap, Rework, or Use-as-is options.' },
+                    { name: 'Inspect unit', description: 'Guided cylinder checklist.' },
+                    { name: 'CAPA Incident', description: 'Root cause and action plan entry.' }
                 ]
             }
         }
@@ -1735,6 +1768,41 @@ const AppStore = () => {
                     
                     templateApp = JSON.parse(appStr);
                     templateApp.config.appTables = tIds;
+
+                    // Seed dummy data
+                    if (mrTable?.id) {
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'DEMO-CYL-A1', 'Requesting_Location': 'Station 1',
+                                'Supplier': 'Supplier A', 'Kanban_ID': 'KB-001',
+                                'Quantity': 10, 'Status': 'PENDING',
+                                'Status_Color': '#facc15', 'Requestor': 'Adam Veres',
+                                'Requested': iso
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'FASTENER-M6', 'Requesting_Location': 'Station 2',
+                                'Supplier': 'Fastener Inc', 'Kanban_ID': 'KB-002',
+                                'Quantity': 200, 'Status': 'IN PROGRESS',
+                                'Status_Color': '#3b82f6', 'Requestor': 'Lianna Churchill',
+                                'Requested': iso
+                            }
+                        });
+                    }
+                    if (kcTable?.id) {
+                        await addTableRecord({
+                            tableId: kcTable.id,
+                            fields: {
+                                'Part_Number': 'DEMO-CYL-A1', 'Status': 'EMPTY',
+                                'Consuming_location': 'Station 1', 'Supplier': 'Supplier A',
+                                'QTY': 10, 'Part_Description': 'Double-acting pneumatic cylinder',
+                                'Status_Color': '#ef4444', 'Active': true, 'Lead_Time': 4
+                            }
+                        });
+                    }
                 } catch (mhErr) {
                     console.warn('Could not create Material Handling tables:', mhErr);
                 }
@@ -1766,6 +1834,31 @@ const AppStore = () => {
                     
                     templateApp = JSON.parse(appStr);
                     templateApp.config.appTables = tIds;
+
+                    // Seed dummy data
+                    if (mrTable?.id) {
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'DEMO-CYL-A1', 'Requesting_Location': 'Station 1',
+                                'Supplier': 'Supplier A', 'Kanban_ID': 'KB-001',
+                                'Quantity': 10, 'Status': 'PENDING',
+                                'Status_Color': '#facc15', 'Requestor': 'Adam Veres',
+                                'Requested': iso
+                            }
+                        });
+                    }
+                    if (kcTable?.id) {
+                        await addTableRecord({
+                            tableId: kcTable.id,
+                            fields: {
+                                'Part_Number': 'DEMO-CYL-A1', 'Status': 'EMPTY',
+                                'Consuming_location': 'Station 1', 'Supplier': 'Supplier A',
+                                'QTY': 10, 'Part_Description': 'Double-acting pneumatic cylinder',
+                                'Status_Color': '#ef4444', 'Active': true, 'Lead_Time': 4
+                            }
+                        });
+                    }
                 } catch (mrErr) {
                     console.warn('Could not create Material Request tables:', mrErr);
                 }
@@ -1792,6 +1885,35 @@ const AppStore = () => {
                     
                     templateApp = JSON.parse(appStr);
                     templateApp.config.appTables = tIds;
+
+                    // Seed dummy data
+                    if (assetsTable?.id) {
+                        await addTableRecord({
+                            tableId: assetsTable.id,
+                            fields: {
+                                'Name': 'Forklift #1', 'Description': 'Toyota electric forklift',
+                                'Status': 'AVAILABLE', 'Location': 'Bay A',
+                                'Type': 'Forklift', 'Calibration_Cadence': 365,
+                                'User': 'Adam Veres'
+                            }
+                        });
+                    }
+                    if (locationsTable?.id) {
+                        await addTableRecord({
+                            tableId: locationsTable.id,
+                            fields: {
+                                'Location_Area': 'Supermarket', 'Bin_Number': 'SUP-01',
+                                'Light_Kit_Number': 1, 'Type': 'Supermarket', 'Status': 'ACTIVE'
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: locationsTable.id,
+                            fields: {
+                                'Location_Area': 'Warehouse Area A', 'Bin_Number': 'BIN-04',
+                                'Light_Kit_Number': 2, 'Type': 'Rack', 'Status': 'ACTIVE'
+                            }
+                        });
+                    }
                 } catch (mlrErr) {
                     console.warn('Could not create Material Loading tables:', mlrErr);
                 }
@@ -1838,6 +1960,52 @@ const AppStore = () => {
                     
                     templateApp = JSON.parse(appStr);
                     templateApp.config.appTables = tIds;
+
+                    // Seed dummy data
+                    if (mrTable?.id) {
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'DEMO-CYL-A1', 'Requesting_Location': 'Station 1',
+                                'Supplier': 'Supplier A', 'Kanban_ID': 'KB-001',
+                                'Quantity': 10, 'Status': 'PENDING',
+                                'Status_Color': '#facc15', 'Requestor': 'Adam Veres',
+                                'Requested': iso
+                            }
+                        });
+                    }
+                    if (kcTable?.id) {
+                        await addTableRecord({
+                            tableId: kcTable.id,
+                            fields: {
+                                'Part_Number': 'DEMO-CYL-A1', 'Status': 'EMPTY',
+                                'Consuming_location': 'Station 1', 'Supplier': 'Supplier A',
+                                'QTY': 10, 'Part_Description': 'Double-acting pneumatic cylinder',
+                                'Status_Color': '#ef4444', 'Active': true, 'Lead_Time': 4
+                            }
+                        });
+                    }
+                    if (mdTable?.id) {
+                        await addTableRecord({
+                            tableId: mdTable.id,
+                            fields: {
+                                'Name': 'Double-acting cylinder', 'Type': 'Pneumatic',
+                                'Description': 'DEMO-CYL-A1 assembly', 'Status': 'APPROVED',
+                                'Unit_of_Measure': 'pcs', 'Version_Revision': 'A',
+                                'Vendor_ID': 'VEND-998', 'Target_Cycle_Time': 45
+                            }
+                        });
+                    }
+                    if (iiTable?.id) {
+                        await addTableRecord({
+                            tableId: iiTable.id,
+                            fields: {
+                                'Material_Definition_ID': 'DEMO-CYL-A1', 'Material_Definition_Type': 'Pneumatic',
+                                'Status': 'AVAILABLE', 'Location_ID': 'BIN-12',
+                                'Location_Area': 'Rack A', 'QTY': 45, 'Unit_Of_Measure': 'pcs'
+                            }
+                        });
+                    }
                 } catch (imErr) {
                     console.warn('Could not create Inventory Management tables:', imErr);
                 }
@@ -1861,6 +2029,30 @@ const AppStore = () => {
                     
                     templateApp = JSON.parse(appStr);
                     templateApp.config.appTables = tIds;
+
+                    // Seed dummy data
+                    if (mrTable?.id) {
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'DEMO-CYL-A1', 'Requesting_Location': 'Station 1',
+                                'Supplier': 'Supplier A', 'Kanban_ID': 'KB-001',
+                                'Quantity': 10, 'Status': 'PENDING',
+                                'Status_Color': '#facc15', 'Requestor': 'Adam Veres',
+                                'Requested': iso
+                            }
+                        });
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'FASTENER-M6', 'Requesting_Location': 'Station 2',
+                                'Supplier': 'Fastener Inc', 'Kanban_ID': 'KB-002',
+                                'Quantity': 200, 'Status': 'IN PROGRESS',
+                                'Status_Color': '#3b82f6', 'Requestor': 'Lianna Churchill',
+                                'Requested': iso
+                            }
+                        });
+                    }
                 } catch (dbErr) {
                     console.warn('Could not create Inventory Dashboard tables:', dbErr);
                 }
@@ -1893,6 +2085,31 @@ const AppStore = () => {
                     
                     templateApp = JSON.parse(appStr);
                     templateApp.config.appTables = tIds;
+
+                    // Seed dummy data
+                    if (mrTable?.id) {
+                        await addTableRecord({
+                            tableId: mrTable.id,
+                            fields: {
+                                'Item': 'DEMO-CYL-A1', 'Requesting_Location': 'Station 1',
+                                'Supplier': 'Supplier A', 'Kanban_ID': 'KB-001',
+                                'Quantity': 10, 'Status': 'PENDING',
+                                'Status_Color': '#facc15', 'Requestor': 'Adam Veres',
+                                'Requested': iso
+                            }
+                        });
+                    }
+                    if (kbTable?.id) {
+                        await addTableRecord({
+                            tableId: kbTable.id,
+                            fields: {
+                                'Part_Number': 'DEMO-CYL-A1', 'Status': 'EMPTY',
+                                'Consuming_location': 'Station 1', 'Supplier': 'Supplier A',
+                                'QTY': 10, 'Part_Description': 'Double-acting pneumatic cylinder',
+                                'Status_Color': '#ef4444', 'Active': true, 'Lead_Time': 4
+                            }
+                        });
+                    }
                 } catch (repErr) {
                     console.warn('Could not create Replenishment tables:', repErr);
                 }
@@ -1921,6 +2138,29 @@ const AppStore = () => {
                     
                     templateApp = JSON.parse(appStr);
                     templateApp.config.appTables = tIds;
+
+                    // Seed dummy data
+                    if (invTable?.id) {
+                        await addTableRecord({
+                            tableId: invTable.id,
+                            fields: {
+                                'Material_Definition_ID': 'DEMO-CYL-A1', 'Location_ID': 'BIN-12',
+                                'Location_Area': 'Rack A', 'QTY': 45, 'Unit_Of_Measure': 'pcs',
+                                'Status': 'AVAILABLE', 'Material_Definition_Type': 'Pneumatic'
+                            }
+                        });
+                    }
+                    if (mdTable?.id) {
+                        await addTableRecord({
+                            tableId: mdTable.id,
+                            fields: {
+                                'Name': 'Double-acting cylinder', 'Type': 'Pneumatic',
+                                'Description': 'DEMO-CYL-A1 assembly', 'Status': 'APPROVED',
+                                'Unit_Of_Measure': 'pcs', 'Version_Revision': 'A',
+                                'Vendor_ID': 'VEND-998', 'Target_Cycle_Time': 45
+                            }
+                        });
+                    }
                 } catch (mwErr) {
                     console.warn('Could not create Material Warehouse tables:', mwErr);
                 }
@@ -1972,6 +2212,48 @@ const AppStore = () => {
                     }
                 } catch (qiErr) {
                     console.warn('Could not create Quality Inspection tables:', qiErr);
+                }
+            } else if (templateId === 'frontline-qms') {
+                templateApp = createFrontlineQmsTemplate();
+                try {
+                    const dfTable = await createTable({ name: 'Defect_Events', fields: [
+                        { name: 'Work_Order_ID', type: 'text' }, { name: 'Unit_ID', type: 'text' },
+                        { name: 'Material_Definition_ID', type: 'text' }, { name: 'Reason', type: 'text' },
+                        { name: 'Description', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Operator', type: 'text' }
+                    ]});
+
+                    const cpTable = await createTable({ name: 'CAPA_Incidents', fields: [
+                        { name: 'Defect_Event_ID', type: 'text' }, { name: 'Root_Cause', type: 'text' },
+                        { name: 'Action_Plan', type: 'text' }, { name: 'Assigned_To', type: 'text' },
+                        { name: 'Status', type: 'text' }
+                    ]});
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (dfTable?.id) { appStr = appStr.replace(/tbl_qms_defect_events/g, dfTable.id); tIds.push(dfTable.id); }
+                    if (cpTable?.id) { appStr = appStr.replace(/tbl_qms_capa_incidents/g, cpTable.id); tIds.push(cpTable.id); }
+                    
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+
+                    // Pre-populate with a sample active defect event matching Screenshot 1
+                    if (dfTable?.id) {
+                        await addTableRecord({
+                            tableId: dfTable.id,
+                            fields: {
+                                'Work_Order_ID': 'WO-51130425022025',
+                                'Unit_ID': 'PU-58130425022025',
+                                'Material_Definition_ID': 'DEMO-CYL-A1',
+                                'Reason': "Inspection with ID 'INSP_PU-581304250220258757' failed.",
+                                'Description': 'Visual inspection failed due to cylinder misalignment at alignment reference point 1.',
+                                'Status': 'PENDING MRB REVIEW',
+                                'Operator': 'Adam Veres'
+                            }
+                        });
+                    }
+                } catch (qmsErr) {
+                    console.warn('Could not create Frontline QMS tables:', qmsErr);
                 }
             } else {
                 toast.error('Template not found', { id: loadingToast });
