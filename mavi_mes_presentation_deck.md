@@ -83,9 +83,21 @@ Below is the slide-by-slide structure and script content for your reference.
 *   **💡 Auto-Seed Highlight**:
     *   Tabel defect terisi contoh riil gagal uji silinder aktuator `PU-58130425022025` lengkap dengan alasan kegagalan kelurusan untuk simulasi alur penanganan deviasi kualitas.
 
+### **Slide 7: Alur Penanganan Material Review Board (MRB) (Light Theme)**
+*   **Title**: `4b. Alur Penanganan Material Review Board (MRB)`
+*   **Core Concepts**:
+    *   *Review & Audit Defect*: Evaluasi kegagalan dari visual QMS, revisi alasan/deskripsi detail jika diperlukan sebelum keputusan disposisi.
+    *   *Penetapan Keputusan Disposisi*: Operator / Quality Engineer memilih salah satu keputusan disposisi material: Scrap (Buang), Rework (Perbaiki), atau Use-As-Is (Terima Deviasi).
+    *   *Upload Bukti Fisik*: Mengambil foto fisik defect menggunakan kamera tablet, mencatat instruksi pengerjaan ulang (rework instructions) & penunjuk stasiun/penanggung jawab.
+*   **Database Architecture**:
+    *   `Defect_Events` Table: records status shifts (`SCRAPPED`, `REWORK IN PROGRESS`, `USE AS IS`), disposition types, justification, assignee, station, and upload evidence.
+    *   `Work_Orders` Table: logs repair operations linked to specific stations.
+*   **💡 Auto-Seed Highlight**:
+    *   Dua record defect uji silinder (`PU-98210398` & `PU-98210399`) otomatis ditambahkan dalam status `PENDING MRB REVIEW` di backlog agar dashboard dapat langsung dievaluasi.
+
 ---
 
-### **Slide 7: Dasbor Analitik OEE & Kinerja Pabrik (Light Theme)**
+### **Slide 8: Dasbor Analitik OEE & Kinerja Pabrik (Light Theme)**
 *   **Title**: `5. Dasbor Analitik OEE & Kinerja Pabrik`
 *   **Core Concepts**:
     *   *Inventory Dashboard*: Memantau durasi penyelesaian loop pengisian material, membantu optimasi logistik tangkas pabrik.
@@ -97,9 +109,7 @@ Below is the slide-by-slide structure and script content for your reference.
 
 ---
 
----
-
-### **Slide 8: Urutan Instalasi & Panduan Dependensi Suite (Light Theme)**
+### **Slide 9: Urutan Instalasi & Panduan Dependensi Suite (Light Theme)**
 *   **Title**: `Urutan Instalasi & Panduan Dependensi Suite`
 *   **Sequence Steps**:
     *   *Langkah 1: INVENTORY SUITE (Fondasi Utama)*:
@@ -111,7 +121,7 @@ Below is the slide-by-slide structure and script content for your reference.
         *   **Fungsi**: Menghubungkan perakitan & downtime stasiun kerja yang memotong stok.
         *   **Langkah Verifikasi**: Picu downtime stasiun di *Andon Terminal*, pastikan status stasiun `DOWN` terupdate real-time di dasbor Andon.
     *   *Langkah 3: QUALITY QMS SUITE (Sistem Keamanan Mutu)*:
-        *   **App Store Templates**: `Quality Inspection Suite`, `Frontline QMS`.
+        *   **App Store Templates**: `Quality Inspection Suite`, `Frontline QMS`, `Material Review Board (MRB)`.
         *   **Fungsi**: Mengevaluasi hasil lini & menyalurkan defect perakitan ke papan MRB.
         *   **Langkah Verifikasi**: Jalankan uji mutu, masukkan kegagalan uji kelonggaran, pastikan defect terdaftar instan ke MRB backlog.
     *   *Langkah 4: REPLENISHMENT & DASHBOARD (Optimasi & OEE)*:
@@ -124,25 +134,64 @@ Below is the slide-by-slide structure and script content for your reference.
 
 ---
 
----
-
-### **Slide 9: Pemetaan Proses & Diagram Alur Kerja Template (Light Theme - Flow Chart)**
+### **Slide 10: Pemetaan Proses & Diagram Alur Kerja Template (Light Theme - Flow Chart)**
 *   **Title**: `Pemetaan Proses & Diagram Alur Kerja Template`
 *   **Visual Flow Steps**:
     1.  `LANGKAH 1: INGESTION (Teal)`: *Material Loading & Warehouse*. Registrasi & penempatan material baru ke rak penyimpanan.
     2.  `LANGKAH 2: REPLENISH (Blue)`: *Material Request & Replenishment*. Pemicuan loop Kanban saat bin perakitan di lini habis.
     3.  `LANGKAH 3: EXECUTE (Orange)`: *Order Execution & Andon Terminal*. Instruksi perakitan operator & pemicuan downtime terintegrasi.
-    4.  `LANGKAH 4: VERIFY (Gold)`: *Quality Inspection & Frontline QMS*. Uji toleransi produk perakitan & disposisi cacat (MRB).
+    4.  `LANGKAH 4: VERIFY (Gold)`: *Quality Inspection, QMS & Material Review Board (MRB)*. Uji toleransi produk perakitan & disposisi cacat (MRB).
     5.  `LANGKAH 5: ANALYZE (Purple)`: *Dashboard OEE & Analytics*. Konsolidasi pencapaian target per jam, OEE, & cycle time.
 *   **💡 Layout Description**:
     *   Widescreen 16:9 slide presenting five beautiful, colored rounded rectangle panels side-by-side representing the end-to-end discrete manufacturing flow, with clean pointing arrow connectors and descriptions underneath each box.
 
 ---
 
-### **Slide 10: Kesimpulan & Keunggulan Utama Mavi-MES (Dark Theme)**
+### **Slide 11: Spesifikasi Perangkat Keras & Infrastruktur Lini (Light Theme)**
+*   **Title**: `Spesifikasi Perangkat Keras & Infrastruktur Lini`
+*   **Hardware Modules**:
+    1.  `01 TABLET OPERATOR (Teal)`: Tablet layar sentuh min. 10 inci (iOS/Android) ditempatkan di stasiun perakitan operator & stasiun visual kualitas (QMS) sebagai terminal input.
+    2.  `02 BARCODE SCANNER (Orange)`: Pemindai genggam USB/Bluetooth dalam mode Keyboard Emulation untuk scan otomatis nomor Lot material & barcode bin kosong Kanban secara cepat.
+    3.  `03 ANDON MONITOR TV (Gold)`: Smart TV / TV LCD min. 43 inci di lorong stasiun perakitan untuk visualisasi stasiun DOWN secara terpusat bagi supervisor & tim utilitas.
+    4.  `04 DATABASE SUPABASE (Purple)`: Koneksi Wi-Fi pabrik berlatensi rendah (<50ms) yang terhubung langsung ke skema Supabase aman untuk sinkronisasi inventaris & order secara instan.
+
+---
+
+### **Slide 12: Pedoman Standardisasi Label Barcode Pabrik (Light Theme)**
+*   **Title**: `Pedoman Standardisasi Label Barcode Pabrik`
+*   **Syntax Standard**:
+    *   **Format Kartu Kanban (Bin Kosong)**:
+        *   Sintaks: `KB-[KODE_STASIUN]-[NOMOR_PART]`
+        *   Contoh: `KB-STA1-CYL-A1` (Scan bin kosong memicu order replenishment baru stasiun 1).
+    *   **Format Lot Penerimaan (Barang Datang)**:
+        *   Sintaks: `LOT-[NOMOR_PART]-[YYYYMMDD]-[BATCH]`
+        *   Contoh: `LOT-CYL-A1-20260519-01` (Memastikan ketertelusuran cacat bahan baku di MRB).
+    *   **Format Perintah Kerja (Work Order)**:
+        *   Sintaks: `WO-[TIPE_PRODUK]-[NO_URUT]`
+        *   Contoh: `WO-CYL-A1-0089` (Scan WO untuk memuat langkah instruksi perakitan).
+*   **💡 Scanner Integration Guide**:
+    1. Pemindai harus diatur ke mode keyboard (HID Mode) agar tulisan barcode langsung terisi ke kotak input teks.
+    2. Rekomendasi stiker barcode tahan panas/oli untuk stiker rak logam atau bin perakitan logam.
+    3. Parser regex yang tertanam pada widget Mavi-MES memvalidasi kecocokan nomor part secara otomatis untuk menghindari salah pemicuan.
+
+---
+
+### **Slide 13: Protokol Penanganan Masalah & FAQ Operasional (Light Theme)**
+*   **Title**: `Protokol Penanganan Masalah & FAQ Operasional`
+*   **Troubleshooting Matrix**:
+    *   *Gejala 1*: Barcode dipindai tetapi pesanan pengisian Kanban tidak masuk ke antrean Water Spider.
+        *   **✓ Solusi**: Pastikan kursor input (focus) sedang aktif di kotak teks scanner pada tablet stasiun perakitan operator, dan Wi-Fi tablet dalam kondisi terhubung internet pabrik.
+    *   *Gejala 2*: Unit cacat terdeteksi stasiun QMS, tetapi stasiun perakitan operator tidak terkunci otomatis.
+        *   **✓ Solusi**: Pastikan stasiun kerja di stasiun Quality Inspection dan stasiun Order Execution terdaftar menggunakan ID stasiun yang sama persis di database Supabase.
+    *   *Gejala 3*: Angka pencapaian OEE dan grafik visualisasi downtime bernilai NaN atau kosong.
+        *   **✓ Solusi**: Periksa tabel `Station_Activity_History`. Pastikan stasiun telah menyelesaikan minimal 1 work order agar kalkulasi rasio kualitas/performance OEE teracumulasi secara utuh.
+
+---
+
+### **Slide 14: Kesimpulan & Keunggulan Utama Mavi-MES (Dark Theme)**
 *   **Title**: `KESIMPULAN: KEUNGGULAN UTAMA MAVI-MES`
 *   **Key Values**:
     *   `Satu Arsitektur Database Terpadu`: Seluruh modul (Gudang, Produksi, Kualitas, Andon) bertukar data secara langsung tanpa perlu integrasi middleware rumit.
     *   `Proteksi Kesalahan Operasional (Poka-Yoke)`: Kegagalan kualitas di QMS atau pemicuan status downtime di Andon secara instan memblokir eksekusi perintah kerja di lini produksi.
-    *   `Data Siap Pakai Langsung (Auto-Seed)`: Instalasi template menyertakan sampel data operasional nyata agar fungsionalitas dan visualisasi langsung terlihat aktif.
+    *   `Data Siap Pakai Langsung (Auto-Seed)`: Data demo riil terisi otomatis saat menginstal template agar simulasi alur berjalan lancar.
     *   `Kemudahan Kustomisasi Tanpa-Kode (No-Code Scaling)`: Insinyur lapangan dapat dengan mudah mendesain ulang tata letak, logika widget, dan tabel sesuai kebutuhan spesifik pabrik.

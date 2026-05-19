@@ -37,6 +37,7 @@ import { createReplenishmentTemplate } from '../utils/replenishmentTemplate';
 import { createMaterialWarehouseTemplate } from '../utils/materialWarehouseTemplate';
 import { createQualityInspectionSuiteTemplate } from '../utils/qualityInspectionSuiteTemplate';
 import { createFrontlineQmsTemplate } from '../utils/frontlineQmsTemplate';
+import { createMaterialReviewBoardTemplate } from '../utils/materialReviewBoardTemplate';
 
 import { saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { createTable, getTables, addTableRecord } from '../utils/database';
@@ -1028,6 +1029,41 @@ const AppStore = () => {
                     { name: 'Manage defect - unit', description: 'Scrap, Rework, or Use-as-is options.' },
                     { name: 'Inspect unit', description: 'Guided cylinder checklist.' },
                     { name: 'CAPA Incident', description: 'Root cause and action plan entry.' }
+                ]
+            }
+        },
+        {
+            id: 'material-review-board',
+            name: 'Material Review Board',
+            category: 'Quality',
+            description: 'Review reported defective materials, modify details, and assign disposition decisions (Scrap, Rework, or Use-As-Is) with justifications and evidence.',
+            longDescription: 'The Material Review Board (MRB) application is designed to help quality engineers or production supervisors review, track, and manage defective materials. It allows them to analyze defects, update defect records, and determine the appropriate disposition while documenting justifications and supporting evidence.',
+            icon: <ShieldAlert size={28} color="#e11d48" />,
+            bg: 'linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)',
+            accent: '#e11d48',
+            rating: 5.0,
+            installs: 'New',
+            features: ['Select Disposition: Scrap/Rework/Use-As-Is', 'Record Justification', 'Upload Evidence Document/Image'],
+            guide: {
+                operation: '1. Select an active defect from the MRB Dashboard backlog.\n2. In Review Defect, modify defect reason or description if needed and click Save.\n3. In Select Disposition, choose Scrap, Rework, or Use-As-Is.\n4. Complete the chosen disposition details (e.g. assignee, instructions, justification, evidence capture).\n5. Submit to update the defect status.',
+                widgets: ['MRB backlog table', 'Defect details panel', 'Capture evidence button', 'Disposition triggers'],
+                components: ['MRB Backlog Dashboard', 'Defect Details Auditor', 'Disposition Assignment Cards'],
+                tables: [
+                    { name: 'Defect_Events', description: 'Tracks all reported quality deviations and their dispositions.' },
+                    { name: 'Work_Orders', description: 'Provides reference order data for context.' }
+                ],
+                triggers: [
+                    { event: 'ON_ROW_SELECT', function: 'Loads the selected defect details into the app variables.' },
+                    { event: 'SUBMIT_DISPOSITION', function: 'Performs a status change to SCRAPPED, REWORK IN PROGRESS, or USE AS IS.' }
+                ],
+                mechanism: 'Performs TABLE_RECORD_SAVE actions to update the defect event record with disposition decision details.',
+                steps: [
+                    { name: 'MRB Dashboard', description: 'Displays active defect logs requiring review.' },
+                    { name: 'Review Defect', description: 'Allows modifying and verifying defect details.' },
+                    { name: 'Select Disposition', description: 'Shows Scrap, Rework, and Use-As-Is choices.' },
+                    { name: 'Scrap Disposition', description: 'Log justification and upload evidence to scrap material.' },
+                    { name: 'Rework Disposition', description: 'Specify instructions, assignee, and rework station.' },
+                    { name: 'Use-As-Is Disposition', description: 'Input deviation justifications and engineering approval.' }
                 ]
             }
         }
@@ -2254,6 +2290,67 @@ const AppStore = () => {
                     }
                 } catch (qmsErr) {
                     console.warn('Could not create Frontline QMS tables:', qmsErr);
+                }
+            } else if (templateId === 'material-review-board') {
+                templateApp = createMaterialReviewBoardTemplate();
+                try {
+                    const dfTable = await createTable({ name: 'Defect_Events', fields: [
+                        { name: 'Work_Order_ID', type: 'text' }, { name: 'Unit_ID', type: 'text' },
+                        { name: 'Material_Definition_ID', type: 'text' }, { name: 'Reason', type: 'text' },
+                        { name: 'Description', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Operator', type: 'text' }, { name: 'Disposition', type: 'text' },
+                        { name: 'MRB_Justification', type: 'text' }, { name: 'Rework_Instructions', type: 'text' },
+                        { name: 'Rework_Assignee', type: 'text' }, { name: 'Rework_Station', type: 'text' },
+                        { name: 'Upload_Evidence', type: 'text' }
+                    ]});
+
+                    const woTable = await createTable({ name: 'Work_Orders', fields: [
+                        { name: 'Operator', type: 'text' }, { name: 'Parent_Order_ID', type: 'text' },
+                        { name: 'Material_Definition_ID', type: 'text' }, { name: 'Status', type: 'text' },
+                        { name: 'Location', type: 'text' }, { name: 'QTY_Required', type: 'number' },
+                        { name: 'QTY_Complete', type: 'number' }, { name: 'QTY_Scrap', type: 'number' },
+                        { name: 'Due_Date', type: 'datetime' }, { name: 'Start_Date', type: 'datetime' },
+                        { name: 'Complete_Date', type: 'datetime' }, { name: 'Customer_ID', type: 'text' }
+                    ]});
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (dfTable?.id) { appStr = appStr.replace(/tbl_mrb_defect_events/g, dfTable.id); tIds.push(dfTable.id); }
+                    if (woTable?.id) { appStr = appStr.replace(/tbl_mrb_work_orders/g, woTable.id); tIds.push(woTable.id); }
+                    
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+
+                    // Pre-populate with sample defect records
+                    if (dfTable?.id) {
+                        await addTableRecord({
+                            tableId: dfTable.id,
+                            fields: {
+                                'Work_Order_ID': 'WO-8874102941',
+                                'Unit_ID': 'PU-98210398',
+                                'Material_Definition_ID': 'DEMO-CYL-B1',
+                                'Reason': 'Visual check misalignment',
+                                'Description': 'Cylinder rod off-center by 1.2mm during high-pressure validation.',
+                                'Status': 'PENDING MRB REVIEW',
+                                'Operator': 'Lianna Churchill'
+                            }
+                        });
+
+                        await addTableRecord({
+                            tableId: dfTable.id,
+                            fields: {
+                                'Work_Order_ID': 'WO-8874102941',
+                                'Unit_ID': 'PU-98210399',
+                                'Material_Definition_ID': 'DEMO-CYL-B1',
+                                'Reason': 'Pressure leak on seal',
+                                'Description': 'Seal pressure drop exceeded 0.5 bar/min during end-cap testing.',
+                                'Status': 'PENDING MRB REVIEW',
+                                'Operator': 'Adam Veres'
+                            }
+                        });
+                    }
+                } catch (mrbErr) {
+                    console.warn('Could not create Material Review Board tables:', mrbErr);
                 }
             } else {
                 toast.error('Template not found', { id: loadingToast });

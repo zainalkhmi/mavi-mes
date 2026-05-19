@@ -333,9 +333,19 @@ export async function queryTableRecords(tableId, options = {}) {
 
 export async function addTableRecord(tableId, recordData) {
     const supabase = getSupabaseClient();
-    const normalizedTableId = ensureUuidOrThrow(tableId, 'table_id');
-    const recordId = String(recordData?.recordId ?? recordData?.id ?? '').trim();
-    if (!recordId) throw new Error('Record ID is required and must be a non-empty text value.');
+    
+    let normalizedTableId;
+    let fields;
+    
+    if (tableId && typeof tableId === 'object' && tableId.tableId) {
+        normalizedTableId = ensureUuidOrThrow(tableId.tableId, 'table_id');
+        fields = tableId.fields || {};
+    } else {
+        normalizedTableId = ensureUuidOrThrow(tableId, 'table_id');
+        fields = recordData || {};
+    }
+
+    const recordId = String(fields.recordId ?? fields.id ?? fields.ID ?? fields.Id ?? '').trim() || `REC_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
     // Check for duplicate
     const { data: existing } = await supabase
@@ -347,7 +357,7 @@ export async function addTableRecord(tableId, recordData) {
 
     if (existing) throw new Error(`Record ID "${recordId}" already exists in this table.`);
 
-    const payload = { ...recordData };
+    const payload = { ...fields };
     delete payload.id;
     delete payload.recordId;
 
