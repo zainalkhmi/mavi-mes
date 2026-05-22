@@ -1084,6 +1084,7 @@ const AppStore = () => {
     const handleInstall = async (templateId) => {
         setInstallingId(templateId);
         const loadingToast = toast.loading('Installing template...');
+        const iso = new Date().toISOString();
 
         try {
             let templateApp;
@@ -1862,6 +1863,7 @@ const AppStore = () => {
                         await addTableRecord({
                             tableId: kcTable.id,
                             fields: {
+                                'Kanban_ID': 'KB-001',
                                 'Part_Number': 'DEMO-CYL-A1', 'Status': 'EMPTY',
                                 'Consuming_location': 'Station 1', 'Supplier': 'Supplier A',
                                 'QTY': 10, 'Part_Description': 'Double-acting pneumatic cylinder',
@@ -1871,6 +1873,7 @@ const AppStore = () => {
                         await addTableRecord({
                             tableId: kcTable.id,
                             fields: {
+                                'Kanban_ID': 'KB-002',
                                 'Part_Number': 'FASTENER-M6', 'Status': 'FULL',
                                 'Consuming_location': 'Station 2', 'Supplier': 'Fastener Inc',
                                 'QTY': 200, 'Part_Description': 'M6 Socket Head Cap Screw',
@@ -1880,6 +1883,7 @@ const AppStore = () => {
                         await addTableRecord({
                             tableId: kcTable.id,
                             fields: {
+                                'Kanban_ID': 'KB-003',
                                 'Part_Number': 'solenoid-valve-v2', 'Status': 'EMPTY',
                                 'Consuming_location': 'Station 3', 'Supplier': 'SMC Pneumatics',
                                 'QTY': 15, 'Part_Description': '5/2 Way Solenoid Valve',
@@ -1889,6 +1893,7 @@ const AppStore = () => {
                         await addTableRecord({
                             tableId: kcTable.id,
                             fields: {
+                                'Kanban_ID': 'KB-004',
                                 'Part_Number': 'M4-MACHINE-SCREW', 'Status': 'FULL',
                                 'Consuming_location': 'Station 4', 'Supplier': 'Fastener Inc',
                                 'QTY': 500, 'Part_Description': 'M4 Machine Screw 12mm',
@@ -1898,6 +1903,7 @@ const AppStore = () => {
                         await addTableRecord({
                             tableId: kcTable.id,
                             fields: {
+                                'Kanban_ID': 'KB-005',
                                 'Part_Number': 'steel-bracket-b1', 'Status': 'TRANSIT',
                                 'Consuming_location': 'Station 5', 'Supplier': 'Apex Metalworks',
                                 'QTY': 30, 'Part_Description': 'Heavy Duty Right-Angle Bracket',
@@ -2166,6 +2172,7 @@ const AppStore = () => {
                         { name: 'Ready_for_pick_time', type: 'datetime' }, { name: 'Delivered_by', type: 'text' }
                     ]});
                     const kcTable = await createTable({ name: 'Kanban_Cards', fields: [
+                        { name: 'Kanban_ID', type: 'text' },
                         { name: 'Part_Number', type: 'text' }, { name: 'Status', type: 'text' },
                         { name: 'Consuming_location', type: 'text' }, { name: 'Supplier', type: 'text' },
                         { name: 'QTY', type: 'number' }, { name: 'Part_Description', type: 'text' },
@@ -2173,13 +2180,15 @@ const AppStore = () => {
                         { name: 'Active', type: 'boolean' }, { name: 'Lead_Time', type: 'number' }
                     ]});
                     const mdTable = await createTable({ name: 'Material_Definitions', fields: [
+                        { name: 'ID', type: 'text' },
                         { name: 'Name', type: 'text' }, { name: 'Type', type: 'text' },
                         { name: 'Description', type: 'text' }, { name: 'Image', type: 'text' },
-                        { name: 'Status', type: 'text' }, { name: 'Unit_of_Measure', type: 'text' },
+                        { name: 'Status', type: 'text' }, { name: 'Unit_Of_Measure', type: 'text' },
                         { name: 'Version_Revision', type: 'text' }, { name: 'Vendor_ID', type: 'text' },
                         { name: 'Target_Cycle_Time', type: 'number' }
                     ]});
                     const iiTable = await createTable({ name: 'Inventory_Items', fields: [
+                        { name: 'ID', type: 'text' },
                         { name: 'Material_Definition_ID', type: 'text' }, { name: 'Material_Definition_Type', type: 'text' },
                         { name: 'Status', type: 'text' }, { name: 'Location_ID', type: 'text' },
                         { name: 'Location_Area', type: 'text' }, { name: 'QTY', type: 'number' },
@@ -2300,45 +2309,50 @@ const AppStore = () => {
                         await addTableRecord({
                             tableId: mdTable.id,
                             fields: {
+                                'ID': 'DEMO-CYL-A1',
                                 'Name': 'Double-acting cylinder', 'Type': 'Pneumatic',
                                 'Description': 'DEMO-CYL-A1 assembly', 'Status': 'APPROVED',
-                                'Unit_of_Measure': 'pcs', 'Version_Revision': 'A',
+                                'Unit_Of_Measure': 'pcs', 'Version_Revision': 'A',
                                 'Vendor_ID': 'VEND-998', 'Target_Cycle_Time': 45
                             }
                         });
                         await addTableRecord({
                             tableId: mdTable.id,
                             fields: {
+                                'ID': 'FASTENER-M6',
                                 'Name': 'Socket Head Cap Screw', 'Type': 'Fastener',
                                 'Description': 'FASTENER-M6 standard screw', 'Status': 'APPROVED',
-                                'Unit_of_Measure': 'pcs', 'Version_Revision': 'B',
+                                'Unit_Of_Measure': 'pcs', 'Version_Revision': 'B',
                                 'Vendor_ID': 'VEND-881', 'Target_Cycle_Time': 5
                             }
                         });
                         await addTableRecord({
                             tableId: mdTable.id,
                             fields: {
+                                'ID': 'solenoid-valve-v2',
                                 'Name': 'Solenoid Valve', 'Type': 'Pneumatic',
                                 'Description': 'solenoid-valve-v2 24VDC', 'Status': 'APPROVED',
-                                'Unit_of_Measure': 'pcs', 'Version_Revision': 'A',
+                                'Unit_Of_Measure': 'pcs', 'Version_Revision': 'A',
                                 'Vendor_ID': 'VEND-202', 'Target_Cycle_Time': 30
                             }
                         });
                         await addTableRecord({
                             tableId: mdTable.id,
                             fields: {
+                                'ID': 'M4-MACHINE-SCREW',
                                 'Name': 'Machine Screw', 'Type': 'Fastener',
                                 'Description': 'M4-MACHINE-SCREW 12mm steel', 'Status': 'APPROVED',
-                                'Unit_of_Measure': 'pcs', 'Version_Revision': 'C',
+                                'Unit_Of_Measure': 'pcs', 'Version_Revision': 'C',
                                 'Vendor_ID': 'VEND-881', 'Target_Cycle_Time': 3
                             }
                         });
                         await addTableRecord({
                             tableId: mdTable.id,
                             fields: {
+                                'ID': 'steel-bracket-b1',
                                 'Name': 'Steel Bracket', 'Type': 'Structure',
                                 'Description': 'steel-bracket-b1 heavy duty bracket', 'Status': 'APPROVED',
-                                'Unit_of_Measure': 'pcs', 'Version_Revision': 'A',
+                                'Unit_Of_Measure': 'pcs', 'Version_Revision': 'A',
                                 'Vendor_ID': 'VEND-404', 'Target_Cycle_Time': 15
                             }
                         });
@@ -2347,6 +2361,7 @@ const AppStore = () => {
                         await addTableRecord({
                             tableId: iiTable.id,
                             fields: {
+                                'ID': 'DEMO-CYL-A1_BIN-12',
                                 'Material_Definition_ID': 'DEMO-CYL-A1', 'Material_Definition_Type': 'Pneumatic',
                                 'Status': 'AVAILABLE', 'Location_ID': 'BIN-12',
                                 'Location_Area': 'Rack A', 'QTY': 45, 'Unit_Of_Measure': 'pcs'
@@ -2355,6 +2370,7 @@ const AppStore = () => {
                         await addTableRecord({
                             tableId: iiTable.id,
                             fields: {
+                                'ID': 'FASTENER-M6_BIN-04',
                                 'Material_Definition_ID': 'FASTENER-M6', 'Material_Definition_Type': 'Fastener',
                                 'Status': 'AVAILABLE', 'Location_ID': 'BIN-04',
                                 'Location_Area': 'Rack B', 'QTY': 1200, 'Unit_Of_Measure': 'pcs'
@@ -2363,6 +2379,7 @@ const AppStore = () => {
                         await addTableRecord({
                             tableId: iiTable.id,
                             fields: {
+                                'ID': 'solenoid-valve-v2_BIN-08',
                                 'Material_Definition_ID': 'solenoid-valve-v2', 'Material_Definition_Type': 'Pneumatic',
                                 'Status': 'RESTRICTED', 'Location_ID': 'BIN-08',
                                 'Location_Area': 'QA Hold', 'QTY': 15, 'Unit_Of_Measure': 'pcs'
@@ -2371,6 +2388,7 @@ const AppStore = () => {
                         await addTableRecord({
                             tableId: iiTable.id,
                             fields: {
+                                'ID': 'M4-MACHINE-SCREW_BIN-15',
                                 'Material_Definition_ID': 'M4-MACHINE-SCREW', 'Material_Definition_Type': 'Fastener',
                                 'Status': 'AVAILABLE', 'Location_ID': 'BIN-15',
                                 'Location_Area': 'Rack C', 'QTY': 3500, 'Unit_Of_Measure': 'pcs'
@@ -2379,6 +2397,7 @@ const AppStore = () => {
                         await addTableRecord({
                             tableId: iiTable.id,
                             fields: {
+                                'ID': 'steel-bracket-b1_BIN-22',
                                 'Material_Definition_ID': 'steel-bracket-b1', 'Material_Definition_Type': 'Structure',
                                 'Status': 'AVAILABLE', 'Location_ID': 'BIN-22',
                                 'Location_Area': 'Rack D', 'QTY': 180, 'Unit_Of_Measure': 'pcs'
@@ -2602,6 +2621,7 @@ const AppStore = () => {
                 templateApp = createMaterialWarehouseTemplate();
                 try {
                     const invTable = await createTable({ name: 'Inventory_Items', fields: [
+                        { name: 'ID', type: 'text' },
                         { name: 'Material_Definition_ID', type: 'text' }, { name: 'Location_ID', type: 'text' },
                         { name: 'Location_Area', type: 'text' }, { name: 'QTY', type: 'number' },
                         { name: 'Unit_Of_Measure', type: 'text' }, { name: 'Status', type: 'text' },
@@ -2609,6 +2629,7 @@ const AppStore = () => {
                     ]});
 
                     const mdTable = await createTable({ name: 'Material_Definitions', fields: [
+                        { name: 'ID', type: 'text' },
                         { name: 'Name', type: 'text' }, { name: 'Type', type: 'text' },
                         { name: 'Description', type: 'text' }, { name: 'Image', type: 'text' },
                         { name: 'Status', type: 'text' }, { name: 'Unit_Of_Measure', type: 'text' },

@@ -5906,15 +5906,6 @@ const LiveTerminal = () => {
             <div style={{ fontSize: '0.7rem', color: '#475569' }}>{comp.props.fileUrl ? comp.props.fileUrl : 'No CAD file configured'}</div>
           </div>
         );
-      // ── TEXT alias (AI sometimes sends 'TEXT' with label instead of text prop) ──
-      case 'LABEL':
-      case 'HEADING':
-      case 'PARAGRAPH':
-        return (
-          <div style={{ fontSize: `${comp.props.fontSize || 14}px`, color: comp.props.color || comp.props.textcolor || (isDark ? '#f8fafc' : '#1e293b'), fontWeight: comp.props.fontWeight || 'normal', textAlign: comp.props.textAlignment === 1 ? 'center' : comp.props.textAlignment === 2 ? 'right' : 'left', backgroundColor: comp.props.backgroundColor || 'transparent', padding: comp.props.backgroundColor ? '8px' : 0, borderRadius: '4px', width: '100%' }}>
-            {safeRender(comp.props.text || comp.props.label || '')}
-          </div>
-        );
       default: return (
         <div style={{ color: '#dc2626', backgroundColor: '#fee2e2', padding: '10px', borderRadius: '4px', fontSize: '0.75rem', border: '1px solid #fecaca' }}>
           Unknown Type: {comp.type}

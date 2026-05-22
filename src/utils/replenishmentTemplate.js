@@ -72,24 +72,44 @@ export function createReplenishmentTemplate() {
             },
             // Detail layout fields
             {
-                id: `rep_det_pn_${ts}`, type: 'TEXT',
-                x: 520, y: 165, w: 180, h: 45,
-                props: { text: 'Part Number\n{{@Selected_History_Request.Item}}', fontSize: 13, color: '#64748b', fontWeight: 'bold' }
+                id: `rep_det_pn_lbl_${ts}`, type: 'TEXT',
+                x: 520, y: 165, w: 180, h: 20,
+                props: { text: 'Part Number', fontSize: 13, color: '#64748b', fontWeight: 'bold' }
             },
             {
-                id: `rep_det_desc_${ts}`, type: 'TEXT',
-                x: 720, y: 165, w: 180, h: 45,
-                props: { text: 'Part Description\n{{@Selected_History_Request.Bin}}', fontSize: 13, color: '#64748b', fontWeight: 'bold' }
+                id: `rep_det_pn_${ts}`, type: 'TEXT_INPUT',
+                x: 520, y: 185, w: 180, h: 30,
+                props: { targetVariable: 'Selected_History_Request.Item', readOnly: true, backgroundColor: '#f8fafc' }
             },
             {
-                id: `rep_det_qty_${ts}`, type: 'TEXT',
-                x: 520, y: 220, w: 180, h: 45,
-                props: { text: 'QTY\n{{@Selected_History_Request.Quantity}}', fontSize: 13, color: '#64748b', fontWeight: 'bold' }
+                id: `rep_det_desc_lbl_${ts}`, type: 'TEXT',
+                x: 720, y: 165, w: 180, h: 20,
+                props: { text: 'Part Description', fontSize: 13, color: '#64748b', fontWeight: 'bold' }
             },
             {
-                id: `rep_det_stat_${ts}`, type: 'TEXT',
-                x: 720, y: 220, w: 180, h: 45,
-                props: { text: 'Status\n{{@Selected_History_Request.Status}}', fontSize: 13, color: '#64748b', fontWeight: 'bold' }
+                id: `rep_det_desc_${ts}`, type: 'TEXT_INPUT',
+                x: 720, y: 185, w: 180, h: 30,
+                props: { targetVariable: 'Selected_History_Request.Bin', readOnly: true, backgroundColor: '#f8fafc' }
+            },
+            {
+                id: `rep_det_qty_lbl_${ts}`, type: 'TEXT',
+                x: 520, y: 220, w: 180, h: 20,
+                props: { text: 'QTY', fontSize: 13, color: '#64748b', fontWeight: 'bold' }
+            },
+            {
+                id: `rep_det_qty_${ts}`, type: 'TEXT_INPUT',
+                x: 520, y: 240, w: 180, h: 30,
+                props: { targetVariable: 'Selected_History_Request.Quantity', readOnly: true, backgroundColor: '#f8fafc' }
+            },
+            {
+                id: `rep_det_stat_lbl_${ts}`, type: 'TEXT',
+                x: 720, y: 220, w: 180, h: 20,
+                props: { text: 'Status', fontSize: 13, color: '#64748b', fontWeight: 'bold' }
+            },
+            {
+                id: `rep_det_stat_${ts}`, type: 'TEXT_INPUT',
+                x: 720, y: 240, w: 180, h: 30,
+                props: { targetVariable: 'Selected_History_Request.Status', readOnly: true, backgroundColor: '#f8fafc' }
             },
             // Product image under grid
             {
@@ -159,29 +179,54 @@ export function createReplenishmentTemplate() {
             },
             // Details grid
             {
-                id: `sk_det_id_${ts}`, type: 'TEXT',
-                x: 520, y: 65, w: 180, h: 45,
-                props: { text: 'ID\n{{@Selected_Kanban_Card.ID}}', fontSize: 13, color: '#64748b', fontWeight: 'bold' }
+                id: `sk_det_id_lbl_${ts}`, type: 'TEXT',
+                x: 520, y: 65, w: 180, h: 20,
+                props: { text: 'ID', fontSize: 13, color: '#64748b', fontWeight: 'bold' }
             },
             {
-                id: `sk_det_pn_${ts}`, type: 'TEXT',
-                x: 720, y: 65, w: 180, h: 45,
-                props: { text: 'Part Number\n{{@Selected_Kanban_Card.Part_Number}}', fontSize: 13, color: '#64748b', fontWeight: 'bold' }
+                id: `sk_det_id_${ts}`, type: 'TEXT_INPUT',
+                x: 520, y: 85, w: 180, h: 30,
+                props: { targetVariable: 'Selected_Kanban_Card.ID', readOnly: true, backgroundColor: '#f8fafc' }
             },
             {
-                id: `sk_det_desc_${ts}`, type: 'TEXT',
-                x: 520, y: 120, w: 180, h: 45,
-                props: { text: 'Part Description\n{{@Selected_Kanban_Card.Part_Description}}', fontSize: 13, color: '#64748b', fontWeight: 'bold' }
+                id: `sk_det_pn_lbl_${ts}`, type: 'TEXT',
+                x: 720, y: 65, w: 180, h: 20,
+                props: { text: 'Part Number', fontSize: 13, color: '#64748b', fontWeight: 'bold' }
             },
             {
-                id: `sk_det_qty_${ts}`, type: 'TEXT',
-                x: 720, y: 120, w: 180, h: 45,
-                props: { text: 'QTY\n{{@Selected_Kanban_Card.QTY}}', fontSize: 13, color: '#64748b', fontWeight: 'bold' }
+                id: `sk_det_pn_${ts}`, type: 'TEXT_INPUT',
+                x: 720, y: 85, w: 180, h: 30,
+                props: { targetVariable: 'Selected_Kanban_Card.Part_Number', readOnly: true, backgroundColor: '#f8fafc' }
             },
             {
-                id: `sk_det_sup_${ts}`, type: 'TEXT',
-                x: 520, y: 175, w: 380, h: 45,
-                props: { text: 'Supplier\n{{@Selected_Kanban_Card.Supplier}}', fontSize: 13, color: '#64748b', fontWeight: 'bold' }
+                id: `sk_det_desc_lbl_${ts}`, type: 'TEXT',
+                x: 520, y: 120, w: 180, h: 20,
+                props: { text: 'Part Description', fontSize: 13, color: '#64748b', fontWeight: 'bold' }
+            },
+            {
+                id: `sk_det_desc_${ts}`, type: 'TEXT_INPUT',
+                x: 520, y: 140, w: 180, h: 30,
+                props: { targetVariable: 'Selected_Kanban_Card.Part_Description', readOnly: true, backgroundColor: '#f8fafc' }
+            },
+            {
+                id: `sk_det_qty_lbl_${ts}`, type: 'TEXT',
+                x: 720, y: 120, w: 180, h: 20,
+                props: { text: 'QTY', fontSize: 13, color: '#64748b', fontWeight: 'bold' }
+            },
+            {
+                id: `sk_det_qty_${ts}`, type: 'TEXT_INPUT',
+                x: 720, y: 140, w: 180, h: 30,
+                props: { targetVariable: 'Selected_Kanban_Card.QTY', readOnly: true, backgroundColor: '#f8fafc' }
+            },
+            {
+                id: `sk_det_sup_lbl_${ts}`, type: 'TEXT',
+                x: 520, y: 175, w: 380, h: 20,
+                props: { text: 'Supplier', fontSize: 13, color: '#64748b', fontWeight: 'bold' }
+            },
+            {
+                id: `sk_det_sup_${ts}`, type: 'TEXT_INPUT',
+                x: 520, y: 195, w: 380, h: 30,
+                props: { targetVariable: 'Selected_Kanban_Card.Supplier', readOnly: true, backgroundColor: '#f8fafc' }
             },
             // Product image under grid (screws/parts)
             {

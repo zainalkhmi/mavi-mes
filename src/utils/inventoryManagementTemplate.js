@@ -42,7 +42,14 @@ export function createInventoryManagementTemplate() {
         { id: `v23_${ts}`, name: 'Filter_KB_ID', type: 'string', defaultValue: '', persisted: true },
         { id: `v24_${ts}`, name: 'Filter_KB_Desc', type: 'string', defaultValue: '', persisted: true },
         { id: `v25_${ts}`, name: 'Filter_KB_ConsLoc', type: 'string', defaultValue: '', persisted: true },
-        { id: `v26_${ts}`, name: 'Filter_KB_SupLoc', type: 'string', defaultValue: '', persisted: true }
+        { id: `v26_${ts}`, name: 'Filter_KB_SupLoc', type: 'string', defaultValue: '', persisted: true },
+        // Newly added filter variables
+        { id: `v27_${ts}`, name: 'Filter_Inv_ID', type: 'string', defaultValue: '', persisted: true },
+        { id: `v28_${ts}`, name: 'Filter_Inv_Item', type: 'string', defaultValue: '', persisted: true },
+        { id: `v29_${ts}`, name: 'Filter_Inv_Loc', type: 'string', defaultValue: '', persisted: true },
+        { id: `v30_${ts}`, name: 'Filter_Inv_Status', type: 'string', defaultValue: '', persisted: true },
+        { id: `v31_${ts}`, name: 'Filter_Req_Status', type: 'string', defaultValue: '', persisted: true },
+        { id: `v32_${ts}`, name: 'Filter_KB_Active', type: 'boolean', defaultValue: true, persisted: true }
     ];
 
     // Record Placeholders
@@ -64,12 +71,59 @@ export function createInventoryManagementTemplate() {
                 props: { text: 'Current Inventory', fontSize: 24, fontWeight: 'bold' }
             },
             {
+                id: `filter_inv_id_lbl_${ts}`, type: 'TEXT',
+                x: 20, y: 65, w: 130, h: 20,
+                props: { text: 'Filter by ID', fontSize: 13, fontWeight: 'bold' }
+            },
+            {
+                id: `filter_inv_id_in_${ts}`, type: 'TEXT_INPUT',
+                x: 20, y: 85, w: 130, h: 35,
+                props: { targetVariable: 'Filter_Inv_ID', placeholder: 'Enter ID...' }
+            },
+            {
+                id: `filter_inv_item_lbl_${ts}`, type: 'TEXT',
+                x: 165, y: 65, w: 140, h: 20,
+                props: { text: 'Filter by Item Name', fontSize: 13, fontWeight: 'bold' }
+            },
+            {
+                id: `filter_inv_item_in_${ts}`, type: 'TEXT_INPUT',
+                x: 165, y: 85, w: 140, h: 35,
+                props: { targetVariable: 'Filter_Inv_Item', placeholder: 'Part number...' }
+            },
+            {
+                id: `filter_inv_loc_lbl_${ts}`, type: 'TEXT',
+                x: 320, y: 65, w: 135, h: 20,
+                props: { text: 'Filter by Location', fontSize: 13, fontWeight: 'bold' }
+            },
+            {
+                id: `filter_inv_loc_in_${ts}`, type: 'TEXT_INPUT',
+                x: 320, y: 85, w: 135, h: 35,
+                props: { targetVariable: 'Filter_Inv_Loc', placeholder: 'e.g. BIN-12...' }
+            },
+            {
+                id: `filter_inv_status_lbl_${ts}`, type: 'TEXT',
+                x: 470, y: 65, w: 150, h: 20,
+                props: { text: 'Filter by Status', fontSize: 13, fontWeight: 'bold' }
+            },
+            {
+                id: `filter_inv_status_in_${ts}`, type: 'TEXT_INPUT',
+                x: 470, y: 85, w: 150, h: 35,
+                props: { targetVariable: 'Filter_Inv_Status', placeholder: 'e.g. AVAILABLE...' }
+            },
+            {
                 id: `c2_${ts}`, type: 'INTERACTIVE_TABLE',
-                x: 20, y: 70, w: 600, h: 360,
+                x: 20, y: 130, w: 600, h: 300,
                 props: {
                     tableId: T.inventoryItems,
                     title: 'Current Inventory List',
-                    columns: ['ID', 'Material_Definition_ID', 'QTY', 'Location_ID', 'Location_Area', 'Status']
+                    columns: ['ID', 'Material_Definition_ID', 'QTY', 'Location_ID', 'Location_Area', 'Status'],
+                    variableFilters: [
+                        { variableName: 'Filter_Inv_ID', columnName: 'ID' },
+                        { variableName: 'Filter_Inv_Item', columnName: 'Material_Definition_ID' },
+                        { variableName: 'Filter_Inv_Loc', columnName: 'Location_ID' },
+                        { variableName: 'Filter_Inv_Status', columnName: 'Status' }
+                    ],
+                    linkedRecordPlaceholderId: `r1_${ts}`
                 },
                 triggers: [
                     {
@@ -398,9 +452,9 @@ export function createInventoryManagementTemplate() {
                 props: { text: 'New Status *', fontSize: 14, fontWeight: 'bold' }
             },
             {
-                id: `es4_${ts}`, type: 'TEXT_INPUT',
+                id: `es4_${ts}`, type: 'DROPDOWN',
                 x: 280, y: 320, w: 380, h: 40,
-                props: { targetVariable: 'New_Status_Val', placeholder: 'Available / Blocked / Quarantined...' }
+                props: { targetVariable: 'New_Status_Val', options: ['AVAILABLE', 'RESTRICTED', 'BLOCKED', 'QUARANTINED'] }
             },
             {
                 id: `es_cancel_${ts}`, type: 'BUTTON',
@@ -476,10 +530,9 @@ export function createInventoryManagementTemplate() {
                 props: { text: 'Status', fontSize: 13, fontWeight: 'bold' }
             },
             {
-                id: `filter_stat_btn_${ts}`, type: 'BUTTON',
+                id: `filter_stat_btn_${ts}`, type: 'DROPDOWN',
                 x: 390, y: 75, w: 100, h: 35,
-                props: { text: 'Select options', backgroundColor: '#e2e8f0', color: 'black', fontSize: 12 },
-                triggers: [{ name: 'Open Status Filters Window', event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Status filters opened', messageType: 'info' }]
+                props: { targetVariable: 'Filter_Req_Status', options: ['REQUESTED', 'ACTIVE', 'COMPLETED', 'CANCELLED'] }
             },
             // Table underneath filters
             {
@@ -488,7 +541,14 @@ export function createInventoryManagementTemplate() {
                 props: {
                     tableId: T.materialRequests,
                     title: '',
-                    columns: ['Kanban_ID', 'Item', 'Requesting_Location', 'Status']
+                    columns: ['Kanban_ID', 'Item', 'Requesting_Location', 'Status'],
+                    variableFilters: [
+                        { variableName: 'Filter_Kanban_ID', columnName: 'Kanban_ID' },
+                        { variableName: 'Filter_Item_Name', columnName: 'Item' },
+                        { variableName: 'Filter_Location', columnName: 'Requesting_Location' },
+                        { variableName: 'Filter_Req_Status', columnName: 'Status' }
+                    ],
+                    linkedRecordPlaceholderId: `r3_${ts}`
                 },
                 triggers: [
                     {
@@ -518,54 +578,104 @@ export function createInventoryManagementTemplate() {
             },
             // Metadata grid layout (exactly matching image details structure)
             {
-                id: `hist_det_id_${ts}`, type: 'TEXT',
-                x: 520, y: 170, w: 180, h: 50,
-                props: { text: 'ID\n{{@Selected_History_Request.ID}}', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+                id: `hist_det_id_lbl_${ts}`, type: 'TEXT',
+                x: 520, y: 170, w: 180, h: 20,
+                props: { text: 'ID', fontSize: 13, color: '#475569', fontWeight: 'bold' }
             },
             {
-                id: `hist_det_itm_${ts}`, type: 'TEXT',
-                x: 720, y: 170, w: 180, h: 50,
-                props: { text: 'Item\n{{@Selected_History_Request.Item}}', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+                id: `hist_det_id_${ts}`, type: 'TEXT_INPUT',
+                x: 520, y: 190, w: 180, h: 30,
+                props: { targetVariable: 'Selected_History_Request.ID', readOnly: true, backgroundColor: '#f1f5f9' }
             },
             {
-                id: `hist_det_req_loc_${ts}`, type: 'TEXT',
-                x: 520, y: 230, w: 180, h: 50,
-                props: { text: 'Requesting Location\n{{@Selected_History_Request.Requesting_Location}}', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+                id: `hist_det_itm_lbl_${ts}`, type: 'TEXT',
+                x: 720, y: 170, w: 180, h: 20,
+                props: { text: 'Item', fontSize: 13, color: '#475569', fontWeight: 'bold' }
             },
             {
-                id: `hist_det_sup_${ts}`, type: 'TEXT',
-                x: 720, y: 230, w: 180, h: 50,
-                props: { text: 'Supplier\n{{@Selected_History_Request.Supplier}}', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+                id: `hist_det_itm_${ts}`, type: 'TEXT_INPUT',
+                x: 720, y: 190, w: 180, h: 30,
+                props: { targetVariable: 'Selected_History_Request.Item', readOnly: true, backgroundColor: '#f1f5f9' }
             },
             {
-                id: `hist_det_kb_${ts}`, type: 'TEXT',
-                x: 520, y: 290, w: 180, h: 50,
-                props: { text: 'Kanban ID\n{{@Selected_History_Request.Kanban_ID}}', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+                id: `hist_det_req_loc_lbl_${ts}`, type: 'TEXT',
+                x: 520, y: 230, w: 180, h: 20,
+                props: { text: 'Requesting Location', fontSize: 13, color: '#475569', fontWeight: 'bold' }
             },
             {
-                id: `hist_det_qty_${ts}`, type: 'TEXT',
-                x: 720, y: 290, w: 180, h: 50,
-                props: { text: 'Quantity\n{{@Selected_History_Request.Quantity}}', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+                id: `hist_det_req_loc_${ts}`, type: 'TEXT_INPUT',
+                x: 520, y: 250, w: 180, h: 30,
+                props: { targetVariable: 'Selected_History_Request.Requesting_Location', readOnly: true, backgroundColor: '#f1f5f9' }
             },
             {
-                id: `hist_det_t_req_${ts}`, type: 'TEXT',
-                x: 520, y: 350, w: 180, h: 50,
-                props: { text: 'Requested\n{{@Selected_History_Request.Requested}}', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+                id: `hist_det_sup_lbl_${ts}`, type: 'TEXT',
+                x: 720, y: 230, w: 180, h: 20,
+                props: { text: 'Supplier', fontSize: 13, color: '#475569', fontWeight: 'bold' }
             },
             {
-                id: `hist_det_t_start_${ts}`, type: 'TEXT',
-                x: 720, y: 350, w: 180, h: 50,
-                props: { text: 'Started\n{{@Selected_History_Request.Started}}', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+                id: `hist_det_sup_${ts}`, type: 'TEXT_INPUT',
+                x: 720, y: 250, w: 180, h: 30,
+                props: { targetVariable: 'Selected_History_Request.Supplier', readOnly: true, backgroundColor: '#f1f5f9' }
             },
             {
-                id: `hist_det_t_comp_${ts}`, type: 'TEXT',
-                x: 520, y: 410, w: 180, h: 50,
-                props: { text: 'Completed\n{{@Selected_History_Request.Completed}}', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+                id: `hist_det_kb_lbl_${ts}`, type: 'TEXT',
+                x: 520, y: 290, w: 180, h: 20,
+                props: { text: 'Kanban ID', fontSize: 13, color: '#475569', fontWeight: 'bold' }
             },
             {
-                id: `hist_det_deliv_${ts}`, type: 'TEXT',
-                x: 720, y: 410, w: 180, h: 50,
-                props: { text: 'Delivered by\n{{@Selected_History_Request.Delivered_by}}', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+                id: `hist_det_kb_${ts}`, type: 'TEXT_INPUT',
+                x: 520, y: 310, w: 180, h: 30,
+                props: { targetVariable: 'Selected_History_Request.Kanban_ID', readOnly: true, backgroundColor: '#f1f5f9' }
+            },
+            {
+                id: `hist_det_qty_lbl_${ts}`, type: 'TEXT',
+                x: 720, y: 290, w: 180, h: 20,
+                props: { text: 'Quantity', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+            },
+            {
+                id: `hist_det_qty_${ts}`, type: 'TEXT_INPUT',
+                x: 720, y: 310, w: 180, h: 30,
+                props: { targetVariable: 'Selected_History_Request.Quantity', readOnly: true, backgroundColor: '#f1f5f9' }
+            },
+            {
+                id: `hist_det_t_req_lbl_${ts}`, type: 'TEXT',
+                x: 520, y: 350, w: 180, h: 20,
+                props: { text: 'Requested', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+            },
+            {
+                id: `hist_det_t_req_${ts}`, type: 'TEXT_INPUT',
+                x: 520, y: 370, w: 180, h: 30,
+                props: { targetVariable: 'Selected_History_Request.Requested', readOnly: true, backgroundColor: '#f1f5f9' }
+            },
+            {
+                id: `hist_det_t_start_lbl_${ts}`, type: 'TEXT',
+                x: 720, y: 350, w: 180, h: 20,
+                props: { text: 'Started', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+            },
+            {
+                id: `hist_det_t_start_${ts}`, type: 'TEXT_INPUT',
+                x: 720, y: 370, w: 180, h: 30,
+                props: { targetVariable: 'Selected_History_Request.Started', readOnly: true, backgroundColor: '#f1f5f9' }
+            },
+            {
+                id: `hist_det_t_comp_lbl_${ts}`, type: 'TEXT',
+                x: 520, y: 410, w: 180, h: 20,
+                props: { text: 'Completed', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+            },
+            {
+                id: `hist_det_t_comp_${ts}`, type: 'TEXT_INPUT',
+                x: 520, y: 430, w: 180, h: 30,
+                props: { targetVariable: 'Selected_History_Request.Completed', readOnly: true, backgroundColor: '#f1f5f9' }
+            },
+            {
+                id: `hist_det_deliv_lbl_${ts}`, type: 'TEXT',
+                x: 720, y: 410, w: 180, h: 20,
+                props: { text: 'Delivered by', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+            },
+            {
+                id: `hist_det_deliv_${ts}`, type: 'TEXT_INPUT',
+                x: 720, y: 430, w: 180, h: 30,
+                props: { targetVariable: 'Selected_History_Request.Delivered_by', readOnly: true, backgroundColor: '#f1f5f9' }
             },
             // Left Footer Button: <- View inventory items
             {
@@ -610,10 +720,9 @@ export function createInventoryManagementTemplate() {
                 props: { text: 'Filter by Consuming Location', fontSize: 13, fontWeight: 'bold' }
             },
             {
-                id: `f_kb_cons_sel_${ts}`, type: 'BUTTON', // Select an option dropdown mock
+                id: `f_kb_cons_sel_${ts}`, type: 'DROPDOWN',
                 x: 360, y: 30, w: 200, h: 35,
-                props: { text: 'Select an option  ▼', backgroundColor: 'white', color: 'black', border: '1px solid #cbd5e1' },
-                triggers: [{ name: 'Filter by Consuming Location', event: 'ON_CLICK', type: 'LOGIC', action: 'SET_VARIABLE', variableId: 'Filter_KB_ConsLoc', value: 'Assembly' }]
+                props: { targetVariable: 'Filter_KB_ConsLoc', options: ['Station 1', 'Station 2', 'Station 3', 'Station 4', 'Station 5', 'Assembly'] }
             },
             {
                 id: `f_kb_sup_lbl_${ts}`, type: 'TEXT',
@@ -621,10 +730,9 @@ export function createInventoryManagementTemplate() {
                 props: { text: 'Filter by Supply Location', fontSize: 13, fontWeight: 'bold' }
             },
             {
-                id: `f_kb_sup_sel_${ts}`, type: 'BUTTON',
+                id: `f_kb_sup_sel_${ts}`, type: 'DROPDOWN',
                 x: 570, y: 30, w: 180, h: 35,
-                props: { text: 'Select an option  ▼', backgroundColor: 'white', color: 'black', border: '1px solid #cbd5e1' },
-                triggers: [{ name: 'Filter by Supplying Location', event: 'ON_CLICK', type: 'LOGIC', action: 'SET_VARIABLE', variableId: 'Filter_KB_SupLoc', value: 'Supermarket' }]
+                props: { targetVariable: 'Filter_KB_SupLoc', options: ['Supplier A', 'Fastener Inc', 'SMC Pneumatics', 'Apex Metalworks', 'Supermarket'] }
             },
             {
                 id: `f_kb_act_lbl_${ts}`, type: 'TEXT',
@@ -634,8 +742,10 @@ export function createInventoryManagementTemplate() {
             {
                 id: `f_kb_act_tgl_${ts}`, type: 'BUTTON', // Toggle Switch
                 x: 760, y: 30, w: 100, h: 35,
-                props: { text: 'ON [Active Only]', backgroundColor: '#2563eb', color: 'white', borderRadius: '15px' },
-                triggers: [{ name: 'Toggle Active Filter', event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Toggled active filter!', messageType: 'info' }]
+                props: { text: '{{@Filter_KB_Active ? "ON [Active]" : "OFF [All]"}}', backgroundColor: '#2563eb', color: 'white', borderRadius: '15px' },
+                triggers: [
+                    { name: 'Toggle Active Filter', event: 'ON_CLICK', type: 'LOGIC', action: 'SET_VARIABLE', variableId: 'Filter_KB_Active', value: '{{!@Filter_KB_Active}}' }
+                ]
             },
             // Table underneath the filters
             {
@@ -644,7 +754,15 @@ export function createInventoryManagementTemplate() {
                 props: {
                     tableId: T.kanbanCards,
                     title: '',
-                    columns: ['ID', 'Part_Number', 'Part_Description', 'Consuming_location', 'Supplier', 'QTY', 'Status', 'Active']
+                    columns: ['ID', 'Part_Number', 'Part_Description', 'Consuming_location', 'Supplier', 'QTY', 'Status', 'Active'],
+                    variableFilters: [
+                        { variableName: 'Filter_KB_ID', columnName: 'ID' },
+                        { variableName: 'Filter_KB_Desc', columnName: 'Part_Description' },
+                        { variableName: 'Filter_KB_ConsLoc', columnName: 'Consuming_location' },
+                        { variableName: 'Filter_KB_SupLoc', columnName: 'Supplier' },
+                        { variableName: 'Filter_KB_Active', columnName: 'Active' }
+                    ],
+                    linkedRecordPlaceholderId: `r2_${ts}`
                 },
                 triggers: [
                     {
@@ -671,7 +789,7 @@ export function createInventoryManagementTemplate() {
                         event: 'ON_CLICK', type: 'DATA', action: 'TABLE_RECORD_CREATE',
                         tableId: T.kanbanCards,
                         mapping: {
-                            'ID': 'KC_{{Selected_Kanban_Card.QTY + 100}}',
+                            'ID': '{{ "KC_" + ((Number(String([Selected_Kanban_Card.ID]).replace(/[^0-9]/g, "")) || 0) + 1) }}',
                             'Part_Number': '{{@Selected_Kanban_Card.Part_Number}}',
                             'Part_Description': '{{@Selected_Kanban_Card.Part_Description}}',
                             'QTY': '{{@Selected_Kanban_Card.QTY}}',
@@ -764,10 +882,9 @@ export function createInventoryManagementTemplate() {
                 props: { text: 'Supply Location *', fontSize: 13, fontWeight: 'bold' }
             },
             {
-                id: `ck_sel_sup_${ts}`, type: 'BUTTON',
+                id: `ck_sel_sup_${ts}`, type: 'DROPDOWN',
                 x: 30, y: 220, w: 200, h: 35,
-                props: { text: 'Select an option  ▼', backgroundColor: 'white', color: 'black', border: '1px solid #cbd5e1' },
-                triggers: [{ name: 'Select Supplier Location', event: 'ON_CLICK', type: 'LOGIC', action: 'SET_VARIABLE', variableId: 'New_Kanban_Supplier', value: 'Supermarket' }]
+                props: { targetVariable: 'New_Kanban_Supplier', options: ['Supplier A', 'Fastener Inc', 'SMC Pneumatics', 'Apex Metalworks', 'Supermarket'] }
             },
             {
                 id: `ck_lbl_cons_${ts}`, type: 'TEXT',
@@ -775,10 +892,9 @@ export function createInventoryManagementTemplate() {
                 props: { text: 'Consuming Location *', fontSize: 13, fontWeight: 'bold' }
             },
             {
-                id: `ck_sel_cons_${ts}`, type: 'BUTTON',
+                id: `ck_sel_cons_${ts}`, type: 'DROPDOWN',
                 x: 250, y: 220, w: 200, h: 35,
-                props: { text: 'Select an option  ▼', backgroundColor: 'white', color: 'black', border: '1px solid #cbd5e1' },
-                triggers: [{ name: 'Select Consuming Location', event: 'ON_CLICK', type: 'LOGIC', action: 'SET_VARIABLE', variableId: 'New_Kanban_ConsLoc', value: 'Assembly' }]
+                props: { targetVariable: 'New_Kanban_ConsLoc', options: ['Station 1', 'Station 2', 'Station 3', 'Station 4', 'Station 5', 'Assembly'] }
             },
             // Inside card Clear button
             {
@@ -855,54 +971,104 @@ export function createInventoryManagementTemplate() {
             },
             // Grid layout showing selected card info
             {
-                id: `ek_grid_id_${ts}`, type: 'TEXT',
-                x: 280, y: 90, w: 120, h: 50,
-                props: { text: 'ID\n{{@Selected_Kanban_Card.ID}}', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+                id: `ek_grid_id_lbl_${ts}`, type: 'TEXT',
+                x: 280, y: 90, w: 120, h: 20,
+                props: { text: 'ID', fontSize: 13, color: '#475569', fontWeight: 'bold' }
             },
             {
-                id: `ek_grid_pn_${ts}`, type: 'TEXT',
-                x: 420, y: 90, w: 120, h: 50,
-                props: { text: 'Part Number\n{{@Selected_Kanban_Card.Part_Number}}', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+                id: `ek_grid_id_${ts}`, type: 'TEXT_INPUT',
+                x: 280, y: 110, w: 120, h: 30,
+                props: { targetVariable: 'Selected_Kanban_Card.ID', readOnly: true, backgroundColor: '#f8fafc' }
             },
             {
-                id: `ek_grid_stat_${ts}`, type: 'TEXT',
-                x: 560, y: 90, w: 120, h: 50,
-                props: { text: 'Status\n{{@Selected_Kanban_Card.Status}}', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+                id: `ek_grid_pn_lbl_${ts}`, type: 'TEXT',
+                x: 420, y: 90, w: 120, h: 20,
+                props: { text: 'Part Number', fontSize: 13, color: '#475569', fontWeight: 'bold' }
             },
             {
-                id: `ek_grid_cons_${ts}`, type: 'TEXT',
-                x: 280, y: 150, w: 120, h: 50,
-                props: { text: 'Consuming Location\n{{@Selected_Kanban_Card.Consuming_location}}', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+                id: `ek_grid_pn_${ts}`, type: 'TEXT_INPUT',
+                x: 420, y: 110, w: 120, h: 30,
+                props: { targetVariable: 'Selected_Kanban_Card.Part_Number', readOnly: true, backgroundColor: '#f8fafc' }
             },
             {
-                id: `ek_grid_sup_${ts}`, type: 'TEXT',
-                x: 420, y: 150, w: 120, h: 50,
-                props: { text: 'Supplier\n{{@Selected_Kanban_Card.Supplier}}', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+                id: `ek_grid_stat_lbl_${ts}`, type: 'TEXT',
+                x: 560, y: 90, w: 120, h: 20,
+                props: { text: 'Status', fontSize: 13, color: '#475569', fontWeight: 'bold' }
             },
             {
-                id: `ek_grid_qty_${ts}`, type: 'TEXT',
-                x: 560, y: 150, w: 120, h: 50,
-                props: { text: 'QTY\n{{@Selected_Kanban_Card.QTY}}', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+                id: `ek_grid_stat_${ts}`, type: 'TEXT_INPUT',
+                x: 560, y: 110, w: 120, h: 30,
+                props: { targetVariable: 'Selected_Kanban_Card.Status', readOnly: true, backgroundColor: '#f8fafc' }
             },
             {
-                id: `ek_grid_desc_${ts}`, type: 'TEXT',
-                x: 280, y: 210, w: 120, h: 55,
-                props: { text: 'Part Description\n{{@Selected_Kanban_Card.Part_Description}}', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+                id: `ek_grid_cons_lbl_${ts}`, type: 'TEXT',
+                x: 280, y: 150, w: 120, h: 20,
+                props: { text: 'Consuming Location', fontSize: 13, color: '#475569', fontWeight: 'bold' }
             },
             {
-                id: `ek_grid_col_${ts}`, type: 'TEXT',
-                x: 420, y: 210, w: 120, h: 55,
-                props: { text: 'Status Color\n{{@Selected_Kanban_Card.Status_Color}}', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+                id: `ek_grid_cons_${ts}`, type: 'TEXT_INPUT',
+                x: 280, y: 170, w: 120, h: 30,
+                props: { targetVariable: 'Selected_Kanban_Card.Consuming_location', readOnly: true, backgroundColor: '#f8fafc' }
             },
             {
-                id: `ek_grid_img_${ts}`, type: 'TEXT',
-                x: 560, y: 210, w: 120, h: 55,
-                props: { text: 'Image\n{{@Selected_Kanban_Card.Image}}', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+                id: `ek_grid_sup_lbl_${ts}`, type: 'TEXT',
+                x: 420, y: 150, w: 120, h: 20,
+                props: { text: 'Supplier', fontSize: 13, color: '#475569', fontWeight: 'bold' }
             },
             {
-                id: `ek_grid_act_${ts}`, type: 'TEXT',
-                x: 280, y: 275, w: 400, h: 45,
-                props: { text: 'Active\n{{@Selected_Kanban_Card.Active}}', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+                id: `ek_grid_sup_${ts}`, type: 'TEXT_INPUT',
+                x: 420, y: 170, w: 120, h: 30,
+                props: { targetVariable: 'Selected_Kanban_Card.Supplier', readOnly: true, backgroundColor: '#f8fafc' }
+            },
+            {
+                id: `ek_grid_qty_lbl_${ts}`, type: 'TEXT',
+                x: 560, y: 150, w: 120, h: 20,
+                props: { text: 'QTY', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+            },
+            {
+                id: `ek_grid_qty_${ts}`, type: 'TEXT_INPUT',
+                x: 560, y: 170, w: 120, h: 30,
+                props: { targetVariable: 'Selected_Kanban_Card.QTY', readOnly: true, backgroundColor: '#f8fafc' }
+            },
+            {
+                id: `ek_grid_desc_lbl_${ts}`, type: 'TEXT',
+                x: 280, y: 210, w: 120, h: 20,
+                props: { text: 'Part Description', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+            },
+            {
+                id: `ek_grid_desc_${ts}`, type: 'TEXT_INPUT',
+                x: 280, y: 230, w: 120, h: 30,
+                props: { targetVariable: 'Selected_Kanban_Card.Part_Description', readOnly: true, backgroundColor: '#f8fafc' }
+            },
+            {
+                id: `ek_grid_col_lbl_${ts}`, type: 'TEXT',
+                x: 420, y: 210, w: 120, h: 20,
+                props: { text: 'Status Color', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+            },
+            {
+                id: `ek_grid_col_${ts}`, type: 'TEXT_INPUT',
+                x: 420, y: 230, w: 120, h: 30,
+                props: { targetVariable: 'Selected_Kanban_Card.Status_Color', readOnly: true, backgroundColor: '#f8fafc' }
+            },
+            {
+                id: `ek_grid_img_lbl_${ts}`, type: 'TEXT',
+                x: 560, y: 210, w: 120, h: 20,
+                props: { text: 'Image', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+            },
+            {
+                id: `ek_grid_img_${ts}`, type: 'TEXT_INPUT',
+                x: 560, y: 230, w: 120, h: 30,
+                props: { targetVariable: 'Selected_Kanban_Card.Image', readOnly: true, backgroundColor: '#f8fafc' }
+            },
+            {
+                id: `ek_grid_act_lbl_${ts}`, type: 'TEXT',
+                x: 280, y: 275, w: 400, h: 20,
+                props: { text: 'Active', fontSize: 13, color: '#475569', fontWeight: 'bold' }
+            },
+            {
+                id: `ek_grid_act_${ts}`, type: 'TEXT_INPUT',
+                x: 280, y: 295, w: 400, h: 30,
+                props: { targetVariable: 'Selected_Kanban_Card.Active', readOnly: true, backgroundColor: '#f8fafc' }
             },
             // Inside card Activate / Deactivate buttons
             {
@@ -955,12 +1121,64 @@ export function createInventoryManagementTemplate() {
                 props: { text: 'Container Bin Label Preview', fontSize: 22, fontWeight: 'bold', textAlignment: 1 }
             },
             {
-                id: `pl2_${ts}`, type: 'TEXT',
-                x: 320, y: 100, w: 320, h: 220,
-                props: {
-                    text: 'BIN CONTAINER LABEL\n\n-----------------------------\nKANBAN ID: {{@Selected_Kanban_ID}}\nPART: {{@Selected_Kanban_Card.Part_Number}}\nDESC: {{@Selected_Kanban_Card.Part_Description}}\nQTY: {{@Selected_Kanban_Card.QTY}}\nDEST: {{@Selected_Kanban_Card.Consuming_location}}\n-----------------------------\n[ SCANNABLE BARCODE ]',
-                    fontSize: 14, fontWeight: 'bold', border: '2px solid black', padding: '20px', backgroundColor: 'white'
-                }
+                id: `pl_lbl_title_${ts}`, type: 'TEXT',
+                x: 320, y: 100, w: 320, h: 30,
+                props: { text: 'BIN CONTAINER LABEL', fontSize: 16, fontWeight: 'bold', textAlignment: 1 }
+            },
+            {
+                id: `pl_lbl_kanban_${ts}`, type: 'TEXT',
+                x: 320, y: 140, w: 100, h: 20,
+                props: { text: 'KANBAN ID:', fontSize: 13, fontWeight: 'bold' }
+            },
+            {
+                id: `pl_in_kanban_${ts}`, type: 'TEXT_INPUT',
+                x: 420, y: 135, w: 220, h: 30,
+                props: { targetVariable: 'Selected_Kanban_ID', readOnly: true, backgroundColor: '#f8fafc' }
+            },
+            {
+                id: `pl_lbl_part_${ts}`, type: 'TEXT',
+                x: 320, y: 175, w: 100, h: 20,
+                props: { text: 'PART:', fontSize: 13, fontWeight: 'bold' }
+            },
+            {
+                id: `pl_in_part_${ts}`, type: 'TEXT_INPUT',
+                x: 420, y: 170, w: 220, h: 30,
+                props: { targetVariable: 'Selected_Kanban_Card.Part_Number', readOnly: true, backgroundColor: '#f8fafc' }
+            },
+            {
+                id: `pl_lbl_desc_${ts}`, type: 'TEXT',
+                x: 320, y: 210, w: 100, h: 20,
+                props: { text: 'DESC:', fontSize: 13, fontWeight: 'bold' }
+            },
+            {
+                id: `pl_in_desc_${ts}`, type: 'TEXT_INPUT',
+                x: 420, y: 205, w: 220, h: 30,
+                props: { targetVariable: 'Selected_Kanban_Card.Part_Description', readOnly: true, backgroundColor: '#f8fafc' }
+            },
+            {
+                id: `pl_lbl_qty_${ts}`, type: 'TEXT',
+                x: 320, y: 245, w: 100, h: 20,
+                props: { text: 'QTY:', fontSize: 13, fontWeight: 'bold' }
+            },
+            {
+                id: `pl_in_qty_${ts}`, type: 'TEXT_INPUT',
+                x: 420, y: 240, w: 220, h: 30,
+                props: { targetVariable: 'Selected_Kanban_Card.QTY', readOnly: true, backgroundColor: '#f8fafc' }
+            },
+            {
+                id: `pl_lbl_dest_${ts}`, type: 'TEXT',
+                x: 320, y: 280, w: 100, h: 20,
+                props: { text: 'DEST:', fontSize: 13, fontWeight: 'bold' }
+            },
+            {
+                id: `pl_in_dest_${ts}`, type: 'TEXT_INPUT',
+                x: 420, y: 275, w: 220, h: 30,
+                props: { targetVariable: 'Selected_Kanban_Card.Consuming_location', readOnly: true, backgroundColor: '#f8fafc' }
+            },
+            {
+                id: `pl_barcode_${ts}`, type: 'TEXT',
+                x: 320, y: 315, w: 320, h: 30,
+                props: { text: '[ SCANNABLE BARCODE ]', fontSize: 14, fontWeight: 'bold', textAlignment: 1 }
             },
             {
                 id: `pl_print_${ts}`, type: 'BUTTON',

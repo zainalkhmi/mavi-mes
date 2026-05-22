@@ -63,9 +63,14 @@ export function createMaterialRequestTemplate() {
                 }
             },
             {
-                id: `c5_${ts}`, type: 'TEXT',
-                x: 520, y: 290, w: 420, h: 180,
-                props: { text: 'Card Image:\n\n{{@Selected_Kanban_Card.Image}}', fontSize: 16, backgroundColor: '#f8fafc', padding: '10px' }
+                id: `c5_lbl_${ts}`, type: 'TEXT',
+                x: 520, y: 290, w: 420, h: 20,
+                props: { text: 'Card Image:', fontSize: 16, fontWeight: 'bold' }
+            },
+            {
+                id: `c5_${ts}`, type: 'TEXT_INPUT',
+                x: 520, y: 315, w: 420, h: 40,
+                props: { targetVariable: 'Selected_Kanban_Card.Image', readOnly: true, backgroundColor: '#f8fafc' }
             },
             {
                 id: `c6_${ts}`, type: 'BUTTON',
