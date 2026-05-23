@@ -921,6 +921,20 @@ const COMPONENT_TYPES = {
             enableFilter: true,
             enableExport: false,
             pageSize: 10,
+            density: 'comfortable', // compact | comfortable
+            savedViews: [], // { id, name, filters, sort, hiddenColumns, pinnedColumns }
+            defaultViewId: '',
+            quickFilterChips: [], // { label, column, value }
+            columnConfig: {}, // { [colKey]: { hidden, width, pinned } }
+            sortRules: [], // { field, direction }
+            rowActions: [
+                { id: 'open', label: 'Open', event: 'ON_ROW_OPEN' },
+                { id: 'complete', label: 'Complete', event: 'ON_ROW_COMPLETE' }
+            ],
+            bulkActions: [
+                { id: 'mark_complete', label: 'Mark Complete', field: 'status', value: 'Completed' },
+                { id: 'mark_hold', label: 'Mark Hold', field: 'status', value: 'On Hold' }
+            ],
             linkedRecordPlaceholderId: '',
             triggers: [],
             visibilityCondition: null,
@@ -23749,6 +23763,7 @@ const AppBuilder = () => {
 };
 
 export default AppBuilder;
+
 
 
 
