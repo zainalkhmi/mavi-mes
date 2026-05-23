@@ -97,6 +97,7 @@ import {
     Minimize,
     Sparkles,
     Wand2,
+    ShoppingBag,
     GripVertical,
     ToggleRight,
     Undo,
@@ -8036,6 +8037,21 @@ const AppBuilder = () => {
                         }
                     } catch (e) { /* ignore parse errors */ }
                 });
+
+                // Remove from AppStore installed templates so template shows "Install" again
+                try {
+                    const raw = localStorage.getItem('installedAppStoreTemplates');
+                    if (raw) {
+                        const mapping = JSON.parse(raw);
+                        const updatedMapping = {};
+                        for (const [templateId, appId] of Object.entries(mapping)) {
+                            if (String(appId) !== String(id)) {
+                                updatedMapping[templateId] = appId;
+                            }
+                        }
+                        localStorage.setItem('installedAppStoreTemplates', JSON.stringify(updatedMapping));
+                    }
+                } catch (e) { /* ignore parse errors */ }
 
                 if (currentAppId === id) resetBuilder();
                 await loadApps();
@@ -23295,9 +23311,41 @@ const AppBuilder = () => {
                                         </div>
                                     </div>
 
-                                    {/* AI Composer Card */}
+                                    {/* App Store Card */}
                                     <div
-                                        onClick={() => fileInputRef.current?.click()}
+                                        onClick={() => { window.location.href = '/store'; }}
+                                        style={{
+                                            padding: '40px', borderRadius: '20px', border: '2px solid var(--border-primary)', cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                            display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '20px',
+                                            background: 'linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%)', position: 'relative', overflow: 'hidden'
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.borderColor = '#22c55e';
+                                            e.currentTarget.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1)';
+                                            e.currentTarget.style.transform = 'translateY(-4px)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.borderColor = '#e2e8f0';
+                                            e.currentTarget.style.boxShadow = 'none';
+                                            e.currentTarget.style.transform = 'none';
+                                        }}
+                                    >
+                                        <div style={{ width: '80px', height: '80px', borderRadius: '20px', backgroundColor: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a' }}>
+                                            <ShoppingBag size={40} />
+                                        </div>
+                                        <div>
+                                            <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>From Appstore</h3>
+                                            <p style={{ marginTop: '8px', fontSize: '0.95rem', color: 'var(--text-quaternary)', lineHeight: 1.5 }}>Browse and install ready-to-use template applications.</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Copilot Card */}
+                                    <div
+                                        onClick={() => {
+                                            resetBuilder();
+                                            setIsCreateDrawerOpen(false);
+                                            setTimeout(() => setIsCopilotOpen(true), 300);
+                                        }}
                                         style={{
                                             padding: '40px', borderRadius: '20px', border: '2px solid var(--border-primary)', cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                                             display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '20px',
@@ -23319,67 +23367,11 @@ const AppBuilder = () => {
                                             <Sparkles size={40} />
                                         </div>
                                         <div>
-                                            <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>AI Composer</h3>
-                                            <p style={{ marginTop: '8px', fontSize: '0.95rem', color: 'var(--text-quaternary)', lineHeight: 1.5 }}>Upload an SOP or document and let AI generate the app structure for you.</p>
+                                            <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>Copilot</h3>
+                                            <p style={{ marginTop: '8px', fontSize: '0.95rem', color: 'var(--text-quaternary)', lineHeight: 1.5 }}>Build your application through natural language with an intelligent AI Copilot.</p>
                                         </div>
                                         <div style={{ marginTop: '10px', padding: '6px 16px', borderRadius: '20px', backgroundColor: '#8b5cf6', color: '#fff', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                                             Premium Beta
-                                        </div>
-                                    </div>
-
-                                    {/* Template Tune-Up Card */}
-                                    <div
-                                        onClick={handleCreateTuneUpTemplate}
-                                        style={{
-                                            padding: '40px', borderRadius: '20px', border: '2px solid var(--border-primary)', cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                            display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '20px',
-                                            background: 'linear-gradient(135deg, #ffffff 0%, #eff6ff 100%)', position: 'relative', overflow: 'hidden'
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.borderColor = '#3b82f6';
-                                            e.currentTarget.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1)';
-                                            e.currentTarget.style.transform = 'translateY(-4px)';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.borderColor = '#e2e8f0';
-                                            e.currentTarget.style.boxShadow = 'none';
-                                            e.currentTarget.style.transform = 'none';
-                                        }}
-                                    >
-                                        <div style={{ width: '80px', height: '80px', borderRadius: '20px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6' }}>
-                                            <Activity size={40} />
-                                        </div>
-                                        <div>
-                                            <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>Tune-Up Pro Template</h3>
-                                            <p style={{ marginTop: '8px', fontSize: '0.95rem', color: 'var(--text-quaternary)', lineHeight: 1.5 }}>Deploy an advanced automotive app with OBD2 & AI capabilities.</p>
-                                        </div>
-                                    </div>
-
-                                    {/* Template App Card */}
-                                    <div
-                                        onClick={handleCreateTemplateApp}
-                                        style={{
-                                            padding: '40px', borderRadius: '20px', border: '2px solid var(--border-primary)', cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                            display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '20px',
-                                            background: 'linear-gradient(135deg, #ffffff 0%, #ecfdf5 100%)', position: 'relative', overflow: 'hidden'
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.borderColor = '#10b981';
-                                            e.currentTarget.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1)';
-                                            e.currentTarget.style.transform = 'translateY(-4px)';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.borderColor = '#e2e8f0';
-                                            e.currentTarget.style.boxShadow = 'none';
-                                            e.currentTarget.style.transform = 'none';
-                                        }}
-                                    >
-                                        <div style={{ width: '80px', height: '80px', borderRadius: '20px', backgroundColor: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
-                                            <Settings2 size={40} />
-                                        </div>
-                                        <div>
-                                            <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>Shopfloor Template</h3>
-                                            <p style={{ marginTop: '8px', fontSize: '0.95rem', color: 'var(--text-quaternary)', lineHeight: 1.5 }}>Instantly deploy a 5-step Standard Work Application with built-in QA.</p>
                                         </div>
                                     </div>
 

@@ -68,6 +68,7 @@ export const updateTableRecord = async (tableId, recordId, data) => {
 };
 export const resolveTableIdReference = supabaseTablesDB.resolveTableIdReference;
 export const createTable = supabaseTablesDB.createTable;
+export const deleteTable = supabaseTablesDB.deleteTable;
 
 // ── Completions API (Proxy to supabaseCompletionsDB) ──────────────────────────
 export const logCompletion = supabaseCompletionsDB.saveCompletion;

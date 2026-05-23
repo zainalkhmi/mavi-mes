@@ -1,4 +1,5 @@
 import { getSupabaseClient } from './supabaseManualDB.js';
+import { deleteTable } from './database.js';
 
 async function getStations() {
     const supabase = getSupabaseClient();
@@ -173,6 +174,28 @@ export async function approveApp(appId, operatorId) {
 
 export async function deleteFrontlineApp(id) {
     const supabase = getSupabaseClient();
+
+    // 0. Fetch the app config to check for associated tables
+    try {
+        const { data: appData } = await supabase
+            .from('frontline_apps')
+            .select('config')
+            .eq('id', id)
+            .single();
+
+        if (appData && appData.config && Array.isArray(appData.config.appTables)) {
+            for (const tableId of appData.config.appTables) {
+                try {
+                    console.log(`[Delete] Deleting associated table: ${tableId}`);
+                    await deleteTable(tableId);
+                } catch (err) {
+                    console.warn(`[Delete] Failed to delete table ${tableId}:`, err);
+                }
+            }
+        }
+    } catch (e) {
+        console.warn(`[Delete] Failed to fetch app config for table deletion:`, e);
+    }
 
     // Delete ALL child rows first to avoid FK violations
 

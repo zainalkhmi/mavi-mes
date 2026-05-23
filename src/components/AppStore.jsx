@@ -39,12 +39,65 @@ import { createQualityInspectionSuiteTemplate } from '../utils/qualityInspection
 import { createFrontlineQmsTemplate } from '../utils/frontlineQmsTemplate';
 import { createMaterialReviewBoardTemplate } from '../utils/materialReviewBoardTemplate';
 
-import { saveFrontlineApp } from '../utils/supabaseFrontlineDB';
+import { saveFrontlineApp, deleteFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { createTable, getTables, addTableRecord } from '../utils/database';
 import { getCurrentUser } from '../utils/auth';
 import toast, { Toaster } from 'react-hot-toast';
 
+
+const generateSmartDummyData = (fields, count = 3) => {
+    const records = [];
+    for (let i = 1; i <= count; i++) {
+        const record = {};
+        fields.forEach(f => {
+            const name = f.name.toLowerCase();
+            if (name === 'id' || name.includes('_id')) {
+                record[f.name] = `REC-${Math.floor(Math.random()*10000)}-${i}`;
+            } else if (f.type === 'number' || f.type === 'integer') {
+                if (name.includes('qty')) record[f.name] = Math.floor(Math.random() * 100) + 10;
+                else record[f.name] = Math.floor(Math.random() * 100);
+            } else if (f.type === 'datetime') {
+                record[f.name] = new Date(Date.now() - Math.random() * 1000000000).toISOString();
+            } else if (f.type === 'boolean') {
+                record[f.name] = Math.random() > 0.5;
+            } else if (name.includes('status')) {
+                record[f.name] = ['PENDING', 'ACTIVE', 'COMPLETED', 'RUNNING'][i % 4];
+            } else if (name.includes('operator') || name.includes('inspector') || name.includes('user')) {
+                record[f.name] = ['Adam Veres', 'Lianna Churchill', 'David Miller', 'Sarah Jenkins'][i % 4];
+            } else if (name.includes('location') || name.includes('station')) {
+                record[f.name] = ['Station 1', 'Line 1', 'Warehouse A', 'Station 2'][i % 4];
+            } else if (name.includes('reason') || name.includes('desc')) {
+                record[f.name] = `Sample description for ${f.name} ${i}`;
+            } else {
+                record[f.name] = `Sample ${f.name} ${i}`;
+            }
+        });
+        records.push(record);
+    }
+    return records;
+};
+
+const getOrCreateTableAndSeed = async (allTables, tableDef, skipSeed = false) => {
+    const existingTable = allTables.find(t => t.name === tableDef.name);
+    if (existingTable) {
+        return existingTable;
+    }
+    const newTable = await createTable(tableDef);
+    if (!skipSeed && newTable) {
+        try {
+            const dummyRecords = generateSmartDummyData(tableDef.fields || [], 3);
+            for (const record of dummyRecords) {
+                await addTableRecord({ tableId: newTable.id, fields: record });
+            }
+        } catch (e) {
+            console.warn('Failed to insert generic dummy data for', tableDef.name, e);
+        }
+    }
+    return newTable;
+};
+
 const AppStore = () => {
+
     const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState('');
     const [activeCategory, setActiveCategory] = useState('All');
@@ -57,6 +110,10 @@ const AppStore = () => {
     });
     const [deletedTemplates, setDeletedTemplates] = useState(() => {
         try { return JSON.parse(localStorage.getItem('deletedAppStoreTemplates')) || []; } catch { return []; }
+    });
+    // Track which templates have been installed (templateId -> appId mapping)
+    const [installedTemplates, setInstalledTemplates] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('installedAppStoreTemplates')) || {}; } catch { return {}; }
     });
     const [isAdmin, setIsAdmin] = useState(false);
     
@@ -86,7 +143,32 @@ const AppStore = () => {
             });
         }
     };
-    const categories = ['All', 'Quality', 'Manufacturing', 'Production', 'MES Production Suite', 'Inventory App Suite', 'Warehouse', 'Automotive', 'Analytic'];
+
+    const handleUninstall = async (e, templateId) => {
+        e.stopPropagation();
+        const appId = installedTemplates[templateId];
+        if (!appId) return;
+
+        if (window.confirm("Are you sure you want to uninstall this app? This will permanently delete the app from your builder.")) {
+            try {
+                await deleteFrontlineApp(appId);
+                
+                // Remove from installed templates
+                setInstalledTemplates(prev => {
+                    const next = { ...prev };
+                    delete next[templateId];
+                    localStorage.setItem('installedAppStoreTemplates', JSON.stringify(next));
+                    return next;
+                });
+                toast.success('App uninstalled successfully');
+            } catch (err) {
+                console.error('Failed to uninstall app:', err);
+                toast.error('Failed to uninstall app: ' + err.message);
+            }
+        }
+    };
+
+    const categories = ['All', 'App Management', 'Quality', 'Manufacturing', 'Production', 'MES Production Suite', 'Inventory App Suite', 'Warehouse', 'Automotive', 'Analytic'];
 
 
     const templates = [
@@ -1073,6 +1155,11 @@ const AppStore = () => {
 
     const filteredTemplates = templates.filter(t => {
         if (deletedTemplates.includes(t.id)) return false;
+        
+        if (activeCategory === 'App Management') {
+            return !!installedTemplates[t.id];
+        }
+
         const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             t.description.toLowerCase().includes(searchQuery.toLowerCase());
         const matchesCategory = activeCategory === 'All' || t.category === activeCategory;
@@ -1082,6 +1169,7 @@ const AppStore = () => {
     });
 
     const handleInstall = async (templateId) => {
+        const allTables = await getTables();
         setInstallingId(templateId);
         const loadingToast = toast.loading('Installing template...');
         const iso = new Date().toISOString();
@@ -1092,7 +1180,7 @@ const AppStore = () => {
             if (templateId === 'incoming-inspection') {
                 templateApp = createIncomingInspectionTemplate();
                 try {
-                    const iqcTable = await createTable({
+                    const iqcTable = await getOrCreateTableAndSeed(allTables, {
                         name: 'IQC_Inspections',
                         fields: [
                             { name: 'Part_Number', type: 'text' },
@@ -1119,7 +1207,7 @@ const AppStore = () => {
             } else if (templateId === 'weigh-dispense') {
                 templateApp = createWeighDispenseTemplate();
                 try {
-                    const wdTable = await createTable({
+                    const wdTable = await getOrCreateTableAndSeed(allTables, {
                         name: 'WD_Dispense_Logs',
                         fields: [
                             { name: 'Batch_Number', type: 'text' },
@@ -1142,7 +1230,7 @@ const AppStore = () => {
             } else if (templateId === 'assy-line-production') {
                 templateApp = createAssyLineProductionTemplate();
                 try {
-                    const ordersTable = await createTable({ name: 'Production_Orders', fields: [
+                    const ordersTable = await getOrCreateTableAndSeed(allTables, { name: 'Production_Orders', fields: [
                         { name: 'Work_Order_ID', type: 'text' }, { name: 'Line_Assy', type: 'text' },
                         { name: 'Shift', type: 'text' }, { name: 'Machine_ID', type: 'text' },
                         { name: 'Article', type: 'text' }, { name: 'Target_Qty', type: 'number' },
@@ -1153,19 +1241,19 @@ const AppStore = () => {
                         { name: 'Linked_Downtime', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_Order' },
                         { name: 'Linked_Notes', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_Order' }
                     ] });
-                    const countsTable = await createTable({ name: 'Production_Counts', fields: [
+                    const countsTable = await getOrCreateTableAndSeed(allTables, { name: 'Production_Counts', fields: [
                         { name: 'Work_Order_ID', type: 'text' }, { name: 'Count_Interval', type: 'text' },
                         { name: 'Interval_Parts', type: 'number' }, { name: 'Interval_Defects', type: 'number' },
                         { name: 'Operator', type: 'text' }, { name: 'Timestamp', type: 'datetime' },
                         { name: 'Parent_Order', type: 'linked_record', link_table_id: ordersTable?.id, link_type: 'many_to_one', reverse_link_name: 'Linked_Counts' }
                     ] });
-                    const downtimeTable = await createTable({ name: 'Downtime_Events', fields: [
+                    const downtimeTable = await getOrCreateTableAndSeed(allTables, { name: 'Downtime_Events', fields: [
                         { name: 'Work_Order_ID', type: 'text' }, { name: 'Downtime_Reason', type: 'text' },
                         { name: 'Downtime_Minutes', type: 'number' }, { name: 'Fault_Code', type: 'text' },
                         { name: 'Machine_ID', type: 'text' }, { name: 'Operator', type: 'text' }, { name: 'Timestamp', type: 'datetime' },
                         { name: 'Parent_Order', type: 'linked_record', link_table_id: ordersTable?.id, link_type: 'many_to_one', reverse_link_name: 'Linked_Downtime' }
                     ] });
-                    const notesTable = await createTable({ name: 'Production_Notes', fields: [
+                    const notesTable = await getOrCreateTableAndSeed(allTables, { name: 'Production_Notes', fields: [
                         { name: 'Work_Order_ID', type: 'text' }, { name: 'Note_Text', type: 'text' },
                         { name: 'Operator', type: 'text' }, { name: 'Timestamp', type: 'datetime' },
                         { name: 'Parent_Order', type: 'linked_record', link_table_id: ordersTable?.id, link_type: 'many_to_one', reverse_link_name: 'Linked_Notes' }
@@ -1185,13 +1273,13 @@ const AppStore = () => {
                 templateApp = createInventoryAlertTemplate();
                 try {
                     // 1. Suppliers table
-                    const supTable = await createTable({ name: 'Inventory_Suppliers', fields: [
+                    const supTable = await getOrCreateTableAndSeed(allTables, { name: 'Inventory_Suppliers', fields: [
                         { name: 'Supplier_Name', type: 'text' }, { name: 'Contact', type: 'text' },
                         { name: 'Lead_Days', type: 'number' }, { name: 'Rating', type: 'text' },
                         { name: 'Linked_Materials', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Supplier' }
                     ] });
                     // 2. Materials table with formula fields
-                    const matTable = await createTable({ name: 'Inventory_Materials', fields: [
+                    const matTable = await getOrCreateTableAndSeed(allTables, { name: 'Inventory_Materials', fields: [
                         { name: 'Material_Name', type: 'text' }, { name: 'Item_Number', type: 'text' },
                         { name: 'Current_Qty', type: 'number' }, { name: 'Reorder_Point', type: 'number' },
                         { name: 'Unit_Cost', type: 'number' }, { name: 'Location', type: 'text' },
@@ -1203,7 +1291,7 @@ const AppStore = () => {
                         { name: 'Linked_Alerts', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_Material' }
                     ] });
                     // 3. Transactions table
-                    const txTable = await createTable({ name: 'Inventory_Transactions', fields: [
+                    const txTable = await getOrCreateTableAndSeed(allTables, { name: 'Inventory_Transactions', fields: [
                         { name: 'Order_ID', type: 'text' }, { name: 'Item_Number', type: 'text' },
                         { name: 'Material_Name', type: 'text' }, { name: 'Qty', type: 'number' },
                         { name: 'Type', type: 'text' }, { name: 'Unit_Cost', type: 'number' },
@@ -1212,7 +1300,7 @@ const AppStore = () => {
                         { name: 'Parent_Material', type: 'linked_record', link_table_id: matTable?.id, link_type: 'many_to_one', reverse_link_name: 'Linked_Transactions' }
                     ] });
                     // 4. Alerts table
-                    const alertTable = await createTable({ name: 'Inventory_Alerts', fields: [
+                    const alertTable = await getOrCreateTableAndSeed(allTables, { name: 'Inventory_Alerts', fields: [
                         { name: 'Material_Name', type: 'text' }, { name: 'Item_Number', type: 'text' },
                         { name: 'Current_Qty', type: 'number' }, { name: 'Reorder_Point', type: 'number' },
                         { name: 'Alert_Type', type: 'text' }, { name: 'Status', type: 'text' },
@@ -1244,7 +1332,7 @@ const AppStore = () => {
             } else if (templateId === 'car-workshop') {
                 templateApp = createCarWorkshopTemplate();
                 try {
-                    const woTable = await createTable({ name: 'Workshop_Orders', fields: [
+                    const woTable = await getOrCreateTableAndSeed(allTables, { name: 'Workshop_Orders', fields: [
                         { name: 'License_Plate', type: 'text' }, { name: 'Vehicle_Make', type: 'text' },
                         { name: 'Vehicle_Model', type: 'text' }, { name: 'Vehicle_Year', type: 'text' },
                         { name: 'Mileage', type: 'number' }, { name: 'Customer_Name', type: 'text' },
@@ -1255,21 +1343,21 @@ const AppStore = () => {
                         { name: 'Linked_Inspections', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_WO' },
                         { name: 'Linked_Parts', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_WO' }
                     ] });
-                    const svcTable = await createTable({ name: 'Service_Items', fields: [
+                    const svcTable = await getOrCreateTableAndSeed(allTables, { name: 'Service_Items', fields: [
                         { name: 'Service_Type', type: 'text' }, { name: 'Description', type: 'text' },
                         { name: 'Labor_Hours', type: 'number' }, { name: 'Labor_Rate', type: 'number' },
                         { name: 'Labor_Cost', type: 'formula', formulaExpression: 'Labor_Hours * Labor_Rate' },
                         { name: 'Technician', type: 'text' }, { name: 'Timestamp', type: 'datetime' },
                         { name: 'Parent_WO', type: 'linked_record', link_table_id: woTable?.id, link_type: 'many_to_one', reverse_link_name: 'Linked_Services' }
                     ] });
-                    const inspTable = await createTable({ name: 'Vehicle_Inspections', fields: [
+                    const inspTable = await getOrCreateTableAndSeed(allTables, { name: 'Vehicle_Inspections', fields: [
                         { name: 'Engine', type: 'text' }, { name: 'Brakes', type: 'text' },
                         { name: 'Tires', type: 'text' }, { name: 'Fluids', type: 'text' },
                         { name: 'Lights', type: 'text' }, { name: 'Suspension', type: 'text' },
                         { name: 'Notes', type: 'text' }, { name: 'Timestamp', type: 'datetime' },
                         { name: 'Parent_WO', type: 'linked_record', link_table_id: woTable?.id, link_type: 'many_to_one', reverse_link_name: 'Linked_Inspections' }
                     ] });
-                    const partsTable = await createTable({ name: 'Parts_Used', fields: [
+                    const partsTable = await getOrCreateTableAndSeed(allTables, { name: 'Parts_Used', fields: [
                         { name: 'Part_Name', type: 'text' }, { name: 'Qty', type: 'number' },
                         { name: 'Unit_Price', type: 'number' },
                         { name: 'Line_Total', type: 'formula', formulaExpression: 'Qty * Unit_Price' },
@@ -1296,14 +1384,14 @@ const AppStore = () => {
             } else if (templateId === 'andon-system') {
                 templateApp = createAndonSystemTemplate();
                 try {
-                    const eventTable = await createTable({ name: 'Andon_Events', fields: [
+                    const eventTable = await getOrCreateTableAndSeed(allTables, { name: 'Andon_Events', fields: [
                         { name: 'Station_ID', type: 'text' }, { name: 'Alert_Category', type: 'text' },
                         { name: 'Description', type: 'text' }, { name: 'Severity', type: 'text' },
                         { name: 'Status', type: 'text' }, { name: 'Raised_By', type: 'text' },
                         { name: 'Timestamp', type: 'datetime' },
                         { name: 'Linked_Resolutions', type: 'linked_record', link_type: 'one_to_one', reverse_link_name: 'Parent_Event' }
                     ] });
-                    const resTable = await createTable({ name: 'Andon_Resolutions', fields: [
+                    const resTable = await getOrCreateTableAndSeed(allTables, { name: 'Andon_Resolutions', fields: [
                         { name: 'Root_Cause', type: 'text' }, { name: 'Action_Taken', type: 'text' },
                         { name: 'Downtime_Mins', type: 'number' }, { name: 'Responder', type: 'text' },
                         { name: 'Timestamp', type: 'datetime' },
@@ -1327,17 +1415,17 @@ const AppStore = () => {
             } else if (templateId === 'picklist') {
                 templateApp = createPicklistTemplate();
                 try {
-                    const itemMasterTable = await createTable({ name: 'Item_Master', fields: [
+                    const itemMasterTable = await getOrCreateTableAndSeed(allTables, { name: 'Item_Master', fields: [
                         { name: 'Item_Name', type: 'text' }, { name: 'Description', type: 'text' },
                         { name: 'UOM', type: 'text' }, { name: 'Type', type: 'text' }
                     ] });
-                    const orderMatTable = await createTable({ name: 'Order_Materials', fields: [
+                    const orderMatTable = await getOrCreateTableAndSeed(allTables, { name: 'Order_Materials', fields: [
                         { name: 'Product_Name', type: 'text' }, { name: 'Type', type: 'text' },
                         { name: 'QTY_Required', type: 'number' }, { name: 'QTY_Complete', type: 'number' },
                         { name: 'Due_Date', type: 'datetime' }, { name: 'Status', type: 'text' },
                         { name: 'Location', type: 'text' }
                     ] });
-                    const bomTable = await createTable({ name: 'Manufacturing_BOM', fields: [
+                    const bomTable = await getOrCreateTableAndSeed(allTables, { name: 'Manufacturing_BOM', fields: [
                         { name: 'Parent_Item', type: 'text' }, { name: 'Child_Item', type: 'text' },
                         { name: 'Child_Item_QTY', type: 'number' }
                     ] });
@@ -1355,7 +1443,7 @@ const AppStore = () => {
             } else if (templateId === 'defect-tracking') {
                 templateApp = createDefectTrackingTemplate();
                 try {
-                    const defectTable = await createTable({ name: 'Defect_Events', fields: [
+                    const defectTable = await getOrCreateTableAndSeed(allTables, { name: 'Defect_Events', fields: [
                         { name: 'Material_ID', type: 'text' }, { name: 'Reported_Date', type: 'datetime' },
                         { name: 'Reason', type: 'text' }, { name: 'Status', type: 'text' },
                         { name: 'Description', type: 'text' }, { name: 'Quantity', type: 'number' },
@@ -1374,13 +1462,13 @@ const AppStore = () => {
             } else if (templateId === 'equipment-management') {
                 templateApp = createEquipmentManagementTemplate();
                 try {
-                    const assetTable = await createTable({ name: 'Asset', fields: [
+                    const assetTable = await getOrCreateTableAndSeed(allTables, { name: 'Asset', fields: [
                         { name: 'ID', type: 'text' }, { name: 'Name', type: 'text' },
                         { name: 'Status', type: 'text' }, { name: 'Type', type: 'text' },
                         { name: 'Tare_Weight', type: 'number' }, { name: 'Last_Calibration', type: 'datetime' },
                         { name: 'Description', type: 'text' }
                     ] });
-                    const historyTable = await createTable({ name: 'Equipment_Status_History', fields: [
+                    const historyTable = await getOrCreateTableAndSeed(allTables, { name: 'Equipment_Status_History', fields: [
                         { name: 'Equipment_ID', type: 'text' }, { name: 'Activity_performed_by', type: 'text' },
                         { name: 'Performed_Activity', type: 'text' }, { name: 'Status', type: 'text' },
                         { name: 'Batch_ID', type: 'text' }, { name: 'Comment', type: 'text' },
@@ -1399,14 +1487,14 @@ const AppStore = () => {
             } else if (templateId === 'kanban-suite') {
                 templateApp = createKanbanAppSuiteTemplate();
                 try {
-                    const kanbanCardsTable = await createTable({ name: 'Kanban_Cards', fields: [
+                    const kanbanCardsTable = await getOrCreateTableAndSeed(allTables, { name: 'Kanban_Cards', fields: [
                         { name: 'Kanban_ID', type: 'text' }, { name: 'Part_Number', type: 'text' },
                         { name: 'Part_Description', type: 'text' }, { name: 'Consuming_Location', type: 'text' },
                         { name: 'Supply_Location', type: 'text' }, { name: 'QTY', type: 'number' },
                         { name: 'Status', type: 'text' }, { name: 'Active', type: 'text' },
                         { name: 'Image', type: 'text' }
                     ] });
-                    const matReqTable = await createTable({ name: 'Material_Requests', fields: [
+                    const matReqTable = await getOrCreateTableAndSeed(allTables, { name: 'Material_Requests', fields: [
                         { name: 'Kanban_ID', type: 'text' }, { name: 'Part_Number', type: 'text' },
                         { name: 'Status', type: 'text' }, { name: 'Requested_Time', type: 'datetime' }
                     ] });
@@ -1423,7 +1511,7 @@ const AppStore = () => {
             } else if (templateId === 'lean-dashboard') {
                 templateApp = createLeanDashboardTemplate();
                 try {
-                    const leanTable = await createTable({ name: 'tbl_lean_data', fields: [
+                    const leanTable = await getOrCreateTableAndSeed(allTables, { name: 'tbl_lean_data', fields: [
                         { name: 'Month', type: 'datetime' },
                         { name: 'Location', type: 'text' },
                         { name: 'Incidents_P', type: 'text' },
@@ -1443,7 +1531,7 @@ const AppStore = () => {
             } else if (templateId === 'order-management') {
                 templateApp = createOrderManagementTemplate();
                 try {
-                    const woTable = await createTable({ name: 'Work_Orders', fields: [
+                    const woTable = await getOrCreateTableAndSeed(allTables, { name: 'Work_Orders', fields: [
                         { name: 'Operator', type: 'text' }, { name: 'Parent_Order_ID', type: 'text' },
                         { name: 'Material_Definition_ID', type: 'text' }, { name: 'Status', type: 'text' },
                         { name: 'Location', type: 'text' }, { name: 'QTY_Required', type: 'number' },
@@ -1454,13 +1542,13 @@ const AppStore = () => {
                         { name: 'Linked_Notes', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_WO' },
                         { name: 'Linked_Inspections', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_WO' }
                     ]});
-                    const bomTable = await createTable({ name: 'Bill_Of_Materials', fields: [
+                    const bomTable = await getOrCreateTableAndSeed(allTables, { name: 'Bill_Of_Materials', fields: [
                         { name: 'Parent_Material_Definition_ID', type: 'text' }, { name: 'Parent_Material_Description', type: 'text' },
                         { name: 'Component_Material_Definition_ID', type: 'text' }, { name: 'Component_Material_Description', type: 'text' },
                         { name: 'Component_Quantity', type: 'number' }, { name: 'Component_UoM', type: 'text' },
                         { name: 'Point_of_Use', type: 'text' }
                     ]});
-                    const shTable = await createTable({ name: 'Station_Activity_History', fields: [
+                    const shTable = await getOrCreateTableAndSeed(allTables, { name: 'Station_Activity_History', fields: [
                         { name: 'Station_ID', type: 'text' }, { name: 'Status', type: 'text' },
                         { name: 'Start_Date_Time', type: 'datetime' }, { name: 'End_Date_Time', type: 'datetime' },
                         { name: 'Duration', type: 'number' }, { name: 'Material_Definition_ID', type: 'text' },
@@ -1469,14 +1557,14 @@ const AppStore = () => {
                         { name: 'Comments', type: 'text' }, { name: 'Unit_ID', type: 'text' },
                         { name: 'Parent_WO', type: 'linked_record', link_table_id: woTable?.id, link_type: 'many_to_one', reverse_link_name: 'Linked_History' }
                     ]});
-                    const notesTable = await createTable({ name: 'Notes_And_Comments', fields: [
+                    const notesTable = await getOrCreateTableAndSeed(allTables, { name: 'Notes_And_Comments', fields: [
                         { name: 'Reference_ID', type: 'text' }, { name: 'Location', type: 'text' },
                         { name: 'Notes', type: 'text' }, { name: 'Sender', type: 'text' },
                         { name: 'Updated_by', type: 'text' }, { name: 'Recipient', type: 'text' },
                         { name: 'Notes_Photo', type: 'text' },
                         { name: 'Parent_WO', type: 'linked_record', link_table_id: woTable?.id, link_type: 'many_to_one', reverse_link_name: 'Linked_Notes' }
                     ]});
-                    const irTable = await createTable({ name: 'Inspection_Results', fields: [
+                    const irTable = await getOrCreateTableAndSeed(allTables, { name: 'Inspection_Results', fields: [
                         { name: 'Unit_ID', type: 'text' }, { name: 'Material_Definition_ID', type: 'text' },
                         { name: 'Type', type: 'text' }, { name: 'Status', type: 'text' },
                         { name: 'Procedure', type: 'text' }, { name: 'Location', type: 'text' },
@@ -1503,7 +1591,7 @@ const AppStore = () => {
             } else if (templateId === 'review-and-ship') {
                 templateApp = createReviewAndShipTemplate();
                 try {
-                    const woTable = await createTable({ name: 'Work_Orders', fields: [
+                    const woTable = await getOrCreateTableAndSeed(allTables, { name: 'Work_Orders', fields: [
                         { name: 'Operator', type: 'text' }, { name: 'Parent_Order_ID', type: 'text' },
                         { name: 'Material_Definition_ID', type: 'text' }, { name: 'Status', type: 'text' },
                         { name: 'Location', type: 'text' }, { name: 'QTY_Required', type: 'number' },
@@ -1527,7 +1615,7 @@ const AppStore = () => {
             } else if (templateId === 'order-execution') {
                 templateApp = createOrderExecutionTemplate();
                 try {
-                    const woTable = await createTable({ name: 'Work_Orders', fields: [
+                    const woTable = await getOrCreateTableAndSeed(allTables, { name: 'Work_Orders', fields: [
                         { name: 'Operator', type: 'text' }, { name: 'Parent_Order_ID', type: 'text' },
                         { name: 'Material_Definition_ID', type: 'text' }, { name: 'Status', type: 'text' },
                         { name: 'Location', type: 'text' }, { name: 'QTY_Required', type: 'number' },
@@ -1535,14 +1623,14 @@ const AppStore = () => {
                         { name: 'Due_Date', type: 'datetime' }, { name: 'Start_Date', type: 'datetime' },
                         { name: 'Complete_Date', type: 'datetime' }, { name: 'Customer_ID', type: 'text' }
                     ]});
-                    const unitsTable = await createTable({ name: 'Units', fields: [
+                    const unitsTable = await getOrCreateTableAndSeed(allTables, { name: 'Units', fields: [
                         { name: 'Material_Definition_ID', type: 'text' }, { name: 'Material_Definition_Type', type: 'text' },
                         { name: 'Status', type: 'text' }, { name: 'Location', type: 'text' },
                         { name: 'QTY', type: 'number' }, { name: 'Unit_of_Measure', type: 'text' },
                         { name: 'Work_Order_ID', type: 'text' }, { name: 'Completed_Date', type: 'datetime' },
                         { name: 'Produced_By', type: 'text' }, { name: 'Parent_Unit_ID', type: 'text' }
                     ]});
-                    const shTable = await createTable({ name: 'Station_Activity_History', fields: [
+                    const shTable = await getOrCreateTableAndSeed(allTables, { name: 'Station_Activity_History', fields: [
                         { name: 'Station_ID', type: 'text' }, { name: 'Status', type: 'text' },
                         { name: 'Start_Date_Time', type: 'datetime' }, { name: 'End_Date_Time', type: 'datetime' },
                         { name: 'Duration', type: 'number' }, { name: 'Material_Definition_ID', type: 'text' },
@@ -1550,7 +1638,7 @@ const AppStore = () => {
                         { name: 'Defects', type: 'number' }, { name: 'Downtime_reason', type: 'text' },
                         { name: 'Comments', type: 'text' }, { name: 'Unit_ID', type: 'text' }, { name: 'Work_Order_ID', type: 'text' }
                     ]});
-                    const stationsTable = await createTable({ name: 'Stations', fields: [
+                    const stationsTable = await getOrCreateTableAndSeed(allTables, { name: 'Stations', fields: [
                         { name: 'Status', type: 'text' }, { name: 'Status_Color', type: 'text' },
                         { name: 'Status_Detail', type: 'text' }, { name: 'Process_Cell', type: 'text' },
                         { name: 'Operator', type: 'text' }, { name: 'Work_Order_ID', type: 'text' },
@@ -1572,13 +1660,13 @@ const AppStore = () => {
             } else if (templateId === 'andon-management') {
                 templateApp = createAndonManagementTemplate();
                 try {
-                    const stationsTable = await createTable({ name: 'Stations', fields: [
+                    const stationsTable = await getOrCreateTableAndSeed(allTables, { name: 'Stations', fields: [
                         { name: 'Status', type: 'text' }, { name: 'Status_Color', type: 'text' },
                         { name: 'Status_Detail', type: 'text' }, { name: 'Process_Cell', type: 'text' },
                         { name: 'Operator', type: 'text' }, { name: 'Work_Order_ID', type: 'text' },
                         { name: 'Material_Definition_ID', type: 'text' }
                     ]});
-                    const actionsTable = await createTable({ name: 'Actions', fields: [
+                    const actionsTable = await getOrCreateTableAndSeed(allTables, { name: 'Actions', fields: [
                         { name: 'Material_Definition_ID', type: 'text' }, { name: 'Title', type: 'text' },
                         { name: 'Location', type: 'text' }, { name: 'Severity', type: 'text' },
                         { name: 'Status', type: 'text' }, { name: 'Work_Order_ID', type: 'text' },
@@ -1601,7 +1689,7 @@ const AppStore = () => {
             } else if (templateId === 'andon-terminal') {
                 templateApp = createAndonTerminalTemplate();
                 try {
-                    const woTable = await createTable({ name: 'Work_Orders', fields: [
+                    const woTable = await getOrCreateTableAndSeed(allTables, { name: 'Work_Orders', fields: [
                         { name: 'Operator', type: 'text' }, { name: 'Parent_Order_ID', type: 'text' },
                         { name: 'Material_Definition_ID', type: 'text' }, { name: 'Status', type: 'text' },
                         { name: 'Location', type: 'text' }, { name: 'QTY_Required', type: 'number' },
@@ -1609,13 +1697,13 @@ const AppStore = () => {
                         { name: 'Due_Date', type: 'datetime' }, { name: 'Start_Date', type: 'datetime' },
                         { name: 'Complete_Date', type: 'datetime' }, { name: 'Customer_ID', type: 'text' }
                     ]});
-                    const stationsTable = await createTable({ name: 'Stations', fields: [
+                    const stationsTable = await getOrCreateTableAndSeed(allTables, { name: 'Stations', fields: [
                         { name: 'Status', type: 'text' }, { name: 'Status_Color', type: 'text' },
                         { name: 'Status_Detail', type: 'text' }, { name: 'Process_Cell', type: 'text' },
                         { name: 'Operator', type: 'text' }, { name: 'Work_Order_ID', type: 'text' },
                         { name: 'Material_Definition_ID', type: 'text' }
                     ]});
-                    const actionsTable = await createTable({ name: 'Actions', fields: [
+                    const actionsTable = await getOrCreateTableAndSeed(allTables, { name: 'Actions', fields: [
                         { name: 'Material_Definition_ID', type: 'text' }, { name: 'Title', type: 'text' },
                         { name: 'Location', type: 'text' }, { name: 'Severity', type: 'text' },
                         { name: 'Status', type: 'text' }, { name: 'Work_Order_ID', type: 'text' },
@@ -1624,7 +1712,7 @@ const AppStore = () => {
                         { name: 'Owner', type: 'text' }, { name: 'Type', type: 'text' },
                         { name: 'Actions_Taken', type: 'text' }, { name: 'Due_date', type: 'datetime' }
                     ]});
-                    const shTable = await createTable({ name: 'Station_Activity_History', fields: [
+                    const shTable = await getOrCreateTableAndSeed(allTables, { name: 'Station_Activity_History', fields: [
                         { name: 'Station_ID', type: 'text' }, { name: 'Status', type: 'text' },
                         { name: 'Start_Date_Time', type: 'datetime' }, { name: 'End_Date_Time', type: 'datetime' },
                         { name: 'Duration', type: 'number' }, { name: 'Material_Definition_ID', type: 'text' },
@@ -1648,13 +1736,13 @@ const AppStore = () => {
             } else if (templateId === 'performance-visibility-dashboard') {
                 templateApp = createPerformanceVisibilityDashboardTemplate();
                 try {
-                    const stationsTable = await createTable({ name: 'Stations', fields: [
+                    const stationsTable = await getOrCreateTableAndSeed(allTables, { name: 'Stations', fields: [
                         { name: 'Status', type: 'text' }, { name: 'Status_Color', type: 'text' },
                         { name: 'Status_Detail', type: 'text' }, { name: 'Process_Cell', type: 'text' },
                         { name: 'Operator', type: 'text' }, { name: 'Work_Order_ID', type: 'text' },
                         { name: 'Material_Definition_ID', type: 'text' }
                     ]});
-                    const shTable = await createTable({ name: 'Station_Activity_History', fields: [
+                    const shTable = await getOrCreateTableAndSeed(allTables, { name: 'Station_Activity_History', fields: [
                         { name: 'Station_ID', type: 'text' }, { name: 'Status', type: 'text' },
                         { name: 'Start_Date_Time', type: 'datetime' }, { name: 'End_Date_Time', type: 'datetime' },
                         { name: 'Duration', type: 'number' }, { name: 'Material_Definition_ID', type: 'text' },
@@ -1676,7 +1764,7 @@ const AppStore = () => {
             } else if (templateId === 'performance-visibility-terminal') {
                 templateApp = createPerformanceVisibilityTerminalTemplate();
                 try {
-                    const woTable = await createTable({ name: 'Work_Orders', fields: [
+                    const woTable = await getOrCreateTableAndSeed(allTables, { name: 'Work_Orders', fields: [
                         { name: 'Operator', type: 'text' }, { name: 'Parent_Order_ID', type: 'text' },
                         { name: 'Material_Definition_ID', type: 'text' }, { name: 'Status', type: 'text' },
                         { name: 'Location', type: 'text' }, { name: 'QTY_Required', type: 'number' },
@@ -1684,13 +1772,13 @@ const AppStore = () => {
                         { name: 'Due_Date', type: 'datetime' }, { name: 'Start_Date', type: 'datetime' },
                         { name: 'Complete_Date', type: 'datetime' }, { name: 'Customer_ID', type: 'text' }
                     ]});
-                    const stationsTable = await createTable({ name: 'Stations', fields: [
+                    const stationsTable = await getOrCreateTableAndSeed(allTables, { name: 'Stations', fields: [
                         { name: 'Status', type: 'text' }, { name: 'Status_Color', type: 'text' },
                         { name: 'Status_Detail', type: 'text' }, { name: 'Process_Cell', type: 'text' },
                         { name: 'Operator', type: 'text' }, { name: 'Work_Order_ID', type: 'text' },
                         { name: 'Material_Definition_ID', type: 'text' }
                     ]});
-                    const shTable = await createTable({ name: 'Station_Activity_History', fields: [
+                    const shTable = await getOrCreateTableAndSeed(allTables, { name: 'Station_Activity_History', fields: [
                         { name: 'Station_ID', type: 'text' }, { name: 'Status', type: 'text' },
                         { name: 'Start_Date_Time', type: 'datetime' }, { name: 'End_Date_Time', type: 'datetime' },
                         { name: 'Duration', type: 'number' }, { name: 'Material_Definition_ID', type: 'text' },
@@ -1698,7 +1786,7 @@ const AppStore = () => {
                         { name: 'Defects', type: 'number' }, { name: 'Downtime_reason', type: 'text' },
                         { name: 'Comments', type: 'text' }, { name: 'Unit_ID', type: 'text' }, { name: 'Work_Order_ID', type: 'text' }
                     ]});
-                    const mdTable = await createTable({ name: 'Material_Definitions', fields: [
+                    const mdTable = await getOrCreateTableAndSeed(allTables, { name: 'Material_Definitions', fields: [
                         { name: 'Name', type: 'text' }, { name: 'Type', type: 'text' },
                         { name: 'Description', type: 'text' }, { name: 'Image', type: 'text' },
                         { name: 'Status', type: 'text' }, { name: 'Unit_of_Measure', type: 'text' },
@@ -1721,7 +1809,7 @@ const AppStore = () => {
             } else if (templateId === 'machine-monitoring-terminal') {
                 templateApp = createMachineMonitoringTerminalTemplate();
                 try {
-                    const woTable = await createTable({ name: 'Work_Orders', fields: [
+                    const woTable = await getOrCreateTableAndSeed(allTables, { name: 'Work_Orders', fields: [
                         { name: 'Operator', type: 'text' }, { name: 'Parent_Order_ID', type: 'text' },
                         { name: 'Material_Definition_ID', type: 'text' }, { name: 'Status', type: 'text' },
                         { name: 'Location', type: 'text' }, { name: 'QTY_Required', type: 'number' },
@@ -1729,7 +1817,7 @@ const AppStore = () => {
                         { name: 'Due_Date', type: 'datetime' }, { name: 'Start_Date', type: 'datetime' },
                         { name: 'Complete_Date', type: 'datetime' }, { name: 'Customer_ID', type: 'text' }
                     ]});
-                    const ncTable = await createTable({ name: 'Notes_Comments', fields: [
+                    const ncTable = await getOrCreateTableAndSeed(allTables, { name: 'Notes_Comments', fields: [
                         { name: 'Reference_ID', type: 'text' }, { name: 'Location', type: 'text' },
                         { name: 'Notes', type: 'text' }, { name: 'Sender', type: 'text' },
                         { name: 'Updated_by', type: 'text' }, { name: 'Recipient', type: 'text' },
@@ -1749,7 +1837,7 @@ const AppStore = () => {
             } else if (templateId === 'operations-management-dashboard') {
                 templateApp = createOperationsManagementDashboardTemplate();
                 try {
-                    const shTable = await createTable({ name: 'Station_Activity_History', fields: [
+                    const shTable = await getOrCreateTableAndSeed(allTables, { name: 'Station_Activity_History', fields: [
                         { name: 'Station_ID', type: 'text' }, { name: 'Status', type: 'text' },
                         { name: 'Start_Date_Time', type: 'datetime' }, { name: 'End_Date_Time', type: 'datetime' },
                         { name: 'Duration', type: 'number' }, { name: 'Material_Definition_ID', type: 'text' },
@@ -1757,7 +1845,7 @@ const AppStore = () => {
                         { name: 'Defects', type: 'number' }, { name: 'Downtime_reason', type: 'text' },
                         { name: 'Comments', type: 'text' }, { name: 'Unit_ID', type: 'text' }, { name: 'Work_Order_ID', type: 'text' }
                     ]});
-                    const actionsTable = await createTable({ name: 'Actions', fields: [
+                    const actionsTable = await getOrCreateTableAndSeed(allTables, { name: 'Actions', fields: [
                         { name: 'Material_Definition_ID', type: 'text' }, { name: 'Title', type: 'text' },
                         { name: 'Location', type: 'text' }, { name: 'Severity', type: 'text' },
                         { name: 'Status', type: 'text' }, { name: 'Work_Order_ID', type: 'text' },
@@ -1780,7 +1868,7 @@ const AppStore = () => {
             } else if (templateId === 'material-handling') {
                 templateApp = createMaterialHandlingTemplate();
                 try {
-                    const mrTable = await createTable({ name: 'Material_Requests', fields: [
+                    const mrTable = await getOrCreateTableAndSeed(allTables, { name: 'Material_Requests', fields: [
                         { name: 'Item', type: 'text' }, { name: 'Requesting_Location', type: 'text' },
                         { name: 'Supplier', type: 'text' }, { name: 'Kanban_ID', type: 'text' },
                         { name: 'Quantity', type: 'number' }, { name: 'Status', type: 'text' },
@@ -1790,7 +1878,7 @@ const AppStore = () => {
                         { name: 'Bin', type: 'text' }, { name: 'Compiled_by', type: 'text' },
                         { name: 'Ready_for_pick_time', type: 'datetime' }, { name: 'Delivered_by', type: 'text' }
                     ]});
-                    const kcTable = await createTable({ name: 'Kanban_Cards', fields: [
+                    const kcTable = await getOrCreateTableAndSeed(allTables, { name: 'Kanban_Cards', fields: [
                         { name: 'Part_Number', type: 'text' }, { name: 'Status', type: 'text' },
                         { name: 'Consuming_location', type: 'text' }, { name: 'Supplier', type: 'text' },
                         { name: 'QTY', type: 'number' }, { name: 'Part_Description', type: 'text' },
@@ -1917,7 +2005,7 @@ const AppStore = () => {
             } else if (templateId === 'material-request') {
                 templateApp = createMaterialRequestTemplate();
                 try {
-                    const mrTable = await createTable({ name: 'Material_Requests', fields: [
+                    const mrTable = await getOrCreateTableAndSeed(allTables, { name: 'Material_Requests', fields: [
                         { name: 'Item', type: 'text' }, { name: 'Requesting_Location', type: 'text' },
                         { name: 'Supplier', type: 'text' }, { name: 'Kanban_ID', type: 'text' },
                         { name: 'Quantity', type: 'number' }, { name: 'Status', type: 'text' },
@@ -1927,7 +2015,7 @@ const AppStore = () => {
                         { name: 'Bin', type: 'text' }, { name: 'Compiled_by', type: 'text' },
                         { name: 'Ready_for_pick_time', type: 'datetime' }, { name: 'Delivered_by', type: 'text' }
                     ]});
-                    const kcTable = await createTable({ name: 'Kanban_Cards', fields: [
+                    const kcTable = await getOrCreateTableAndSeed(allTables, { name: 'Kanban_Cards', fields: [
                         { name: 'Part_Number', type: 'text' }, { name: 'Status', type: 'text' },
                         { name: 'Consuming_location', type: 'text' }, { name: 'Supplier', type: 'text' },
                         { name: 'QTY', type: 'number' }, { name: 'Part_Description', type: 'text' },
@@ -2049,14 +2137,14 @@ const AppStore = () => {
             } else if (templateId === 'material-loading-receiving') {
                 templateApp = createMaterialLoadingReceivingTemplate();
                 try {
-                    const assetsTable = await createTable({ name: 'Equipment_Assets', fields: [
+                    const assetsTable = await getOrCreateTableAndSeed(allTables, { name: 'Equipment_Assets', fields: [
                         { name: 'Name', type: 'text' }, { name: 'Description', type: 'text' },
                         { name: 'Status', type: 'text' }, { name: 'Location', type: 'text' },
                         { name: 'Type', type: 'text' }, { name: 'Last_Calibration', type: 'datetime' },
                         { name: 'Calibration_Cadence', type: 'number' }, { name: 'Container_image', type: 'text' },
                         { name: 'Asset_Image', type: 'text' }, { name: 'User', type: 'text' }
                     ]});
-                    const locationsTable = await createTable({ name: 'Locations', fields: [
+                    const locationsTable = await getOrCreateTableAndSeed(allTables, { name: 'Locations', fields: [
                         { name: 'Location_Area', type: 'text' }, { name: 'Bin_Number', type: 'text' },
                         { name: 'Light_Kit_Number', type: 'number' }, { name: 'Type', type: 'text' },
                         { name: 'Status', type: 'text' }
@@ -2161,7 +2249,7 @@ const AppStore = () => {
             } else if (templateId === 'inventory-management') {
                 templateApp = createInventoryManagementTemplate();
                 try {
-                    const mrTable = await createTable({ name: 'Material_Requests', fields: [
+                    const mrTable = await getOrCreateTableAndSeed(allTables, { name: 'Material_Requests', fields: [
                         { name: 'Item', type: 'text' }, { name: 'Requesting_Location', type: 'text' },
                         { name: 'Supplier', type: 'text' }, { name: 'Kanban_ID', type: 'text' },
                         { name: 'Quantity', type: 'number' }, { name: 'Status', type: 'text' },
@@ -2171,7 +2259,7 @@ const AppStore = () => {
                         { name: 'Bin', type: 'text' }, { name: 'Compiled_by', type: 'text' },
                         { name: 'Ready_for_pick_time', type: 'datetime' }, { name: 'Delivered_by', type: 'text' }
                     ]});
-                    const kcTable = await createTable({ name: 'Kanban_Cards', fields: [
+                    const kcTable = await getOrCreateTableAndSeed(allTables, { name: 'Kanban_Cards', fields: [
                         { name: 'Kanban_ID', type: 'text' },
                         { name: 'Part_Number', type: 'text' }, { name: 'Status', type: 'text' },
                         { name: 'Consuming_location', type: 'text' }, { name: 'Supplier', type: 'text' },
@@ -2179,7 +2267,7 @@ const AppStore = () => {
                         { name: 'Status_Color', type: 'text' }, { name: 'Image', type: 'text' },
                         { name: 'Active', type: 'boolean' }, { name: 'Lead_Time', type: 'number' }
                     ]});
-                    const mdTable = await createTable({ name: 'Material_Definitions', fields: [
+                    const mdTable = await getOrCreateTableAndSeed(allTables, { name: 'Material_Definitions', fields: [
                         { name: 'ID', type: 'text' },
                         { name: 'Name', type: 'text' }, { name: 'Type', type: 'text' },
                         { name: 'Description', type: 'text' }, { name: 'Image', type: 'text' },
@@ -2187,7 +2275,7 @@ const AppStore = () => {
                         { name: 'Version_Revision', type: 'text' }, { name: 'Vendor_ID', type: 'text' },
                         { name: 'Target_Cycle_Time', type: 'number' }
                     ]});
-                    const iiTable = await createTable({ name: 'Inventory_Items', fields: [
+                    const iiTable = await getOrCreateTableAndSeed(allTables, { name: 'Inventory_Items', fields: [
                         { name: 'ID', type: 'text' },
                         { name: 'Material_Definition_ID', type: 'text' }, { name: 'Material_Definition_Type', type: 'text' },
                         { name: 'Status', type: 'text' }, { name: 'Location_ID', type: 'text' },
@@ -2410,7 +2498,7 @@ const AppStore = () => {
             } else if (templateId === 'inventory-dashboard') {
                 templateApp = createInventoryDashboardTemplate();
                 try {
-                    const mrTable = await createTable({ name: 'Material_Requests', fields: [
+                    const mrTable = await getOrCreateTableAndSeed(allTables, { name: 'Material_Requests', fields: [
                         { name: 'Item', type: 'text' }, { name: 'Requesting_Location', type: 'text' },
                         { name: 'Supplier', type: 'text' }, { name: 'Kanban_ID', type: 'text' },
                         { name: 'Quantity', type: 'number' }, { name: 'Status', type: 'text' },
@@ -2487,7 +2575,7 @@ const AppStore = () => {
             } else if (templateId === 'replenishment') {
                 templateApp = createReplenishmentTemplate();
                 try {
-                    const mrTable = await createTable({ name: 'Material_Requests', fields: [
+                    const mrTable = await getOrCreateTableAndSeed(allTables, { name: 'Material_Requests', fields: [
                         { name: 'Item', type: 'text' }, { name: 'Requesting_Location', type: 'text' },
                         { name: 'Supplier', type: 'text' }, { name: 'Kanban_ID', type: 'text' },
                         { name: 'Quantity', type: 'number' }, { name: 'Status', type: 'text' },
@@ -2498,7 +2586,7 @@ const AppStore = () => {
                         { name: 'Ready_for_pick_time', type: 'datetime' }, { name: 'Delivered_by', type: 'text' }
                     ]});
 
-                    const kbTable = await createTable({ name: 'Kanban_Cards', fields: [
+                    const kbTable = await getOrCreateTableAndSeed(allTables, { name: 'Kanban_Cards', fields: [
                         { name: 'Part_Number', type: 'text' }, { name: 'Status', type: 'text' },
                         { name: 'Consuming_location', type: 'text' }, { name: 'Supplier', type: 'text' },
                         { name: 'QTY', type: 'number' }, { name: 'Part_Description', type: 'text' },
@@ -2620,7 +2708,7 @@ const AppStore = () => {
             } else if (templateId === 'material-warehouse') {
                 templateApp = createMaterialWarehouseTemplate();
                 try {
-                    const invTable = await createTable({ name: 'Inventory_Items', fields: [
+                    const invTable = await getOrCreateTableAndSeed(allTables, { name: 'Inventory_Items', fields: [
                         { name: 'ID', type: 'text' },
                         { name: 'Material_Definition_ID', type: 'text' }, { name: 'Location_ID', type: 'text' },
                         { name: 'Location_Area', type: 'text' }, { name: 'QTY', type: 'number' },
@@ -2628,7 +2716,7 @@ const AppStore = () => {
                         { name: 'Material_Definition_Type', type: 'text' }
                     ]});
 
-                    const mdTable = await createTable({ name: 'Material_Definitions', fields: [
+                    const mdTable = await getOrCreateTableAndSeed(allTables, { name: 'Material_Definitions', fields: [
                         { name: 'ID', type: 'text' },
                         { name: 'Name', type: 'text' }, { name: 'Type', type: 'text' },
                         { name: 'Description', type: 'text' }, { name: 'Image', type: 'text' },
@@ -2751,13 +2839,13 @@ const AppStore = () => {
             } else if (templateId === 'quality-inspection-suite') {
                 templateApp = createQualityInspectionSuiteTemplate();
                 try {
-                    const plTable = await createTable({ name: 'Inspection_Plans', fields: [
+                    const plTable = await getOrCreateTableAndSeed(allTables, { name: 'Inspection_Plans', fields: [
                         { name: 'Product_ID', type: 'text' }, { name: 'Inspection_Name', type: 'text' },
                         { name: 'Inspection_Description', type: 'text' }, { name: 'Target', type: 'number' },
                         { name: 'UoM', type: 'text' }
                     ]});
 
-                    const rsTable = await createTable({ name: 'Inspection_Results', fields: [
+                    const rsTable = await getOrCreateTableAndSeed(allTables, { name: 'Inspection_Results', fields: [
                         { name: 'Work_Order_ID', type: 'text' }, { name: 'Inspection_Plan_ID', type: 'text' },
                         { name: 'Operator', type: 'text' }, { name: 'Recorded_Value', type: 'number' },
                         { name: 'Status', type: 'text' }, { name: 'Comments', type: 'text' }
@@ -2887,14 +2975,14 @@ const AppStore = () => {
             } else if (templateId === 'frontline-qms') {
                 templateApp = createFrontlineQmsTemplate();
                 try {
-                    const dfTable = await createTable({ name: 'Defect_Events', fields: [
+                    const dfTable = await getOrCreateTableAndSeed(allTables, { name: 'Defect_Events', fields: [
                         { name: 'Work_Order_ID', type: 'text' }, { name: 'Unit_ID', type: 'text' },
                         { name: 'Material_Definition_ID', type: 'text' }, { name: 'Reason', type: 'text' },
                         { name: 'Description', type: 'text' }, { name: 'Status', type: 'text' },
                         { name: 'Operator', type: 'text' }
                     ]});
 
-                    const cpTable = await createTable({ name: 'CAPA_Incidents', fields: [
+                    const cpTable = await getOrCreateTableAndSeed(allTables, { name: 'CAPA_Incidents', fields: [
                         { name: 'Defect_Event_ID', type: 'text' }, { name: 'Root_Cause', type: 'text' },
                         { name: 'Action_Plan', type: 'text' }, { name: 'Assigned_To', type: 'text' },
                         { name: 'Status', type: 'text' }
@@ -3029,7 +3117,7 @@ const AppStore = () => {
             } else if (templateId === 'material-review-board') {
                 templateApp = createMaterialReviewBoardTemplate();
                 try {
-                    const dfTable = await createTable({ name: 'Defect_Events', fields: [
+                    const dfTable = await getOrCreateTableAndSeed(allTables, { name: 'Defect_Events', fields: [
                         { name: 'Work_Order_ID', type: 'text' }, { name: 'Unit_ID', type: 'text' },
                         { name: 'Material_Definition_ID', type: 'text' }, { name: 'Reason', type: 'text' },
                         { name: 'Description', type: 'text' }, { name: 'Status', type: 'text' },
@@ -3039,7 +3127,7 @@ const AppStore = () => {
                         { name: 'Upload_Evidence', type: 'text' }
                     ]});
 
-                    const woTable = await createTable({ name: 'Work_Orders', fields: [
+                    const woTable = await getOrCreateTableAndSeed(allTables, { name: 'Work_Orders', fields: [
                         { name: 'Operator', type: 'text' }, { name: 'Parent_Order_ID', type: 'text' },
                         { name: 'Material_Definition_ID', type: 'text' }, { name: 'Status', type: 'text' },
                         { name: 'Location', type: 'text' }, { name: 'QTY_Required', type: 'number' },
@@ -3237,6 +3325,13 @@ const AppStore = () => {
 
             toast.success(`${templateApp.name} installed successfully!`, { id: loadingToast });
 
+            // Mark template as used (installed) and persist mapping
+            setInstalledTemplates(prev => {
+                const next = { ...prev, [templateId]: savedApp.id };
+                localStorage.setItem('installedAppStoreTemplates', JSON.stringify(next));
+                return next;
+            });
+
             // Navigate to builder for the new app
             setTimeout(() => {
                 navigate(`/builder?id=${savedApp.id}`);
@@ -3397,25 +3492,53 @@ const AppStore = () => {
                                     <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600 }}>
                                         {t.installs} installs
                                     </div>
-                                    <button
-                                        onClick={() => handleInstall(t.id)}
-                                        disabled={installingId !== null}
-                                        style={{
-                                            padding: '10px 20px', borderRadius: '12px', border: 'none',
-                                            backgroundColor: t.accent, color: 'white', fontWeight: 800,
-                                            fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
-                                            transition: 'all 0.2s', boxShadow: `0 4px 12px ${t.accent}40`,
-                                            opacity: installingId !== null ? 0.7 : 1
-                                        }}
-                                        onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
-                                        onMouseLeave={e => e.currentTarget.style.filter = 'brightness(1)'}
-                                    >
-                                        {installingId === t.id ? (
-                                            <>Installing...</>
-                                        ) : (
-                                            <>Install <Rocket size={14} /></>
-                                        )}
-                                    </button>
+                                    {installedTemplates[t.id] ? (
+                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                            <div
+                                                style={{
+                                                    padding: '10px 20px', borderRadius: '12px', border: '2px solid #22c55e',
+                                                    backgroundColor: '#f0fdf4', color: '#16a34a', fontWeight: 800,
+                                                    fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px',
+                                                    cursor: 'default'
+                                                }}
+                                            >
+                                                <CheckCircle2 size={14} /> Used
+                                            </div>
+                                            <button
+                                                onClick={(e) => handleUninstall(e, t.id)}
+                                                style={{
+                                                    padding: '10px 16px', borderRadius: '12px', border: 'none',
+                                                    backgroundColor: '#ef4444', color: 'white', fontWeight: 800,
+                                                    fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+                                                    transition: 'all 0.2s', boxShadow: `0 4px 12px rgba(239, 68, 68, 0.4)`
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
+                                                onMouseLeave={e => e.currentTarget.style.filter = 'brightness(1)'}
+                                            >
+                                                <Trash2 size={14} /> Uninstall
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={() => handleInstall(t.id)}
+                                            disabled={installingId !== null}
+                                            style={{
+                                                padding: '10px 20px', borderRadius: '12px', border: 'none',
+                                                backgroundColor: t.accent, color: 'white', fontWeight: 800,
+                                                fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+                                                transition: 'all 0.2s', boxShadow: `0 4px 12px ${t.accent}40`,
+                                                opacity: installingId !== null ? 0.7 : 1
+                                            }}
+                                            onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
+                                            onMouseLeave={e => e.currentTarget.style.filter = 'brightness(1)'}
+                                        >
+                                            {installingId === t.id ? (
+                                                <>Installing...</>
+                                            ) : (
+                                                <>Install <Rocket size={14} /></>
+                                            )}
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -3627,16 +3750,29 @@ const AppStore = () => {
                         </div>
 
                         <div style={{ padding: '24px 32px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end', backgroundColor: '#f8fafc' }}>
-                            <button
-                                onClick={() => { handleInstall(selectedGuide.id); setSelectedGuide(null); }}
-                                style={{
-                                    padding: '12px 32px', borderRadius: '14px', border: 'none',
-                                    backgroundColor: selectedGuide.accent, color: 'white', fontWeight: 800,
-                                    fontSize: '0.95rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px'
-                                }}
-                            >
-                                Install Template Now <ArrowRight size={18} />
-                            </button>
+                            {installedTemplates[selectedGuide.id] ? (
+                                <div
+                                    style={{
+                                        padding: '12px 32px', borderRadius: '14px', border: '2px solid #22c55e',
+                                        backgroundColor: '#f0fdf4', color: '#16a34a', fontWeight: 800,
+                                        fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '10px',
+                                        cursor: 'default'
+                                    }}
+                                >
+                                    <CheckCircle2 size={18} /> Already Installed
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => { handleInstall(selectedGuide.id); setSelectedGuide(null); }}
+                                    style={{
+                                        padding: '12px 32px', borderRadius: '14px', border: 'none',
+                                        backgroundColor: selectedGuide.accent, color: 'white', fontWeight: 800,
+                                        fontSize: '0.95rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px'
+                                    }}
+                                >
+                                    Install Template Now <ArrowRight size={18} />
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
