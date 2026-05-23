@@ -22,7 +22,8 @@ export function createPerformanceVisibilityTerminalTemplate() {
 
     // Record Placeholders
     const R = [
-        { id: `r1_${ts}`, name: 'Current_Work_Order', tableId: T.workOrders, type: 'single' }
+        { id: `r1_${ts}`, name: 'Current_Work_Order', tableId: T.workOrders, type: 'single' },
+        { id: `r2_${ts}`, name: 'Current_Station', tableId: T.stations, type: 'single' }
     ];
 
     // --- STEP 1: Select Order ---

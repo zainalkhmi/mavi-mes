@@ -24,7 +24,8 @@ export function createAndonTerminalTemplate() {
     const R = [
         { id: `r1_${ts}`, name: 'Current_Work_Order', tableId: T.workOrders, type: 'single' },
         { id: `r2_${ts}`, name: 'Current_Alert', tableId: T.actions, type: 'single' },
-        { id: `r3_${ts}`, name: 'Current_Andon', tableId: T.actions, type: 'single' }
+        { id: `r3_${ts}`, name: 'Current_Andon', tableId: T.actions, type: 'single' },
+        { id: `r4_${ts}`, name: 'Current_Station', tableId: T.stations, type: 'single' }
     ];
 
     // --- STEP 1: Select Order ---

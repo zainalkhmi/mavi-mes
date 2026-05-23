@@ -39,7 +39,7 @@ import { createQualityInspectionSuiteTemplate } from '../utils/qualityInspection
 import { createFrontlineQmsTemplate } from '../utils/frontlineQmsTemplate';
 import { createMaterialReviewBoardTemplate } from '../utils/materialReviewBoardTemplate';
 
-import { saveFrontlineApp, deleteFrontlineApp } from '../utils/supabaseFrontlineDB';
+import { saveFrontlineApp, deleteFrontlineApp, getAllFrontlineApps } from '../utils/supabaseFrontlineDB';
 import {
     createTable, getTables, addTableRecord,
     getTableById, updateTable, linkRecords, getTableRecords, updateTableRecord
@@ -286,10 +286,21 @@ const AppStore = () => {
         try { return JSON.parse(localStorage.getItem('installedAppStoreTemplates')) || {}; } catch { return {}; }
     });
     const [isAdmin, setIsAdmin] = useState(false);
+    const [dbApps, setDbApps] = useState([]);
     
     React.useEffect(() => {
         const user = getCurrentUser();
         if (user?.role?.toUpperCase().includes('ADMIN')) setIsAdmin(true);
+
+        const fetchDbApps = async () => {
+            try {
+                const apps = await getAllFrontlineApps();
+                setDbApps(apps || []);
+            } catch (err) {
+                console.error('[AppStore] Failed to fetch db apps:', err);
+            }
+        };
+        fetchDbApps();
     }, []);
 
     const toggleArchive = (e, templateId) => {
@@ -341,7 +352,7 @@ const AppStore = () => {
     const categories = ['All', 'App Management', 'Quality', 'Manufacturing', 'Production', 'MES Production Suite', 'Inventory App Suite', 'Warehouse', 'Automotive', 'Analytic'];
 
 
-    const templates = [
+    const rawTemplates = [
         {
             id: 'incoming-inspection',
             name: 'Incoming Quality Inspection',
@@ -1321,7 +1332,10 @@ const AppStore = () => {
         }
     ];
 
-
+    const templates = rawTemplates.map(t => ({
+        ...t,
+        version: ['incoming-inspection', 'weigh-dispense', 'assy-line-production'].includes(t.id) ? 2 : 1
+    }));
 
     const filteredTemplates = templates.filter(t => {
         if (deletedTemplates.includes(t.id)) return false;
@@ -1338,10 +1352,10 @@ const AppStore = () => {
         return matchesSearch && matchesCategory;
     });
 
-    const handleInstall = async (templateId) => {
+    const handleInstall = async (templateId, existingAppId = null) => {
         const allTables = await getTables();
         setInstallingId(templateId);
-        const loadingToast = toast.loading('Installing template...');
+        const loadingToast = toast.loading(existingAppId ? 'Updating template...' : 'Installing template...');
         const iso = new Date().toISOString();
 
         try {
@@ -3482,16 +3496,33 @@ const AppStore = () => {
             }
 
             const { id, ...templateData } = templateApp;
-            const savedApp = await saveFrontlineApp({
+            const templateObj = templates.find(t => t.id === templateId);
+            const templateVersion = templateObj?.version || 1;
+
+            const appPayload = {
                 ...templateData,
                 config: {
                     ...(templateData.config || {}),
                     isLocked: true
                 },
-                is_published: false,
-                approval_status: 'DRAFT',
+                version: templateVersion,
                 updated_at: new Date().toISOString()
-            });
+            };
+
+            if (existingAppId) {
+                appPayload.id = existingAppId;
+                const existingDbApp = dbApps.find(a => a.id === existingAppId);
+                if (existingDbApp) {
+                    appPayload.name = existingDbApp.name;
+                    appPayload.is_published = existingDbApp.is_published;
+                    appPayload.approval_status = existingDbApp.approval_status;
+                }
+            } else {
+                appPayload.is_published = false;
+                appPayload.approval_status = 'DRAFT';
+            }
+
+            const savedApp = await saveFrontlineApp(appPayload);
 
             // Connect same-named/similar tables using linked record fields and seed their links
             if (savedApp && savedApp.config && savedApp.config.appTables) {
@@ -3502,19 +3533,32 @@ const AppStore = () => {
                 }
             }
 
-            toast.success(`${templateApp.name} installed successfully!`, { id: loadingToast });
+            if (existingAppId) {
+                toast.success(`${templateApp.name} updated successfully!`, { id: loadingToast });
+            } else {
+                toast.success(`${templateApp.name} installed successfully!`, { id: loadingToast });
+            }
 
-            // Mark template as used (installed) and persist mapping
-            setInstalledTemplates(prev => {
-                const next = { ...prev, [templateId]: savedApp.id };
-                localStorage.setItem('installedAppStoreTemplates', JSON.stringify(next));
-                return next;
-            });
+            if (existingAppId) {
+                try {
+                    const apps = await getAllFrontlineApps();
+                    setDbApps(apps || []);
+                } catch (refreshErr) {
+                    console.error('[AppStore] Failed to refresh apps after update:', refreshErr);
+                }
+            } else {
+                // Mark template as used (installed) and persist mapping
+                setInstalledTemplates(prev => {
+                    const next = { ...prev, [templateId]: savedApp.id };
+                    localStorage.setItem('installedAppStoreTemplates', JSON.stringify(next));
+                    return next;
+                });
 
-            // Navigate to builder for the new app
-            setTimeout(() => {
-                navigate(`/builder?id=${savedApp.id}`);
-            }, 1000);
+                // Navigate to builder for the new app
+                setTimeout(() => {
+                    navigate(`/builder?id=${savedApp.id}`);
+                }, 1000);
+            }
 
         } catch (err) {
             console.error('Installation failed:', err);
@@ -3671,53 +3715,115 @@ const AppStore = () => {
                                     <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600 }}>
                                         {t.installs} installs
                                     </div>
-                                    {installedTemplates[t.id] ? (
-                                        <div style={{ display: 'flex', gap: '8px' }}>
-                                            <div
-                                                style={{
-                                                    padding: '10px 20px', borderRadius: '12px', border: '2px solid #22c55e',
-                                                    backgroundColor: '#f0fdf4', color: '#16a34a', fontWeight: 800,
-                                                    fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px',
-                                                    cursor: 'default'
-                                                }}
-                                            >
-                                                <CheckCircle2 size={14} /> Used
+                                    {(() => {
+                                        const appId = installedTemplates[t.id];
+                                        if (!appId) {
+                                            return (
+                                                <button
+                                                    onClick={() => handleInstall(t.id)}
+                                                    disabled={installingId !== null}
+                                                    style={{
+                                                        padding: '10px 20px', borderRadius: '12px', border: 'none',
+                                                        backgroundColor: t.accent, color: 'white', fontWeight: 800,
+                                                        fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+                                                        transition: 'all 0.2s', boxShadow: `0 4px 12px ${t.accent}40`,
+                                                        opacity: installingId !== null ? 0.7 : 1
+                                                    }}
+                                                    onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
+                                                    onMouseLeave={e => e.currentTarget.style.filter = 'brightness(1)'}
+                                                >
+                                                    {installingId === t.id ? (
+                                                        <>Installing...</>
+                                                    ) : (
+                                                        <>Install <Rocket size={14} /></>
+                                                    )}
+                                                </button>
+                                            );
+                                        }
+
+                                        const dbApp = dbApps.find(app => app.id === appId);
+                                        const installedVersion = dbApp ? (dbApp.version || 1) : 1;
+                                        const templateVersion = t.version || 1;
+                                        const hasUpdate = dbApp && (templateVersion > installedVersion);
+
+                                        if (hasUpdate) {
+                                            return (
+                                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                    <div
+                                                        style={{
+                                                            padding: '8px 12px', borderRadius: '12px', border: '1px solid #f97316',
+                                                            backgroundColor: '#fff7ed', color: '#ea580c', fontWeight: 700,
+                                                            fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px',
+                                                            cursor: 'default', animation: 'pulse 2s infinite'
+                                                        }}
+                                                        title={`Version ${installedVersion} installed. Version ${templateVersion} available.`}
+                                                    >
+                                                        <Sparkles size={12} /> Update Available (v{templateVersion})
+                                                    </div>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleInstall(t.id, appId);
+                                                        }}
+                                                        disabled={installingId !== null}
+                                                        style={{
+                                                            padding: '10px 16px', borderRadius: '12px', border: 'none',
+                                                            background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                                                            color: 'white', fontWeight: 800,
+                                                            fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+                                                            transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(79, 70, 229, 0.4)',
+                                                            opacity: installingId !== null ? 0.7 : 1
+                                                        }}
+                                                        onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
+                                                        onMouseLeave={e => e.currentTarget.style.filter = 'brightness(1)'}
+                                                    >
+                                                        {installingId === t.id ? 'Updating...' : 'Update'}
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => handleUninstall(e, t.id)}
+                                                        style={{
+                                                            padding: '10px 12px', borderRadius: '12px', border: 'none',
+                                                            backgroundColor: '#ef4444', color: 'white', fontWeight: 800,
+                                                            fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+                                                            transition: 'all 0.2s', boxShadow: `0 4px 12px rgba(239, 68, 68, 0.4)`
+                                                        }}
+                                                        onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
+                                                        onMouseLeave={e => e.currentTarget.style.filter = 'brightness(1)'}
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            );
+                                        }
+
+                                        return (
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <div
+                                                    style={{
+                                                        padding: '10px 20px', borderRadius: '12px', border: '2px solid #22c55e',
+                                                        backgroundColor: '#f0fdf4', color: '#16a34a', fontWeight: 800,
+                                                        fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px',
+                                                        cursor: 'default'
+                                                    }}
+                                                >
+                                                    <CheckCircle2 size={14} /> Used
+                                                </div>
+                                                <button
+                                                    onClick={(e) => handleUninstall(e, t.id)}
+                                                    style={{
+                                                        padding: '10px 16px', borderRadius: '12px', border: 'none',
+                                                        backgroundColor: '#ef4444', color: 'white', fontWeight: 800,
+                                                        fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+                                                        transition: 'all 0.2s', boxShadow: `0 4px 12px rgba(239, 68, 68, 0.4)`
+                                                    }}
+                                                    onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
+                                                    onMouseLeave={e => e.currentTarget.style.filter = 'brightness(1)'}
+                                                >
+                                                    <Trash2 size={14} /> Uninstall
+                                                </button>
                                             </div>
-                                            <button
-                                                onClick={(e) => handleUninstall(e, t.id)}
-                                                style={{
-                                                    padding: '10px 16px', borderRadius: '12px', border: 'none',
-                                                    backgroundColor: '#ef4444', color: 'white', fontWeight: 800,
-                                                    fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
-                                                    transition: 'all 0.2s', boxShadow: `0 4px 12px rgba(239, 68, 68, 0.4)`
-                                                }}
-                                                onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
-                                                onMouseLeave={e => e.currentTarget.style.filter = 'brightness(1)'}
-                                            >
-                                                <Trash2 size={14} /> Uninstall
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <button
-                                            onClick={() => handleInstall(t.id)}
-                                            disabled={installingId !== null}
-                                            style={{
-                                                padding: '10px 20px', borderRadius: '12px', border: 'none',
-                                                backgroundColor: t.accent, color: 'white', fontWeight: 800,
-                                                fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
-                                                transition: 'all 0.2s', boxShadow: `0 4px 12px ${t.accent}40`,
-                                                opacity: installingId !== null ? 0.7 : 1
-                                            }}
-                                            onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
-                                            onMouseLeave={e => e.currentTarget.style.filter = 'brightness(1)'}
-                                        >
-                                            {installingId === t.id ? (
-                                                <>Installing...</>
-                                            ) : (
-                                                <>Install <Rocket size={14} /></>
-                                            )}
-                                        </button>
-                                    )}
+                                        );
+                                    })()}
                                 </div>
                             </div>
                         </div>
@@ -3929,29 +4035,77 @@ const AppStore = () => {
                         </div>
 
                         <div style={{ padding: '24px 32px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end', backgroundColor: '#f8fafc' }}>
-                            {installedTemplates[selectedGuide.id] ? (
-                                <div
-                                    style={{
-                                        padding: '12px 32px', borderRadius: '14px', border: '2px solid #22c55e',
-                                        backgroundColor: '#f0fdf4', color: '#16a34a', fontWeight: 800,
-                                        fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '10px',
-                                        cursor: 'default'
-                                    }}
-                                >
-                                    <CheckCircle2 size={18} /> Already Installed
-                                </div>
-                            ) : (
-                                <button
-                                    onClick={() => { handleInstall(selectedGuide.id); setSelectedGuide(null); }}
-                                    style={{
-                                        padding: '12px 32px', borderRadius: '14px', border: 'none',
-                                        backgroundColor: selectedGuide.accent, color: 'white', fontWeight: 800,
-                                        fontSize: '0.95rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px'
-                                    }}
-                                >
-                                    Install Template Now <ArrowRight size={18} />
-                                </button>
-                            )}
+                            {(() => {
+                                const appId = installedTemplates[selectedGuide.id];
+                                if (appId) {
+                                    const dbApp = dbApps.find(app => app.id === appId);
+                                    const installedVersion = dbApp ? (dbApp.version || 1) : 1;
+                                    const templateVersion = selectedGuide.version || 1;
+                                    const hasUpdate = dbApp && (templateVersion > installedVersion);
+
+                                    if (hasUpdate) {
+                                        return (
+                                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                                <div
+                                                    style={{
+                                                        padding: '10px 18px', borderRadius: '12px', border: '1px solid #f97316',
+                                                        backgroundColor: '#fff7ed', color: '#ea580c', fontWeight: 800,
+                                                        fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px',
+                                                        cursor: 'default'
+                                                    }}
+                                                >
+                                                    <Sparkles size={14} /> Update Available (v{installedVersion} → v{templateVersion})
+                                                </div>
+                                                <button
+                                                    onClick={() => {
+                                                        handleInstall(selectedGuide.id, appId);
+                                                        setSelectedGuide(null);
+                                                    }}
+                                                    disabled={installingId !== null}
+                                                    style={{
+                                                        padding: '12px 32px', borderRadius: '14px', border: 'none',
+                                                        background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                                                        color: 'white', fontWeight: 800,
+                                                        fontSize: '0.95rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px',
+                                                        boxShadow: '0 4px 12px rgba(79, 70, 229, 0.4)',
+                                                        opacity: installingId !== null ? 0.7 : 1
+                                                    }}
+                                                >
+                                                    {installingId === selectedGuide.id ? 'Updating...' : 'Update App Now'} <ArrowRight size={18} />
+                                                </button>
+                                            </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <div
+                                            style={{
+                                                padding: '12px 32px', borderRadius: '14px', border: '2px solid #22c55e',
+                                                backgroundColor: '#f0fdf4', color: '#16a34a', fontWeight: 800,
+                                                fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '10px',
+                                                cursor: 'default'
+                                            }}
+                                        >
+                                            <CheckCircle2 size={18} /> Already Installed
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <button
+                                        onClick={() => { handleInstall(selectedGuide.id); setSelectedGuide(null); }}
+                                        disabled={installingId !== null}
+                                        style={{
+                                            padding: '12px 32px', borderRadius: '14px', border: 'none',
+                                            backgroundColor: selectedGuide.accent, color: 'white', fontWeight: 800,
+                                            fontSize: '0.95rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px',
+                                            opacity: installingId !== null ? 0.7 : 1
+                                        }}
+                                    >
+                                        {installingId === selectedGuide.id ? 'Installing...' : 'Install Template Now'} <ArrowRight size={18} />
+                                    </button>
+                                );
+                            })()}
                         </div>
                     </div>
                 </div>
@@ -3961,6 +4115,10 @@ const AppStore = () => {
                 @keyframes modalSlideUp {
                     from { transform: translateY(30px); opacity: 0; }
                     to { transform: translateY(0); opacity: 1; }
+                }
+                @keyframes pulse {
+                    0%, 100% { transform: scale(1); opacity: 1; }
+                    50% { transform: scale(0.96); opacity: 0.9; }
                 }
             `}</style>
         </div>

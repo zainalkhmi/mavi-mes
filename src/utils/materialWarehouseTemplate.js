@@ -65,17 +65,17 @@ export function createMaterialWarehouseTemplate() {
             },
             // Scanner component instead of viewport & simulation button
             {
-                id: `scan_real_scanner_${ts}`, type: 'BARCODE_SCANNER',
+                id: `scan_real_scanner_${ts}`, type: 'TEXT_INPUT',
                 x: 260, y: 150, w: 480, h: 55,
                 props: { label: 'Part Number Barcode', placeholder: 'Scan or type part number...', targetVariable: 'Scanned_Part_ID' },
                 triggers: [
                     {
                         id: `trg_scan_load_def_${ts}`, name: 'Load Material Definition',
-                        event: 'ON_SCAN', type: 'DATA', action: 'TABLE_RECORD_LOAD',
+                        event: 'ON_CHANGE', type: 'DATA', action: 'TABLE_RECORD_LOAD',
                         tableId: T.materialDefs, recordPlaceholderId: `r1_${ts}`, linkVariable: 'Scanned_Part_ID'
                     },
-                    { id: `trg_scan_success_msg_${ts}`, name: 'Show Scan Success Message', event: 'ON_SCAN', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Part scanned successfully!', messageType: 'success' },
-                    { id: `trg_scan_go_type_${ts}`, name: 'Go to Type Quantity Step', event: 'ON_SCAN', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_type_item_${ts}` }
+                    { id: `trg_scan_success_msg_${ts}`, name: 'Show Scan Success Message', event: 'ON_CHANGE', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Part scanned successfully!', messageType: 'success' },
+                    { id: `trg_scan_go_type_${ts}`, name: 'Go to Type Quantity Step', event: 'ON_CHANGE', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_type_item_${ts}` }
                 ]
             },
             // Footer previous button
@@ -219,14 +219,14 @@ export function createMaterialWarehouseTemplate() {
                 props: { text: 'Scan target bin location', fontSize: 22, fontWeight: 'bold', textAlignment: 1 }
             },
             {
-                id: `loc_real_scanner_${ts}`, type: 'BARCODE_SCANNER',
+                id: `loc_real_scanner_${ts}`, type: 'TEXT_INPUT',
                 x: 260, y: 150, w: 480, h: 55,
                 props: { label: 'Bin Location Barcode', placeholder: 'Scan or type target bin...', targetVariable: 'New_Bin_Location' },
                 triggers: [
                     {
                         id: `trg_loc_scan_action_${ts}`,
                         name: 'Handle Scanned Bin Location',
-                        event: 'ON_SCAN',
+                        event: 'ON_CHANGE',
                         clauses: [
                             // Clause 1: If Warehouse_Action == 'ADD'
                             {

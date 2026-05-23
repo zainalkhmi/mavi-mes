@@ -15,7 +15,8 @@ export function createMaterialRequestTemplate() {
 
     // Record Placeholders
     const R = [
-        { id: `r1_${ts}`, name: 'Selected_Kanban_Card', tableId: T.kanbanCards, type: 'single' }
+        { id: `r1_${ts}`, name: 'Selected_Kanban_Card', tableId: T.kanbanCards, type: 'single' },
+        { id: `r2_${ts}`, name: 'New_Material_Request', tableId: T.materialRequests, type: 'single' }
     ];
 
     // --- STEP 1: Request Material ---
@@ -118,6 +119,7 @@ export function createMaterialRequestTemplate() {
                     {
                         event: 'ON_CLICK', type: 'DATA', action: 'TABLE_RECORD_CREATE',
                         tableId: T.materialRequests,
+                        recordPlaceholderId: `r2_${ts}`,
                         mapping: { 
                             'Kanban_ID': '{{@Selected_Kanban_ID}}',
                             'Item': '{{@Selected_Kanban_Card.Part_Number}}',

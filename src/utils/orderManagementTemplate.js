@@ -23,7 +23,8 @@ export function createOrderManagementTemplate() {
 
     // Record Placeholders
     const R = [
-        { id: `r1_${ts}`, name: 'Current_Work_Order', tableId: T.workOrders, type: 'single' }
+        { id: `r1_${ts}`, name: 'Current_Work_Order', tableId: T.workOrders, type: 'single' },
+        { id: `r2_${ts}`, name: 'New_Note', tableId: T.notes, type: 'single' }
     ];
 
     // --- STEP 1: View Work Orders ---

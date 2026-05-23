@@ -2370,7 +2370,7 @@ const LiveTerminal = () => {
             }
           } else if (['TABLE_RECORD_LOAD', 'TABLE_RECORD_CREATE', 'TABLE_RECORD_CREATE_OR_LOAD', 'TABLE_RECORD_SAVE', 'TABLE_RECORD_DELETE'].includes(action.type)) {
             const payloadData = action.payload || action || {};
-            let placeholderId = payloadData.placeholderId || payloadData.recordPlaceholderId || payloadData.placeholder;
+            let placeholderId = payloadData.placeholderId || payloadData.recordPlaceholderId || payloadData.placeholder || action.recordPlaceholderId;
             const { idType = 'STATIC', idValue = '', tableId } = payloadData;
             
             const allPlaceholders = recordPlaceholders || [];
@@ -2902,13 +2902,8 @@ const LiveTerminal = () => {
             // TABLE_RECORD_*
             else if (normalized.type.startsWith('TABLE_RECORD_')) {
               p.placeholderId = action.recordPlaceholderId || action.placeholderId || action.placeholder || '';
-              if (action.linkVariable) {
-                p.idType = 'VARIABLE';
-                p.idValue = action.linkVariable;
-              } else {
-                p.idType = action.idType || 'STATIC';
-                p.idValue = action.idValue || '';
-              }
+              p.idType = action.idType || 'STATIC';
+              p.idValue = action.idValue || '';
               if (action.tableId) p.tableId = action.tableId;
             }
             // GO_TO_STEP
@@ -2930,10 +2925,7 @@ const LiveTerminal = () => {
               p.value = p.value !== undefined ? p.value : (action.value !== undefined ? action.value : (p.expression || action.expression || ''));
             } else if (normalized.type.startsWith('TABLE_RECORD_')) {
               p.placeholderId = p.placeholderId || action.recordPlaceholderId || action.placeholder || '';
-              if (action.linkVariable && !p.idValue) {
-                p.idType = 'VARIABLE';
-                p.idValue = action.linkVariable;
-              }
+              // Removed forced VARIABLE idType
             } else if (normalized.type === 'GO_TO_STEP') {
               p.stepId = p.stepId || action.stepId || action.targetId || action.screen || '';
             } else if (normalized.type === 'SHOW_NOTIFICATION') {
@@ -3007,6 +2999,49 @@ const LiveTerminal = () => {
       await executeTrigger(trig, eventPayload);
     }
   };
+
+  const parentMessageHandlersRef = useRef({ selectedApp, resetInputs, executeTrigger });
+  useEffect(() => {
+    parentMessageHandlersRef.current = { selectedApp, resetInputs, executeTrigger };
+  }, [selectedApp, resetInputs, executeTrigger]);
+
+  useEffect(() => {
+    const handleMessage = async (event) => {
+      if (event.data && typeof event.data === 'object') {
+        const { type } = event.data;
+        if (type === 'RESTART') {
+          console.log('[LiveTerminal] Received RESTART message from parent');
+          setCurrentStepIndex(0);
+          setTimer(0);
+          setQualityData({});
+          setQuantityLog({});
+          setCycleData([]);
+          
+          const { selectedApp: curApp, resetInputs: curReset, executeTrigger: curExec } = parentMessageHandlersRef.current;
+          curReset();
+          
+          if (curApp && curApp.config && curApp.config.appTriggers) {
+            const startTriggers = curApp.config.appTriggers.filter(t => t.event === 'ON_APP_START');
+            for (const trig of startTriggers) {
+              try {
+                await curExec(trig);
+              } catch (e) {
+                console.error('[LiveTerminal] Failed to execute trigger during restart:', e);
+              }
+            }
+          }
+        } else if (type === 'PAUSE') {
+          console.log('[LiveTerminal] Received PAUSE message from parent');
+          setIsPaused(true);
+        } else if (type === 'RESUME') {
+          console.log('[LiveTerminal] Received RESUME message from parent');
+          setIsPaused(false);
+        }
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   // Helper: fire step-level triggers
   const fireStepTriggers = async (step, eventId) => {

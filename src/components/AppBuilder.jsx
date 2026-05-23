@@ -2598,7 +2598,7 @@ const AppBuilder = () => {
                                     }
                                     // TABLE_RECORD_SAVE/CREATE/LOAD/DELETE
                                     else if (normalized.type.startsWith('TABLE_RECORD_')) {
-                                        p.placeholderId = normalized.placeholderId || normalized.placeholder || '';
+                                        p.placeholderId = normalized.placeholderId || normalized.recordPlaceholderId || normalized.placeholder || '';
                                         if (normalized.tableId) p.tableId = normalized.tableId;
                                         if (normalized.fields) p.fields = normalized.fields;
                                     }
@@ -2640,7 +2640,7 @@ const AppBuilder = () => {
                                 }
 
                                 // 5. Clean up flat fields that are now in payload
-                                ['variableName', 'variable', 'varPath', 'value', 'expression', 'placeholderId', 
+                                ['variableName', 'variable', 'varPath', 'value', 'expression', 'placeholderId', 'recordPlaceholderId',
                                  'tableId', 'fields', 'stepId', 'targetId', 'screen', 'message', 'text', 'msgType'
                                 ].forEach(key => { if (normalized.payload && key in normalized) delete normalized[key]; });
 
@@ -20664,54 +20664,6 @@ const AppBuilder = () => {
                                                 </div>
                                             </div>
 
-                                            <div className="prop-group" style={{ paddingBottom: '40px' }}>
-                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '12px', fontWeight: 800 }}>UI VISIBILITY</label>
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                                    <div
-                                                        onClick={() => setLeftSidebarEnabled(!leftSidebarEnabled)}
-                                                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', backgroundColor: leftSidebarEnabled ? '#f0fdf4' : '#f8fafc', border: `1px solid ${leftSidebarEnabled ? '#bbf7d0' : '#e2e8f0'}`, borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s' }}
-                                                    >
-                                                        <div>
-                                                            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: leftSidebarEnabled ? '#166534' : '#475569' }}>Left Sidebar</div>
-                                                            <div style={{ fontSize: '0.65rem', color: leftSidebarEnabled ? '#15803d' : '#94a3b8' }}>Current Order Info</div>
-                                                        </div>
-                                                        {leftSidebarEnabled ? <ToggleRight size={24} color="#22c55e" /> : <ToggleLeft size={24} color="var(--text-quaternary)" />}
-                                                    </div>
-
-                                                    <div
-                                                        onClick={() => setRightSidebarEnabled(!rightSidebarEnabled)}
-                                                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', backgroundColor: rightSidebarEnabled ? '#f0fdf4' : '#f8fafc', border: `1px solid ${rightSidebarEnabled ? '#bbf7d0' : '#e2e8f0'}`, borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s' }}
-                                                    >
-                                                        <div>
-                                                            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: rightSidebarEnabled ? '#166534' : '#475569' }}>Right Sidebar</div>
-                                                            <div style={{ fontSize: '0.65rem', color: rightSidebarEnabled ? '#15803d' : '#94a3b8' }}>Assembly Progress</div>
-                                                        </div>
-                                                        {rightSidebarEnabled ? <ToggleRight size={24} color="#22c55e" /> : <ToggleLeft size={24} color="var(--text-quaternary)" />}
-                                                    </div>
-
-                                                    <div
-                                                        onClick={() => setCopilotEnabled(!copilotEnabled)}
-                                                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', backgroundColor: copilotEnabled ? '#f0fdf4' : '#f8fafc', border: `1px solid ${copilotEnabled ? '#bbf7d0' : '#e2e8f0'}`, borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s' }}
-                                                    >
-                                                        <div>
-                                                            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: copilotEnabled ? '#166534' : '#475569' }}>Frontline Copilot</div>
-                                                            <div style={{ fontSize: '0.65rem', color: copilotEnabled ? '#15803d' : '#94a3b8' }}>AI Sparkles Button</div>
-                                                        </div>
-                                                        {copilotEnabled ? <ToggleRight size={24} color="#22c55e" /> : <ToggleLeft size={24} color="var(--text-quaternary)" />}
-                                                    </div>
-
-                                                    <div
-                                                        onClick={() => setStepListEnabled(!stepListEnabled)}
-                                                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', backgroundColor: stepListEnabled ? '#f0fdf4' : '#f8fafc', border: `1px solid ${stepListEnabled ? '#bbf7d0' : '#e2e8f0'}`, borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s' }}
-                                                    >
-                                                        <div>
-                                                            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: stepListEnabled ? '#166534' : '#475569' }}>Screen List</div>
-                                                            <div style={{ fontSize: '0.65rem', color: stepListEnabled ? '#15803d' : '#94a3b8' }}>Work Sequence Footer</div>
-                                                        </div>
-                                                        {stepListEnabled ? <ToggleRight size={24} color="#22c55e" /> : <ToggleLeft size={24} color="var(--text-quaternary)" />}
-                                                    </div>
-                                                </div>
-                                            </div>
                                         </div>
                                     )}
                                 </div>
