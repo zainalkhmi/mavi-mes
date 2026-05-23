@@ -330,6 +330,11 @@ const TableManager = () => {
     const [uploadingFields, setUploadingFields] = useState({}); // { fieldName: boolean }
     const [visualJoinRecords, setVisualJoinRecords] = useState({});
     const [selectedIds, setSelectedIds] = useState(new Set());
+    const [tableDensity, setTableDensity] = useState('comfortable');
+    const [savedViews, setSavedViews] = useState([]);
+    const [activeSavedViewId, setActiveSavedViewId] = useState('');
+    const [quickFilterField, setQuickFilterField] = useState('');
+    const [quickFilterValue, setQuickFilterValue] = useState('');
 
     // Queries & Aggregations state
     const [isQueryEditorOpen, setIsQueryEditorOpen] = useState(false);
@@ -352,6 +357,22 @@ const TableManager = () => {
         }
         loadRecords(selectedTableId);
         setSelectedIds(new Set());
+    }, [selectedTableId]);
+
+    useEffect(() => {
+        if (!selectedTableId) {
+            setSavedViews([]);
+            setActiveSavedViewId('');
+            return;
+        }
+        try {
+            const raw = localStorage.getItem(`tm_saved_views_${selectedTableId}`);
+            const parsed = raw ? JSON.parse(raw) : [];
+            setSavedViews(Array.isArray(parsed) ? parsed : []);
+        } catch {
+            setSavedViews([]);
+        }
+        setActiveSavedViewId('');
     }, [selectedTableId]);
 
     useEffect(() => {
@@ -380,6 +401,10 @@ const TableManager = () => {
 
     const filteredAndSortedRecords = useMemo(() => {
         let baseRows = records;
+
+        if (quickFilterField && quickFilterValue) {
+            baseRows = baseRows.filter((record) => String(record?.[quickFilterField] ?? '').toLowerCase() === String(quickFilterValue).toLowerCase());
+        }
 
         // 1. Apply Search Keyword (Optional, works on top of Query)
         const keyword = recordSearchTerm.trim().toLowerCase();
@@ -456,7 +481,18 @@ const TableManager = () => {
         }
 
         return sortedRows;
-    }, [records, recordSearchTerm, activeFields, activeQueryId, selectedTable?.queries, recordSortField, recordSortDirection]);
+    }, [records, recordSearchTerm, activeFields, activeQueryId, selectedTable?.queries, recordSortField, recordSortDirection, quickFilterField, quickFilterValue]);
+
+    const quickFilterOptions = useMemo(() => {
+        const candidates = ['status', 'priority', 'line', 'station'];
+        const options = [];
+        candidates.forEach((field) => {
+            if (!activeFields.some((f) => f.name === field)) return;
+            const values = Array.from(new Set(records.map((r) => r?.[field]).filter((v) => v !== undefined && v !== null && String(v).trim() !== ''))).slice(0, 6);
+            values.forEach((v) => options.push({ field, value: String(v) }));
+        });
+        return options;
+    }, [activeFields, records]);
 
     const selectedRecord = useMemo(
         () => filteredAndSortedRecords.find((row) => row.id === selectedRecordInternalId)
@@ -547,6 +583,60 @@ const TableManager = () => {
         } finally {
             setRecordsLoading(false);
         }
+    };
+
+    const handleBulkStatusUpdate = async (value) => {
+        if (!selectedIds.size || !selectedTable) return;
+        const hasStatus = activeFields.some((f) => f.name === 'status');
+        if (!hasStatus) {
+            alert('Field "status" tidak ditemukan di table ini.');
+            return;
+        }
+        try {
+            setRecordsLoading(true);
+            for (const id of Array.from(selectedIds)) {
+                await updateTableRecord(id, { status: value });
+            }
+            await loadRecords(selectedTable.id);
+        } catch (error) {
+            alert(error.message || 'Gagal update status bulk');
+        } finally {
+            setRecordsLoading(false);
+        }
+    };
+
+    const saveCurrentView = () => {
+        if (!selectedTableId) return;
+        const name = prompt('Nama view:');
+        if (!name) return;
+        const newView = {
+            id: `view_${Date.now()}`,
+            name,
+            recordSearchTerm,
+            hiddenFields,
+            recordSortField,
+            recordSortDirection,
+            quickFilterField,
+            quickFilterValue,
+            tableDensity
+        };
+        const next = [...savedViews, newView];
+        setSavedViews(next);
+        setActiveSavedViewId(newView.id);
+        localStorage.setItem(`tm_saved_views_${selectedTableId}`, JSON.stringify(next));
+    };
+
+    const applySavedView = (viewId) => {
+        setActiveSavedViewId(viewId);
+        const view = savedViews.find((v) => v.id === viewId);
+        if (!view) return;
+        setRecordSearchTerm(view.recordSearchTerm || '');
+        setHiddenFields(Array.isArray(view.hiddenFields) ? view.hiddenFields : []);
+        setRecordSortField(view.recordSortField || 'recordId');
+        setRecordSortDirection(view.recordSortDirection || 'asc');
+        setQuickFilterField(view.quickFilterField || '');
+        setQuickFilterValue(view.quickFilterValue || '');
+        setTableDensity(view.tableDensity || 'comfortable');
     };
 
     const loadTables = async () => {
@@ -1514,9 +1604,26 @@ const TableManager = () => {
                                                 </select>
                                                 <ChevronDown size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: TOKENS.textMuted }} />
                                             </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <button onClick={saveCurrentView} style={{ padding: '9px 12px', borderRadius: '10px', border: `1px solid ${TOKENS.border}`, background: 'white', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>Save View</button>
+                                                <select value={activeSavedViewId} onChange={(e) => applySavedView(e.target.value)} style={{ padding: '9px 10px', borderRadius: '10px', border: `1px solid ${TOKENS.border}`, fontSize: '0.8rem' }}>
+                                                    <option value="">Saved Views</option>
+                                                    {savedViews.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                                                </select>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <button onClick={() => setTableDensity('compact')} style={{ padding: '8px 10px', borderRadius: '8px', border: `1px solid ${tableDensity === 'compact' ? TOKENS.primary : TOKENS.border}`, background: tableDensity === 'compact' ? TOKENS.primaryLight : 'white', fontSize: '0.75rem', cursor: 'pointer' }}>Compact</button>
+                                                <button onClick={() => setTableDensity('comfortable')} style={{ padding: '8px 10px', borderRadius: '8px', border: `1px solid ${tableDensity === 'comfortable' ? TOKENS.primary : TOKENS.border}`, background: tableDensity === 'comfortable' ? TOKENS.primaryLight : 'white', fontSize: '0.75rem', cursor: 'pointer' }}>Comfort</button>
+                                            </div>
                                         </div>
 
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                            {selectedIds.size > 0 && (
+                                                <>
+                                                    <button onClick={() => handleBulkStatusUpdate('Completed')} style={{ padding: '9px 12px', borderRadius: '10px', border: 'none', backgroundColor: '#dcfce7', color: '#166534', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>Bulk Complete</button>
+                                                    <button onClick={() => handleBulkStatusUpdate('On Hold')} style={{ padding: '9px 12px', borderRadius: '10px', border: 'none', backgroundColor: '#fef3c7', color: '#92400e', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>Bulk Hold</button>
+                                                </>
+                                            )}
                                             {selectedIds.size > 0 && (
                                                 <button
                                                     onClick={handleBulkDelete}
@@ -1584,6 +1691,39 @@ const TableManager = () => {
                                     </div>
 
                                     {/* Table View with Sidebar */}
+                                    {quickFilterOptions.length > 0 && (
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                                            {quickFilterOptions.map((opt) => {
+                                                const active = quickFilterField === opt.field && quickFilterValue === opt.value;
+                                                return (
+                                                    <button
+                                                        key={`${opt.field}:${opt.value}`}
+                                                        onClick={() => {
+                                                            if (active) {
+                                                                setQuickFilterField('');
+                                                                setQuickFilterValue('');
+                                                            } else {
+                                                                setQuickFilterField(opt.field);
+                                                                setQuickFilterValue(opt.value);
+                                                            }
+                                                        }}
+                                                        style={{
+                                                            padding: '6px 10px',
+                                                            borderRadius: '999px',
+                                                            border: `1px solid ${active ? TOKENS.primary : TOKENS.border}`,
+                                                            backgroundColor: active ? TOKENS.primaryLight : 'white',
+                                                            color: active ? TOKENS.primary : TOKENS.textMuted,
+                                                            fontSize: '0.75rem',
+                                                            fontWeight: 700,
+                                                            cursor: 'pointer'
+                                                        }}
+                                                    >
+                                                        {opt.field}: {opt.value}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                     <div style={{ flex: 1, display: 'flex', gap: '24px', overflow: 'hidden' }}>
                                         {/* Left Fields Sidebar */}
                                         {isFieldsSidebarOpen && (
@@ -1674,14 +1814,15 @@ const TableManager = () => {
                                                                 />
                                                             </th>
                                                             <th style={{ padding: '16px', width: '50px', textAlign: 'left', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase' }}>#</th>
-                                                            <th style={{ padding: '16px', textAlign: 'left', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase' }}>Record ID</th>
+                                                            <th style={{ padding: tableDensity === 'compact' ? '10px' : '16px', textAlign: 'left', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase' }}>Record ID</th>
                                                             {activeFields.filter(f => !hiddenFields.includes(f.name)).map(field => (
-                                                                <th key={field.name} style={{ padding: '16px', textAlign: 'left', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase' }}>
+                                                                 <th key={field.name} style={{ padding: tableDensity === 'compact' ? '10px' : '16px', textAlign: 'left', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase' }}>
                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                                        {field.name} <ArrowUpDown size={12} />
+                                                                        {field.name}
                                                                     </div>
                                                                 </th>
                                                             ))}
+                                                            <th style={{ padding: tableDensity === 'compact' ? '10px' : '16px', textAlign: 'left', fontSize: '0.75rem', fontWeight: 700, color: TOKENS.textMuted, textTransform: 'uppercase' }}>Actions</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -1704,10 +1845,10 @@ const TableManager = () => {
                                                                         style={{ cursor: 'pointer', width: '16px', height: '16px' }}
                                                                     />
                                                                 </td>
-                                                                <td style={{ padding: '16px', color: TOKENS.textMuted, fontSize: '0.85rem' }}>{idx + 1}</td>
-                                                                <td style={{ padding: '16px', fontWeight: 700, color: TOKENS.text, fontSize: '0.9rem' }}>{record.recordId}</td>
+                                                                <td style={{ padding: tableDensity === 'compact' ? '10px' : '16px', color: TOKENS.textMuted, fontSize: '0.85rem' }}>{idx + 1}</td>
+                                                                <td style={{ padding: tableDensity === 'compact' ? '10px' : '16px', fontWeight: 700, color: TOKENS.text, fontSize: '0.9rem' }}>{record.recordId}</td>
                                                                 {activeFields.filter(f => !hiddenFields.includes(f.name)).map(field => (
-                                                                    <td key={field.name} style={{ padding: '16px', fontSize: '0.85rem', color: TOKENS.text }}>
+                                                                    <td key={field.name} style={{ padding: tableDensity === 'compact' ? '10px' : '16px', fontSize: '0.85rem', color: TOKENS.text }}>
                                                                         {field.type === 'linked_record' ? (
                                                                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                                                                                 {(() => {
@@ -1730,6 +1871,14 @@ const TableManager = () => {
                                                                         ) : String(record[field.name] ?? '-')}
                                                                     </td>
                                                                 ))}
+                                                                <td style={{ padding: tableDensity === 'compact' ? '10px' : '16px' }} onClick={(e) => e.stopPropagation()}>
+                                                                    <div style={{ display: 'flex', gap: '6px' }}>
+                                                                        <button onClick={() => setSelectedRecordInternalId(record.id)} style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${TOKENS.border}`, background: 'white', fontSize: '0.72rem', cursor: 'pointer' }}>Open</button>
+                                                                        {activeFields.some((f) => f.name === 'status') && (
+                                                                            <button onClick={async () => { await updateTableRecord(record.id, { status: 'Completed' }); await loadRecords(selectedTable.id); }} style={{ padding: '5px 8px', borderRadius: '6px', border: 'none', background: '#dcfce7', color: '#166534', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}>Complete</button>
+                                                                        )}
+                                                                    </div>
+                                                                </td>
                                                             </tr>
                                                         ))}
                                                     </tbody>

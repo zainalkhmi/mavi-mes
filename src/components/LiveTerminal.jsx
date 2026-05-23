@@ -860,15 +860,23 @@ const LiveTerminal = () => {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (e) => {
+      const resultUrl = e.target.result;
       setUploadValues(prev => ({
         ...prev,
         [comp.id]: {
           name: file.name,
           type: file.type,
-          url: e.target.result,
+          url: resultUrl,
           size: file.size
         }
       }));
+
+      // Auto-update bound variable
+      const targetVar = comp.props?.targetVariable;
+      if (targetVar) {
+        setAppVariables(prev => prev.map(v => v.name === targetVar ? { ...v, value: resultUrl } : v));
+      }
+
       fireWidgetTriggers(comp, 'ON_CHANGE');
     };
     reader.readAsDataURL(file);
@@ -1436,7 +1444,7 @@ const LiveTerminal = () => {
       rawValue = rawValue.replace(/\{\{APP_INFO\.([a-zA-Z0-9_.]+)\}\}/g, (match, infoKey) => {
         if (infoKey === 'USER') return appContext.user || '';
         if (infoKey === 'STATION') return appContext.station || '';
-        return match;
+        return 'undefined';
       });
 
       // Resolve variables and fields: {{VARIABLE.VarName}}, {{@VarName}}, or [Placeholder.Field]
@@ -1606,6 +1614,10 @@ const LiveTerminal = () => {
           if (!data) return '""';
           const val = data[fName] ?? (fName === 'recordId' ? data.recordId : '');
           if (val === undefined || val === null) return '""';
+          if (typeof val === 'number') return val;
+          if (val === 'true' || val === true) return true;
+          if (val === 'false' || val === false) return false;
+          if (typeof val === 'string' && val !== '' && !isNaN(Number(val))) return Number(val);
           return typeof val === 'string' ? `"${val}"` : val;
         }
       }
@@ -1633,6 +1645,10 @@ const LiveTerminal = () => {
           if (placeholder) {
             const data = recordPlaceholderData[placeholder.id];
             const val = data ? data[fName] : '';
+            if (typeof val === 'number') return val;
+            if (val === 'true' || val === true) return true;
+            if (val === 'false' || val === false) return false;
+            if (typeof val === 'string' && val !== '' && !isNaN(Number(val))) return Number(val);
             return typeof val === 'string' ? `"${val}"` : val;
           }
         }
@@ -1640,9 +1656,45 @@ const LiveTerminal = () => {
       }
       const v = appVariables.find(av => av.name === name);
       if (v) {
+        if (typeof v.value === 'number') return v.value;
+        if (v.value === 'true' || v.value === true) return true;
+        if (v.value === 'false' || v.value === false) return false;
+        if (typeof v.value === 'string' && v.value !== '' && !isNaN(Number(v.value))) return Number(v.value);
         return typeof v.value === 'string' ? `"${v.value}"` : v.value;
       }
-      return match;
+      // Support @PlaceholderName.FieldName (record placeholder dot notation)
+      if (name.includes('.')) {
+        const [pName, ...fPath] = name.split('.');
+        const placeholder = recordPlaceholders.find(rp => rp.name === pName || rp.id === pName);
+        if (placeholder) {
+          const data = recordPlaceholderData[placeholder.id];
+          if (data) {
+            let current = data;
+            for (const part of fPath) {
+              if (current && typeof current === 'object') {
+                let next = current[part];
+                if (next === undefined) {
+                  const key = Object.keys(current).find(k => k.toLowerCase() === part.toLowerCase());
+                  if (key) next = current[key];
+                }
+                current = next;
+              } else {
+                current = undefined;
+                break;
+              }
+            }
+            if (current !== undefined && current !== null) {
+              if (typeof current === 'number') return current;
+              if (current === 'true' || current === true) return true;
+              if (current === 'false' || current === false) return false;
+              if (typeof current === 'string' && current !== '' && !isNaN(Number(current))) return Number(current);
+              return typeof current === 'string' ? `"${current}"` : current;
+            }
+          }
+          return 0; // Placeholder exists but no data or field not found - return 0 for arithmetic safety
+        }
+      }
+      return 'undefined'; // Safe fallback to prevent SyntaxError in new Function
     });
 
     // 2. Handle Functions (Recursive Replacement for Nesting)
@@ -2388,7 +2440,7 @@ const LiveTerminal = () => {
                   if (comp.type === 'TIME_PICKER') return timeValues[comp.id];
                   if (comp.type === 'SIGNATURE' || comp.type === 'SIGNATURE_PAD') return signatureWidgetValues[comp.id] ?? drawValues[comp.id];
                   if (comp.type === 'CAMERA_CAPTURE' || comp.type === 'CAMERA') return cameraValues[comp.id];
-                  if (comp.type === 'FILE_UPLOAD' || comp.type === 'FILE_PICKER') return fileValues[comp.id];
+                  if (comp.type === 'FILE_UPLOAD' || comp.type === 'FILE_PICKER') return uploadValues[comp.id]?.url || uploadValues[comp.id]?.name;
                   if (comp.type === 'INTERACTIVE_TABLE' || comp.type === 'TABLE') return tableData[comp.id];
                   if (comp.type === 'ADVANCED_TABLE') return advancedTableData[comp.id];
                   return undefined;
@@ -4121,7 +4173,10 @@ const LiveTerminal = () => {
           </div>
         );
       }
-      case 'TEXT_INPUT': return (
+      case 'TEXT_INPUT': {
+        const targetVarVal = comp.props.targetVariable ? resolveValue(`@${comp.props.targetVariable}`) : undefined;
+        const finalValue = targetVarVal !== undefined && targetVarVal !== `@${comp.props.targetVariable}` ? targetVarVal : (textInputValues[comp.id] != null ? textInputValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : (resolvedProps.defaultValue || '')));
+        return (
         <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
           {(resolvedProps.label || resolvedProps.text) && (
             <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '4px' }}>
@@ -4131,7 +4186,7 @@ const LiveTerminal = () => {
           <input
             id={`input-${comp.id}`}
             type="text"
-            value={textInputValues[comp.id] != null ? textInputValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : (resolvedProps.defaultValue || ''))}
+            value={finalValue}
             onChange={async e => {
               const val = comp.props.mask ? applyInputMask(e.target.value, comp.props.mask) : e.target.value;
               setTextInputValues(prev => ({ ...prev, [comp.id]: val }));
@@ -4153,8 +4208,11 @@ const LiveTerminal = () => {
             }}
           />
         </div>
-      );
-      case 'TEXT_AREA': return (
+      );}
+      case 'TEXT_AREA': {
+        const targetVarVal = comp.props.targetVariable ? resolveValue(`@${comp.props.targetVariable}`) : undefined;
+        const finalValue = targetVarVal !== undefined && targetVarVal !== `@${comp.props.targetVariable}` ? targetVarVal : (textAreaValues[comp.id] != null ? textAreaValues[comp.id] : (comp.props.defaultValue || ''));
+        return (
         <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
           {(resolvedProps.label || resolvedProps.text) && (
             <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '4px' }}>
@@ -4163,7 +4221,7 @@ const LiveTerminal = () => {
           )}
           <textarea
             id={`input-${comp.id}`}
-            value={textAreaValues[comp.id] != null ? textAreaValues[comp.id] : (comp.props.defaultValue || '')}
+            value={finalValue}
             onChange={e => {
               const val = e.target.value;
               setTextAreaValues(prev => ({ ...prev, [comp.id]: val }));
@@ -4187,7 +4245,7 @@ const LiveTerminal = () => {
             }}
           />
         </div>
-      );
+      );}
       case 'DROPDOWN': return (
         <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
           {(resolvedProps.label || resolvedProps.text) && (
@@ -4455,32 +4513,50 @@ const LiveTerminal = () => {
         const borderRadiusMap = { 0: '6px', 1: '16px', 2: '0px', 3: '50%' };
         const alignmentMap = { 0: 'flex-start', 1: 'center', 2: 'flex-end' };
         
+        const isFilePicker = comp.type === 'FILE_PICKER' || comp.type === 'IMAGE_PICKER';
+
         return (
-          <button
-            onClick={() => handleButtonAction(comp.props, comp)}
-            style={{
-              width: '100%',
-              height: '100%',
-              padding: '10px 16px',
-              backgroundColor: resolvedProps.image ? 'transparent' : (resolvedProps.backgroundColor || '#2563eb'),
-              backgroundImage: resolvedProps.image ? `url(${resolvedProps.image})` : 'none',
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              color: resolvedProps.textColor || resolvedProps.color || '#ffffff',
-              border: 'none',
-              borderRadius: borderRadiusMap[resolvedProps.shape] || '6px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              boxSizing: 'border-box',
-              justifyContent: alignmentMap[resolvedProps.textAlignment] || alignmentMap[resolvedProps.textAlign] || 'center',
-              transition: 'all 0.2s',
-              fontWeight: (resolvedProps.fontBold || resolvedProps.fontWeight === 'bold' || resolvedProps.fontWeight === 700) ? 'bold' : 'normal',
-              fontSize: `${resolvedProps.fontSize || 14}px`,
-            }}
-          >
-            {resolvedProps.text || resolvedProps.label || 'Button'}
-          </button>
+          <div key={comp.id} style={{ width: '100%', height: '100%', position: 'relative' }}>
+            <button
+              onClick={() => {
+                if (isFilePicker) {
+                  document.getElementById(`picker-${comp.id}`)?.click();
+                }
+                handleButtonAction(comp.props, comp);
+              }}
+              style={{
+                width: '100%',
+                height: '100%',
+                padding: '10px 16px',
+                backgroundColor: resolvedProps.image ? 'transparent' : (resolvedProps.backgroundColor || '#2563eb'),
+                backgroundImage: resolvedProps.image ? `url(${resolvedProps.image})` : 'none',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                color: resolvedProps.textColor || resolvedProps.color || '#ffffff',
+                border: 'none',
+                borderRadius: borderRadiusMap[resolvedProps.shape] || '6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                boxSizing: 'border-box',
+                justifyContent: alignmentMap[resolvedProps.textAlignment] || alignmentMap[resolvedProps.textAlign] || 'center',
+                transition: 'all 0.2s',
+                fontWeight: (resolvedProps.fontBold || resolvedProps.fontWeight === 'bold' || resolvedProps.fontWeight === 700) ? 'bold' : 'normal',
+                fontSize: `${resolvedProps.fontSize || 14}px`,
+              }}
+            >
+              {resolvedProps.text || resolvedProps.label || 'Button'}
+            </button>
+            {isFilePicker && (
+              <input
+                id={`picker-${comp.id}`}
+                type="file"
+                accept={comp.type === 'IMAGE_PICKER' ? 'image/*' : '*/*'}
+                style={{ display: 'none' }}
+                onChange={(e) => handleFileUpload(comp, e.target.files[0])}
+              />
+            )}
+          </div>
         );
       }
       case 'COMPLETE_BUTTON': return (

@@ -921,6 +921,20 @@ const COMPONENT_TYPES = {
             enableFilter: true,
             enableExport: false,
             pageSize: 10,
+            density: 'comfortable', // compact | comfortable
+            savedViews: [], // { id, name, filters, sort, hiddenColumns, pinnedColumns }
+            defaultViewId: '',
+            quickFilterChips: [], // { label, column, value }
+            columnConfig: {}, // { [colKey]: { hidden, width, pinned } }
+            sortRules: [], // { field, direction }
+            rowActions: [
+                { id: 'open', label: 'Open', event: 'ON_ROW_OPEN' },
+                { id: 'complete', label: 'Complete', event: 'ON_ROW_COMPLETE' }
+            ],
+            bulkActions: [
+                { id: 'mark_complete', label: 'Mark Complete', field: 'status', value: 'Completed' },
+                { id: 'mark_hold', label: 'Mark Hold', field: 'status', value: 'On Hold' }
+            ],
             linkedRecordPlaceholderId: '',
             triggers: [],
             visibilityCondition: null,
@@ -5075,6 +5089,10 @@ const AppBuilder = () => {
                     if (placeholder) {
                         const data = recordPlaceholderData[placeholder.id];
                         const val = data ? data[fName] : '';
+                        if (typeof val === 'number') return val;
+                        if (val === 'true' || val === true) return true;
+                        if (val === 'false' || val === false) return false;
+                        if (typeof val === 'string' && val !== '' && !isNaN(Number(val))) return Number(val);
                         return typeof val === 'string' ? `"${val}"` : val;
                     }
                 }
@@ -5082,9 +5100,45 @@ const AppBuilder = () => {
             }
             const v = appVariables.find(av => av.name === name);
             if (v) {
+                if (typeof v.value === 'number') return v.value;
+                if (v.value === 'true' || v.value === true) return true;
+                if (v.value === 'false' || v.value === false) return false;
+                if (typeof v.value === 'string' && v.value !== '' && !isNaN(Number(v.value))) return Number(v.value);
                 return typeof v.value === 'string' ? `"${v.value}"` : v.value;
             }
-            return match; // Keep as is if not found
+            // Support @PlaceholderName.FieldName (record placeholder dot notation)
+            if (name.includes('.')) {
+                const [pName, ...fPath] = name.split('.');
+                const placeholder = recordPlaceholders.find(rp => rp.name === pName || rp.id === pName);
+                if (placeholder) {
+                    const data = recordPlaceholderData[placeholder.id];
+                    if (data) {
+                        let current = data;
+                        for (const part of fPath) {
+                            if (current && typeof current === 'object') {
+                                let next = current[part];
+                                if (next === undefined) {
+                                    const key = Object.keys(current).find(k => k.toLowerCase() === part.toLowerCase());
+                                    if (key) next = current[key];
+                                }
+                                current = next;
+                            } else {
+                                current = undefined;
+                                break;
+                            }
+                        }
+                        if (current !== undefined && current !== null) {
+                            if (typeof current === 'number') return current;
+                            if (current === 'true' || current === true) return true;
+                            if (current === 'false' || current === false) return false;
+                            if (typeof current === 'string' && current !== '' && !isNaN(Number(current))) return Number(current);
+                            return typeof current === 'string' ? `"${current}"` : current;
+                        }
+                    }
+                    return 0; // Placeholder exists but no data or field not found - return 0 for arithmetic safety
+                }
+            }
+            return 'undefined'; // Safe fallback to prevent SyntaxError in new Function
         });
 
         // 2. Handle specific Functions (SUM, CONCAT, etc.)
@@ -23749,6 +23803,7 @@ const AppBuilder = () => {
 };
 
 export default AppBuilder;
+
 
 
 

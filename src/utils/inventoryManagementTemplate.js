@@ -909,17 +909,23 @@ export function createInventoryManagementTemplate() {
             },
             // Right Panel: Image viewfinder box + Upload button
             {
-                id: `ck_img_box_${ts}`, type: 'TEXT',
+                id: `ck_img_placeholder_${ts}`, type: 'TEXT',
                 x: 520, y: 60, w: 400, h: 200,
-                props: { text: '📷 Kanban Card Image Box', fontSize: 14, backgroundColor: '#000000', color: '#ffffff', textAlignment: 1, padding: '70px' }
+                props: { text: '📷 Kanban Card Image Box', fontSize: 14, backgroundColor: '#000000', color: '#ffffff', textAlignment: 1, padding: '70px' },
+                visibilityCondition: { variable: 'New_Kanban_Image', operator: 'IS_EMPTY' }
             },
             {
-                id: `ck_btn_upload_${ts}`, type: 'BUTTON',
+                id: `ck_img_box_${ts}`, type: 'IMAGE',
+                x: 520, y: 60, w: 400, h: 200,
+                props: { url: '{{@New_Kanban_Image}}', objectFit: 'contain', backgroundColor: '#000000' },
+                visibilityCondition: { variable: 'New_Kanban_Image', operator: 'IS_NOT_EMPTY' }
+            },
+            {
+                id: `ck_btn_upload_${ts}`, type: 'IMAGE_PICKER',
                 x: 820, y: 270, w: 100, h: 35,
-                props: { text: '⚙ Upload', backgroundColor: '#3b82f6', color: 'white', fontSize: 13 },
+                props: { label: '⚙ Upload', targetVariable: 'New_Kanban_Image', backgroundColor: '#3b82f6', color: 'white', fontSize: 13 },
                 triggers: [
-                    { name: 'Upload Kanban Image Link', event: 'ON_CLICK', type: 'LOGIC', action: 'SET_VARIABLE', variableId: 'New_Kanban_Image', value: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=400&q=80' },
-                    { name: 'Show Upload Success Message', event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Image Uploaded successfully!', messageType: 'success' }
+                    { name: 'Show Upload Success Message', event: 'ON_CHANGE', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Image Uploaded successfully!', messageType: 'success' }
                 ]
             },
             // Footer buttons (✕ Cancel on left, + Create on right)
@@ -1176,13 +1182,14 @@ export function createInventoryManagementTemplate() {
                 props: { targetVariable: 'Selected_Kanban_Card.Consuming_location', readOnly: true, backgroundColor: '#f8fafc' }
             },
             {
-                id: `pl_barcode_${ts}`, type: 'TEXT',
-                x: 320, y: 315, w: 320, h: 30,
-                props: { text: '[ SCANNABLE BARCODE ]', fontSize: 14, fontWeight: 'bold', textAlignment: 1 }
+                id: `pl_barcode_${ts}`, type: 'IMAGE',
+                x: 420, y: 315, w: 120, h: 120,
+                props: { url: 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={{@Selected_Kanban_Card.Kanban_ID}}', objectFit: 'contain' },
+                visibilityCondition: { variable: 'Selected_Kanban_Card.Kanban_ID', operator: 'IS_NOT_EMPTY' }
             },
             {
                 id: `pl_print_${ts}`, type: 'BUTTON',
-                x: 320, y: 350, w: 320, h: 50,
+                x: 320, y: 450, w: 320, h: 50,
                 props: { text: '🖨 Send to Zebra/Label Printer', backgroundColor: '#10b981', color: 'white', fontWeight: 'bold' },
                 triggers: [
                     { name: 'Print Kanban Container Label', event: 'ON_CLICK', type: 'NAVIGATION', action: 'SHOW_MESSAGE', message: 'Label sent to printer queue!', messageType: 'success' },
@@ -1191,7 +1198,7 @@ export function createInventoryManagementTemplate() {
             },
             {
                 id: `pl_back_${ts}`, type: 'BUTTON',
-                x: 320, y: 415, w: 320, h: 40,
+                x: 320, y: 515, w: 320, h: 40,
                 props: { text: 'Back', backgroundColor: '#e2e8f0', color: 'black' },
                 triggers: [{ name: 'Go back to View Kanban Step', event: 'ON_CLICK', type: 'NAVIGATION', action: 'GO_TO_STEP', stepId: `s_view_kanban_${ts}` }]
             }
