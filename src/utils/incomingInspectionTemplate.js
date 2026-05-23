@@ -122,7 +122,7 @@ export function createIncomingInspectionTemplate() {
                 props: { text: 'Scan or enter the part information to begin inspection', fontSize: 14, color: '#64748b', textAlign: 'center' }
             },
             {
-                id: `s1_barcode_${ts}`, type: 'BARCODE',
+                id: `s1_barcode_${ts}`, type: 'BARCODE_SCANNER',
                 x: 200, y: 140, w: 600, h: 70,
                 props: { placeholder: 'Scan Part Barcode / Enter Part Number...', autoFocus: true, targetVariable: 'Part_Number' }
             },

@@ -1,5 +1,5 @@
 import { getSupabaseClient } from './supabaseManualDB.js';
-import { deleteTable } from './database.js';
+import { deleteTable } from './supabaseTablesDB.js';
 
 async function getStations() {
     const supabase = getSupabaseClient();

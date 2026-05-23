@@ -66,7 +66,7 @@ export function createInventoryAlertTemplate() {
         components: [
             { id: `h2_${ts}`, type: 'TEXT', x: 50, y: 10, w: 900, h: 30, props: { text: '📋 Material Pick & Transaction', fontSize: 22, fontWeight: 'bold', color: '#0f172a', textAlign: 'center' } },
             { id: `h2s_${ts}`, type: 'TEXT', x: 50, y: 40, w: 900, h: 18, props: { text: 'Scan barcode → record transaction → auto-alert if stock < reorder → linked to Suppliers', fontSize: 11, color: '#64748b', textAlign: 'center' } },
-            { id: `bc_${ts}`, type: 'BARCODE', x: 150, y: 70, w: 700, h: 50, props: { placeholder: 'Scan material barcode...', autoFocus: true, targetVariable: 'Scan_Item' } },
+            { id: `bc_${ts}`, type: 'BARCODE_SCANNER', x: 150, y: 70, w: 700, h: 50, props: { placeholder: 'Scan material barcode...', autoFocus: true, targetVariable: 'Scan_Item' } },
             { id: `mn_${ts}`, type: 'TEXT_INPUT', x: 150, y: 140, w: 220, h: 42, props: { label: 'Material Name', targetVariable: 'Material_Name' } },
             { id: `ml_${ts}`, type: 'TEXT_INPUT', x: 390, y: 140, w: 220, h: 42, props: { label: 'Location', targetVariable: 'Location', placeholder: 'Kitting-4' } },
             { id: `ms_${ts}`, type: 'TEXT_INPUT', x: 630, y: 140, w: 220, h: 42, props: { label: 'Supplier', targetVariable: 'Supplier_Name' } },

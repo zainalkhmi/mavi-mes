@@ -50,7 +50,7 @@ export function createAssyLineProductionTemplate() {
         components: [
             { id: `s1h_${ts}`, type: 'TEXT', x: 50, y: 20, w: 900, h: 50, props: { text: '🏭 Assembly Line Production', fontSize: 28, fontWeight: 'bold', color: '#0f172a', textAlign: 'center' } },
             { id: `s1s_${ts}`, type: 'TEXT', x: 50, y: 70, w: 900, h: 25, props: { text: 'Multi-table production tracking with linked records', fontSize: 14, color: '#64748b', textAlign: 'center' } },
-            { id: `s1bc_${ts}`, type: 'BARCODE', x: 200, y: 120, w: 600, h: 60, props: { placeholder: 'Scan Work Order barcode...', autoFocus: true, targetVariable: 'Work_Order_ID' } },
+            { id: `s1bc_${ts}`, type: 'BARCODE_SCANNER', x: 200, y: 120, w: 600, h: 60, props: { placeholder: 'Scan Work Order barcode...', autoFocus: true, targetVariable: 'Work_Order_ID' } },
             { id: `s1l_${ts}`, type: 'TEXT_INPUT', x: 200, y: 200, w: 280, h: 50, props: { label: 'Assembly Line', placeholder: 'LINE-A1', targetVariable: 'Line_Assy', required: true } },
             { id: `s1sh_${ts}`, type: 'TEXT_INPUT', x: 520, y: 200, w: 280, h: 50, props: { label: 'Shift', placeholder: 'Day / Night', targetVariable: 'Shift' } },
             { id: `s1t_${ts}`, type: 'TEXT_INPUT', x: 200, y: 280, w: 280, h: 50, props: { label: 'Target Quantity', placeholder: '670', targetVariable: 'Target_Qty', inputType: 'number', required: true } },

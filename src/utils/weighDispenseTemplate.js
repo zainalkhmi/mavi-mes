@@ -218,7 +218,7 @@ export function createWeighDispenseTemplate() {
                     props: { text: 'Scan or enter the material barcode', fontSize: 12, color: '#64748b' }
                 },
                 {
-                    id: `s${sn}_bc_input_${ts}`, type: 'BARCODE',
+                    id: `s${sn}_bc_input_${ts}`, type: 'BARCODE_SCANNER',
                     x: 500, y: 264, w: 440, h: 50,
                     props: { placeholder: 'WD-PW261...', autoFocus: false, targetVariable: barcodeVar }
                 },

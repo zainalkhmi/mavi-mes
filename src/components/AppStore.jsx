@@ -40,7 +40,10 @@ import { createFrontlineQmsTemplate } from '../utils/frontlineQmsTemplate';
 import { createMaterialReviewBoardTemplate } from '../utils/materialReviewBoardTemplate';
 
 import { saveFrontlineApp, deleteFrontlineApp } from '../utils/supabaseFrontlineDB';
-import { createTable, getTables, addTableRecord } from '../utils/database';
+import {
+    createTable, getTables, addTableRecord,
+    getTableById, updateTable, linkRecords, getTableRecords, updateTableRecord
+} from '../utils/database';
 import { getCurrentUser } from '../utils/auth';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -68,6 +71,8 @@ const generateSmartDummyData = (fields, count = 3) => {
                 record[f.name] = ['Station 1', 'Line 1', 'Warehouse A', 'Station 2'][i % 4];
             } else if (name.includes('reason') || name.includes('desc')) {
                 record[f.name] = `Sample description for ${f.name} ${i}`;
+            } else if (f.type === 'linked_record') {
+                record[f.name] = []; // Initialize to empty array
             } else {
                 record[f.name] = `Sample ${f.name} ${i}`;
             }
@@ -79,21 +84,186 @@ const generateSmartDummyData = (fields, count = 3) => {
 
 const getOrCreateTableAndSeed = async (allTables, tableDef, skipSeed = false) => {
     const existingTable = allTables.find(t => t.name === tableDef.name);
-    if (existingTable) {
-        return existingTable;
+    let targetTable = existingTable;
+    let isNew = false;
+    if (!existingTable) {
+        targetTable = await createTable(tableDef);
+        isNew = true;
     }
-    const newTable = await createTable(tableDef);
-    if (!skipSeed && newTable) {
+    
+    if (!skipSeed && targetTable) {
         try {
-            const dummyRecords = generateSmartDummyData(tableDef.fields || [], 3);
-            for (const record of dummyRecords) {
-                await addTableRecord({ tableId: newTable.id, fields: record });
+            const existingRecords = await getTableRecords(targetTable.id);
+            if (isNew || !existingRecords || existingRecords.length === 0) {
+                const fields = tableDef.fields || [];
+                const dummyRecords = generateSmartDummyData(fields, 3);
+                for (const record of dummyRecords) {
+                    const cleanRecord = { ...record };
+                    fields.forEach(f => {
+                        if (f.type === 'linked_record') {
+                            cleanRecord[f.name] = []; // Ensure empty array initially
+                        }
+                    });
+                    await addTableRecord({ tableId: targetTable.id, fields: cleanRecord });
+                }
             }
         } catch (e) {
-            console.warn('Failed to insert generic dummy data for', tableDef.name, e);
+            console.warn('Failed to insert generic dummy data for', targetTable.name, e);
         }
     }
-    return newTable;
+    return targetTable;
+};
+
+const connectAppTablesAndSeedLinks = async (appTableIds) => {
+    if (!appTableIds || appTableIds.length === 0) return;
+    
+    console.log('[AppStore] Running connectAppTablesAndSeedLinks for:', appTableIds);
+    try {
+        // 1. Fetch full definitions of all tables in the app
+        const tables = await Promise.all(appTableIds.map(id => getTableById(id)));
+        
+        // Define common field patterns and their corresponding candidate target tables
+        const linkMap = [
+            {
+                pattern: ['work_order_id', 'work_order', 'parent_wo', 'parent_order_id', 'order_id'],
+                targets: ['Work_Orders', 'Production_Orders', 'Workshop_Orders'],
+                reversePrefix: 'Linked_Orders'
+            },
+            {
+                pattern: ['station_id', 'station'],
+                targets: ['Stations'],
+                reversePrefix: 'Linked_History'
+            },
+            {
+                pattern: ['material_definition_id', 'material_id', 'parent_material_id', 'parent_material'],
+                targets: ['Material_Definitions', 'Inventory_Materials'],
+                reversePrefix: 'Linked_Items'
+            },
+            {
+                pattern: ['supplier_id', 'supplier'],
+                targets: ['Inventory_Suppliers'],
+                reversePrefix: 'Linked_Materials'
+            },
+            {
+                pattern: ['defect_id', 'defect'],
+                targets: ['Defect_Events'],
+                reversePrefix: 'Linked_Deviations'
+            },
+            {
+                pattern: ['kanban_card_id', 'kanban_card'],
+                targets: ['Kanban_Cards'],
+                reversePrefix: 'Linked_Requests'
+            },
+            {
+                pattern: ['inventory_item_id', 'inventory_item'],
+                targets: ['Inventory_Items'],
+                reversePrefix: 'Linked_Transactions'
+            },
+            {
+                pattern: ['parent_event_id', 'parent_event'],
+                targets: ['Andon_Events'],
+                reversePrefix: 'Linked_Resolutions'
+            }
+        ];
+        
+        // 2. Scan and update schemas to convert text reference fields to linked_record fields
+        const updatedTables = [];
+        for (const tableA of tables) {
+            let fieldsChanged = false;
+            const updatedFields = tableA.fields.map(field => {
+                if (field.type === 'linked_record') return field;
+                
+                const fieldNameLower = field.name.toLowerCase();
+                const rule = linkMap.find(m => m.pattern.includes(fieldNameLower));
+                if (rule) {
+                    const targetTable = tables.find(t => rule.targets.includes(t.name));
+                    if (targetTable && targetTable.id !== tableA.id) {
+                        console.log(`[AppStore] Converting field "${field.name}" in table "${tableA.name}" to linked_record pointing to "${targetTable.name}"`);
+                        fieldsChanged = true;
+                        return {
+                            ...field,
+                            type: 'linked_record',
+                            link_table_id: targetTable.id,
+                            link_type: 'many_to_one',
+                            reverse_link_name: `${rule.reversePrefix}_${tableA.name.replace(/[^a-zA-Z0-9]/g, '_')}`
+                        };
+                    }
+                }
+                return field;
+            });
+            
+            if (fieldsChanged) {
+                try {
+                    await updateTable(tableA.id, { fields: updatedFields });
+                    const freshTable = await getTableById(tableA.id);
+                    updatedTables.push(freshTable);
+                } catch (schemaErr) {
+                    console.warn(`Failed to update schema for table ${tableA.name}:`, schemaErr);
+                    updatedTables.push(tableA);
+                }
+            } else {
+                updatedTables.push(tableA);
+            }
+        }
+        
+        // 3. Populate links between records
+        for (const tableA of updatedTables) {
+            const linkedFields = (tableA.fields || []).filter(f => f.type === 'linked_record' && f.link_table_id && f.link_type === 'many_to_one');
+            if (linkedFields.length === 0) continue;
+            
+            const recordsA = await getTableRecords(tableA.id);
+            if (!recordsA || recordsA.length === 0) continue;
+            
+            for (const lf of linkedFields) {
+                const recordsB = await getTableRecords(lf.link_table_id);
+                if (!recordsB || recordsB.length === 0) continue;
+                
+                console.log(`[AppStore] Linking records of "${tableA.name}" (field: "${lf.name}") with "${lf.link_table_id}"`);
+                
+                for (const recA of recordsA) {
+                    const originalValue = recA.data[lf.name];
+                    let matchedRec = null;
+                    if (originalValue) {
+                        const valStr = String(originalValue).toLowerCase().trim();
+                        matchedRec = recordsB.find(recB => 
+                            String(recB.recordId).toLowerCase().trim() === valStr ||
+                            (recB.data && String(Object.values(recB.data).find(v => typeof v === 'string' && v.toLowerCase().trim() === valStr)).length > 0)
+                        );
+                    }
+                    
+                    if (!matchedRec) {
+                        matchedRec = recordsB[Math.floor(Math.random() * recordsB.length)];
+                    }
+                    
+                    if (matchedRec) {
+                        try {
+                            const sourceRecId = recA.recordId || recA.record_id;
+                            const targetRecId = matchedRec.recordId || matchedRec.record_id;
+                            if (sourceRecId && targetRecId) {
+                                // Clear field first to avoid string pollution
+                                const cleanData = { ...recA.data, [lf.name]: [] };
+                                await updateTableRecord(tableA.id, sourceRecId, cleanData);
+                                
+                                await linkRecords(
+                                    tableA.id,
+                                    sourceRecId,
+                                    lf.name,
+                                    lf.link_table_id,
+                                    targetRecId,
+                                    lf.reverse_link_name
+                                );
+                            }
+                        } catch (linkErr) {
+                            console.warn(`Failed to link record ${recA.recordId} with ${matchedRec.recordId}:`, linkErr);
+                        }
+                    }
+                }
+            }
+        }
+        console.log('[AppStore] Completed connectAppTablesAndSeedLinks successfully');
+    } catch (err) {
+        console.error('[AppStore] Failed in connectAppTablesAndSeedLinks:', err);
+    }
 };
 
 const AppStore = () => {
@@ -3322,6 +3492,15 @@ const AppStore = () => {
                 approval_status: 'DRAFT',
                 updated_at: new Date().toISOString()
             });
+
+            // Connect same-named/similar tables using linked record fields and seed their links
+            if (savedApp && savedApp.config && savedApp.config.appTables) {
+                try {
+                    await connectAppTablesAndSeedLinks(savedApp.config.appTables);
+                } catch (linkErr) {
+                    console.error('Error connecting app tables:', linkErr);
+                }
+            }
 
             toast.success(`${templateApp.name} installed successfully!`, { id: loadingToast });
 

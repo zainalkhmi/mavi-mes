@@ -757,6 +757,24 @@ const AppPlayer = () => {
                 // but let's allow "All Stations" if none is selected
                 // setStationIdFilter(stationRows[0].id);
             }
+
+            const urlAppId = params.get('appId') || params.get('app');
+            if (urlAppId && appRows && appRows.length > 0) {
+                const app = appRows.find(a => a.id === urlAppId);
+                if (app) {
+                    setOperator(params.get('operator') || 'Designer');
+                    setStationIdFilter(urlStation || 'Test Station 1');
+                    setActiveAppId(urlAppId);
+                    setSessionStartedAt(new Date());
+                    setElapsedSeconds(0);
+                    setStepProgress(null);
+                    setIframeError(false);
+                    setIsPaused(false);
+                    setSessionComments([]);
+                    clearTimeout(iframeLoadTimer.current);
+                    iframeLoadTimer.current = setTimeout(() => setIframeError(true), 8000);
+                }
+            }
         } catch (err) {
             setError(err?.message || 'Failed to load apps');
         } finally {

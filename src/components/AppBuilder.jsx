@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
+import QRCode from 'react-qr-code';
 import {
     Blocks,
     Plus,
@@ -10419,15 +10420,32 @@ const AppBuilder = () => {
                         </div>
                     </div>
                 );
-            case 'BARCODE':
+            case 'BARCODE': {
+                const qrValue = comp.props.value || '1234567890';
+                const isQr = comp.props.format === 'QR_CODE';
                 return (
-                    <div style={{ width: '100%', height: '100%', border: '1px solid var(--border-primary)', borderRadius: '8px', backgroundColor: comp.props.backgroundColor || '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '10px', gap: '8px' }}>
-                        <div style={{ width: '100%', height: '45px', background: `repeating-linear-gradient(90deg, ${comp.props.foregroundColor || '#111827'} 0 2px, transparent 2px 5px)` }} />
+                    <div style={{ width: '100%', height: '100%', border: '1px solid var(--border-primary)', borderRadius: '8px', backgroundColor: comp.props.backgroundColor || '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '10px', gap: '8px', boxSizing: 'border-box' }}>
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, width: '100%' }}>
+                            {isQr ? (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5px', backgroundColor: '#fff', borderRadius: '4px' }}>
+                                    <QRCode
+                                        value={qrValue}
+                                        size={Math.max(40, Math.min(comp.h || 90, comp.w || 220) - (comp.props.showText !== false ? 35 : 20))}
+                                        fgColor={comp.props.foregroundColor || '#111827'}
+                                        bgColor="#ffffff"
+                                        style={{ height: '100%', width: 'auto', maxHeight: '100%', maxWidth: '100%' }}
+                                    />
+                                </div>
+                            ) : (
+                                <div style={{ width: '100%', height: '45px', background: `repeating-linear-gradient(90deg, ${comp.props.foregroundColor || '#111827'} 0 2px, transparent 2px 5px)` }} />
+                            )}
+                        </div>
                         {comp.props.showText !== false && (
-                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{comp.props.value || '1234567890'}</div>
+                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', textAlign: 'center', wordBreak: 'break-all' }}>{qrValue}</div>
                         )}
                     </div>
                 );
+            }
             case 'MACHINE_ATTRIBUTE':
                 return (
                     <div style={{ width: '100%', height: '100%', border: '1px solid var(--border-primary)', borderRadius: '10px', backgroundColor: 'var(--bg-panel)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '12px' }}>
@@ -10946,6 +10964,8 @@ const AppBuilder = () => {
             case 'DASHBOARD_PARETO':
             case 'DASHBOARD_CHART_BAR':
             case 'DASHBOARD_CHART_LINE':
+            case 'BAR_CHART':
+            case 'DONUT_CHART':
                 return (
                     <div style={{ padding: '15px', backgroundColor: 'var(--bg-panel)', borderRadius: '8px', border: '1px solid var(--border-primary)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
                         <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-tertiary)', marginBottom: '10px' }}>{comp.props.title || comp.type}</div>
@@ -12089,6 +12109,38 @@ const AppBuilder = () => {
                                 boxShadow: viewMode === 'PREVIEW' ? '0 2px 4px rgba(0,0,0,0.2)' : 'none'
                             }}
                         ><Code size={14} /> Dev Mode</button>
+                        <button
+                            onClick={() => {
+                                if (!currentAppId) {
+                                    toast.error('Please save the app first.');
+                                    return;
+                                }
+                                window.open(`/player?appId=${currentAppId}&operator=Designer&station=Test%20Station%201`, '_blank');
+                            }}
+                            title="Buka di App Player (Tab Baru)"
+                            style={{
+                                padding: '8px 16px',
+                                borderRadius: '6px',
+                                fontSize: '0.8rem',
+                                backgroundColor: 'transparent',
+                                border: 'none',
+                                color: '#10b981',
+                                cursor: 'pointer',
+                                fontWeight: 700,
+                                transition: 'all 0.2s',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.15)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                        >
+                            <Play size={14} fill="#10b981" /> Play App
+                        </button>
                         <button
                             onClick={() => { setActiveLogicScopeId('STEP'); setViewMode('DIAGRAM'); }}
                             style={{
@@ -15529,7 +15581,41 @@ const AppBuilder = () => {
                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>TARGET QTY (QTY Required)</label>
                                                             <input type="number" min="1" value={selectedComp.props.targetQty} onChange={(e) => updateComponentProps(selectedComp.id, { targetQty: parseInt(e.target.value) || 1 })} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)' }} />
                                                         </div>
-                                                    </>
+                                                    </>)}
+                                                {selectedComp.type === 'BARCODE' && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                                        <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Barcode / QR Settings</label>
+                                                            
+                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Value to Encode</label>
+                                                                <input value={selectedComp.props.value || ''} onChange={(e) => updateComponentProps(selectedComp.id, { value: e.target.value })} placeholder="Static text or @Variable.Name" style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} />
+                                                            </div>
+
+                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Format</label>
+                                                                <select value={selectedComp.props.format || 'QR_CODE'} onChange={(e) => updateComponentProps(selectedComp.id, { format: e.target.value })} style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
+                                                                    <option value="QR_CODE">QR Code (Uses Library)</option>
+                                                                    <option value="BARCODE">Barcode (Simulated)</option>
+                                                                </select>
+                                                            </div>
+
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                                                <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Show Text Value</label>
+                                                                <input type="checkbox" checked={selectedComp.props.showText !== false} onChange={(e) => updateComponentProps(selectedComp.id, { showText: e.target.checked })} style={{ width: '16px', height: '16px' }} />
+                                                            </div>
+
+                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Color</label>
+                                                                <ColorPicker value={selectedComp.props.foregroundColor || '#111827'} onChange={(val) => updateComponentProps(selectedComp.id, { foregroundColor: val })} />
+                                                            </div>
+
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Background Color</label>
+                                                                <ColorPicker value={selectedComp.props.backgroundColor || '#ffffff'} onChange={(val) => updateComponentProps(selectedComp.id, { backgroundColor: val })} />
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 )}
 
                                                 {selectedComp.type === 'IMAGE' && (

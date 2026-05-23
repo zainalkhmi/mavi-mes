@@ -65,7 +65,7 @@ export function createMaterialWarehouseTemplate() {
             },
             // Scanner component instead of viewport & simulation button
             {
-                id: `scan_real_scanner_${ts}`, type: 'BARCODE',
+                id: `scan_real_scanner_${ts}`, type: 'BARCODE_SCANNER',
                 x: 260, y: 150, w: 480, h: 55,
                 props: { label: 'Part Number Barcode', placeholder: 'Scan or type part number...', targetVariable: 'Scanned_Part_ID' },
                 triggers: [
@@ -219,7 +219,7 @@ export function createMaterialWarehouseTemplate() {
                 props: { text: 'Scan target bin location', fontSize: 22, fontWeight: 'bold', textAlignment: 1 }
             },
             {
-                id: `loc_real_scanner_${ts}`, type: 'BARCODE',
+                id: `loc_real_scanner_${ts}`, type: 'BARCODE_SCANNER',
                 x: 260, y: 150, w: 480, h: 55,
                 props: { label: 'Bin Location Barcode', placeholder: 'Scan or type target bin...', targetVariable: 'New_Bin_Location' },
                 triggers: [

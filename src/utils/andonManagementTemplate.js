@@ -44,7 +44,8 @@ export function createAndonManagementTemplate() {
                     tableId: T.stations,
                     title: 'Station Statuses',
                     columns: ['ID', 'Status', 'Status_Color', 'Operator', 'Work_Order_ID'],
-                    pageSize: 10
+                    pageSize: 10,
+                    linkedRecordPlaceholderId: `r1_${ts}`
                 },
                 triggers: [
                     { 
@@ -93,7 +94,7 @@ export function createAndonManagementTemplate() {
             {
                 id: `c5_${ts}`, type: 'HEADING',
                 x: 20, y: 10, w: 600, h: 40,
-                props: { text: 'View Station Details - Andon', fontSize: 24, fontWeight: 'bold' }
+                props: { text: 'Station: {{@Current_Station.recordId}} - Andon Events', fontSize: 24, fontWeight: 'bold' }
             },
             {
                 id: `c6_${ts}`, type: 'BUTTON',
@@ -111,7 +112,11 @@ export function createAndonManagementTemplate() {
                 props: {
                     tableId: T.actions,
                     title: 'Open Andon Events',
-                    columns: ['Location', 'Title', 'Work_Order_ID', 'Status']
+                    columns: ['Location', 'Title', 'Work_Order_ID', 'Status'],
+                    linkedRecordPlaceholderId: `r2_${ts}`,
+                    variableFilters: [
+                        { variableName: 'Selected_Station_ID', columnName: 'Location' }
+                    ]
                 },
                 triggers: [
                     { 
@@ -191,7 +196,7 @@ export function createAndonManagementTemplate() {
             {
                 id: `c15_${ts}`, type: 'HEADING',
                 x: 20, y: 10, w: 600, h: 40,
-                props: { text: 'View Station Details - Alerts', fontSize: 24, fontWeight: 'bold' }
+                props: { text: 'Station: {{@Current_Station.recordId}} - Alerts', fontSize: 24, fontWeight: 'bold' }
             },
             {
                 id: `c16_${ts}`, type: 'BUTTON',
@@ -209,7 +214,11 @@ export function createAndonManagementTemplate() {
                 props: {
                     tableId: T.actions,
                     title: 'Open Alerts',
-                    columns: ['Location', 'Title', 'Work_Order_ID', 'Severity']
+                    columns: ['Location', 'Title', 'Work_Order_ID', 'Severity'],
+                    linkedRecordPlaceholderId: `r2_${ts}`,
+                    variableFilters: [
+                        { variableName: 'Selected_Station_ID', columnName: 'Location' }
+                    ]
                 },
                 triggers: [
                     { 
@@ -292,7 +301,7 @@ export function createAndonManagementTemplate() {
             {
                 id: `c25_${ts}`, type: 'HEADING',
                 x: 20, y: 10, w: 600, h: 40,
-                props: { text: 'History of Closed Events', fontSize: 24, fontWeight: 'bold' }
+                props: { text: 'Station: {{@Current_Station.recordId}} - Closed Events History', fontSize: 24, fontWeight: 'bold' }
             },
             {
                 id: `c26_${ts}`, type: 'BUTTON',
@@ -310,7 +319,11 @@ export function createAndonManagementTemplate() {
                 props: {
                     tableId: T.actions,
                     title: 'Closed Actions/Alerts',
-                    columns: ['Type', 'Title', 'Location', 'Status', 'Work_Order_ID']
+                    columns: ['Type', 'Title', 'Location', 'Status', 'Work_Order_ID'],
+                    linkedRecordPlaceholderId: `r2_${ts}`,
+                    variableFilters: [
+                        { variableName: 'Selected_Station_ID', columnName: 'Location' }
+                    ]
                 },
                 triggers: [
                     { 

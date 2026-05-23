@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import QRCode from 'react-qr-code';
 import {
   ResponsiveContainer,
   ComposedChart,
   LineChart, Line,
   BarChart, Bar,
   AreaChart, Area,
+  PieChart as RechartsPieChart, Pie,
   XAxis, YAxis,
   CartesianGrid,
   Tooltip as RechartsTooltip,
@@ -1431,7 +1433,7 @@ const LiveTerminal = () => {
       if (rawValue.startsWith('{{') && rawValue.endsWith('}}') && !rawValue.slice(2, -2).includes('{{')) {
         const innerExpr = rawValue.slice(2, -2).trim();
         try {
-          return evaluateExpression(innerExpr, eventPayload);
+          return evaluateExpression(innerExpr, eventPayload || {});
         } catch (e) {
           console.warn('[resolveSourceValue] Failed to evaluate expression:', innerExpr, e);
         }
@@ -1454,7 +1456,7 @@ const LiveTerminal = () => {
         try {
           // If it starts with @, evaluate expression directly; otherwise evaluate with @ prefix
           const exprToEval = cleanExpr.startsWith('@') || cleanExpr.startsWith('[') ? cleanExpr : '@' + cleanExpr;
-          const resolved = evaluateExpression(exprToEval);
+          const resolved = evaluateExpression(exprToEval, eventPayload || {});
           return resolved !== undefined && resolved !== null ? String(resolved) : '';
         } catch {
           // Fallback to simple variable lookup
@@ -1534,7 +1536,7 @@ const LiveTerminal = () => {
         return defaultVal;
       }
     }
-    if (source === 'EXPRESSION') return evaluateExpression(rawValue);
+    if (source === 'EXPRESSION') return evaluateExpression(rawValue, eventPayload || {});
     return rawValue || defaultVal;
   };
 
@@ -1814,6 +1816,64 @@ const LiveTerminal = () => {
     return val;
   };
 
+  const getAggregatedChartData = (rawData, xAxisProp, yAxisProp, filterStr) => {
+    if (!rawData || !Array.isArray(rawData) || rawData.length === 0) return [];
+
+    // 1. Filter the data based on filterStr (e.g. "Status = 'DOWN'" or "Status = 'RUNNING'")
+    let filteredData = rawData;
+    if (filterStr) {
+      const match = filterStr.match(/^\s*(\w+)\s*=\s*['"]?([^'"]+)['"]?\s*$/);
+      if (match) {
+        const fieldName = match[1];
+        const targetValue = match[2];
+        filteredData = rawData.filter(row => {
+          const actualVal = row.data?.[fieldName] !== undefined ? row.data[fieldName] : row[fieldName];
+          return String(actualVal || '') === String(targetValue || '');
+        });
+      }
+    }
+
+    // 2. Group and aggregate based on yAxisProp
+    const isSum = yAxisProp && yAxisProp.toLowerCase().startsWith('sum(');
+    const isAvg = yAxisProp && yAxisProp.toLowerCase().startsWith('avg(');
+    let aggField = null;
+    if (isSum || isAvg) {
+      const match = yAxisProp.match(/\(([^)]+)\)/);
+      if (match) aggField = match[1];
+    }
+
+    const grouped = filteredData.reduce((acc, row) => {
+      const xVal = row.data?.[xAxisProp] !== undefined ? row.data[xAxisProp] : row[xAxisProp];
+      const key = String(xVal || 'N/A');
+      
+      if (!acc[key]) {
+        acc[key] = { key, count: 0, sum: 0, values: [] };
+      }
+      
+      acc[key].count += 1;
+      if (aggField) {
+        const val = Number(row.data?.[aggField] !== undefined ? row.data[aggField] : row[aggField]) || 0;
+        acc[key].sum += val;
+        acc[key].values.push(val);
+      }
+      return acc;
+    }, {});
+
+    // 3. Map to final data points
+    return Object.values(grouped).map(group => {
+      let finalValue = group.count;
+      if (isSum) {
+        finalValue = group.sum;
+      } else if (isAvg) {
+        finalValue = group.values.length > 0 ? (group.sum / group.values.length) : 0;
+      }
+      return {
+        name: group.key,
+        value: Number(Number(finalValue).toFixed(2))
+      };
+    });
+  };
+
   const getParetoData = (rawData, categoryCol, valueCol) => {
     if (!rawData || !Array.isArray(rawData) || rawData.length === 0) return [];
 
@@ -1850,7 +1910,7 @@ const LiveTerminal = () => {
     const currentStep = steps[currentStepIndex];
     const baseComps = app.config.baseComponents || [];
 
-    const chartTypes = ['CHART', 'PARETO_CHART', 'CONTROL_CHART', 'DASHBOARD_PARETO', 'DASHBOARD_CHART_BAR', 'DASHBOARD_CHART_LINE', 'DASHBOARD_METRIC'];
+    const chartTypes = ['CHART', 'PARETO_CHART', 'CONTROL_CHART', 'DASHBOARD_PARETO', 'DASHBOARD_CHART_BAR', 'DASHBOARD_CHART_LINE', 'DASHBOARD_METRIC', 'BAR_CHART', 'DONUT_CHART'];
     const chartComps = [
       ...(currentStep?.components || []),
       ...baseComps
@@ -2345,12 +2405,32 @@ const LiveTerminal = () => {
             placeholderId = placeholder.id;
             console.log(`[TABLE_RECORD] Resolved placeholder: "${placeholderId}" → id=${placeholder.id}, table=${placeholder.tableId}`, placeholder);
 
-            const resolvedId = await resolveSourceValue(idType, idValue, '', eventPayload);
+            let resolvedId = await resolveSourceValue(idType, idValue, '', eventPayload);
+
+            if ((!resolvedId || resolvedId === '') && eventPayload) {
+              resolvedId = typeof eventPayload === 'object' ? (eventPayload.recordId || eventPayload.id || eventPayload.record_id || eventPayload.ID || eventPayload.Id) : eventPayload;
+            }
+
+            // Sync with linkVariable if specified
+            const linkVarName = action.linkVariable || payloadData.linkVariable || (idType === 'VARIABLE' ? idValue : null);
+            if (linkVarName && resolvedId) {
+              setAppVariables(prev => prev.map(v => (v.name === linkVarName || v.id === linkVarName) ? { ...v, value: resolvedId } : v));
+              const vDef = appVariables.find(v => v.name === linkVarName || v.id === linkVarName);
+              if (vDef?.isPersistent) {
+                const { upsertGlobalVariable } = await import('../utils/supabaseGlobalVars');
+                await upsertGlobalVariable(vDef.name, vDef.type || 'TEXT', resolvedId);
+              }
+            }
 
             const loadById = async () => {
               const { getTableRecords } = await import('../utils/supabaseTablesDB');
               const rows = await getTableRecords(placeholder.tableId);
-              const found = (rows || []).find(r => String(r.id) === String(resolvedId) || String(r.recordId) === String(resolvedId));
+              const found = (rows || []).find(r => 
+                String(r.id) === String(resolvedId) || 
+                String(r.ID) === String(resolvedId) || 
+                String(r.recordId) === String(resolvedId) || 
+                String(r.record_id) === String(resolvedId)
+              );
               if (found) {
                 localPlaceholderContext[placeholderId] = found;
                 setRecordPlaceholderData(prev => ({ ...prev, [placeholderId]: found }));
@@ -3203,6 +3283,7 @@ const LiveTerminal = () => {
       case 'SIGNATURE': currentValue = signatureWidgetValues[comp.id]; break;
       case 'QUALITY_PASS_FAIL': currentValue = qualityResult[comp.id]; break;
       case 'QUALITY_TOLERANCE': currentValue = toleranceValues[comp.id]; break;
+      case 'CHECKBOX': currentValue = toggleState[comp.id] != null ? toggleState[comp.id] : (comp.props.checked ?? comp.props.defaultValue ?? false); break;
       case 'CHECKLIST': {
         const ck = checklistState[comp.id] || new Set();
         const requiredCount = (comp.props.items || []).length;
@@ -3852,40 +3933,52 @@ const LiveTerminal = () => {
           <div style={{ color: '#94a3b8', fontSize: '1rem', fontWeight: 600 }}>{comp.props.label}</div>
         </div>
       );
-      case 'BARCODE': return (
-        <div>
-          <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600, marginBottom: '8px' }}>SCAN / TYPE BARCODE</div>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <Barcode size={24} color="#3b82f6" />
-            <input
-              id={`input-${comp.id}`}
-              autoFocus={comp.props.autoFocus}
-              value={barcodeValues[comp.id] || ''}
-              onChange={e => {
-                const val = e.target.value;
-                setBarcodeValues(prev => ({ ...prev, [comp.id]: val }));
-                syncVariable(val);
-                fireWidgetTriggers(comp, 'ON_CHANGE', val);
-              }}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  const val = e.target.value;
-                  fireWidgetTriggers(comp, 'ON_SCAN', val);
-                }
-              }}
-              placeholder={comp.props.placeholder}
-              style={{
-                flex: 1, padding: '12px',
-                border: `2px solid ${isDark ? '#334155' : '#e2e8f0'}`,
-                borderRadius: '4px', fontSize: '1rem', outline: 'none',
-                backgroundColor: isDark ? '#0f172a' : 'white',
-                color: isDark ? '#f8fafc' : '#0f172a'
-              }}
-            />
+      case 'BARCODE': {
+        const qrValue = resolvedProps.value || '1234567890';
+        const isQr = resolvedProps.format === 'QR_CODE';
+        return (
+          <div style={{
+            width: '100%',
+            height: '100%',
+            border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+            borderRadius: '8px',
+            backgroundColor: resolvedProps.backgroundColor || (isDark ? '#1e293b' : '#fff'),
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '10px',
+            gap: '8px',
+            boxSizing: 'border-box'
+          }}>
+            <div style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: 0,
+              width: '100%'
+            }}>
+              {isQr ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5px', backgroundColor: '#fff', borderRadius: '4px' }}>
+                  <QRCode
+                    value={qrValue}
+                    size={Math.max(40, Math.min(comp.h || 90, comp.w || 220) - (resolvedProps.showText !== false ? 35 : 20))}
+                    fgColor={resolvedProps.foregroundColor || '#000000'}
+                    bgColor="#ffffff"
+                    style={{ height: '100%', width: 'auto', maxHeight: '100%', maxWidth: '100%' }}
+                  />
+                </div>
+              ) : (
+                <div style={{ width: '100%', height: '45px', background: `repeating-linear-gradient(90deg, ${resolvedProps.foregroundColor || (isDark ? '#94a3b8' : '#111827')} 0 2px, transparent 2px 5px)` }} />
+              )}
+            </div>
+            {resolvedProps.showText !== false && (
+              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: isDark ? '#94a3b8' : '#64748b', textAlign: 'center', wordBreak: 'break-all' }}>{qrValue}</div>
+            )}
           </div>
-          {barcodeValues[comp.id] && <div style={{ marginTop: '8px', padding: '6px 10px', backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : '#f0fdf4', borderRadius: '4px', color: '#22c55e', fontSize: '0.8rem', fontWeight: 600 }}>{String.fromCharCode(10003)} Scanned: {barcodeValues[comp.id]}</div>}
-        </div>
-      );
+        );
+      }
       case 'CAMERA_SCANNER': return (
         <div key={comp.id}>
           <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>
@@ -4824,6 +4917,66 @@ const LiveTerminal = () => {
           }} style={{ width: '100%', padding: '10px 14px', border: '2px solid #e2e8f0', borderRadius: '6px', fontSize: '1rem', outline: 'none', color: '#0f172a' }} />
         </div>
       );
+      case 'CHECKBOX': {
+        const isChecked = toggleState[comp.id] != null ? toggleState[comp.id] : (resolvedProps.checked ?? resolvedProps.defaultValue ?? false);
+        const isCbEnabled = comp.props.enabled !== false;
+        
+        return (
+          <div
+            onClick={() => {
+              if (!isCbEnabled) return;
+              const val = !isChecked;
+              setToggleState(prev => ({ ...prev, [comp.id]: val }));
+              syncVariable(val);
+              fireWidgetTriggers(comp, 'ON_CHANGE');
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '10px 12px',
+              borderRadius: '8px',
+              backgroundColor: isDark ? (isChecked ? 'rgba(59, 130, 246, 0.15)' : '#0f172a') : (isChecked ? '#eff6ff' : '#f8fafc'),
+              border: `1.5px solid ${isChecked ? '#3b82f6' : (isDark ? '#334155' : '#cbd5e1')}`,
+              cursor: isCbEnabled ? 'pointer' : 'default',
+              opacity: isCbEnabled ? 1 : 0.5,
+              transition: 'all 0.15s ease',
+              width: '100%',
+              boxSizing: 'border-box'
+            }}
+          >
+            <div style={{
+              width: '20px',
+              height: '20px',
+              borderRadius: '4px',
+              border: `2px solid ${isChecked ? '#3b82f6' : (isDark ? '#475569' : '#94a3b8')}`,
+              backgroundColor: isChecked ? '#3b82f6' : (isDark ? '#0f172a' : 'white'),
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              transition: 'all 0.15s ease'
+            }}>
+              {isChecked && (
+                <span style={{ color: 'white', fontSize: '12px', fontWeight: 900 }}>
+                  {String.fromCharCode(10003)}
+                </span>
+              )}
+            </div>
+            <span style={{
+              userSelect: 'none',
+              flex: 1,
+              wordBreak: 'break-word',
+              color: resolvedProps.textColor || resolvedProps.color || (isDark ? '#f8fafc' : '#0f172a'),
+              fontSize: `${resolvedProps.fontSize || 14}px`,
+              fontWeight: (resolvedProps.fontBold || resolvedProps.fontWeight === 'bold') ? 'bold' : 'normal',
+              fontStyle: resolvedProps.fontItalic ? 'italic' : (resolvedProps.fontStyle || 'normal')
+            }}>
+              {resolvedProps.label || resolvedProps.text || 'Checkbox'}
+            </span>
+          </div>
+        );
+      }
       case 'BOOLEAN_TOGGLE': {
         const on = toggleState[comp.id] != null ? toggleState[comp.id] : comp.props.defaultValue || false;
         return (
@@ -5099,7 +5252,10 @@ const LiveTerminal = () => {
                         {cols.map(colKey => (
                           <td key={colKey} style={{ padding: '10px', color: '#1e293b' }}>
                             {(() => {
-                              const val = row[colKey];
+                              let val = row[colKey];
+                              if (val === undefined && (colKey === 'ID' || colKey === 'id' || colKey === 'recordId' || colKey === 'record_id')) {
+                                val = row.recordId || row.record_id || row.id || row.ID;
+                              }
                               if (val === undefined || val === null || val === '') return '-';
 
                               // Linked Records (Array of IDs or Objects)
@@ -5345,6 +5501,72 @@ const LiveTerminal = () => {
                   <Line yAxisId="right" type="monotone" dataKey="cumulativePercent" stroke={comp.props.lineColor || '#f97316'} strokeWidth={3} dot={{ fill: comp.props.lineColor || '#f97316', r: 4 }} />
                 </ComposedChart>
               </ResponsiveContainer>
+            </div>
+          </div>
+        );
+      }
+      case 'BAR_CHART': {
+        const raw = chartData[comp.id] || [];
+        const { title, xAxis, yAxis, filter, color } = comp.props;
+        const data = getAggregatedChartData(raw, xAxis, yAxis, filter);
+        return (
+          <div key={`${comp.id}-${refreshKey}`} style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569', marginBottom: '15px' }}>{title || 'Bar Chart'}</div>
+            <div style={{ flex: 1, minHeight: 0 }}>
+              {data.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={data}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="name" fontSize={10} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                    <YAxis fontSize={10} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                    <RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                    <Bar dataKey="value" fill={color || '#3b82f6'} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.85rem', fontStyle: 'italic' }}>
+                  No data available for this chart.
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+      case 'DONUT_CHART': {
+        const raw = chartData[comp.id] || [];
+        const { title, xAxis, yAxis, filter } = comp.props;
+        const data = getAggregatedChartData(raw, xAxis, yAxis, filter);
+        const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6'];
+        
+        return (
+          <div key={`${comp.id}-${refreshKey}`} style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569', marginBottom: '15px' }}>{title || 'Donut Chart'}</div>
+            <div style={{ flex: 1, minHeight: 0 }}>
+              {data.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartsPieChart>
+                    <Pie
+                      data={data}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={75}
+                      paddingAngle={3}
+                      dataKey="value"
+                    >
+                      {data.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                    <Legend wrapperStyle={{ fontSize: '10px' }} />
+                  </RechartsPieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.85rem', fontStyle: 'italic' }}>
+                  No data available for this chart.
+                </div>
+              )}
             </div>
           </div>
         );
@@ -5779,12 +6001,18 @@ const LiveTerminal = () => {
         const fields = comp.props.fieldsToShow?.length > 0 ? comp.props.fieldsToShow : Object.keys(rec).slice(0, 6);
         return (
           <div style={{ backgroundColor: isDark ? '#0f172a' : '#f8fafc', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', padding: '16px' }}>
-            {fields.length > 0 ? fields.map(f => (
-              <div key={f} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${isDark ? '#1e293b' : '#f1f5f9'}` }}>
-                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>{f}</span>
-                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: isDark ? '#f8fafc' : '#0f172a' }}>{safeRender(rec[f]) || '—'}</span>
-              </div>
-            )) : (
+            {fields.length > 0 ? fields.map(f => {
+              let val = rec[f];
+              if (val === undefined && (f === 'ID' || f === 'id' || f === 'recordId' || f === 'record_id')) {
+                val = rec.recordId || rec.record_id || rec.id || rec.ID;
+              }
+              return (
+                <div key={f} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${isDark ? '#1e293b' : '#f1f5f9'}` }}>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>{f}</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: isDark ? '#f8fafc' : '#0f172a' }}>{safeRender(val) || '—'}</span>
+                </div>
+              );
+            }) : (
               <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem', padding: '20px' }}>No record loaded</div>
             )}
           </div>
@@ -5838,7 +6066,7 @@ const LiveTerminal = () => {
             <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>📷</div>
             <div style={{ fontSize: '0.85rem', fontWeight: 700, color: isDark ? '#f8fafc' : '#0f172a', marginBottom: '4px' }}>{comp.props.label || 'Barcode Scanner'}</div>
             <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Point camera at barcode to scan</div>
-            <input type="text" placeholder="Or type/paste barcode..." onChange={e => { syncVariable(e.target.value); fireWidgetTriggers(comp, 'ON_SCAN'); }}
+            <input type="text" placeholder="Or type/paste barcode..." onChange={e => { syncVariable(e.target.value); fireWidgetTriggers(comp, 'ON_SCAN', e.target.value); }}
               style={{ marginTop: '12px', width: '100%', padding: '10px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '8px', backgroundColor: isDark ? '#1e293b' : 'white', color: isDark ? '#f8fafc' : '#0f172a', fontSize: '0.85rem', textAlign: 'center', outline: 'none' }} />
           </div>
         );
