@@ -2767,6 +2767,12 @@ const BlocklyEditor = ({
                     { id: 'ATResponse', label: 'ATResponse', args: ['cmd', 'raw'] },
                     { id: 'DTCCleared', label: 'DTCCleared', args: [] }
                 ];
+            } else if (type === 'OBD2_CLEAR_DTC') {
+                return [
+                    { id: 'ON_CLICK', label: 'is Clicked' },
+                    { id: 'DTCCleared', label: 'DTCCleared' },
+                    { id: 'ClearDTCFailed', label: 'ClearDTCFailed' }
+                ];
             } else {
                 return [
                     { id: 'ValueChanged', label: 'Value Changed', args: ['value'] }

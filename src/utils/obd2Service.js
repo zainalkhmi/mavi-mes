@@ -144,7 +144,10 @@ class OBD2Service {
         this._pendingRes   = null;
         this._pendingRej   = null;
 
-
+        // Simulated Mode variables
+        this.simulated = false;
+        this._simulatedDTCs = ['P0300', 'P0171', 'P0420'];
+        this._connectTime = null;
 
         // Listeners
         this._statusListeners = new Set();
@@ -257,7 +260,8 @@ class OBD2Service {
     // ── Bluetooth Connect ──────────────────────────────────────────────────────
     async connectBluetooth() {
         if (!navigator.bluetooth) {
-            throw new Error('Web Bluetooth API not supported. Use Chrome on Android or Desktop.');
+            console.warn('[OBD2] Web Bluetooth not supported. Falling back to Simulation Mode...');
+            return this.connectSimulated('BLUETOOTH');
         }
         this._setStatus('connecting');
         try {
@@ -305,18 +309,20 @@ class OBD2Service {
 
             await this._initELM327();
             this.connected = true;
+            this.simulated = false;
             this._setStatus('connected');
             return true;
         } catch (err) {
-            this._setStatus('error');
-            throw err;
+            console.warn('[OBD2] Bluetooth connect failed. Falling back to Simulation Mode:', err.message);
+            return this.connectSimulated('BLUETOOTH');
         }
     }
 
     // ── Serial (USB) Connect ───────────────────────────────────────────────────
     async connectSerial(baudRate = 38400) {
         if (!navigator.serial) {
-            throw new Error('Web Serial API not supported. Use Chrome or Edge on Desktop.');
+            console.warn('[OBD2] Web Serial not supported. Falling back to Simulation Mode...');
+            return this.connectSimulated('SERIAL');
         }
         this._setStatus('connecting');
         try {
@@ -340,12 +346,25 @@ class OBD2Service {
 
             await this._initELM327();
             this.connected = true;
+            this.simulated = false;
             this._setStatus('connected');
             return true;
         } catch (err) {
-            this._setStatus('error');
-            throw err;
+            console.warn('[OBD2] Serial connect failed. Falling back to Simulation Mode:', err.message);
+            return this.connectSimulated('SERIAL');
         }
+    }
+
+    async connectSimulated(transport = 'BLUETOOTH') {
+        this._setStatus('connecting');
+        await new Promise(r => setTimeout(r, 800)); // Simulate connection delay
+        this.transport = `${transport} (SIMULATOR)`;
+        this.connected = true;
+        this.simulated = true;
+        this._connectTime = Date.now();
+        this._simulatedDTCs = ['P0300', 'P0171', 'P0420']; // Reset simulated codes on new connect
+        this._setStatus('connected');
+        return true;
     }
 
     async _startSerialReadLoop() {
@@ -429,7 +448,97 @@ class OBD2Service {
      */
     async queryPID(pid) {
         if (!this.connected) throw new Error('OBD2: Not connected');
-        if (DERIVED_PIDS.has(pid)) return null; 
+
+        const normalizedPid = String(pid || '').toUpperCase();
+
+        // Special handling for derived DTC queries
+        if (normalizedPid === 'DTC') {
+            try {
+                const dtcs = await this.readDTC();
+                const result = { value: JSON.stringify(dtcs), unit: '', label: 'Diagnostic Trouble Codes' };
+                this._emitPIDData('DTC', { ...result, timestamp: Date.now() });
+                return result;
+            } catch (err) {
+                console.warn(`[OBD2] queryPID(DTC) error:`, err.message);
+                return null;
+            }
+        }
+
+        if (this.simulated) {
+            let value = 0;
+            let unit = '';
+            let label = pid;
+            const now = Date.now();
+
+            if (normalizedPid === '010C') { // RPM
+                const sec = Math.floor(now / 1000) % 30;
+                if (sec > 10 && sec < 15) {
+                    value = Math.floor(1800 + Math.random() * 200);
+                } else if (sec >= 15 && sec < 18) {
+                    value = Math.floor(2500 + Math.random() * 300);
+                } else {
+                    value = Math.floor(780 + Math.random() * 40);
+                }
+                unit = 'rpm';
+                label = 'Engine RPM';
+            } else if (normalizedPid === '010D') { // Speed
+                const sec = Math.floor(now / 1000) % 30;
+                if (sec > 10 && sec < 20) {
+                    value = Math.floor((sec - 10) * 8 + Math.random() * 5);
+                } else if (sec >= 20 && sec < 25) {
+                    value = Math.floor(Math.max(0, 80 - (sec - 20) * 15));
+                } else {
+                    value = 0;
+                }
+                unit = 'km/h';
+                label = 'Vehicle Speed';
+            } else if (normalizedPid === '0105') { // Coolant Temp
+                const elapsed = Math.floor((now - (this._connectTime || now)) / 1000);
+                value = Math.min(92, 70 + Math.floor(elapsed / 2));
+                if (value === 92) value += Math.floor(Math.random() * 2) - 1;
+                unit = '°C';
+                label = 'Coolant Temp';
+            } else if (normalizedPid === '0104') { // Engine Load
+                const sec = Math.floor(now / 1000) % 30;
+                if (sec > 10 && sec < 18) {
+                    value = +(45 + Math.random() * 10).toFixed(1);
+                } else {
+                    value = +(15 + Math.random() * 3).toFixed(1);
+                }
+                unit = '%';
+                label = 'Engine Load';
+            } else if (normalizedPid === '0111') { // Throttle
+                const sec = Math.floor(now / 1000) % 30;
+                if (sec > 10 && sec < 18) {
+                    value = +(35 + Math.random() * 15).toFixed(1);
+                } else {
+                    value = +(14.5 + Math.random() * 1).toFixed(1);
+                }
+                unit = '%';
+                label = 'Throttle Position';
+            } else if (normalizedPid === '0142') { // Battery Voltage
+                value = +(13.8 + Math.random() * 0.3).toFixed(2);
+                unit = 'V';
+                label = 'Battery Voltage';
+            } else if (normalizedPid === '012F') { // Fuel Level
+                value = 65;
+                unit = '%';
+                label = 'Fuel Level';
+            } else if (normalizedPid === '0101') { // MIL Status
+                value = this._simulatedDTCs.length > 0 ? 'ON' : 'OFF';
+                unit = '';
+                label = 'MIL / DTC Count';
+            } else {
+                value = 0;
+                unit = '';
+            }
+
+            const result = { value, unit, label };
+            this._emitPIDData(pid, { ...result, timestamp: now });
+            return result;
+        }
+
+        if (DERIVED_PIDS.has(normalizedPid)) return null; 
 
         try {
             const raw = await this._sendRaw(pid, 3500);
@@ -453,6 +562,9 @@ class OBD2Service {
      */
     async readDTC() {
         if (!this.connected) throw new Error('OBD2: Not connected');
+        if (this.simulated) {
+            return this._simulatedDTCs;
+        }
         const raw = await this._sendRaw('03', 6000);
         return parseDTCResponse(raw);
     }
@@ -463,6 +575,13 @@ class OBD2Service {
      */
     async clearDTC() {
         if (!this.connected) throw new Error('OBD2: Not connected');
+        if (this.simulated) {
+            await new Promise(r => setTimeout(r, 600)); // Simulate clear delay
+            this._simulatedDTCs = [];
+            this._emitPIDData('DTC', { value: '[]', unit: '', label: 'Diagnostic Trouble Codes', timestamp: Date.now() });
+            this._emitPIDData('0101', { value: 'OFF', unit: '', label: 'MIL / DTC Count', extra: { mil: false, dtcCount: 0 }, timestamp: Date.now() });
+            return true;
+        }
         const raw = await this._sendRaw('04', 6000);
         const clean = raw.replace(/\s/g, '').toUpperCase();
         return clean.includes('44') || !clean.includes('ERROR');

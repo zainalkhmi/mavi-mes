@@ -1523,6 +1523,8 @@ const AppStore = () => {
                         { name: 'Customer_Phone', type: 'text' }, { name: 'Technician', type: 'text' },
                         { name: 'Bay_Number', type: 'text' }, { name: 'Priority', type: 'text' },
                         { name: 'WO_Status', type: 'text' }, { name: 'Timestamp', type: 'datetime' },
+                        { name: 'VIN', type: 'text' }, { name: 'Engine_Number', type: 'text' },
+                        { name: 'DTC_Codes', type: 'text' }, { name: 'DTC_Status', type: 'text' },
                         { name: 'Linked_Services', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_WO' },
                         { name: 'Linked_Inspections', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_WO' },
                         { name: 'Linked_Parts', type: 'linked_record', link_type: 'one_to_many', reverse_link_name: 'Parent_WO' }

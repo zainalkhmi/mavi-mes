@@ -153,7 +153,7 @@ export function createMachineMonitoringTerminalTemplate() {
                 x: 460, y: 100, w: 140, h: 30,
                 props: { text: 'Add', backgroundColor: '#16a34a', color: 'white' },
                 triggers: [
-                    { event: 'ON_CLICK', type: 'LOGIC', action: 'SET_VARIABLE', variableId: 'Good_Parts_Qty', value: '{{@Good_Parts_Qty}} + 1' },
+                    { event: 'ON_CLICK', type: 'LOGIC', action: 'INCREMENT_VARIABLE', variableId: 'Good_Parts_Qty', amount: 1 },
                     { event: 'ON_CLICK', type: 'DATA', action: 'TABLE_RECORD_SAVE', recordPlaceholderId: `r1_${ts}`, mapping: { 'QTY_Complete': '{{@Good_Parts_Qty}}' } }
                 ]
             },
@@ -167,7 +167,7 @@ export function createMachineMonitoringTerminalTemplate() {
                 x: 620, y: 100, w: 140, h: 30,
                 props: { text: 'Add', backgroundColor: '#dc2626', color: 'white' },
                 triggers: [
-                    { event: 'ON_CLICK', type: 'LOGIC', action: 'SET_VARIABLE', variableId: 'Defect_Parts_Qty', value: '{{@Defect_Parts_Qty}} + 1' },
+                    { event: 'ON_CLICK', type: 'LOGIC', action: 'INCREMENT_VARIABLE', variableId: 'Defect_Parts_Qty', amount: 1 },
                     { event: 'ON_CLICK', type: 'DATA', action: 'TABLE_RECORD_SAVE', recordPlaceholderId: `r1_${ts}`, mapping: { 'QTY_Scrap': '{{@Defect_Parts_Qty}}' } }
                 ]
             },

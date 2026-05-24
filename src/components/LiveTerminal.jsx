@@ -2140,7 +2140,14 @@ const LiveTerminal = () => {
               finalValue = value.value || value.id || value.expression || '';
             }
 
-            const resolvedValue = await resolveSourceValue(finalType, finalValue, '', eventPayload);
+            let resolvedValue = await resolveSourceValue(finalType, finalValue, '', eventPayload);
+
+            // Safe inline evaluation if it's purely a math string (e.g. "0 + 1")
+            if (typeof resolvedValue === 'string' && /^[0-9\s\+\-\*\/\.\(\)]+$/.test(resolvedValue) && /[0-9]/.test(resolvedValue)) {
+              try {
+                resolvedValue = new Function(`return ${resolvedValue}`)();
+              } catch (e) { /* ignore */ }
+            }
 
             if (varPath === 'APP_INFO.USER') setAppContext(prev => ({ ...prev, user: resolvedValue }));
             else if (varPath === 'APP_INFO.STATION') setAppContext(prev => ({ ...prev, station: resolvedValue }));
@@ -2976,7 +2983,7 @@ const LiveTerminal = () => {
     if (!comp) return;
     const triggersSource = comp.props?.triggers || comp.triggers;
     if (!triggersSource) return;
-    const trigList = triggersSource.filter(t => t.event === eventId || (!t.event && (['BUTTON', 'COMPLETE_BUTTON'].includes(comp.type) ? eventId === 'ON_CLICK' : eventId === 'ON_CHANGE')));
+    const trigList = triggersSource.filter(t => t.event === eventId || (!t.event && (['BUTTON', 'COMPLETE_BUTTON', 'OBD2_CLEAR_DTC'].includes(comp.type) ? eventId === 'ON_CLICK' : eventId === 'ON_CHANGE')));
     
     const getFriendlyName = (trig, defaultType) => {
       if (trig.name) return trig.name;
@@ -5812,10 +5819,12 @@ const LiveTerminal = () => {
               const ok = await obd2Service.clearDTC();
               if (ok) alert("DTCs cleared successfully");
               else alert("Failed to clear DTCs");
+              await fireWidgetTriggers(comp, 'ON_CLICK');
+              await fireWidgetTriggers(comp, ok ? 'DTCCleared' : 'ClearDTCFailed');
             }}
             style={{ width: '100%', height: '100%', padding: '12px', backgroundColor: '#dc2626', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}
           >
-            <TrashIcon size={18} />
+            <Trash2 size={18} />
             {comp.props.label || 'Clear DTC'}
           </button>
         );

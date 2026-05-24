@@ -6959,7 +6959,7 @@ const AppBuilder = () => {
         // Handle formal Triggers
         if (comp.props.triggers) {
             const widgetTriggers = comp.props.triggers
-                .filter(t => t.event === eventId || (!t.event && (['BUTTON', 'COMPLETE_BUTTON', 'MENU'].includes(comp.type) ? eventId === 'ON_CLICK' : eventId === 'ON_CHANGE')))
+                .filter(t => t.event === eventId || (!t.event && (['BUTTON', 'COMPLETE_BUTTON', 'MENU', 'OBD2_CLEAR_DTC'].includes(comp.type) ? eventId === 'ON_CLICK' : eventId === 'ON_CHANGE')))
                 .map(t => ({
                     ...t,
                     stopOnError: typeof t.stopOnError === 'boolean' ? t.stopOnError : false
@@ -10839,7 +10839,37 @@ const AppBuilder = () => {
             }
             case 'OBD2_CLEAR_DTC': {
                 return (
-                    <button style={{ width: '100%', height: '100%', padding: '12px', backgroundColor: '#dc2626', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', boxShadow: '0 4px 6px rgba(220, 38, 38, 0.2)' }}>
+                    <button
+                        onClick={async () => {
+                            if (viewMode === 'PREVIEW') {
+                                obd2Service.clearDTC().then(ok => {
+                                    onWidgetInteraction(comp, 'ON_CLICK');
+                                    onWidgetInteraction(comp, ok ? 'DTCCleared' : 'ClearDTCFailed');
+                                    if (ok) {
+                                        setNotifierState?.({
+                                            isOpen: true,
+                                            type: 'ALERT',
+                                            message: 'DTC Cleared Successfully',
+                                            bgColor: '#16a34a',
+                                            textColor: '#ffffff',
+                                            compId: comp.id
+                                        });
+                                    } else {
+                                        setNotifierState?.({
+                                            isOpen: true,
+                                            type: 'ALERT',
+                                            message: 'Failed to Clear DTC',
+                                            bgColor: '#dc2626',
+                                            textColor: '#ffffff',
+                                            compId: comp.id
+                                        });
+                                    }
+                                    setTimeout(() => setNotifierState?.(prev => prev.type === 'ALERT' ? { ...prev, isOpen: false } : prev), 1200);
+                                }).catch(err => console.warn('[OBD2] ClearDTC error in preview:', err));
+                            }
+                        }}
+                        style={{ width: '100%', height: '100%', padding: '12px', backgroundColor: '#dc2626', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: (viewMode === 'PREVIEW') ? 'pointer' : 'default', boxShadow: '0 4px 6px rgba(220, 38, 38, 0.2)' }}
+                    >
                         <Trash2 size={18} />
                         {comp.props.label || COMPONENT_TYPES[comp.type]?.label || 'Clear DTC'}
                     </button>
@@ -14328,7 +14358,7 @@ const AppBuilder = () => {
                                                             { label: 'Interactions', events: ['ON_CLICK', 'ON_CHANGE', 'ON_SUBMIT'] },
                                                             { label: 'Lifecycle', events: ['ON_FOCUS', 'ON_BLUR'] }
                                                         ].map(group => {
-                                                            const groupTriggers = (selectedComp.props.triggers || []).filter(t => group.events.includes(t.event || (['BUTTON', 'COMPLETE_BUTTON', 'MENU'].includes(selectedComp.type) ? 'ON_CLICK' : 'ON_CHANGE')));
+                                                            const groupTriggers = (selectedComp.props.triggers || []).filter(t => group.events.includes(t.event || (['BUTTON', 'COMPLETE_BUTTON', 'MENU', 'OBD2_CLEAR_DTC'].includes(selectedComp.type) ? 'ON_CLICK' : 'ON_CHANGE')));
                                                             if (groupTriggers.length === 0 && group.label !== 'Interactions') return null;
                                                             return (
                                                                 <div key={group.label}>
@@ -14340,7 +14370,7 @@ const AppBuilder = () => {
                                                                                     const newTrig = {
                                                                                         id: `trig_w_${Date.now()}`,
                                                                                         name: 'New Trigger',
-                                                                                        event: ['BUTTON', 'COMPLETE_BUTTON', 'MENU'].includes(selectedComp.type) ? 'ON_CLICK' : 'ON_CHANGE',
+                                                                                        event: ['BUTTON', 'COMPLETE_BUTTON', 'MENU', 'OBD2_CLEAR_DTC'].includes(selectedComp.type) ? 'ON_CLICK' : 'ON_CHANGE',
                                                                                         enabled: true,
                                                                                         clauses: [{ conditions: [], actions: [] }],
                                                                                         elseActions: []
@@ -19681,7 +19711,7 @@ const AppBuilder = () => {
                                                                 const newTrig = {
                                                                     id: `trig_w_${Date.now()}`,
                                                                     name: 'New Trigger',
-                                                                    event: ['BUTTON', 'COMPLETE_BUTTON', 'MENU'].includes(selectedComp.type) ? 'ON_CLICK' : 'ON_CHANGE',
+                                                                    event: ['BUTTON', 'COMPLETE_BUTTON', 'MENU', 'OBD2_CLEAR_DTC'].includes(selectedComp.type) ? 'ON_CLICK' : 'ON_CHANGE',
                                                                     enabled: true,
                                                                     clauses: [{ conditions: [], actions: [] }],
                                                                     elseActions: []
