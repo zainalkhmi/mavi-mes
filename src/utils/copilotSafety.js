@@ -1,25 +1,47 @@
 const ALLOWED_COMMAND_TYPES = new Set([
+    // Widget management
     'ADD_WIDGET',
     'UPDATE_WIDGET',
     'DELETE_WIDGET',
+
+    // Variable management
     'CREATE_VARIABLE',
     'UPDATE_VARIABLE',
     'DELETE_VARIABLE',
+
+    // Trigger management
     'CREATE_TRIGGER',
     'UPDATE_TRIGGER',
     'DELETE_TRIGGER',
+
+    // Record placeholder management
     'CREATE_RECORD_PLACEHOLDER',
     'UPDATE_RECORD_PLACEHOLDER',
     'DELETE_RECORD_PLACEHOLDER',
+
+    // Table management
     'CREATE_TABLE',
     'UPDATE_TABLE',
     'DELETE_TABLE',
+
+    // Screen/Step management
     'CREATE_STEP',
     'ADD_STEP',
     'UPDATE_STEP',
     'DELETE_STEP',
+
+    // App-level
     'SET_APP_NAME',
-    'CREATE_FUNCTION'
+
+    // Logic/Function management
+    'CREATE_FUNCTION',
+    'UPDATE_FUNCTION',
+    'DELETE_FUNCTION',
+
+    // Automation management
+    'CREATE_AUTOMATION',
+    'UPDATE_AUTOMATION',
+    'DELETE_AUTOMATION',
 ]);
 
 export const COPILOT_SAFETY_ERROR_CODES = {
@@ -29,33 +51,58 @@ export const COPILOT_SAFETY_ERROR_CODES = {
     WIDGET_NOT_FOUND: 'E_REF_001',
     VARIABLE_NOT_FOUND: 'E_REF_002',
     STEP_NOT_FOUND: 'E_REF_003',
-    TABLE_NOT_FOUND: 'E_REF_004'
+    TABLE_NOT_FOUND: 'E_REF_004',
+    TRIGGER_NOT_FOUND: 'E_REF_005',
+    FUNCTION_NOT_FOUND: 'E_REF_006',
+    AUTOMATION_NOT_FOUND: 'E_REF_007'
 };
 
 export const DEFAULT_SAFE_RATIO_THRESHOLD = 0.6;
 
 const REQUIRED_FIELDS_BY_TYPE = {
+    // Widget
     ADD_WIDGET: ['payload.type'],
-    UPDATE_WIDGET: ['widgetId'],
-    DELETE_WIDGET: ['widgetId'],
+    UPDATE_WIDGET: [],          // accepts widgetId OR payload.widgetName — resolved at runtime
+    DELETE_WIDGET: [],          // accepts widgetId OR payload.widgetName — resolved at runtime
+
+    // Variable
     CREATE_VARIABLE: ['payload.name'],
-    UPDATE_VARIABLE: ['variableName'],
-    DELETE_VARIABLE: ['variableName'],
+    UPDATE_VARIABLE: [],        // accepts variableName OR payload.name
+    DELETE_VARIABLE: [],        // accepts variableName OR payload.name
+
+    // Trigger
     CREATE_TRIGGER: ['payload.event'],
-    UPDATE_TRIGGER: ['triggerId'],
-    DELETE_TRIGGER: ['triggerId'],
+    UPDATE_TRIGGER: [],         // accepts triggerId OR payload.triggerName
+    DELETE_TRIGGER: [],         // accepts triggerId OR payload.triggerName
+
+    // Record Placeholder
     CREATE_RECORD_PLACEHOLDER: ['payload.name'],
     UPDATE_RECORD_PLACEHOLDER: ['placeholderId'],
     DELETE_RECORD_PLACEHOLDER: ['placeholderId'],
+
+    // Table
     CREATE_TABLE: ['payload.name'],
     UPDATE_TABLE: ['tableId'],
     DELETE_TABLE: ['tableId'],
+
+    // Step/Screen
     CREATE_STEP: ['payload.title'],
     ADD_STEP: ['payload.title'],
-    UPDATE_STEP: ['stepId'],
-    DELETE_STEP: ['stepId'],
+    UPDATE_STEP: [],            // accepts stepId OR payload.stepTitle
+    DELETE_STEP: [],            // accepts stepId OR payload.stepTitle
+
+    // App
     SET_APP_NAME: [],
-    CREATE_FUNCTION: ['payload.name']
+
+    // Function/Logic
+    CREATE_FUNCTION: ['payload.name'],
+    UPDATE_FUNCTION: [],        // accepts payload.functionId OR payload.functionName
+    DELETE_FUNCTION: [],        // accepts payload.functionId OR payload.functionName
+
+    // Automation
+    CREATE_AUTOMATION: ['payload.name'],
+    UPDATE_AUTOMATION: [],      // accepts payload.automationId OR payload.automationName
+    DELETE_AUTOMATION: [],      // accepts payload.automationId OR payload.automationName
 };
 
 const getByPath = (obj, path) => {

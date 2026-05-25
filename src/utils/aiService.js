@@ -429,9 +429,8 @@ MAP: {center:"-6.2,106.8", zoomLevel:14, mapType:"Roads", enablePan:true, showUs
 OBD2_SCANNER: {label:"OBD2 Scanner", transport:"BLUETOOTH", protocol:"AUTO"}
 
 ════════════════════════════════════════════════
-🔧 COMMANDS (LOGIC & STATE MANAGEMENT)
+🔧 COMMANDS — BUILD (Create new elements)
 ════════════════════════════════════════════════
-You MUST generate the underlying logic to make the UI functional.
 
 STRUCTURE COMMANDS:
 {type:"SET_APP_NAME", payload:"App Name"}
@@ -443,7 +442,8 @@ DATA COMMANDS:
 {type:"CREATE_VARIABLE", payload:{name:"varName", type:"TEXT|NUMBER|BOOLEAN", defaultValue:""}}
 {type:"CREATE_RECORD_PLACEHOLDER", payload:{name:"placeholderName", tableId:"tableName"}}
   ↳ tableId MUST match the EXACT name from a CREATE_TABLE command (case-insensitive match).
-{type:"CREATE_FUNCTION", payload:{name:"calculateOEE", logic:{xml:null, code:"return 100;"}}}
+{type:"CREATE_FUNCTION", payload:{name:"functionName", description:"What it does", logic:{code:"// JS code here\nreturn result;"}}}
+{type:"CREATE_AUTOMATION", payload:{name:"automationName", description:"Rule description", trigger:{type:"TABLE_CHANGE",tableId:"tableName"}, conditions:[{field:"status",operator:"equals",value:"REJECT"}], actions:[{type:"SHOW_NOTIFICATION",payload:{message:"Rejected!",msgType:"error"}}]}}
 
 TRIGGER COMMAND (creates event→action automation):
 {type:"CREATE_TRIGGER", payload:{
@@ -451,6 +451,59 @@ TRIGGER COMMAND (creates event→action automation):
   widgetId:"<displayName of target widget>",
   actions:[<ACTION OBJECTS>]
 }}
+
+════════════════════════════════════════════════
+✏️ COMMANDS — EDIT (Modify existing elements)
+════════════════════════════════════════════════
+IMPORTANT: Use displayName (not internal id) to reference existing widgets. The system will resolve it.
+
+EDIT WIDGET PROPERTIES:
+{type:"UPDATE_WIDGET", payload:{
+  widgetName:"<exact displayName of existing widget>",
+  props:{<only the props to change>}
+}}
+Examples:
+  Change button color: {type:"UPDATE_WIDGET", payload:{widgetName:"Save Button", props:{backgroundColor:"#10b981"}}}
+  Change label text:   {type:"UPDATE_WIDGET", payload:{widgetName:"Title Label", props:{text:"New Title", fontSize:24}}}
+  Hide a widget:       {type:"UPDATE_WIDGET", payload:{widgetName:"Old Widget", props:{visible:false}}}
+  Change dropdown options: {type:"UPDATE_WIDGET", payload:{widgetName:"Status Dropdown", props:{elements:["Active","Inactive","Pending"]}}}
+
+EDIT TRIGGER:
+{type:"UPDATE_TRIGGER", payload:{
+  triggerName:"<exact trigger name or id>",
+  widgetName:"<widget that owns it, if widget trigger>",
+  updates:{event:"ON_CLICK", actions:[...]}
+}}
+
+EDIT VARIABLE:
+{type:"UPDATE_VARIABLE", payload:{
+  variableName:"<exact variable name>",
+  updates:{type:"NUMBER", defaultValue:100}
+}}
+
+EDIT SCREEN:
+{type:"UPDATE_STEP", payload:{
+  stepTitle:"<exact screen title>",
+  updates:{title:"New Screen Name", stepType:"Form Step"}
+}}
+
+EDIT FUNCTION:
+{type:"UPDATE_FUNCTION", payload:{
+  functionName:"<exact function name>",
+  updates:{description:"Updated description", logic:{code:"return newResult;"}}
+}}
+
+════════════════════════════════════════════════
+🗑️ COMMANDS — DELETE (Remove elements)
+════════════════════════════════════════════════
+IMPORTANT: Always confirm intent before deleting. Use exact names.
+
+{type:"DELETE_WIDGET",   payload:{widgetName:"<exact displayName>"}}
+{type:"DELETE_TRIGGER",  payload:{triggerName:"<exact trigger name or id>", widgetName:"<widget name if widget-level trigger>"}}
+{type:"DELETE_VARIABLE", payload:{variableName:"<exact name>"}}
+{type:"DELETE_STEP",     payload:{stepTitle:"<exact screen title>"}}
+{type:"DELETE_FUNCTION", payload:{functionName:"<exact function name>"}}
+{type:"DELETE_TABLE",    payload:{tableName:"<exact table name>"}}
 
 ════════════════════════════════════════════════
 🎯 TRIGGER ACTIONS — PRECISE PAYLOAD FORMAT
@@ -483,6 +536,12 @@ CRITICAL: Each action MUST have {type, payload:{...}} structure.
   {type:"COMPLETE_APP", payload:{}}
   {type:"CANCEL_APP", payload:{}}
 
+▸ OPEN_URL:
+  {type:"OPEN_URL", payload:{url:"https://...", target:"_blank"}}
+
+▸ SEND_WEBHOOK:
+  {type:"SEND_WEBHOOK", payload:{url:"https://...", method:"POST", body:{}}}
+
 ════════════════════════════════════════════════
 📝 COMPLETE FORM APP EXAMPLE (follow this pattern!)
 ════════════════════════════════════════════════
@@ -513,26 +572,40 @@ Example for a data entry form:
 4. ALWAYS: SET_APP_NAME first, then dark header SHAPE_RECTANGLE + white TEXT title.
 5. ALWAYS: SHAPE_RECTANGLE card BEFORE its child widgets in commands array.
 6. PRECISION: Coordinates multiples of 4. No overlapping widgets.
-7. CONTEXT-AWARE: Don't duplicate existing widgets/tables/variables.
+7. CONTEXT-AWARE: Don't duplicate existing widgets/tables/variables. Check current context first!
 8. CROSS-REFERENCE: Use displayName to reference widgets in triggers. Use table name for placeholders.
 9. INDUSTRIAL: Manufacturing → use MACHINE_STATUS, GAUGE, CHECKLIST, SIGNATURE, QUALITY_PASS_FAIL.
 10. MULTI-SCREEN: Use ADD_STEP for logical sections. Add GO_TO_STEP trigger actions for navigation buttons.
 11. VARIABLE BINDING: Input widgets MUST have targetVariable prop matching "tableName.columnName" for auto-harvest.
+12. EDIT MODE: When user asks to "change", "update", "modify", "ubah", "ganti", "edit" something → use UPDATE_WIDGET, UPDATE_TRIGGER, UPDATE_VARIABLE, UPDATE_STEP, UPDATE_FUNCTION.
+13. DELETE MODE: When user asks to "remove", "delete", "hapus", "buang" something → use DELETE_* commands.
+14. EDIT ONLY WHAT'S ASKED: On UPDATE commands, only include the specific props/fields user wants changed.
 
 CURRENT CONTEXT:
-- Screen: ${context.currentStepName || 'Screen 1'}
-- Widgets: ${JSON.stringify((context.widgets || []).map(w => ({ id: w.id, type: w.type, name: w.displayName, x: w.x, y: w.y })))}
-- Tables: ${JSON.stringify((context.tables || []).map(t => ({ id: t.id, name: t.name })))}
-- Variables: ${JSON.stringify((context.variables || []).map(v => ({ name: v.name, type: v.type })))}
-- Screens: ${JSON.stringify((context.steps || []).map(s => ({ id: s.id, title: s.title })))}
-- Placeholders: ${JSON.stringify((context.recordPlaceholders || []).map(r => ({ id: r.id, name: r.name })))}
+- Active Screen: ${context.currentStepName || 'Screen 1'} (ID: ${context.currentStepId || ''})
+- Widgets on Active Screen: ${JSON.stringify((context.widgets || []).map(w => ({
+    id: w.id, type: w.type, name: w.displayName,
+    x: w.x, y: w.y, w: w.w, h: w.h,
+    props: (() => {
+      const p = { ...(w.props || {}) };
+      delete p.triggers; // listed separately below
+      return p;
+    })(),
+    triggers: (w.props?.triggers || []).map(t => ({ id: t.id, name: t.name, event: t.event, clauseCount: (t.clauses || []).length, actions: (t.clauses || []).flatMap(cl => (cl.actions || []).map(a => ({ type: a.type, payload: a.payload }))) }))
+  })))}
+- All Screens Summary: ${JSON.stringify((context.steps || []).map(s => ({ id: s.id, title: s.title, stepType: s.stepType, widgetCount: (s.components || []).length, widgetNames: (s.components || []).map(w => w.displayName) })))}
+- All Screens Widgets (for cross-screen edits): ${JSON.stringify((context.allScreensWidgets || []).map(sc => ({ screen: sc.screenTitle, widgets: sc.widgets.map(w => ({ name: w.name, type: w.type, props: (() => { const p = { ...(w.props || {}) }; delete p.triggers; return p; })(), triggers: w.triggers })) })))}
+- Variables: ${JSON.stringify((context.variables || []).map(v => ({ name: v.name, type: v.type, defaultValue: v.defaultValue, value: v.value })))}
+- Tables: ${JSON.stringify((context.tables || []).map(t => ({ id: t.id, name: t.name, columns: (t.fields || t.columns || []).map(c => ({ name: c.name, type: c.type })) })))}
+- Placeholders: ${JSON.stringify((context.recordPlaceholders || []).map(r => ({ id: r.id, name: r.name, tableId: r.tableId })))}
+- Global Triggers: ${JSON.stringify((context.triggers || []).filter(t => !t._isAutomation).map(t => ({ id: t.id, name: t.name, event: t.event, actions: (t.clauses || []).flatMap(cl => (cl.actions || []).map(a => ({ type: a.type, payload: a.payload }))) })))}
+- Functions: ${JSON.stringify((context.functions || []).map(f => ({ id: f.id, name: f.name, description: f.description || '', codeSnippet: String(f.logic?.code || '').slice(0, 200) })))}
+- Automations: ${JSON.stringify((context.automations || []).map(a => ({ id: a.id, name: a.name, trigger: a.trigger, conditions: a.conditions, actions: a.actions })))}
 
 OUTPUT: Brief explanation (Indonesian if user writes Indonesian), then <ai_plan>...</ai_plan>, then ALWAYS:
 <builder_cmds>
 {"commands": [...]}
 </builder_cmds>`;
-
-
     const messages = [
         { role: 'system', content: systemPrompt },
         ...messageHistory.map(m => ({ role: m.role, content: m.content })),

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getAllSavedAnalyses, deleteAnalysis, saveAnalysis } from '../utils/supabaseFrontlineDB';
+import { toast } from 'react-hot-toast';
 
 const CHART_TYPES = [
     { id: 'BAR', icon: BarChart3, label: 'Bar Chart', color: '#4f46e5' },
@@ -14,6 +15,90 @@ const CHART_TYPES = [
     { id: 'PIE', icon: PieChart, label: 'Pie Chart', color: '#8b5cf6' },
     { id: 'KPI', icon: Zap, label: 'KPI / Scorecard', color: '#f59e0b' },
     { id: 'PARETO', icon: Target, label: 'Pareto Chart', color: '#ef4444' },
+];
+
+const ANALYTICS_TEMPLATES = [
+    {
+        id: 'oee_status',
+        name: 'OEE & Status Produksi',
+        description: 'Menganalisis rasio penyelesaian tugas berdasarkan status (COMPLETED, CANCELED, SAVED).',
+        icon: PieChart,
+        color: '#8b5cf6',
+        config: {
+            type: 'PIE',
+            tableId: 'SYSTEM:COMPLETIONS',
+            xAxisColumn: 'status',
+            yAxisColumn: 'id',
+            aggregation: 'COUNT',
+            color: '#8b5cf6',
+            kpiLabel: 'Total Status'
+        }
+    },
+    {
+        id: 'defect_pareto',
+        name: 'Pareto Cacat & Downtime',
+        description: 'Membantu identifikasi defect atau masalah operasional utama yang sering terjadi.',
+        icon: Target,
+        color: '#ef4444',
+        config: {
+            type: 'PARETO',
+            tableId: 'SYSTEM:COMPLETIONS',
+            xAxisColumn: 'status',
+            yAxisColumn: 'id',
+            aggregation: 'COUNT',
+            color: '#ef4444',
+            kpiLabel: 'Defect Terbanyak'
+        }
+    },
+    {
+        id: 'station_cycle',
+        name: 'Waktu Siklus Stasiun (Cycle Time)',
+        description: 'Memantau rata-rata durasi pengerjaan (cycle time) dalam ms untuk setiap stasiun.',
+        icon: TrendingUp,
+        color: '#0ea5e9',
+        config: {
+            type: 'BAR',
+            tableId: 'SYSTEM:COMPLETIONS',
+            xAxisColumn: 'station_name',
+            yAxisColumn: 'duration_ms',
+            aggregation: 'AVERAGE',
+            color: '#0ea5e9',
+            kpiLabel: 'Rata-rata Waktu Siklus (ms)'
+        }
+    },
+    {
+        id: 'shift_output',
+        name: 'Output Produksi per Jam',
+        description: 'Tren volume output produksi yang diselesaikan per stasiun secara hourly.',
+        icon: BarChart3,
+        color: '#10b981',
+        config: {
+            type: 'LINE',
+            tableId: 'SYSTEM:COMPLETIONS',
+            xAxisColumn: 'created_at',
+            yAxisColumn: 'id',
+            aggregation: 'COUNT',
+            timeBucket: 'HOURLY',
+            color: '#10b981',
+            kpiLabel: 'Hourly Throughput'
+        }
+    },
+    {
+        id: 'operator_leaderboard',
+        name: 'Leaderboard Operator',
+        description: 'Perbandingan produktivitas berdasarkan jumlah penyelesaian unit oleh masing-masing operator.',
+        icon: Zap,
+        color: '#f59e0b',
+        config: {
+            type: 'BAR',
+            tableId: 'SYSTEM:COMPLETIONS',
+            xAxisColumn: 'user_id',
+            yAxisColumn: 'id',
+            aggregation: 'COUNT',
+            color: '#f59e0b',
+            kpiLabel: 'Leaderboard Output'
+        }
+    }
 ];
 
 const AnalysisManager = () => {
@@ -26,10 +111,29 @@ const AnalysisManager = () => {
     const [sortDir, setSortDir] = useState('desc');
     const [filterType, setFilterType] = useState('All');
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [modalTab, setModalTab] = useState('types'); // 'types' | 'templates'
     const [favorites, setFavorites] = useState(() => {
         try { return JSON.parse(localStorage.getItem('mes_analysis_favorites') || '[]'); } catch { return []; }
     });
     const [contextMenu, setContextMenu] = useState(null);
+
+    const handleCreateFromTemplate = async (tmpl) => {
+        const loadToast = toast.loading(`Membuat template "${tmpl.name}"...`);
+        try {
+            const newAnalysis = {
+                name: tmpl.name,
+                description: tmpl.description,
+                config: { ...tmpl.config }
+            };
+            await saveAnalysis(newAnalysis);
+            setShowCreateModal(false);
+            toast.success(`Template "${tmpl.name}" berhasil dibuat!`, { id: loadToast });
+            loadData();
+        } catch (err) {
+            toast.error('Gagal membuat template: ' + err.message, { id: loadToast });
+        }
+    };
+
 
     useEffect(() => { loadData(); }, []);
 
@@ -287,41 +391,99 @@ const AnalysisManager = () => {
             {showCreateModal && (
                 <div style={{ position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.4)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999, backdropFilter:'blur(4px)' }}
                      onClick={() => setShowCreateModal(false)}>
-                    <div style={{ backgroundColor:'white', borderRadius:'20px', width:'560px', maxHeight:'80vh', overflow:'auto', boxShadow:'0 25px 50px rgba(0,0,0,0.15)' }}
+                    <div style={{ backgroundColor:'white', borderRadius:'20px', width:'580px', maxHeight:'85vh', overflow:'hidden', boxShadow:'0 25px 50px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column' }}
                          onClick={e => e.stopPropagation()}>
-                        <div style={{ padding:'24px 28px 0' }}>
-                            <h2 style={{ fontSize:'1.3rem', fontWeight:900, color:'#0f172a', margin:'0 0 4px' }}>New Analysis</h2>
-                            <p style={{ color:'#64748b', fontSize:'0.85rem', margin:'0 0 20px' }}>Choose a chart type to get started</p>
-                        </div>
-                        <div style={{ padding:'0 28px 28px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
-                            {CHART_TYPES.map(ct => (
-                                <button key={ct.id} onClick={() => {
-                                    setShowCreateModal(false);
-                                    navigate('/analytics/new', { state: { defaultType: ct.id } });
-                                }}
-                                        style={{ display:'flex', alignItems:'center', gap:'14px', padding:'16px', border:'1px solid #e2e8f0', borderRadius:'14px', backgroundColor:'white', cursor:'pointer', textAlign:'left', transition:'all 0.15s' }}
-                                        onMouseEnter={e => { e.currentTarget.style.borderColor = ct.color; e.currentTarget.style.backgroundColor = `${ct.color}08`; }}
-                                        onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.backgroundColor = 'white'; }}>
-                                    <div style={{ width:44, height:44, borderRadius:'12px', backgroundColor:`${ct.color}12`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                                        <ct.icon size={22} color={ct.color} />
-                                    </div>
-                                    <div>
-                                        <div style={{ fontSize:'0.9rem', fontWeight:700, color:'#0f172a' }}>{ct.label}</div>
-                                        <div style={{ fontSize:'0.7rem', color:'#94a3b8' }}>Create new {ct.label.toLowerCase()}</div>
-                                    </div>
+                        
+                        {/* Header */}
+                        <div style={{ padding:'24px 28px 16px', borderBottom: '1px solid #f1f5f9' }}>
+                            <h2 style={{ fontSize:'1.3rem', fontWeight:900, color:'#0f172a', margin:'0 0 12px' }}>Buat Analisis Baru</h2>
+                            
+                            {/* Tab Switcher */}
+                            <div style={{ display: 'flex', gap: '8px', backgroundColor: '#f1f5f9', padding: '4px', borderRadius: '10px' }}>
+                                <button 
+                                    onClick={() => setModalTab('types')}
+                                    style={{
+                                        flex: 1, padding: '10px', borderRadius: '8px', border: 'none', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer',
+                                        backgroundColor: modalTab === 'types' ? 'white' : 'transparent',
+                                        color: modalTab === 'types' ? '#4f46e5' : '#64748b',
+                                        boxShadow: modalTab === 'types' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                                        transition: 'all 0.15s'
+                                    }}
+                                >
+                                    Tipe Chart Kosong
                                 </button>
-                            ))}
-                            <button onClick={() => { setShowCreateModal(false); navigate('/analytics/new'); }}
-                                    style={{ display:'flex', alignItems:'center', gap:'14px', padding:'16px', border:'1px dashed #cbd5e1', borderRadius:'14px', backgroundColor:'#f8fafc', cursor:'pointer', textAlign:'left', gridColumn:'1/3', transition:'all 0.15s' }}
-                                    onMouseEnter={e => e.currentTarget.style.borderColor = '#4f46e5'} onMouseLeave={e => e.currentTarget.style.borderColor = '#cbd5e1'}>
-                                <div style={{ width:44, height:44, borderRadius:'12px', backgroundColor:'#f0f0ff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                                    <Sparkles size={22} color="#4f46e5" />
+                                <button 
+                                    onClick={() => setModalTab('templates')}
+                                    style={{
+                                        flex: 1, padding: '10px', borderRadius: '8px', border: 'none', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer',
+                                        backgroundColor: modalTab === 'templates' ? 'white' : 'transparent',
+                                        color: modalTab === 'templates' ? '#4f46e5' : '#64748b',
+                                        boxShadow: modalTab === 'templates' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                                        transition: 'all 0.15s'
+                                    }}
+                                >
+                                    Template MES Ready
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div style={{ padding:'24px 28px 28px', overflowY:'auto', flex: 1 }}>
+                            {modalTab === 'types' ? (
+                                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+                                    {CHART_TYPES.map(ct => (
+                                        <button key={ct.id} onClick={() => {
+                                            setShowCreateModal(false);
+                                            navigate('/analytics/new', { state: { defaultType: ct.id } });
+                                        }}
+                                                style={{ display:'flex', alignItems:'center', gap:'14px', padding:'16px', border:'1px solid #e2e8f0', borderRadius:'14px', backgroundColor:'white', cursor:'pointer', textAlign:'left', transition:'all 0.15s' }}
+                                                onMouseEnter={e => { e.currentTarget.style.borderColor = ct.color; e.currentTarget.style.backgroundColor = `${ct.color}08`; }}
+                                                onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.backgroundColor = 'white'; }}>
+                                            <div style={{ width:44, height:44, borderRadius:'12px', backgroundColor:`${ct.color}12`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                                                <ct.icon size={22} color={ct.color} />
+                                            </div>
+                                            <div>
+                                                <div style={{ fontSize:'0.9rem', fontWeight:700, color:'#0f172a' }}>{ct.label}</div>
+                                                <div style={{ fontSize:'0.7rem', color:'#94a3b8' }}>Mulai dengan {ct.label.toLowerCase()} kosong</div>
+                                            </div>
+                                        </button>
+                                    ))}
+                                    <button onClick={() => { setShowCreateModal(false); navigate('/analytics/new'); }}
+                                            style={{ display:'flex', alignItems:'center', gap:'14px', padding:'16px', border:'1px dashed #cbd5e1', borderRadius:'14px', backgroundColor:'#f8fafc', cursor:'pointer', textAlign:'left', gridColumn:'1/3', transition:'all 0.15s' }}
+                                            onMouseEnter={e => e.currentTarget.style.borderColor = '#4f46e5'} onMouseLeave={e => e.currentTarget.style.borderColor = '#cbd5e1'}>
+                                        <div style={{ width:44, height:44, borderRadius:'12px', backgroundColor:'#f0f0ff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                                            <Sparkles size={22} color="#4f46e5" />
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize:'0.9rem', fontWeight:700, color:'#0f172a' }}>Analisis Kosong</div>
+                                            <div style={{ fontSize:'0.7rem', color:'#94a3b8' }}>Konfigurasi manual dari awal</div>
+                                        </div>
+                                    </button>
                                 </div>
-                                <div>
-                                    <div style={{ fontSize:'0.9rem', fontWeight:700, color:'#0f172a' }}>Blank Analysis</div>
-                                    <div style={{ fontSize:'0.7rem', color:'#94a3b8' }}>Start from scratch and configure everything manually</div>
+                            ) : (
+                                <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+                                    {ANALYTICS_TEMPLATES.map(tmpl => {
+                                        const TmplIcon = tmpl.icon;
+                                        return (
+                                            <button key={tmpl.id} onClick={() => handleCreateFromTemplate(tmpl)}
+                                                    style={{ display:'flex', alignItems:'center', gap:'16px', padding:'16px', border:'1px solid #e2e8f0', borderRadius:'14px', backgroundColor:'white', cursor:'pointer', textAlign:'left', transition:'all 0.15s', width: '100%' }}
+                                                    onMouseEnter={e => { e.currentTarget.style.borderColor = tmpl.color; e.currentTarget.style.backgroundColor = `${tmpl.color}08`; }}
+                                                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.backgroundColor = 'white'; }}>
+                                                <div style={{ width:48, height:48, borderRadius:'12px', backgroundColor:`${tmpl.color}12`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                                                    <TmplIcon size={24} color={tmpl.color} />
+                                                </div>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontSize:'0.95rem', fontWeight:850, color:'#0f172a', marginBottom: '2px' }}>{tmpl.name}</div>
+                                                    <div style={{ fontSize:'0.75rem', color:'#64748b', lineHeight: 1.3 }}>{tmpl.description}</div>
+                                                </div>
+                                                <div style={{ padding: '6px 12px', borderRadius: '8px', backgroundColor: '#f0fdf4', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700 }}>
+                                                    Pasang
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
-                            </button>
+                            )}
                         </div>
                     </div>
                 </div>

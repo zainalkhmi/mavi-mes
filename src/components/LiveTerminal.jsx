@@ -108,6 +108,7 @@ import { logEvent, AUDIT_EVENTS } from '../utils/auditLog';
 import { calculateOEE } from '../utils/oeeEngine';
 import FrontlineCopilot from './FrontlineCopilot';
 import ChatWidget from './ChatWidget';
+import AnalysisWidget from './AnalysisWidget';
 import UnifiedScanner from './UnifiedScanner';
 import MobileBottomNav from './MobileBottomNav';
 import { listGlobalVariables, upsertGlobalVariable, subscribeToGlobalVariables } from '../utils/supabaseGlobalVars';
@@ -221,6 +222,38 @@ const StepValidationPanel = React.memo(function StepValidationPanel({ showValida
     </div>
   );
 });
+
+const LiveAnalyticWrapper = ({ analysisId, title, refreshSeconds, isDark }) => {
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    if (!analysisId) return;
+    const interval = setInterval(() => {
+      setRefreshKey(prev => prev + 1);
+    }, refreshSeconds * 1000);
+    return () => clearInterval(interval);
+  }, [analysisId, refreshSeconds]);
+
+  return (
+    <div style={{ backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', height: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
+      {title && (
+        <div style={{ fontSize: '0.85rem', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a', marginBottom: '8px', borderBottom: `1px solid ${isDark ? '#334155' : '#f1f5f9'}`, paddingBottom: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {title}
+        </div>
+      )}
+      <div style={{ flex: 1, minHeight: 0, width: '100%' }}>
+        {analysisId ? (
+          <AnalysisWidget key={`${analysisId}-${refreshKey}`} analysisId={analysisId} />
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '8px', color: '#94a3b8' }}>
+            <div style={{ fontSize: '1.8rem' }}>📈</div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600 }}>No Analysis Configured</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 const LiveTerminal = () => {
   const [showChat, setShowChat] = useState(false);
@@ -2278,7 +2311,17 @@ const LiveTerminal = () => {
           } else if (action.type === 'PREV_STEP') {
             handlePrevStep();
           } else if (action.type === 'PRINT_SCREEN') {
-            const targetId = String(action.payload?.targetId || '');
+            let targetId = String(action.payload?.targetId || '');
+            const currentStepComps = selectedApp ? (selectedApp.config?.steps || [])[currentStepIndex]?.components || [] : [];
+            const allComps = selectedApp ? (selectedApp.config?.steps || []).flatMap(s => s.components || []) : [];
+            
+            if (!targetId) {
+              const printArea = currentStepComps.find(c => c.type === 'PRINT_AREA');
+              if (printArea) {
+                targetId = printArea.id;
+              }
+            }
+
             setTimeout(() => {
               if (targetId) {
                 let x, y, w, h;
@@ -2288,7 +2331,7 @@ const LiveTerminal = () => {
                   [x, y, w, h] = targetId.split(':')[1].split(',').map(Number);
                   isCoordinateBased = true;
                 } else {
-                  const targetComp = appComponents.find(c => c.id === targetId);
+                  const targetComp = allComps.find(c => c.id === targetId);
                   if (targetComp && targetComp.type === 'PRINT_AREA') {
                     x = targetComp.x;
                     y = targetComp.y;
@@ -2299,9 +2342,24 @@ const LiveTerminal = () => {
                 }
 
                 if (isCoordinateBased) {
+                  const componentsToHide = allComps.filter(c => {
+                    if (c.id === targetComp.id) return true; // Always hide the print area dashed border itself
+                    if (c.x == null || c.y == null) return false;
+                    const c_right = c.x + (c.w || 0);
+                    const c_bottom = c.y + (c.h || 0);
+                    const t_right = x + w;
+                    const t_bottom = y + h;
+                    const isOutside = (c_right <= x) || (c.x >= t_right) || (c_bottom <= y) || (c.y >= t_bottom);
+                    return isOutside;
+                  });
+                  
+                  const hideSelectors = componentsToHide.map(c => `#terminal-comp-${c.id}`).join(', ');
+                  const hideCss = hideSelectors ? `${hideSelectors} { display: none !important; }` : '';
+
                   const style = document.createElement('style');
                   style.id = 'print-style-injected';
                   style.innerHTML = `
+                    @page { margin: 0; }
                     @media print {
                       body * { visibility: hidden; }
                       #terminal-canvas-content { 
@@ -2309,13 +2367,15 @@ const LiveTerminal = () => {
                         position: absolute !important; 
                         left: -${x}px !important; 
                         top: -${y}px !important;
-                        width: ${x + w}px !important;
-                        height: ${y + h}px !important;
+                        width: ${w}px !important;
+                        height: ${h}px !important;
                         margin: 0 !important;
                         padding: 0 !important;
                         overflow: hidden !important;
                       }
                       #terminal-canvas-content * { visibility: visible; }
+                      #terminal-comp-${targetComp.id} { display: none !important; }
+                      ${hideCss}
                     }
                   `;
                   document.head.appendChild(style);
@@ -6237,14 +6297,18 @@ const LiveTerminal = () => {
         );
       }
       // ── ANALYTIC ──
-      case 'ANALYTIC':
+      case 'ANALYTIC': {
+        const analysisId = comp.props.analysisId;
+        const refreshSeconds = Math.max(5, comp.props.refreshSeconds || 10);
         return (
-          <div style={{ backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', height: '100%' }}>
-            <div style={{ fontSize: '2rem' }}>📈</div>
-            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: isDark ? '#f8fafc' : '#0f172a' }}>{comp.props.title || 'Analytics'}</div>
-            <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Live analytics will render here</div>
-          </div>
+          <LiveAnalyticWrapper 
+            analysisId={analysisId} 
+            title={comp.props.title} 
+            refreshSeconds={refreshSeconds} 
+            isDark={isDark} 
+          />
         );
+      }
       // ── CAD_VIEWER ──
       case 'CAD_VIEWER':
         return (
@@ -7129,6 +7193,7 @@ const LiveTerminal = () => {
                         return (
                           <div
                             key={comp.id || idx}
+                            id={comp.id ? `terminal-comp-${comp.id}` : undefined}
                             ref={(el) => { if (comp?.id) widgetContainerRefs.current[comp.id] = el; }}
                             className={comp.props?.isBlinking ? 'animate-blink' : ''}
                             style={containerStyle}

@@ -212,8 +212,89 @@ const initialNodes = [
 
 const initialEdges = [];
 
+const AUTOMATION_TEMPLATES = [
+  {
+    id: 'temp_oee_alert',
+    name: 'Notifikasi Downtime & OEE Rendah',
+    description: 'Otomatis mengirimkan notifikasi ke supervisor jika kecepatan/OEE mesin di bawah batas minimum (downtime terdeteksi).',
+    category: 'IoT & Sensors',
+    nodes: [
+      { id: 'start-node', type: 'event', position: { x: 250, y: 50 }, data: { triggerType: 'MACHINE_TRIGGER', label: 'Ketika mesin mengirimkan data...' } },
+      { id: 'node_dec_1', type: 'decision', position: { x: 250, y: 180 }, data: { label: 'OEE < 70%?', condition: { field: 'oee', operator: '<', value: '70' } } },
+      { id: 'node_act_1', type: 'action', position: { x: 100, y: 320 }, data: { type: 'SEND_NOTIFICATION', label: 'Kirim Alert OEE Rendah' } },
+      { id: 'node_act_2', type: 'action', position: { x: 400, y: 320 }, data: { type: 'LOG_MESSAGE', label: 'Log Status Mesin Normal' } }
+    ],
+    edges: [
+      { id: 'e1', source: 'start-node', target: 'node_dec_1' },
+      { id: 'e2', source: 'node_dec_1', sourceHandle: 'yes', target: 'node_act_1' },
+      { id: 'e3', source: 'node_dec_1', sourceHandle: 'no', target: 'node_act_2' }
+    ]
+  },
+  {
+    id: 'temp_defect_qa',
+    name: 'Eskalasi Cacat Produksi Otomatis',
+    description: 'Picu tindakan korektif saat hasil inspeksi QC berstatus REJECTED. Buat perintah kerja rework otomatis dan ringkas catatan cacat dengan AI.',
+    category: 'Quality Control',
+    nodes: [
+      { id: 'start-node', type: 'event', position: { x: 250, y: 50 }, data: { triggerType: 'TABLE_ROW_ADDED', label: 'Inspeksi QC Ditambahkan' } },
+      { id: 'node_dec_1', type: 'decision', position: { x: 250, y: 180 }, data: { label: 'Status Rejected?', condition: { field: 'status', operator: '==', value: 'REJECTED' } } },
+      { id: 'node_act_1', type: 'action', position: { x: 100, y: 320 }, data: { type: 'CREATE_RECORD', label: 'Buat Work Order Rework' } },
+      { id: 'node_act_2', type: 'action', position: { x: 100, y: 440 }, data: { type: 'AI_SUMMARIZE', label: 'Ringkas Detail Cacat (AI)' } },
+      { id: 'node_act_3', type: 'action', position: { x: 400, y: 320 }, data: { type: 'LOG_MESSAGE', label: 'Lulus Inspeksi' } }
+    ],
+    edges: [
+      { id: 'e1', source: 'start-node', target: 'node_dec_1' },
+      { id: 'e2', source: 'node_dec_1', sourceHandle: 'yes', target: 'node_act_1' },
+      { id: 'e3', source: 'node_act_1', target: 'node_act_2' },
+      { id: 'e4', source: 'node_dec_1', sourceHandle: 'no', target: 'node_act_3' }
+    ]
+  },
+  {
+    id: 'temp_stock_report',
+    name: 'Sinkronisasi & Alert Stok Harian',
+    description: 'Pengecekan terjadwal level stok setiap 24 jam. Kirim peringatan jika stok berada di bawah batas aman.',
+    category: 'Inventory',
+    nodes: [
+      { id: 'start-node', type: 'event', position: { x: 250, y: 50 }, data: { triggerType: 'TIMER', label: 'Pemicu Waktu Harian' } },
+      { id: 'node_act_1', type: 'action', position: { x: 250, y: 180 }, data: { type: 'HTTP_REQUEST', label: 'Tarik Level Stok (ERP API)' } },
+      { id: 'node_dec_1', type: 'decision', position: { x: 250, y: 300 }, data: { label: 'Stok < Batas Aman?', condition: { field: 'quantity', operator: '<', value: 'safety_limit' } } },
+      { id: 'node_act_2', type: 'action', position: { x: 100, y: 440 }, data: { type: 'SEND_NOTIFICATION', label: 'Kirim Alert Reorder Material' } },
+      { id: 'node_act_3', type: 'action', position: { x: 400, y: 440 }, data: { type: 'LOG_MESSAGE', label: 'Status Stok Aman' } }
+    ],
+    edges: [
+      { id: 'e1', source: 'start-node', target: 'node_act_1' },
+      { id: 'e2', source: 'node_act_1', target: 'node_dec_1' },
+      { id: 'e3', source: 'node_dec_1', sourceHandle: 'yes', target: 'node_act_2' },
+      { id: 'e4', source: 'node_dec_1', sourceHandle: 'no', target: 'node_act_3' }
+    ]
+  }
+];
+
+const ensureNodePositions = (nodesList) => {
+  if (!Array.isArray(nodesList)) return nodesList;
+  return nodesList.map((node, index) => {
+    if (!node) return node;
+    if (!node.position || typeof node.position.x !== 'number' || typeof node.position.y !== 'number') {
+      return {
+        ...node,
+        position: {
+          x: typeof node.position?.x === 'number' ? node.position.x : 250,
+          y: typeof node.position?.y === 'number' ? node.position.y : (index * 150 + 50)
+        }
+      };
+    }
+    return node;
+  });
+};
+
 const AutomationEditor = () => {
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [nodes, setNodesState, onNodesChange] = useNodesState(initialNodes);
+  const setNodes = useCallback((nds) => {
+    setNodesState((prev) => {
+      const nextNodes = typeof nds === 'function' ? nds(prev) : nds;
+      return ensureNodePositions(nextNodes);
+    });
+  }, [setNodesState]);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [selectedNode, setSelectedNode] = useState(null);
   const [activeTab, setActiveTab] = useState('EDIT');
@@ -223,6 +304,7 @@ const AutomationEditor = () => {
   const [currentAuto, setCurrentAuto] = useState(null);
   const [automations, setAutomations] = useState([]);
   const [isManagerOpen, setIsManagerOpen] = useState(false);
+  const [managerTab, setManagerTab] = useState('saved'); // 'saved' | 'templates'
   const [menu, setMenu] = useState(null);
   const [clipboard, setClipboard] = useState(null);
   const edgeUpdateSuccessful = useRef(true);
@@ -402,6 +484,22 @@ const AutomationEditor = () => {
     setTimeout(() => {
       setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 800 });
     }, 100);
+  };
+
+  const handleCreateFromTemplate = (template) => {
+    if (confirm(`Create new automation from template "${template.name}"? Current unsaved changes will be lost.`)) {
+      setNodes(template.nodes);
+      setEdges(template.edges);
+      setAutomationName(template.name);
+      setCurrentAuto(null);
+      setSelectedNode(null);
+      setIsManagerOpen(false);
+      
+      // Auto fit view
+      setTimeout(() => {
+        setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 800 });
+      }, 100);
+    }
   };
 
   const deleteAutomation = (id) => {
@@ -1701,85 +1799,169 @@ const AutomationEditor = () => {
                 ><X size={18} /></button>
               </div>
 
-              <div style={{ flex: 1, padding: '24px', overflowY: 'auto', backgroundColor: '#f8fafc' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
-                  <div
-                    onClick={handleNewAutomation}
-                    style={{
-                      height: '140px',
-                      border: '2px dashed #cbd5e1',
-                      borderRadius: '16px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '12px',
-                      cursor: 'pointer',
-                      backgroundColor: 'white',
-                      transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.borderColor = '#3b82f6';
-                      e.currentTarget.style.backgroundColor = '#eff6ff';
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.borderColor = '#cbd5e1';
-                      e.currentTarget.style.backgroundColor = 'white';
-                    }}
-                  >
-                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#eff6ff', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Plus size={24} />
-                    </div>
-                    <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#3b82f6' }}>Create New</span>
-                  </div>
+              <div style={{ display: 'flex', gap: '12px', borderBottom: '1px solid #f1f5f9', padding: '0 24px', backgroundColor: '#f8fafc' }}>
+                <button
+                  onClick={() => setManagerTab('saved')}
+                  style={{
+                    padding: '12px 16px',
+                    border: 'none',
+                    background: 'none',
+                    borderBottom: managerTab === 'saved' ? '2px solid #3b82f6' : '2px solid transparent',
+                    color: managerTab === 'saved' ? '#3b82f6' : '#64748b',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >My Automations</button>
+                <button
+                  onClick={() => setManagerTab('templates')}
+                  style={{
+                    padding: '12px 16px',
+                    border: 'none',
+                    background: 'none',
+                    borderBottom: managerTab === 'templates' ? '2px solid #3b82f6' : '2px solid transparent',
+                    color: managerTab === 'templates' ? '#3b82f6' : '#64748b',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >MES Automation Templates</button>
+              </div>
 
-                  {automations.map(auto => (
+              <div style={{ flex: 1, padding: '24px', overflowY: 'auto', backgroundColor: '#f8fafc' }}>
+                {managerTab === 'saved' ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
                     <div
-                      key={auto.id}
+                      onClick={handleNewAutomation}
                       style={{
                         height: '140px',
-                        backgroundColor: 'white',
-                        border: '1px solid #e2e8f0',
+                        border: '2px dashed #cbd5e1',
                         borderRadius: '16px',
-                        padding: '16px',
                         display: 'flex',
                         flexDirection: 'column',
-                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '12px',
                         cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        position: 'relative'
+                        backgroundColor: 'white',
+                        transition: 'all 0.2s'
                       }}
-                      onMouseEnter={e => e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}
-                      onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
-                      onClick={() => loadAutomation(auto)}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                        e.currentTarget.style.backgroundColor = '#eff6ff';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.borderColor = '#cbd5e1';
+                        e.currentTarget.style.backgroundColor = 'white';
+                      }}
                     >
-                      <div>
-                        <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1e293b', marginBottom: '4px' }}>{auto.name}</div>
-                        <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
-                          Last edited: {auto.development?.updatedAt ? new Date(auto.development.updatedAt).toLocaleDateString() : 'Never'}
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#eff6ff', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Plus size={24} />
+                      </div>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#3b82f6' }}>Create New</span>
+                    </div>
+
+                    {automations.map(auto => (
+                      <div
+                        key={auto.id}
+                        style={{
+                          height: '140px',
+                          backgroundColor: 'white',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '16px',
+                          padding: '16px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          position: 'relative'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}
+                        onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
+                        onClick={() => loadAutomation(auto)}
+                      >
+                        <div>
+                          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1e293b', marginBottom: '4px' }}>{auto.name}</div>
+                          <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                            Last edited: {auto.development?.updatedAt ? new Date(auto.development.updatedAt).toLocaleDateString() : 'Never'}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            {auto.published ? (
+                              <span style={{ fontSize: '0.6rem', fontWeight: 800, backgroundColor: '#dcfce7', color: '#15803d', padding: '2px 6px', borderRadius: '4px' }}>v{auto.published.version}</span>
+                            ) : (
+                              <span style={{ fontSize: '0.6rem', fontWeight: 800, backgroundColor: '#f1f5f9', color: '#64748b', padding: '2px 6px', borderRadius: '4px' }}>DRAFT</span>
+                            )}
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteAutomation(auto.id);
+                            }}
+                            style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
+                            onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                            onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                          ><Trash2 size={14} /></button>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', gap: '4px' }}>
-                          {auto.published ? (
-                            <span style={{ fontSize: '0.6rem', fontWeight: 800, backgroundColor: '#dcfce7', color: '#15803d', padding: '2px 6px', borderRadius: '4px' }}>v{auto.published.version}</span>
-                          ) : (
-                            <span style={{ fontSize: '0.6rem', fontWeight: 800, backgroundColor: '#f1f5f9', color: '#64748b', padding: '2px 6px', borderRadius: '4px' }}>DRAFT</span>
-                          )}
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '16px' }}>
+                    {AUTOMATION_TEMPLATES.map(tmpl => (
+                      <div
+                        key={tmpl.id}
+                        style={{
+                          backgroundColor: 'white',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '16px',
+                          padding: '20px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          transition: 'all 0.2s',
+                          minHeight: '180px'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}
+                        onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                            <span style={{
+                              fontSize: '0.65rem',
+                              fontWeight: 800,
+                              backgroundColor: tmpl.category === 'IoT & Sensors' ? '#e0e7ff' : tmpl.category === 'Quality Control' ? '#fee2e2' : '#fef3c7',
+                              color: tmpl.category === 'IoT & Sensors' ? '#4338ca' : tmpl.category === 'Quality Control' ? '#b91c1c' : '#b45309',
+                              padding: '4px 8px',
+                              borderRadius: '20px'
+                            }}>{tmpl.category}</span>
+                          </div>
+                          <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e293b', marginBottom: '8px' }}>{tmpl.name}</div>
+                          <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.4, marginBottom: '16px' }}>{tmpl.description}</div>
                         </div>
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteAutomation(auto.id);
+                          onClick={() => handleCreateFromTemplate(tmpl)}
+                          style={{
+                            width: '100%',
+                            padding: '10px',
+                            backgroundColor: '#3b82f6',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '10px',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            transition: 'background-color 0.2s'
                           }}
-                          style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
-                          onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-                          onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
-                        ><Trash2 size={14} /></button>
+                          onMouseEnter={e => e.currentTarget.style.backgroundColor = '#2563eb'}
+                          onMouseLeave={e => e.currentTarget.style.backgroundColor = '#3b82f6'}
+                        >Gunakan Template</button>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>

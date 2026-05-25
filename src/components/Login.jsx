@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { User, Lock, ArrowRight, Activity, Settings, AlertCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { login } from '../utils/auth';
 
 const Login = ({ onLoginSuccess }) => {
@@ -92,6 +93,21 @@ const Login = ({ onLoginSuccess }) => {
                 padding: '0 60px',
                 boxShadow: '-10px 0 30px rgba(0,0,0,0.2)'
             }}>
+                <Link to="/" style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    color: '#2563eb',
+                    textDecoration: 'none',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    marginBottom: '24px',
+                    transition: 'color 0.2s',
+                    width: 'fit-content'
+                }}>
+                    ← Back to Platform Site
+                </Link>
+
                 <div style={{ marginBottom: '40px' }}>
                     <h2 style={{ fontSize: '2rem', fontWeight: 800, color: '#0f172a', marginBottom: '8px' }}>
                         Sign In

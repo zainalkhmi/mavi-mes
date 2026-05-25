@@ -8,11 +8,173 @@ import {
     ExternalLink,
     Clock,
     LayoutGrid,
-    MoreVertical
+    MoreVertical,
+    Activity,
+    LayoutDashboard,
+    ShieldAlert,
+    Award
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getAllDashboards, deleteDashboard, saveDashboard, saveAnalysis } from '../utils/supabaseFrontlineDB';
-import { Activity, LayoutDashboard } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+
+const DASHBOARD_TEMPLATES = [
+    {
+        id: 'tmpl_shop_floor_productivity',
+        name: 'Dashboard Produktivitas Pabrik',
+        description: 'Visualisasi throughput per stasiun, waktu siklus (cycle time) rata-rata stasiun, dan leaderboard operator.',
+        color: '#0ea5e9',
+        icon: Activity,
+        analyses: [
+            {
+                suffix: 'shift_output',
+                name: 'Output Produksi per Jam (Template)',
+                description: 'Tren volume output produksi yang diselesaikan per stasiun secara hourly.',
+                config: {
+                    type: 'LINE',
+                    tableId: 'SYSTEM:COMPLETIONS',
+                    xAxisColumn: 'created_at',
+                    yAxisColumn: 'id',
+                    aggregation: 'COUNT',
+                    timeBucket: 'HOURLY',
+                    color: '#10b981',
+                    kpiLabel: 'Hourly Throughput'
+                }
+            },
+            {
+                suffix: 'station_cycle',
+                name: 'Waktu Siklus Stasiun (Template)',
+                description: 'Memantau rata-rata durasi pengerjaan (cycle time) dalam ms untuk setiap stasiun.',
+                config: {
+                    type: 'BAR',
+                    tableId: 'SYSTEM:COMPLETIONS',
+                    xAxisColumn: 'station_name',
+                    yAxisColumn: 'duration_ms',
+                    aggregation: 'AVERAGE',
+                    color: '#0ea5e9',
+                    kpiLabel: 'Rata-rata Waktu Siklus (ms)'
+                }
+            },
+            {
+                suffix: 'operator_leaderboard',
+                name: 'Leaderboard Operator (Template)',
+                description: 'Perbandingan produktivitas berdasarkan jumlah penyelesaian unit oleh masing-masing operator.',
+                config: {
+                    type: 'BAR',
+                    tableId: 'SYSTEM:COMPLETIONS',
+                    xAxisColumn: 'user_id',
+                    yAxisColumn: 'id',
+                    aggregation: 'COUNT',
+                    color: '#f59e0b',
+                    kpiLabel: 'Leaderboard Output'
+                }
+            }
+        ],
+        layout: (analyses) => [
+            { i: analyses[0].id, x: 0, y: 0, w: 12, h: 4, type: 'ANALYSIS', analysisId: analyses[0].id, name: analyses[0].name },
+            { i: analyses[1].id, x: 0, y: 4, w: 6, h: 4, type: 'ANALYSIS', analysisId: analyses[1].id, name: analyses[1].name },
+            { i: analyses[2].id, x: 6, y: 4, w: 6, h: 4, type: 'ANALYSIS', analysisId: analyses[2].id, name: analyses[2].name }
+        ]
+    },
+    {
+        id: 'tmpl_quality_yield',
+        name: 'Dashboard Kualitas & Yield',
+        description: 'Menganalisis rasio cacat (defect rate), status kelulusan (Yield), dan visualisasi Pareto cacat utama.',
+        color: '#8b5cf6',
+        icon: ShieldAlert,
+        analyses: [
+            {
+                suffix: 'defect_pareto',
+                name: 'Pareto Cacat & Downtime (Template)',
+                description: 'Membantu identifikasi defect atau masalah operasional utama yang sering terjadi.',
+                config: {
+                    type: 'PARETO',
+                    tableId: 'SYSTEM:COMPLETIONS',
+                    xAxisColumn: 'status',
+                    yAxisColumn: 'id',
+                    aggregation: 'COUNT',
+                    color: '#ef4444',
+                    kpiLabel: 'Defect Terbanyak'
+                }
+            },
+            {
+                suffix: 'oee_status',
+                name: 'OEE & Status Produksi (Template)',
+                description: 'Menganalisis rasio penyelesaian tugas berdasarkan status (COMPLETED, CANCELED, SAVED).',
+                config: {
+                    type: 'PIE',
+                    tableId: 'SYSTEM:COMPLETIONS',
+                    xAxisColumn: 'status',
+                    yAxisColumn: 'id',
+                    aggregation: 'COUNT',
+                    color: '#8b5cf6',
+                    kpiLabel: 'Total Status'
+                }
+            }
+        ],
+        layout: (analyses) => [
+            { i: analyses[0].id, x: 0, y: 0, w: 8, h: 4, type: 'ANALYSIS', analysisId: analyses[0].id, name: analyses[0].name },
+            { i: analyses[1].id, x: 8, y: 0, w: 4, h: 4, type: 'ANALYSIS', analysisId: analyses[1].id, name: analyses[1].name }
+        ]
+    },
+    {
+        id: 'tmpl_oee_equipment',
+        name: 'Dashboard Efektivitas OEE',
+        description: 'Gambaran komprehensif mengenai total output produksi (KPI), stasiun teraktif, dan status OEE.',
+        color: '#f59e0b',
+        icon: Award,
+        analyses: [
+            {
+                suffix: 'total_kpi',
+                name: 'Total Output Produksi KPI (Template)',
+                description: 'Menampilkan total unit yang diselesaikan dari tabel completions.',
+                config: {
+                    type: 'KPI',
+                    tableId: 'SYSTEM:COMPLETIONS',
+                    xAxisColumn: 'status',
+                    yAxisColumn: 'id',
+                    aggregation: 'COUNT',
+                    color: '#0ea5e9',
+                    kpiLabel: 'Total Unit Selesai'
+                }
+            },
+            {
+                suffix: 'oee_status',
+                name: 'OEE & Status Produksi (Template)',
+                description: 'Menganalisis rasio penyelesaian tugas berdasarkan status (COMPLETED, CANCELED, SAVED).',
+                config: {
+                    type: 'PIE',
+                    tableId: 'SYSTEM:COMPLETIONS',
+                    xAxisColumn: 'status',
+                    yAxisColumn: 'id',
+                    aggregation: 'COUNT',
+                    color: '#8b5cf6',
+                    kpiLabel: 'Total Status'
+                }
+            },
+            {
+                suffix: 'station_cycle',
+                name: 'Waktu Siklus Stasiun (Template)',
+                description: 'Memantau rata-rata durasi pengerjaan (cycle time) dalam ms untuk setiap stasiun.',
+                config: {
+                    type: 'BAR',
+                    tableId: 'SYSTEM:COMPLETIONS',
+                    xAxisColumn: 'station_name',
+                    yAxisColumn: 'duration_ms',
+                    aggregation: 'AVERAGE',
+                    color: '#0ea5e9',
+                    kpiLabel: 'Rata-rata Waktu Siklus (ms)'
+                }
+            }
+        ],
+        layout: (analyses) => [
+            { i: analyses[0].id, x: 0, y: 0, w: 4, h: 4, type: 'ANALYSIS', analysisId: analyses[0].id, name: analyses[0].name },
+            { i: analyses[1].id, x: 4, y: 0, w: 8, h: 4, type: 'ANALYSIS', analysisId: analyses[1].id, name: analyses[1].name },
+            { i: analyses[2].id, x: 0, y: 4, w: 12, h: 4, type: 'ANALYSIS', analysisId: analyses[2].id, name: analyses[2].name }
+        ]
+    }
+];
+
 
 const DashboardManager = () => {
     const navigate = useNavigate();
@@ -51,7 +213,6 @@ const DashboardManager = () => {
         try {
             // 1. Create Throughput Analysis
             const throughputAnalysis = {
-                id: `analysis_throughput_${Date.now()}`,
                 name: 'Total Throughput (By App)',
                 description: 'Historical completion counts aggregated by Application',
                 config: {
@@ -66,7 +227,6 @@ const DashboardManager = () => {
 
             // 2. Create Cycle Time Analysis
             const cycleTimeAnalysis = {
-                id: `analysis_cycletime_${Date.now()}`,
                 name: 'Avg Cycle Time (By Operator)',
                 description: 'Average duration of completed cycles per Operator',
                 config: {
@@ -79,17 +239,16 @@ const DashboardManager = () => {
                 }
             };
 
-            await saveAnalysis(throughputAnalysis);
-            await saveAnalysis(cycleTimeAnalysis);
+            const savedThroughput = await saveAnalysis(throughputAnalysis);
+            const savedCycleTime = await saveAnalysis(cycleTimeAnalysis);
 
             // 3. Create Dashboard
             const newDashboard = {
-                id: `dashboard_perf_${Date.now()}`,
                 name: 'App Performance Dashboard',
                 description: 'Automatically generated overview of production throughput and cycle efficiency.',
                 layout: [
-                    { i: throughputAnalysis.id, x: 0, y: 0, w: 6, h: 4, type: 'ANALYSIS', analysisId: throughputAnalysis.id },
-                    { i: cycleTimeAnalysis.id, x: 6, y: 0, w: 6, h: 4, type: 'ANALYSIS', analysisId: cycleTimeAnalysis.id }
+                    { i: savedThroughput.id, x: 0, y: 0, w: 6, h: 4, type: 'ANALYSIS', analysisId: savedThroughput.id },
+                    { i: savedCycleTime.id, x: 6, y: 0, w: 6, h: 4, type: 'ANALYSIS', analysisId: savedCycleTime.id }
                 ]
             };
 
@@ -103,6 +262,38 @@ const DashboardManager = () => {
             setLoading(false);
         }
     };
+
+    const handleInstallDashboardTemplate = async (tmpl) => {
+        const loadToast = toast.loading(`Memasang template "${tmpl.name}"...`);
+        try {
+            const createdAnalyses = [];
+            for (const analysisData of tmpl.analyses) {
+                const newAnalysis = {
+                    name: analysisData.name,
+                    description: analysisData.description,
+                    config: analysisData.config
+                };
+                const saved = await saveAnalysis(newAnalysis);
+                createdAnalyses.push(saved);
+            }
+
+            const dashboardLayout = tmpl.layout(createdAnalyses);
+
+            const newDashboard = {
+                name: tmpl.name,
+                description: tmpl.description,
+                layout: dashboardLayout
+            };
+            await saveDashboard(newDashboard);
+
+            toast.success(`Dashboard "${tmpl.name}" berhasil dipasang!`, { id: loadToast });
+            loadData();
+        } catch (err) {
+            console.error('Error installing dashboard template:', err);
+            toast.error('Gagal memasang dashboard template: ' + err.message, { id: loadToast });
+        }
+    };
+
 
     const filteredDashboards = dashboards.filter(d => 
         d.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -151,6 +342,84 @@ const DashboardManager = () => {
                         onChange={(e) => setSearchTerm(e.target.value)}
                         style={{ width: '100%', padding: '16px 16px 16px 50px', borderRadius: '16px', border: '1px solid #e2e8f0', fontSize: '1rem', outline: 'none', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
                     />
+                </div>
+
+                {/* Dashboard Templates Quick Start */}
+                <div style={{ marginBottom: '40px' }}>
+                    <h2 style={{ color: '#0f172a', fontSize: '1.25rem', fontWeight: 800, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <LayoutDashboard size={20} color="#0ea5e9" /> Mulai Cepat dengan Template Dashboard MES
+                    </h2>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '20px' }}>
+                        {DASHBOARD_TEMPLATES.map(tmpl => {
+                            const TmplIcon = tmpl.icon;
+                            return (
+                                <div 
+                                    key={tmpl.id} 
+                                    style={{ 
+                                        backgroundColor: 'white', 
+                                        borderRadius: '16px', 
+                                        border: '1px solid #e2e8f0', 
+                                        padding: '24px', 
+                                        display: 'flex', 
+                                        flexDirection: 'column',
+                                        justifyContent: 'space-between',
+                                        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)',
+                                        transition: 'all 0.2s',
+                                        cursor: 'default'
+                                    }}
+                                    onMouseEnter={e => {
+                                        e.currentTarget.style.transform = 'translateY(-3px)';
+                                        e.currentTarget.style.boxShadow = '0 10px 20px -5px rgba(0,0,0,0.08)';
+                                        e.currentTarget.style.borderColor = tmpl.color;
+                                    }}
+                                    onMouseLeave={e => {
+                                        e.currentTarget.style.transform = 'translateY(0)';
+                                        e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)';
+                                        e.currentTarget.style.borderColor = '#e2e8f0';
+                                    }}
+                                >
+                                    <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+                                            <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: `${tmpl.color}12`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <TmplIcon size={20} color={tmpl.color} />
+                                            </div>
+                                            <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>{tmpl.name}</h3>
+                                        </div>
+                                        <p style={{ fontSize: '0.8rem', color: '#64748b', lineHeight: 1.4, marginBottom: '16px' }}>{tmpl.description}</p>
+                                        <div style={{ marginBottom: '20px' }}>
+                                            <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '6px' }}>Termasuk Visualisasi:</div>
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                                {tmpl.analyses.map((a, idx) => (
+                                                    <span key={idx} style={{ fontSize: '0.65rem', fontWeight: 700, color: '#475569', backgroundColor: '#f1f5f9', padding: '3px 8px', borderRadius: '6px' }}>
+                                                        {a.name.replace(' (Template)', '')}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={() => handleInstallDashboardTemplate(tmpl)}
+                                        style={{ 
+                                            width: '100%',
+                                            padding: '10px 16px',
+                                            backgroundColor: tmpl.color,
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '10px',
+                                            fontWeight: 700,
+                                            fontSize: '0.85rem',
+                                            cursor: 'pointer',
+                                            transition: 'opacity 0.15s'
+                                        }}
+                                        onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
+                                        onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                                    >
+                                        Pasang Template
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
 
                 {/* Content */}

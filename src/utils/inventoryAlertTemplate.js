@@ -122,11 +122,11 @@ export function createInventoryAlertTemplate() {
             active: true,
             triggers: [{ id: `trig_rowupd_${ts}`, type: 'TABLE_ROW_UPDATED', config: { tableId: T.materials, condition: { field: 'Current_Qty', operator: '<', value: 'Reorder_Point' } } }],
             nodes: [
-                { id: 'start', type: 'event', data: { label: 'Material Updated' } },
-                { id: 'check', type: 'decision', data: { label: 'Qty < Reorder?', condition: { field: 'Current_Qty', operator: '<', value: 'Reorder_Point' } } },
-                { id: 'createAlert', type: 'action', data: { type: 'CREATE_RECORD', tableId: T.alerts, data: { Alert_Type: 'LOW_STOCK', Status: 'OPEN' } } },
-                { id: 'notify', type: 'action', data: { type: 'SEND_NOTIFICATION', recipient: 'warehouse_manager@company.com', message: 'LOW STOCK ALERT: Material below reorder point!' } },
-                { id: 'log', type: 'action', data: { type: 'LOG_MESSAGE', message: 'Low stock automation executed' } }
+                { id: 'start', type: 'event', position: { x: 250, y: 50 }, data: { label: 'Material Updated' } },
+                { id: 'check', type: 'decision', position: { x: 250, y: 180 }, data: { label: 'Qty < Reorder?', condition: { field: 'Current_Qty', operator: '<', value: 'Reorder_Point' } } },
+                { id: 'createAlert', type: 'action', position: { x: 100, y: 320 }, data: { type: 'CREATE_RECORD', tableId: T.alerts, data: { Alert_Type: 'LOW_STOCK', Status: 'OPEN' } } },
+                { id: 'notify', type: 'action', position: { x: 100, y: 440 }, data: { type: 'SEND_NOTIFICATION', recipient: 'warehouse_manager@company.com', message: 'LOW STOCK ALERT: Material below reorder point!' } },
+                { id: 'log', type: 'action', position: { x: 400, y: 320 }, data: { type: 'LOG_MESSAGE', message: 'Low stock automation executed' } }
             ],
             edges: [
                 { source: 'start', target: 'check' },
@@ -159,9 +159,9 @@ export function createInventoryAlertTemplate() {
             active: true,
             triggers: [{ id: `fn_trig1_${ts}`, type: 'TABLE_ROW_ADDED', config: { tableId: T.transactions } }],
             nodes: [
-                { id: 'start', type: 'functionCall', data: { label: 'On Transaction Added' } },
-                { id: 'calc', type: 'expression', data: { expression: 'Current_Qty * Unit_Cost', outputVar: 'Stock_Value' } },
-                { id: 'save', type: 'action', data: { type: 'LOG_MESSAGE', message: 'Stock value recalculated' } }
+                { id: 'start', type: 'functionCall', position: { x: 250, y: 50 }, data: { label: 'On Transaction Added' } },
+                { id: 'calc', type: 'expression', position: { x: 250, y: 180 }, data: { expression: 'Current_Qty * Unit_Cost', outputVar: 'Stock_Value' } },
+                { id: 'save', type: 'action', position: { x: 250, y: 320 }, data: { type: 'LOG_MESSAGE', message: 'Stock value recalculated' } }
             ],
             edges: [
                 { source: 'start', target: 'calc' },
@@ -176,10 +176,10 @@ export function createInventoryAlertTemplate() {
             active: true,
             triggers: [{ id: `fn_trig2_${ts}`, type: 'TABLE_ROW_UPDATED', config: { tableId: T.materials } }],
             nodes: [
-                { id: 'start', type: 'functionCall', data: { label: 'On Material Updated' } },
-                { id: 'check', type: 'decision', data: { label: 'Below reorder?', condition: { field: 'Current_Qty', operator: '<=', value: 'Reorder_Point' } } },
-                { id: 'setLow', type: 'action', data: { type: 'LOG_MESSAGE', message: 'Status → LOW_STOCK' } },
-                { id: 'setOk', type: 'action', data: { type: 'LOG_MESSAGE', message: 'Status → IN_STOCK' } }
+                { id: 'start', type: 'functionCall', position: { x: 250, y: 50 }, data: { label: 'On Material Updated' } },
+                { id: 'check', type: 'decision', position: { x: 250, y: 180 }, data: { label: 'Below reorder?', condition: { field: 'Current_Qty', operator: '<=', value: 'Reorder_Point' } } },
+                { id: 'setLow', type: 'action', position: { x: 100, y: 320 }, data: { type: 'LOG_MESSAGE', message: 'Status → LOW_STOCK' } },
+                { id: 'setOk', type: 'action', position: { x: 400, y: 320 }, data: { type: 'LOG_MESSAGE', message: 'Status → IN_STOCK' } }
             ],
             edges: [
                 { source: 'start', target: 'check' },

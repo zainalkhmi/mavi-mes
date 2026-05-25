@@ -396,8 +396,109 @@ const initialEdges = [
   { id: 'e3', source: 'return', target: 'end', type: 'addNode', data: { onAddNode: () => {} } }
 ];
 
+const FUNCTION_TEMPLATES = [
+  {
+    id: 'temp_oee_calc',
+    name: 'Kalkulator OEE',
+    description: 'Menghitung Overall Equipment Effectiveness (OEE) berdasarkan Availability, Performance, dan Quality.',
+    category: 'Produktivitas',
+    inputs: [
+      { id: 1, name: 'availability', type: 'number' },
+      { id: 2, name: 'performance', type: 'number' },
+      { id: 3, name: 'quality', type: 'number' }
+    ],
+    outputs: [
+      { id: 4, name: 'oee', type: 'number' }
+    ],
+    variables: [],
+    nodes: [
+      { id: 'start', type: 'default', data: { label: 'Start' }, position: { x: 250, y: 0 }, style: { borderRadius: '24px', width: '80px', textAlign: 'center', fontSize: '0.85rem', fontWeight: 800, color: '#475569', border: '2px solid #475569', padding: '4px 0' } },
+      { id: 'fx-call', type: 'functionCall', data: { label: 'availability * performance * quality / 10000' }, position: { x: 240, y: 120 } },
+      { id: 'return', type: 'return', data: { label: 'Return' }, position: { x: 230, y: 280 } },
+      { id: 'end', type: 'default', data: { label: 'End' }, position: { x: 250, y: 420 }, style: { borderRadius: '24px', width: '80px', textAlign: 'center', fontSize: '0.85rem', fontWeight: 800, color: '#475569', border: '2px solid #475569', padding: '4px 0' } }
+    ],
+    edges: [
+      { id: 'e1', source: 'start', target: 'fx-call', type: 'addNode' },
+      { id: 'e2', source: 'fx-call', target: 'return', type: 'addNode' },
+      { id: 'e3', source: 'return', target: 'end', type: 'addNode' }
+    ]
+  },
+  {
+    id: 'temp_yield_calc',
+    name: 'Kalkulator Yield Rate',
+    description: 'Menghitung rasio produk bagus dibanding total produk yang diproduksi.',
+    category: 'Kualitas',
+    inputs: [
+      { id: 1, name: 'total_produced', type: 'number' },
+      { id: 2, name: 'good_produced', type: 'number' }
+    ],
+    outputs: [
+      { id: 3, name: 'yield_rate', type: 'number' }
+    ],
+    variables: [],
+    nodes: [
+      { id: 'start', type: 'default', data: { label: 'Start' }, position: { x: 250, y: 0 }, style: { borderRadius: '24px', width: '80px', textAlign: 'center', fontSize: '0.85rem', fontWeight: 800, color: '#475569', border: '2px solid #475569', padding: '4px 0' } },
+      { id: 'fx-call', type: 'functionCall', data: { label: 'good_produced / total_produced * 100' }, position: { x: 240, y: 120 } },
+      { id: 'return', type: 'return', data: { label: 'Return' }, position: { x: 230, y: 280 } },
+      { id: 'end', type: 'default', data: { label: 'End' }, position: { x: 250, y: 420 }, style: { borderRadius: '24px', width: '80px', textAlign: 'center', fontSize: '0.85rem', fontWeight: 800, color: '#475569', border: '2px solid #475569', padding: '4px 0' } }
+    ],
+    edges: [
+      { id: 'e1', source: 'start', target: 'fx-call', type: 'addNode' },
+      { id: 'e2', source: 'fx-call', target: 'return', type: 'addNode' },
+      { id: 'e3', source: 'return', target: 'end', type: 'addNode' }
+    ]
+  },
+  {
+    id: 'temp_cycle_calc',
+    name: 'Konversi Cycle Time ke Output per Jam',
+    description: 'Menghitung estimasi kapasitas produksi per jam berdasarkan rata-rata cycle time stasiun (detik).',
+    category: 'Kapasitas',
+    inputs: [
+      { id: 1, name: 'average_cycle_time_sec', type: 'number' }
+    ],
+    outputs: [
+      { id: 2, name: 'units_per_hour', type: 'number' }
+    ],
+    variables: [],
+    nodes: [
+      { id: 'start', type: 'default', data: { label: 'Start' }, position: { x: 250, y: 0 }, style: { borderRadius: '24px', width: '80px', textAlign: 'center', fontSize: '0.85rem', fontWeight: 800, color: '#475569', border: '2px solid #475569', padding: '4px 0' } },
+      { id: 'fx-call', type: 'functionCall', data: { label: '3600 / average_cycle_time_sec' }, position: { x: 240, y: 120 } },
+      { id: 'return', type: 'return', data: { label: 'Return' }, position: { x: 230, y: 280 } },
+      { id: 'end', type: 'default', data: { label: 'End' }, position: { x: 250, y: 420 }, style: { borderRadius: '24px', width: '80px', textAlign: 'center', fontSize: '0.85rem', fontWeight: 800, color: '#475569', border: '2px solid #475569', padding: '4px 0' } }
+    ],
+    edges: [
+      { id: 'e1', source: 'start', target: 'fx-call', type: 'addNode' },
+      { id: 'e2', source: 'fx-call', target: 'return', type: 'addNode' },
+      { id: 'e3', source: 'return', target: 'end', type: 'addNode' }
+    ]
+  }
+];
+
+const ensureNodePositions = (nodesList) => {
+  if (!Array.isArray(nodesList)) return nodesList;
+  return nodesList.map((node, index) => {
+    if (!node) return node;
+    if (!node.position || typeof node.position.x !== 'number' || typeof node.position.y !== 'number') {
+      return {
+        ...node,
+        position: {
+          x: typeof node.position?.x === 'number' ? node.position.x : 250,
+          y: typeof node.position?.y === 'number' ? node.position.y : (index * 150 + 50)
+        }
+      };
+    }
+    return node;
+  });
+};
+
 const FunctionsEditor = () => {
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [nodes, setNodesState, onNodesChange] = useNodesState(initialNodes);
+  const setNodes = useCallback((nds) => {
+    setNodesState((prev) => {
+      const nextNodes = typeof nds === 'function' ? nds(prev) : nds;
+      return ensureNodePositions(nextNodes);
+    });
+  }, [setNodesState]);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [functionName, setFunctionName] = useState('Line start message');
   const [description, setDescription] = useState('message to operator');
@@ -411,6 +512,7 @@ const FunctionsEditor = () => {
   const [showIOMenu, setShowIOMenu] = useState(null); // { type, id }
   const [activeEdgeForMenu, setActiveEdgeForMenu] = useState(null);
   const [isManagerOpen, setIsManagerOpen] = useState(false);
+  const [managerTab, setManagerTab] = useState('saved'); // 'saved' | 'templates'
   const [savedFunctions, setSavedFunctions] = useState([]);
   const [connectors, setConnectors] = useState([]);
   const [isConnectorManagerOpen, setIsConnectorManagerOpen] = useState(false);
@@ -799,6 +901,29 @@ const FunctionsEditor = () => {
     setIsManagerOpen(false);
   };
 
+  const handleCreateFromTemplate = (template) => {
+    if (confirm(`Create new function from template "${template.name}"? Current unsaved changes will be lost.`)) {
+      setFunctionName(template.name);
+      setDescription(template.description || '');
+      setInputs(template.inputs || []);
+      setOutputs(template.outputs || []);
+      setVariables(template.variables || []);
+      setTriggers(template.triggers || []);
+      setNodes(template.nodes);
+      
+      const loadedEdges = (template.edges || []).map(edge => ({
+          ...edge,
+          type: 'addNode',
+          data: { ...edge.data, onAddNode: (id) => setActiveEdgeForMenu(id) }
+      }));
+      setEdges(loadedEdges);
+      
+      setCurrentVersion(0);
+      setVersionHistory([]);
+      setIsManagerOpen(false);
+    }
+  };
+
   const deleteSavedFunction = (id) => {
     const filtered = savedFunctions.filter(f => f.id !== id);
     localStorage.setItem('mes_functions', JSON.stringify(filtered));
@@ -941,67 +1066,140 @@ const FunctionsEditor = () => {
               </div>
               <button onClick={() => setIsManagerOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={24} /></button>
             </div>
+
+            <div style={{ display: 'flex', gap: '12px', borderBottom: '1px solid #e2e8f0', padding: '0 24px', backgroundColor: '#f8fafc' }}>
+              <button
+                onClick={() => setManagerTab('saved')}
+                style={{
+                  padding: '12px 16px',
+                  border: 'none',
+                  background: 'none',
+                  borderBottom: managerTab === 'saved' ? '2px solid #3b82f6' : '2px solid transparent',
+                  color: managerTab === 'saved' ? '#3b82f6' : '#64748b',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >My Functions</button>
+              <button
+                onClick={() => setManagerTab('templates')}
+                style={{
+                  padding: '12px 16px',
+                  border: 'none',
+                  background: 'none',
+                  borderBottom: managerTab === 'templates' ? '2px solid #3b82f6' : '2px solid transparent',
+                  color: managerTab === 'templates' ? '#3b82f6' : '#64748b',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >Function Templates</button>
+            </div>
             
-            <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {savedFunctions.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '48px', color: '#94a3b8' }}>
-                  <Cpu size={48} style={{ marginBottom: '16px', opacity: 0.2 }} />
-                  <div>No saved functions yet</div>
-                </div>
-              ) : (
-                savedFunctions.map(fn => (
-                  <div key={fn.id} style={{ 
-                    padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0',
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = '#3b82f6'}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = '#e2e8f0'}
-                  >
-                    <div>
-                      <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1e293b' }}>{fn.name}</div>
-                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{fn.description || 'No description'}</div>
-                      <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                        <span style={{ fontSize: '0.65rem', padding: '2px 6px', backgroundColor: '#f1f5f9', borderRadius: '4px', color: '#64748b' }}>{fn.nodes?.length || 0} nodes</span>
-                        <span style={{ fontSize: '0.65rem', padding: '2px 6px', backgroundColor: '#f1f5f9', borderRadius: '4px', color: '#64748b' }}>{fn.inputs?.length || 0} inputs</span>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#f8fafc' }}>
+              {managerTab === 'saved' ? (
+                savedFunctions.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '48px', color: '#94a3b8' }}>
+                    <Cpu size={48} style={{ marginBottom: '16px', opacity: 0.2 }} />
+                    <div>No saved functions yet</div>
+                  </div>
+                ) : (
+                  savedFunctions.map(fn => (
+                    <div key={fn.id} style={{ 
+                      padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      transition: 'all 0.2s', backgroundColor: 'white'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = '#3b82f6'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = '#e2e8f0'}
+                    >
+                      <div>
+                        <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1e293b' }}>{fn.name}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{fn.description || 'No description'}</div>
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                          <span style={{ fontSize: '0.65rem', padding: '2px 6px', backgroundColor: '#f1f5f9', borderRadius: '4px', color: '#64748b' }}>{fn.nodes?.length || 0} nodes</span>
+                          <span style={{ fontSize: '0.65rem', padding: '2px 6px', backgroundColor: '#f1f5f9', borderRadius: '4px', color: '#64748b' }}>{fn.inputs?.length || 0} inputs</span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button 
+                          onClick={() => deleteSavedFunction(fn.id)}
+                          style={{ padding: '8px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}
+                        ><Trash2 size={18} /></button>
+                        <button 
+                          onClick={() => loadFunction(fn)}
+                          style={{
+                            padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white',
+                            border: 'none', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer'
+                          }}
+                        >Load</button>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                  ))
+                )
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {FUNCTION_TEMPLATES.map(tmpl => (
+                    <div key={tmpl.id} style={{ 
+                      padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      transition: 'all 0.2s', backgroundColor: 'white'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = '#3b82f6'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = '#e2e8f0'}
+                    >
+                      <div style={{ flex: 1, marginRight: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e293b' }}>{tmpl.name}</div>
+                          <span style={{
+                            fontSize: '0.6rem',
+                            fontWeight: 800,
+                            backgroundColor: tmpl.category === 'Produktivitas' ? '#dbeafe' : tmpl.category === 'Kualitas' ? '#fee2e2' : '#fef3c7',
+                            color: tmpl.category === 'Produktivitas' ? '#1e40af' : tmpl.category === 'Kualitas' ? '#991b1b' : '#854d0e',
+                            padding: '2px 6px',
+                            borderRadius: '4px'
+                          }}>{tmpl.category}</span>
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.3 }}>{tmpl.description}</div>
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                          <span style={{ fontSize: '0.65rem', padding: '2px 6px', backgroundColor: '#f1f5f9', borderRadius: '4px', color: '#64748b' }}>{tmpl.inputs?.length || 0} inputs</span>
+                          <span style={{ fontSize: '0.65rem', padding: '2px 6px', backgroundColor: '#f1f5f9', borderRadius: '4px', color: '#64748b' }}>{tmpl.outputs?.length || 0} outputs</span>
+                        </div>
+                      </div>
                       <button 
-                        onClick={() => deleteSavedFunction(fn.id)}
-                        style={{ p: '8px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}
-                      ><Trash2 size={18} /></button>
-                      <button 
-                        onClick={() => loadFunction(fn)}
+                        onClick={() => handleCreateFromTemplate(tmpl)}
                         style={{
                           padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white',
-                          border: 'none', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer'
+                          border: 'none', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
+                          flexShrink: 0
                         }}
-                      >Load</button>
+                      >Gunakan Template</button>
                     </div>
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
             </div>
             
-            <div style={{ padding: '24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
-               <button 
-                onClick={() => {
-                  setFunctionName('New Function');
-                  setDescription('');
-                  setNodes(initialNodes);
-                  setEdges(initialEdges);
-                  setInputs([]);
-                  setOutputs([]);
-                  setVariables([]);
-                  setIsManagerOpen(false);
-                }}
-                style={{
-                  padding: '10px 20px', backgroundColor: 'white', border: '1px solid #e2e8f0',
-                  borderRadius: '8px', fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', cursor: 'pointer'
-                }}
-               >+ Create New Function</button>
-            </div>
+            {managerTab === 'saved' && (
+              <div style={{ padding: '24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', backgroundColor: '#f8fafc', borderBottomLeftRadius: '16px', borderBottomRightRadius: '16px' }}>
+                 <button 
+                  onClick={() => {
+                    setFunctionName('New Function');
+                    setDescription('');
+                    setNodes(initialNodes);
+                    setEdges(initialEdges);
+                    setInputs([]);
+                    setOutputs([]);
+                    setVariables([]);
+                    setIsManagerOpen(false);
+                  }}
+                  style={{
+                    padding: '10px 20px', backgroundColor: 'white', border: '1px solid #e2e8f0',
+                    borderRadius: '8px', fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', cursor: 'pointer'
+                  }}
+                 >+ Create New Function</button>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -30,6 +30,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Link, Route, Routes, useLocation, Navigate, useNavigate } from 'react-router-dom';
 import { getCurrentUser, logout } from './utils/auth';
 import Login from './components/Login';
+import LandingPage from './components/LandingPage';
 import Home from './components/Home';
 import AppBuilder from './components/AppBuilder';
 import AppPlayer from './components/AppPlayer';
@@ -146,7 +147,13 @@ const App = () => {
   };
 
   if (!user) {
-    return <Login onLoginSuccess={handleLoginSuccess} />;
+    return (
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
   }
 
   // Operator-only routing constraint

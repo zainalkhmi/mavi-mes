@@ -208,7 +208,7 @@ const formatTimeLabel = (isoValue) => {
 
 import { processDocument } from '../utils/aiService';
 
-import { saveFrontlineApp, getAllFrontlineApps, deleteFrontlineApp, publishApp, requestApproval, approveApp, getAllVariables, saveVariable } from '../utils/supabaseFrontlineDB';
+import { saveFrontlineApp, getAllFrontlineApps, deleteFrontlineApp, publishApp, requestApproval, approveApp, getAllVariables, saveVariable, getAllSavedAnalyses } from '../utils/supabaseFrontlineDB';
 import {
     createTable,
     addTableRecord,
@@ -216,6 +216,7 @@ import {
     getTableRecords,
     queryTableRecords,
     updateTable as updateTableDb,
+    deleteTable as deleteTableDb,
     resolveTableIdReference
 } from '../utils/supabaseTablesDB';
 import { getCompletionsByApp, getCompletionDetail } from '../utils/supabaseCompletionsDB';
@@ -2091,6 +2092,7 @@ const AppBuilder = () => {
     const [appVariables, setAppVariables] = useState([]);
     const [appFunctions, setAppFunctions] = useState([]);
     const [tables, setTables] = useState([]);
+    const [savedAnalyses, setSavedAnalyses] = useState([]);
     const [appTables, setAppTables] = useState([]);
     const [recordPlaceholders, setRecordPlaceholders] = useState([]);
     const [recordPlaceholderData, setRecordPlaceholderData] = useState({});
@@ -2445,28 +2447,95 @@ const AppBuilder = () => {
                     setSelectedCompIds([newComp.id]);
                     break;
                 }
+
+                // ─────────────────────────────────────────────────────────────────
+                // 🔧 WIDGET NAME RESOLUTION HELPER (used by UPDATE & DELETE)
+                // Searches by: ID → displayName → label prop → text prop → fuzzy
+                // ─────────────────────────────────────────────────────────────────
                 case 'UPDATE_WIDGET': {
-                    const targetId = widgetId || payload?.id;
-                    if (!targetId) return;
-                    const updateFn = (c) => c.id === targetId ? { ...c, ...payload, props: sanitizeAiProps({ ...c.props, ...(payload.props || {}) }) } : c;
-                    if (currentStepId === 'BASE') {
-                        setBaseComponents(prev => prev.map(updateFn));
-                    } else {
-                        setSteps(prev => prev.map(s => ({ ...s, components: s.components.map(updateFn) })));
+                    const rawName = payload?.widgetName || payload?.name || widgetId || payload?.id;
+                    if (!rawName) { toast.error('UPDATE_WIDGET: widgetName tidak ditemukan', { position: 'bottom-right' }); break; }
+                    const rawLower = String(rawName).toLowerCase();
+
+                    const resolveWidgetId = (list) => {
+                        const byId = list.find(c => c.id === rawName);
+                        if (byId) return byId.id;
+                        const byDisplay = list.find(c => String(c.displayName || '').toLowerCase() === rawLower);
+                        if (byDisplay) return byDisplay.id;
+                        const byLabel = list.find(c => String(c.props?.label || '').toLowerCase() === rawLower);
+                        if (byLabel) return byLabel.id;
+                        const byText = list.find(c => String(c.props?.text || '').toLowerCase() === rawLower);
+                        if (byText) return byText.id;
+                        const fuzzy = list.find(c => String(c.displayName || '').toLowerCase().includes(rawLower) || rawLower.includes(String(c.displayName || '').toLowerCase()));
+                        if (fuzzy) return fuzzy.id;
+                        return null;
+                    };
+
+                    // Search current step first, then all steps, then base
+                    const currentComps = currentStepId === 'BASE' ? baseComponents : (steps.find(s => s.id === currentStepId)?.components || []);
+                    let resolvedId = resolveWidgetId(currentComps);
+                    if (!resolvedId) {
+                        for (const s of steps) {
+                            resolvedId = resolveWidgetId(s.components);
+                            if (resolvedId) break;
+                        }
                     }
+                    if (!resolvedId && currentStepId !== 'BASE') resolvedId = resolveWidgetId(baseComponents);
+
+                    if (!resolvedId) {
+                        toast.error(`Widget "${rawName}" tidak ditemukan`, { position: 'bottom-right' });
+                        console.warn(`[Copilot] UPDATE_WIDGET: Widget "${rawName}" not found`);
+                        break;
+                    }
+
+                    const updateFn = (c) => c.id === resolvedId ? { ...c, props: sanitizeAiProps({ ...c.props, ...(payload.props || {}) }) } : c;
+                    setBaseComponents(prev => prev.map(updateFn));
+                    setSteps(prev => prev.map(s => ({ ...s, components: s.components.map(updateFn) })));
+                    toast.success(`✏️ Widget "${rawName}" diperbarui`, { position: 'bottom-right' });
+                    console.log(`[Copilot] UPDATE_WIDGET: "${rawName}" → ${resolvedId}, props:`, Object.keys(payload.props || {}));
                     break;
                 }
+
                 case 'DELETE_WIDGET': {
-                    const targetId = widgetId || payload?.id;
-                    if (!targetId) return;
-                    if (currentStepId === 'BASE') {
-                        setBaseComponents(prev => prev.filter(c => c.id !== targetId));
-                    } else {
-                        setSteps(prev => prev.map(s => ({ ...s, components: s.components.filter(c => c.id !== targetId) })));
+                    const rawName = payload?.widgetName || payload?.name || widgetId || payload?.id;
+                    if (!rawName) { toast.error('DELETE_WIDGET: widgetName tidak ditemukan', { position: 'bottom-right' }); break; }
+                    const rawLower = String(rawName).toLowerCase();
+
+                    const resolveWidgetId = (list) => {
+                        const byId = list.find(c => c.id === rawName);
+                        if (byId) return byId.id;
+                        const byDisplay = list.find(c => String(c.displayName || '').toLowerCase() === rawLower);
+                        if (byDisplay) return byDisplay.id;
+                        const byLabel = list.find(c => String(c.props?.label || '').toLowerCase() === rawLower);
+                        if (byLabel) return byLabel.id;
+                        const byText = list.find(c => String(c.props?.text || '').toLowerCase() === rawLower);
+                        if (byText) return byText.id;
+                        const fuzzy = list.find(c => String(c.displayName || '').toLowerCase().includes(rawLower) || rawLower.includes(String(c.displayName || '').toLowerCase()));
+                        if (fuzzy) return fuzzy.id;
+                        return null;
+                    };
+
+                    const currentComps = currentStepId === 'BASE' ? baseComponents : (steps.find(s => s.id === currentStepId)?.components || []);
+                    let resolvedId = resolveWidgetId(currentComps);
+                    if (!resolvedId) {
+                        for (const s of steps) {
+                            resolvedId = resolveWidgetId(s.components);
+                            if (resolvedId) break;
+                        }
                     }
-                    if (selectedCompIds.includes(targetId)) {
-                        setSelectedCompIds(prev => prev.filter(id => id !== targetId));
+                    if (!resolvedId && currentStepId !== 'BASE') resolvedId = resolveWidgetId(baseComponents);
+
+                    if (!resolvedId) {
+                        toast.error(`Widget "${rawName}" tidak ditemukan`, { position: 'bottom-right' });
+                        console.warn(`[Copilot] DELETE_WIDGET: Widget "${rawName}" not found`);
+                        break;
                     }
+
+                    setBaseComponents(prev => prev.filter(c => c.id !== resolvedId));
+                    setSteps(prev => prev.map(s => ({ ...s, components: s.components.filter(c => c.id !== resolvedId) })));
+                    if (selectedCompIds.includes(resolvedId)) setSelectedCompIds(prev => prev.filter(id => id !== resolvedId));
+                    toast.success(`🗑️ Widget "${rawName}" dihapus`, { position: 'bottom-right' });
+                    console.log(`[Copilot] DELETE_WIDGET: "${rawName}" → ${resolvedId} removed`);
                     break;
                 }
                 case 'SET_APP_NAME':
@@ -2789,14 +2858,306 @@ const AppBuilder = () => {
                     const newFunc = {
                         id: `fn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                         name: payload.name,
+                        description: payload.description || '',
                         logic: payload.logic || { xml: null, code: '' }
                     };
                     setAppFunctions(prev => [...prev, newFunc]);
                     toast.success(`⚡ Function: ${newFunc.name}`, { position: 'bottom-right' });
                     break;
                 }
+
+                // ─────────────────────────────────────────────────────────────────
+                // ✏️ UPDATE HANDLERS — edit existing elements
+                // ─────────────────────────────────────────────────────────────────
+
+                case 'UPDATE_TRIGGER': {
+                    const tName = payload?.triggerName || payload?.name || payload?.id;
+                    const tNameLower = String(tName || '').toLowerCase();
+                    const tUpdates = payload?.updates || {};
+
+                    let found = false;
+
+                    // 1) Search in widget-level triggers (all steps + base)
+                    const updateWidgetTriggers = (compList) => compList.map(c => {
+                        const wTriggers = c.props?.triggers || [];
+                        const idx = wTriggers.findIndex(t =>
+                            t.id === tName ||
+                            String(t.name || '').toLowerCase() === tNameLower
+                        );
+                        if (idx === -1) return c;
+                        found = true;
+                        const updated = [...wTriggers];
+                        updated[idx] = { ...updated[idx], ...tUpdates };
+                        return { ...c, props: { ...c.props, triggers: updated } };
+                    });
+
+                    setBaseComponents(prev => updateWidgetTriggers(prev));
+                    setSteps(prev => prev.map(s => ({
+                        ...s,
+                        components: updateWidgetTriggers(s.components),
+                        triggers: (s.triggers || []).map(t =>
+                            (t.id === tName || String(t.name || '').toLowerCase() === tNameLower)
+                                ? (found = true, { ...t, ...tUpdates })
+                                : t
+                        )
+                    })));
+
+                    // 2) Search in global app triggers
+                    setAppTriggers(prev => prev.map(t =>
+                        (t.id === tName || String(t.name || '').toLowerCase() === tNameLower)
+                            ? (found = true, { ...t, ...tUpdates })
+                            : t
+                    ));
+
+                    if (found) {
+                        toast.success(`✏️ Trigger "${tName}" diperbarui`, { position: 'bottom-right' });
+                    } else {
+                        toast.error(`Trigger "${tName}" tidak ditemukan`, { position: 'bottom-right' });
+                    }
+                    break;
+                }
+
+                case 'DELETE_TRIGGER': {
+                    const tName = payload?.triggerName || payload?.name || payload?.id;
+                    const tNameLower = String(tName || '').toLowerCase();
+                    let found = false;
+
+                    const removeWidgetTrigger = (compList) => compList.map(c => {
+                        const before = (c.props?.triggers || []).length;
+                        const filtered = (c.props?.triggers || []).filter(t =>
+                            t.id !== tName && String(t.name || '').toLowerCase() !== tNameLower
+                        );
+                        if (filtered.length < before) found = true;
+                        return { ...c, props: { ...c.props, triggers: filtered } };
+                    });
+
+                    setBaseComponents(prev => removeWidgetTrigger(prev));
+                    setSteps(prev => prev.map(s => {
+                        const beforeCount = (s.triggers || []).length;
+                        const filteredStepTriggers = (s.triggers || []).filter(t =>
+                            t.id !== tName && String(t.name || '').toLowerCase() !== tNameLower
+                        );
+                        if (filteredStepTriggers.length < beforeCount) found = true;
+                        return { ...s, components: removeWidgetTrigger(s.components), triggers: filteredStepTriggers };
+                    }));
+                    setAppTriggers(prev => {
+                        const filtered = prev.filter(t => t.id !== tName && String(t.name || '').toLowerCase() !== tNameLower);
+                        if (filtered.length < prev.length) found = true;
+                        return filtered;
+                    });
+
+                    if (found) {
+                        toast.success(`🗑️ Trigger "${tName}" dihapus`, { position: 'bottom-right' });
+                    } else {
+                        toast.error(`Trigger "${tName}" tidak ditemukan`, { position: 'bottom-right' });
+                    }
+                    break;
+                }
+
+                case 'UPDATE_VARIABLE': {
+                    const vName = payload?.variableName || payload?.name;
+                    const vNameLower = String(vName || '').toLowerCase();
+                    const vUpdates = payload?.updates || {};
+
+                    const existing = appVariables.find(v => String(v.name || '').toLowerCase() === vNameLower);
+                    if (!existing) {
+                        toast.error(`Variable "${vName}" tidak ditemukan`, { position: 'bottom-right' });
+                        break;
+                    }
+                    const updated = { ...existing, ...vUpdates };
+                    setAppVariables(prev => prev.map(v => v.id === existing.id ? updated : v));
+                    saveVariable(updated).catch(console.error);
+                    toast.success(`✏️ Variable "${vName}" diperbarui`, { position: 'bottom-right' });
+                    break;
+                }
+
+                case 'DELETE_VARIABLE': {
+                    const vName = payload?.variableName || payload?.name;
+                    const vNameLower = String(vName || '').toLowerCase();
+                    const existing = appVariables.find(v => String(v.name || '').toLowerCase() === vNameLower);
+                    if (!existing) {
+                        toast.error(`Variable "${vName}" tidak ditemukan`, { position: 'bottom-right' });
+                        break;
+                    }
+                    setAppVariables(prev => prev.filter(v => v.id !== existing.id));
+                    toast.success(`🗑️ Variable "${vName}" dihapus`, { position: 'bottom-right' });
+                    break;
+                }
+
+                case 'UPDATE_STEP': {
+                    const sTitle = payload?.stepTitle || payload?.title || payload?.name;
+                    const sTitleLower = String(sTitle || '').toLowerCase();
+                    const sUpdates = payload?.updates || {};
+
+                    const targetStep = steps.find(s =>
+                        s.id === sTitle ||
+                        String(s.title || '').toLowerCase() === sTitleLower
+                    );
+                    if (!targetStep) {
+                        toast.error(`Screen "${sTitle}" tidak ditemukan`, { position: 'bottom-right' });
+                        break;
+                    }
+                    setSteps(prev => prev.map(s => s.id === targetStep.id ? { ...s, ...sUpdates } : s));
+                    toast.success(`✏️ Screen "${sTitle}" diperbarui`, { position: 'bottom-right' });
+                    break;
+                }
+
+                case 'DELETE_STEP': {
+                    const sTitle = payload?.stepTitle || payload?.title || payload?.name;
+                    const sTitleLower = String(sTitle || '').toLowerCase();
+                    const targetStep = steps.find(s =>
+                        s.id === sTitle ||
+                        String(s.title || '').toLowerCase() === sTitleLower
+                    );
+                    if (!targetStep) {
+                        toast.error(`Screen "${sTitle}" tidak ditemukan`, { position: 'bottom-right' });
+                        break;
+                    }
+
+                    // Show confirmation dialog before deleting a screen
+                    const confirmed = window.confirm(
+                        `⚠️ Hapus Screen "${targetStep.title}"?\n\nSemua widget dan trigger di screen ini akan terhapus permanen. Tindakan ini tidak dapat dibatalkan setelah disimpan.`
+                    );
+                    if (!confirmed) {
+                        toast(`Hapus screen "${targetStep.title}" dibatalkan`, { position: 'bottom-right' });
+                        break;
+                    }
+
+                    setSteps(prev => {
+                        const filtered = prev.filter(s => s.id !== targetStep.id);
+                        // If we deleted the active step, switch to first available step
+                        if (currentStepId === targetStep.id && filtered.length > 0) {
+                            setCurrentStepId(filtered[0].id);
+                        }
+                        return filtered;
+                    });
+                    toast.success(`🗑️ Screen "${targetStep.title}" dihapus`, { position: 'bottom-right' });
+                    break;
+                }
+
+                case 'UPDATE_FUNCTION': {
+                    const fName = payload?.functionName || payload?.name;
+                    const fNameLower = String(fName || '').toLowerCase();
+                    const fUpdates = payload?.updates || {};
+
+                    const existing = appFunctions.find(f =>
+                        f.id === fName || String(f.name || '').toLowerCase() === fNameLower
+                    );
+                    if (!existing) {
+                        toast.error(`Function "${fName}" tidak ditemukan`, { position: 'bottom-right' });
+                        break;
+                    }
+                    setAppFunctions(prev => prev.map(f => f.id === existing.id ? { ...f, ...fUpdates } : f));
+                    toast.success(`✏️ Function "${fName}" diperbarui`, { position: 'bottom-right' });
+                    break;
+                }
+
+                case 'DELETE_FUNCTION': {
+                    const fName = payload?.functionName || payload?.name;
+                    const fNameLower = String(fName || '').toLowerCase();
+                    const existing = appFunctions.find(f =>
+                        f.id === fName || String(f.name || '').toLowerCase() === fNameLower
+                    );
+                    if (!existing) {
+                        toast.error(`Function "${fName}" tidak ditemukan`, { position: 'bottom-right' });
+                        break;
+                    }
+                    setAppFunctions(prev => prev.filter(f => f.id !== existing.id));
+                    toast.success(`🗑️ Function "${fName}" dihapus`, { position: 'bottom-right' });
+                    break;
+                }
+
+                case 'CREATE_AUTOMATION': {
+                    const newAutomation = {
+                        id: `auto_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                        name: payload.name || 'New Automation',
+                        description: payload.description || '',
+                        enabled: true,
+                        trigger: payload.trigger || { type: 'TABLE_CHANGE' },
+                        conditions: payload.conditions || [],
+                        actions: payload.actions || []
+                    };
+                    // Store automation in appTriggers with special marker (automations use same storage)
+                    setAppTriggers(prev => [...prev, { ...newAutomation, _isAutomation: true }]);
+                    toast.success(`🤖 Automation "${newAutomation.name}" dibuat`, { position: 'bottom-right' });
+                    break;
+                }
+
+                case 'UPDATE_AUTOMATION': {
+                    const aName = payload?.automationName || payload?.name;
+                    const aNameLower = String(aName || '').toLowerCase();
+                    const aUpdates = payload?.updates || {};
+
+                    let found = false;
+                    setAppTriggers(prev => prev.map(t => {
+                        if (t._isAutomation && (t.id === aName || String(t.name || '').toLowerCase() === aNameLower)) {
+                            found = true;
+                            return { ...t, ...aUpdates };
+                        }
+                        return t;
+                    }));
+
+                    if (found) {
+                        toast.success(`✏️ Automation "${aName}" diperbarui`, { position: 'bottom-right' });
+                    } else {
+                        toast.error(`Automation "${aName}" tidak ditemukan`, { position: 'bottom-right' });
+                    }
+                    break;
+                }
+
+                case 'DELETE_AUTOMATION': {
+                    const aName = payload?.automationName || payload?.name;
+                    const aNameLower = String(aName || '').toLowerCase();
+                    let found = false;
+                    setAppTriggers(prev => {
+                        const filtered = prev.filter(t => {
+                            if (t._isAutomation && (t.id === aName || String(t.name || '').toLowerCase() === aNameLower)) {
+                                found = true;
+                                return false;
+                            }
+                            return true;
+                        });
+                        return filtered;
+                    });
+                    if (found) {
+                        toast.success(`🗑️ Automation "${aName}" dihapus`, { position: 'bottom-right' });
+                    } else {
+                        toast.error(`Automation "${aName}" tidak ditemukan`, { position: 'bottom-right' });
+                    }
+                    break;
+                }
+
+                case 'DELETE_TABLE': {
+                    const tName = payload?.tableName || payload?.name;
+                    const tNameLower = String(tName || '').toLowerCase();
+                    const targetTable = tables.find(t =>
+                        t.id === tName || String(t.name || '').toLowerCase() === tNameLower
+                    );
+                    if (!targetTable) {
+                        toast.error(`Tabel "${tName}" tidak ditemukan`, { position: 'bottom-right' });
+                        break;
+                    }
+
+                    // Show confirmation dialog before deleting a table (destructive: all records lost)
+                    const confirmed = window.confirm(
+                        `⚠️ Hapus Tabel "${targetTable.name}"?\n\nSEMUA DATA/RECORD di tabel ini akan terhapus permanen dari database. Tindakan ini tidak dapat dibatalkan.\n\nLanjutkan?`
+                    );
+                    if (!confirmed) {
+                        toast(`Hapus tabel "${targetTable.name}" dibatalkan`, { position: 'bottom-right' });
+                        break;
+                    }
+
+                    await deleteTableDb(targetTable.id);
+                    await getTables().then(setTables);
+                    toast.success(`🗑️ Tabel "${targetTable.name}" dihapus`, { position: 'bottom-right' });
+                    console.log(`[Copilot] DELETE_TABLE: "${targetTable.name}" (${targetTable.id}) deleted`);
+                    break;
+                }
+
                 default:
-                    console.warn('Unknown AI Command:', type);
+                    console.warn('[Copilot] Unknown AI Command:', type);
+                    toast(`Perintah tidak dikenal: ${type}`, { position: 'bottom-right', icon: '⚠️' });
+
             }
             return true;
         } catch (err) {
@@ -4491,6 +4852,7 @@ const AppBuilder = () => {
 
     useEffect(() => {
         getTables().then(setTables).catch(err => console.error("Failed to fetch tables:", err));
+        getAllSavedAnalyses().then(setSavedAnalyses).catch(err => console.error("Failed to fetch analyses:", err));
 
         // Auto-fetch Global Variables on mount
         getAllVariables().then(rows => {
@@ -9292,6 +9654,22 @@ const AppBuilder = () => {
                                 }}
                             />
                         )}
+                        {!isCopilotOpen && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
+                                title="Ask Builder Copilot"
+                                className="absolute px-2.5 py-1 bg-gradient-to-r from-indigo-500 to-blue-500 text-white rounded-full flex items-center gap-1 shadow-lg hover:scale-105 transition-all z-[2000] text-[10px] font-bold border border-indigo-400/20 whitespace-nowrap"
+                                style={{
+                                    bottom: '-28px',
+                                    left: '50%',
+                                    transform: 'translateX(-50%)',
+                                    pointerEvents: 'auto',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <Sparkles size={10} /> Ask Copilot
+                            </button>
+                        )}
                     </>
                 )}
 
@@ -10409,17 +10787,73 @@ const AppBuilder = () => {
                         </div>
                     </div>
                 );
-            case 'ANALYTIC':
+            case 'ANALYTIC': {
+                const targetAnalysis = savedAnalyses.find(a => a.id === comp.props.analysisId);
+                const chartType = targetAnalysis?.config?.type || 'BAR';
+                const chartColor = targetAnalysis?.config?.color || '#3b82f6';
+                const analysisName = targetAnalysis ? targetAnalysis.name : 'Unconfigured Analysis';
+
                 return (
-                    <div style={{ width: '100%', height: '100%', border: '1px solid var(--border-secondary)', borderRadius: '8px', overflow: 'hidden', backgroundColor: 'var(--bg-panel)', display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-primary)', fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-secondary)' }}>
-                            {comp.props.title || 'Live Analysis'}
+                    <div style={{ width: '100%', height: '100%', border: '1px solid var(--border-secondary)', borderRadius: '8px', overflow: 'hidden', backgroundColor: 'var(--bg-panel)', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
+                        <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-primary)', fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'var(--bg-secondary)' }}>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>{comp.props.title || analysisName}</span>
+                            <span style={{ fontSize: '0.55rem', color: '#4f46e5', backgroundColor: '#e0e7ff', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>{chartType}</span>
                         </div>
-                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-quaternary)', fontSize: '0.75rem' }}>
-                            Dashboard Analysis Embed
+                        <div style={{ flex: 1, padding: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-panel)', overflow: 'hidden' }}>
+                            {!comp.props.analysisId ? (
+                                <div style={{ textAlign: 'center', color: 'var(--text-quaternary)', fontSize: '0.7rem' }}>
+                                    <div style={{ fontSize: '1.4rem', marginBottom: '4px' }}>📈</div>
+                                    <div>Select an analysis in properties</div>
+                                </div>
+                            ) : chartType === 'KPI' ? (
+                                <div style={{ textAlign: 'center' }}>
+                                    <div style={{ fontSize: '0.55rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '2px' }}>
+                                        {targetAnalysis?.config?.kpiLabel || 'Aggregate Value'}
+                                    </div>
+                                    <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#4f46e5' }}>1,250</div>
+                                    <div style={{ fontSize: '0.5rem', color: '#10b981', fontWeight: 700 }}>▲ 12.5% vs Last Week</div>
+                                </div>
+                            ) : chartType === 'PIE' ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <div style={{
+                                        width: '45px', height: '45px', borderRadius: '50%',
+                                        background: `conic-gradient(${chartColor} 0% 60%, #8b5cf6 60% 85%, #cbd5e1 85% 100%)`
+                                    }} />
+                                    <div style={{ fontSize: '0.55rem', color: 'var(--text-secondary)' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: chartColor }} /> Value A (60%)</div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#8b5cf6' }} /> Value B (25%)</div>
+                                    </div>
+                                </div>
+                            ) : chartType === 'LINE' ? (
+                                <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                    <svg viewBox="0 0 100 40" style={{ width: '100%', height: '80%' }}>
+                                        <polyline
+                                            fill="none"
+                                            stroke={chartColor}
+                                            strokeWidth="2.5"
+                                            points="10,30 30,12 50,23 70,5 90,18"
+                                        />
+                                        <circle cx="10" cy="30" r="2.5" fill={chartColor} />
+                                        <circle cx="30" cy="12" r="2.5" fill={chartColor} />
+                                        <circle cx="50" cy="23" r="2.5" fill={chartColor} />
+                                        <circle cx="70" cy="5" r="2.5" fill={chartColor} />
+                                        <circle cx="90" cy="18" r="2.5" fill={chartColor} />
+                                    </svg>
+                                </div>
+                            ) : (
+                                // BAR or PARETO
+                                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '5px', height: '80%', width: '80%' }}>
+                                    <div style={{ flex: 1, height: '40%', backgroundColor: chartColor, borderRadius: '2px 2px 0 0' }} />
+                                    <div style={{ flex: 1, height: '70%', backgroundColor: chartColor, borderRadius: '2px 2px 0 0' }} />
+                                    <div style={{ flex: 1, height: '95%', backgroundColor: chartColor, borderRadius: '2px 2px 0 0' }} />
+                                    <div style={{ flex: 1, height: '55%', backgroundColor: chartColor, borderRadius: '2px 2px 0 0' }} />
+                                    <div style={{ flex: 1, height: '25%', backgroundColor: chartColor, borderRadius: '2px 2px 0 0' }} />
+                                </div>
+                            )}
                         </div>
                     </div>
                 );
+            }
             case 'BARCODE': {
                 const qrValue = comp.props.value || '1234567890';
                 const isQr = comp.props.format === 'QR_CODE';
@@ -14255,9 +14689,38 @@ const AppBuilder = () => {
 
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' }}>
                                                     <label style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase' }}>Bulk Actions</label>
-                                                    <div style={{ display: 'flex', gap: '8px' }}>
-                                                        <button onClick={() => handleCopy()} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px', background: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '6px', fontSize: '0.75rem', color: 'var(--text-quaternary)', cursor: 'pointer' }}><Copy size={14} /> Copy</button>
-                                                        <button onClick={() => handleDelete()} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px', background: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '6px', fontSize: '0.75rem', color: '#ef4444', cursor: 'pointer' }}><Trash2 size={14} /> Delete</button>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                        <div style={{ display: 'flex', gap: '4px' }}>
+                                                            {!isCopilotOpen && (
+                                                                <button
+                                                                    onClick={() => setIsCopilotOpen(true)}
+                                                                    title="Ask Builder Copilot"
+                                                                    style={{
+                                                                        background: 'linear-gradient(135deg, #6366f1, #3b82f6)',
+                                                                        color: 'white',
+                                                                        border: 'none',
+                                                                        borderRadius: '6px',
+                                                                        padding: '4px 10px',
+                                                                        cursor: 'pointer',
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '4px',
+                                                                        fontSize: '0.72rem',
+                                                                        fontWeight: 700,
+                                                                        boxShadow: '0 2px 4px rgba(99,102,241,0.2)',
+                                                                        transition: 'all 0.15s'
+                                                                    }}
+                                                                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 8px rgba(99,102,241,0.3)'; }}
+                                                                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 2px 4px rgba(99,102,241,0.2)'; }}
+                                                                >
+                                                                    <Sparkles size={11} /> Ask Copilot
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                        <div style={{ display: 'flex', gap: '8px', flex: 1 }}>
+                                                            <button onClick={() => handleCopy()} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px', background: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '6px', fontSize: '0.75rem', color: 'var(--text-quaternary)', cursor: 'pointer' }}><Copy size={14} /> Copy</button>
+                                                            <button onClick={() => handleDelete()} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px', background: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '6px', fontSize: '0.75rem', color: '#ef4444', cursor: 'pointer' }}><Trash2 size={14} /> Delete</button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -16918,6 +17381,55 @@ const AppBuilder = () => {
                                                         <div className="prop-group">
                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>HTML TEMPLATE</label>
                                                             <textarea value={selectedComp.props.htmlTemplate || ''} onChange={(e) => updateComponentProps(selectedComp.id, { htmlTemplate: e.target.value })} rows={6} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', fontFamily: 'monospace', fontSize: '0.72rem' }} />
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {selectedComp.type === 'ANALYTIC' && (
+                                                    <>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>WIDGET TITLE</label>
+                                                            <input 
+                                                                value={selectedComp.props.title || ''} 
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { title: e.target.value })} 
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} 
+                                                            />
+                                                        </div>
+                                                        <div className="prop-group">
+                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SELECT SAVED ANALYSIS</label>
+                                                             <select 
+                                                                 value={selectedComp.props.analysisId || ''} 
+                                                                 onChange={(e) => {
+                                                                     const selectedId = e.target.value;
+                                                                     const found = savedAnalyses.find(a => a.id === selectedId);
+                                                                     updateComponentProps(selectedComp.id, { 
+                                                                         analysisId: selectedId,
+                                                                         title: found ? found.name : selectedComp.props.title
+                                                                     });
+                                                                 }} 
+                                                                 style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                             >
+                                                                 <option value="">-- Choose an Analysis --</option>
+                                                                 {savedAnalyses.map(a => (
+                                                                     <option key={a.id} value={a.id}>
+                                                                         {a.name} ({a.config?.type || 'BAR'})
+                                                                     </option>
+                                                                 ))}
+                                                             </select>
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>REFRESH INTERVAL (seconds)</label>
+                                                            <input 
+                                                                type="number"
+                                                                min="5"
+                                                                value={selectedComp.props.refreshSeconds || 10} 
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { refreshSeconds: parseInt(e.target.value) || 10 })} 
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} 
+                                                            />
+                                                        </div>
+                                                        <div style={{ padding: '10px', backgroundColor: 'var(--bg-secondary)', borderRadius: '6px', fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                            <Sparkles size={14} color="#4f46e5" />
+                                                            <span>Configure charts in the main Analytics menu first.</span>
                                                         </div>
                                                     </>
                                                 )}
@@ -23818,14 +24330,31 @@ const AppBuilder = () => {
                 onRedo={redo}
                 canUndo={builderStack.undo.length > 0}
                 canRedo={builderStack.redo.length > 0}
+                selectedWidget={selectedCompId ? (currentStep?.components || []).find(c => c.id === selectedCompId) || null : null}
+                onOpenCopilot={() => setIsCopilotOpen(true)}
                 context={{
                     currentStepName: currentStep?.title,
+                    currentStepId: currentStepId,
                     widgets: currentStep?.components || [],
+                    allScreensWidgets: steps.map(s => ({
+                        screenTitle: s.title,
+                        screenId: s.id,
+                        widgets: (s.components || []).map(w => ({
+                            id: w.id,
+                            type: w.type,
+                            name: w.displayName,
+                            x: w.x, y: w.y,
+                            props: w.props,
+                            triggers: (w.props?.triggers || []).map(t => ({ id: t.id, name: t.name, event: t.event, clauseCount: (t.clauses || []).length }))
+                        }))
+                    })),
                     variables: appVariables || [],
                     triggers: appTriggers || [],
                     tables: tables || [],
                     steps: steps || [],
-                    recordPlaceholders: recordPlaceholders || []
+                    recordPlaceholders: recordPlaceholders || [],
+                    functions: appFunctions || [],
+                    automations: (appTriggers || []).filter(t => t._isAutomation)
                 }}
             />
 

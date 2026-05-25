@@ -162,9 +162,9 @@ export function createAndonSystemTemplate() {
             active: true,
             triggers: [{ id: `trig_add_${ts}`, type: 'TABLE_ROW_ADDED', config: { tableId: T.events } }],
             nodes: [
-                { id: 'start', type: 'event', data: { label: 'Andon Raised' } },
-                { id: 'notify', type: 'action', data: { type: 'SEND_NOTIFICATION', recipient: 'supervisors_group', message: '🚨 NEW ANDON: Immediate attention required at station!' } },
-                { id: 'log', type: 'action', data: { type: 'LOG_MESSAGE', message: 'Andon notification sent' } }
+                { id: 'start', type: 'event', position: { x: 250, y: 50 }, data: { label: 'Andon Raised' } },
+                { id: 'notify', type: 'action', position: { x: 250, y: 180 }, data: { type: 'SEND_NOTIFICATION', recipient: 'supervisors_group', message: '🚨 NEW ANDON: Immediate attention required at station!' } },
+                { id: 'log', type: 'action', position: { x: 250, y: 320 }, data: { type: 'LOG_MESSAGE', message: 'Andon notification sent' } }
             ],
             edges: [
                 { source: 'start', target: 'notify' },

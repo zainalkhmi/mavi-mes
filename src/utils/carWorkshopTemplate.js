@@ -190,10 +190,10 @@ export function createCarWorkshopTemplate() {
         { id:`auto_jc_${ts}`, name:'Job Complete Notification', description:'Notify customer when WO status changes to COMPLETED',
           active:true, triggers:[{id:`t1_${ts}`,type:'TABLE_ROW_UPDATED',config:{tableId:T.orders,condition:{field:'WO_Status',operator:'==',value:'COMPLETED'}}}],
           nodes:[
-            {id:'start',type:'event',data:{label:'WO Updated'}},
-            {id:'check',type:'decision',data:{label:'Status=COMPLETED?',condition:{field:'WO_Status',operator:'==',value:'COMPLETED'}}},
-            {id:'notify',type:'action',data:{type:'SEND_NOTIFICATION',recipient:'customer',message:'Your vehicle is ready for pickup!'}},
-            {id:'log',type:'action',data:{type:'LOG_MESSAGE',message:'Customer notified: vehicle ready'}}
+            {id:'start',type:'event',position:{x:250,y:50},data:{label:'WO Updated'}},
+            {id:'check',type:'decision',position:{x:250,y:180},data:{label:'Status=COMPLETED?',condition:{field:'WO_Status',operator:'==',value:'COMPLETED'}}},
+            {id:'notify',type:'action',position:{x:250,y:320},data:{type:'SEND_NOTIFICATION',recipient:'customer',message:'Your vehicle is ready for pickup!'}},
+            {id:'log',type:'action',position:{x:250,y:440},data:{type:'LOG_MESSAGE',message:'Customer notified: vehicle ready'}}
           ],
           edges:[{source:'start',target:'check'},{source:'check',target:'notify',sourceHandle:'yes'},{source:'notify',target:'log',sourceHandle:'success'}]
         },
@@ -206,7 +206,11 @@ export function createCarWorkshopTemplate() {
     const functions = [
         { id:`fn_lc_${ts}`, name:'Calc_Labor_Cost', description:'Labor_Hours × Labor_Rate', type:'function', active:true,
           triggers:[{id:`ft1_${ts}`,type:'TABLE_ROW_ADDED',config:{tableId:T.services}}],
-          nodes:[{id:'start',type:'functionCall',data:{}},{id:'calc',type:'expression',data:{expression:'Labor_Hours * Labor_Rate',outputVar:'Labor_Cost'}},{id:'done',type:'action',data:{type:'LOG_MESSAGE',message:'Labor cost calculated'}}],
+          nodes:[
+            {id:'start',type:'functionCall',position:{x:250,y:50},data:{}},
+            {id:'calc',type:'expression',position:{x:250,y:180},data:{expression:'Labor_Hours * Labor_Rate',outputVar:'Labor_Cost'}},
+            {id:'done',type:'action',position:{x:250,y:320},data:{type:'LOG_MESSAGE',message:'Labor cost calculated'}}
+          ],
           edges:[{source:'start',target:'calc'},{source:'calc',target:'done',sourceHandle:'success'}]
         }
     ];
