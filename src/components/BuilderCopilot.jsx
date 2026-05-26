@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Send, X, Sparkles, User, Bot, Loader2,
   Trash2, BrainCircuit, Code, PlusCircle, Image as ImageIcon,
@@ -6,10 +6,11 @@ import {
   RotateCcw, RotateCw, ChevronDown, ChevronUp,
   MousePointer2, Layers, Settings, Plus, Activity,
   Type, BarChart3, Table, ToggleLeft, Camera, Hash,
-  Square, Circle, Gauge, Bell, SlidersHorizontal
+  Square, Circle, Gauge, Bell, SlidersHorizontal,
+  Stethoscope, History, Eye, EyeOff, Link, Database, ClipboardList
 } from 'lucide-react';
 import { getPrimaryAiConnector } from '../utils/database';
-import { getBuilderCopilotAdvice, getBuilderVisionAdvice } from '../utils/aiService';
+import { getBuilderCopilotAdvice, getBuilderVisionAdvice, streamBuilderCopilotAdvice, diagnoseApp } from '../utils/aiService';
 import { sanitizeCopilotCommands } from '../utils/copilotSafety';
 
 // Widget type → icon/color mapping
@@ -35,33 +36,120 @@ const getWidgetMeta = (type = '') => {
   return WIDGET_META[type.toUpperCase()] || WIDGET_META[key] || WIDGET_META.DEFAULT;
 };
 
+// ─── UPGRADE 7: Command Preview helper ──────────────────────────────────────────
+const getCommandPreview = (cmd) => {
+  const p = cmd.payload || {};
+  switch (cmd.type) {
+    case 'ADD_WIDGET': return `Tambah ${p.type} "${p.displayName || p.type}" di (${p.x}, ${p.y})`;
+    case 'UPDATE_WIDGET': return `Update props ${Object.keys(p.props || {}).join(', ')} pada "${p.widgetName || p.widgetId}"`.slice(0,80);
+    case 'DELETE_WIDGET': return `⚠️ HAPUS widget "${p.widgetName}" — permanen!`;
+    case 'CREATE_TRIGGER': return `Trigger ${p.event} → "${p.widgetId || 'global'}" (${(p.actions||[]).length} aksi)`;
+    case 'CREATE_FUNCTION': return `Function baru: "${p.name}" — ${p.description || 'tanpa deskripsi'}`;
+    case 'CREATE_TABLE': return `Tabel "${p.name}" (${(p.columns||[]).length} kolom)`;
+    case 'CREATE_VARIABLE': return `Variable "${p.name}" tipe ${p.type} = ${p.defaultValue}`;
+    case 'GO_TO_STEP': return `Navigasi ke screen "${p.stepId}"`;
+    case 'DELETE_STEP': return `⚠️ HAPUS screen "${p.stepTitle}" — permanen!`;
+    case 'ADD_STEP': return `Screen baru: "${p.title || p.payload?.title}"`;
+    case 'SET_APP_NAME': return `Ganti nama app → "${typeof p === 'string' ? p : p.name}"`;
+    default: return cmd.type.replace(/_/g, ' ');
+  }
+};
+
+// ─── UPGRADE 5: Smart quick actions per widget type ──────────────────────────────
+const getSmartActions = (widget, context) => {
+  const name = widget.displayName || widget.props?.label || widget.type;
+  const id = widget.id;
+  const tables = (context?.tables || []).map(t => t.name).join(', ') || 'tabel yang ada';
+  const placeholders = (context?.recordPlaceholders || []).map(r => r.name).join(', ');
+  const screens = (context?.steps || []).map(s => s.title).join(', ');
+  const functions = (context?.functions || []).map(f => f.name).join(', ');
+  const hasTrigger = (widget.props?.triggers || []).length > 0;
+  const hasBinding = !!widget.props?.targetVariable;
+
+  const editStyle = { icon: '✏️', label: 'Edit Style', prompt: `Ubah tampilan widget "${name}" (${widget.type}): warna, font, ukuran, border radius` };
+
+  switch (widget.type) {
+    case 'BUTTON': return [
+      editStyle,
+      { icon: '💾', label: 'Save → Table', prompt: `Buat trigger ON_CLICK pada button "${name}" untuk save data form ke tabel` },
+      { icon: '🔗', label: 'Navigate →', prompt: `Buat trigger ON_CLICK pada button "${name}" untuk navigasi ke screen lain. Screens tersedia: ${screens}` },
+      { icon: '📢', label: 'Show Notif', prompt: `Buat trigger ON_CLICK pada button "${name}" untuk menampilkan notifikasi sukses` },
+      { icon: '🤖', label: 'Run Function', prompt: `Buat trigger ON_CLICK pada button "${name}" untuk menjalankan function. Functions: ${functions || 'belum ada, buat dulu'}` },
+      { icon: '🌐', label: 'Send Webhook', prompt: `Buat trigger ON_CLICK pada button "${name}" untuk send webhook ke URL eksternal` },
+    ];
+    case 'TEXT_INPUT':
+    case 'TEXT_AREA':
+    case 'NUMBER_INPUT': return [
+      editStyle,
+      { icon: '🔗', label: 'Bind to Table', prompt: `Bind widget "${name}" ke kolom di tabel: ${tables}. Set targetVariable prop yang sesuai` },
+      { icon: '⚡', label: 'On Change Trigger', prompt: `Buat trigger ON_CHANGE pada "${name}" untuk menjalankan aksi saat nilai berubah` },
+      { icon: '✅', label: 'Add Validation', prompt: `Tambahkan validasi input untuk "${name}": required field, min/max value, atau format check` },
+      { icon: '📌', label: 'Bind Variable', prompt: `Bind "${name}" ke variable app untuk menyimpan nilainya` },
+    ];
+    case 'DROPDOWN':
+    case 'RADIO_GROUP':
+    case 'CHECKBOX':
+    case 'BOOLEAN_TOGGLE': return [
+      editStyle,
+      { icon: '🔗', label: 'Bind to Table', prompt: `Bind dropdown "${name}" ke kolom tabel: ${tables}` },
+      { icon: '⚡', label: 'On Change Trigger', prompt: `Buat trigger ON_CHANGE pada "${name}" untuk filter data atau update widget lain` },
+      { icon: '📋', label: 'Set Options', prompt: `Update pilihan/options pada widget "${name}" dengan daftar yang relevan` },
+    ];
+    case 'INTERACTIVE_TABLE': return [
+      { icon: '🗄️', label: 'Connect Table', prompt: `Connect widget tabel "${name}" ke database tabel. Tables: ${tables}` },
+      { icon: '🔍', label: 'Add Filter', prompt: `Tambahkan kemampuan filter/search pada tabel "${name}"` },
+      { icon: '📤', label: 'Export Button', prompt: `Tambahkan button Export CSV di dekat tabel "${name}"` },
+      { icon: '➕', label: 'Add Row Button', prompt: `Tambahkan button untuk menambah row baru ke tabel "${name}"` },
+      editStyle,
+    ];
+    case 'CHART':
+    case 'GAUGE':
+    case 'DIAL_GAUGE':
+    case 'GAUGE_CIRCULAR': return [
+      { icon: '🗄️', label: 'Connect Data', prompt: `Connect chart/gauge "${name}" ke tabel untuk menampilkan data real: ${tables}` },
+      editStyle,
+      { icon: '🎨', label: 'Change Type', prompt: `Ubah tipe chart "${name}" (Bar, Line, Pie, Area)` },
+      { icon: '⚡', label: 'Auto Refresh', prompt: `Tambahkan timer trigger untuk auto-refresh data chart "${name}" setiap 30 detik` },
+    ];
+    case 'MACHINE_STATUS':
+    case 'MACHINE_TIMELINE': return [
+      { icon: '🔧', label: 'Connect Machine', prompt: `Connect widget "${name}" ke machine/device yang tersedia` },
+      editStyle,
+      { icon: '⚡', label: 'Status Trigger', prompt: `Buat trigger saat status machine berubah pada "${name}"` },
+    ];
+    case 'SIGNATURE':
+    case 'SIGNATURE_PAD': return [
+      editStyle,
+      { icon: '💾', label: 'Save Signature', prompt: `Buat trigger untuk menyimpan signature dari "${name}" ke tabel` },
+      { icon: '✅', label: 'Require Sign', prompt: `Set signature "${name}" sebagai required sebelum submit form` },
+    ];
+    case 'CAMERA_CAPTURE':
+    case 'IMAGE': return [
+      editStyle,
+      { icon: '💾', label: 'Save Photo', prompt: `Buat trigger untuk menyimpan foto dari "${name}" ke tabel atau variable` },
+    ];
+    default: return [
+      editStyle,
+      { icon: '⚡', label: 'Add Trigger', prompt: `Tambahkan trigger ke widget "${name}" (${widget.type}) saat diklik` },
+      { icon: '🔗', label: 'Bind Data', prompt: `Bind widget "${name}" ke data dari tabel atau variable: ${tables}` },
+      { icon: '🤖', label: 'Add Function', prompt: `Tambahkan function call pada widget "${name}"` },
+    ];
+  }
+};
+
 // ─── Selected Widget Context Panel ─────────────────────────────────────────────
-const WidgetContextPanel = ({ widget, onPrompt, onSendToChat }) => {
+const WidgetContextPanel = ({ widget, onPrompt, onSendToChat, context }) => {
   if (!widget) return null;
+  const [showProps, setShowProps] = useState(false);
 
   const meta = getWidgetMeta(widget.type);
   const IconComponent = meta.icon;
   const widgetName = widget.displayName || widget.props?.label || widget.type;
   const triggerCount = (widget.props?.triggers || []).length;
+  const hasBinding = !!widget.props?.targetVariable;
+  const hasTableId = !!widget.props?.tableId;
 
-  const quickActions = [
-    {
-      icon: '✏️', label: 'Edit Style',
-      prompt: `Edit tampilan widget "${widgetName}" (${widget.type}): ubah warna, ukuran font, padding, atau styling lainnya`
-    },
-    {
-      icon: '⚡', label: 'Add Trigger',
-      prompt: `Tambahkan trigger ke widget "${widgetName}" (ID: ${widget.id}) saat diklik untuk menjalankan aksi`
-    },
-    {
-      icon: '🔗', label: 'Bind Data',
-      prompt: `Bind widget "${widgetName}" ke data dari tabel atau variabel yang tersedia`
-    },
-    {
-      icon: '🤖', label: 'Add Function',
-      prompt: `Tambahkan function call pada widget "${widgetName}" untuk menjalankan logika kustom`
-    },
-  ];
+  const smartActions = getSmartActions(widget, context);
 
   return (
     <div style={{
@@ -72,7 +160,7 @@ const WidgetContextPanel = ({ widget, onPrompt, onSendToChat }) => {
       flexShrink: 0,
     }}>
       {/* Header row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
         <div style={{
           width: '34px', height: '34px', borderRadius: '10px',
           backgroundColor: meta.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -87,58 +175,70 @@ const WidgetContextPanel = ({ widget, onPrompt, onSendToChat }) => {
           }}>
             {widgetName}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
-            <span style={{
-              fontSize: '0.62rem', fontWeight: 800, textTransform: 'uppercase',
-              color: meta.color, background: meta.bg,
-              padding: '1px 6px', borderRadius: '4px'
-            }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', color: meta.color, background: meta.bg, padding: '1px 6px', borderRadius: '4px' }}>
               {widget.type}
             </span>
-            {triggerCount > 0 && (
-              <span style={{
-                fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8',
-                display: 'flex', alignItems: 'center', gap: '3px'
-              }}>
-                ⚡ {triggerCount} trigger{triggerCount > 1 ? 's' : ''}
-              </span>
-            )}
+            {triggerCount > 0 && <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#fbbf24' }}>⚡ {triggerCount}t</span>}
+            {hasBinding && <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#34d399' }}>🔗 bound</span>}
+            {hasTableId && <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#60a5fa' }}>🗄️ table</span>}
+            {!triggerCount && !hasBinding && <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#f87171' }}>⚠️ orphan</span>}
           </div>
         </div>
-        <button
-          onClick={onSendToChat}
-          title="Send widget context to chat"
-          style={{
-            padding: '6px 10px', background: 'rgba(59,130,246,0.2)', border: '1px solid rgba(59,130,246,0.4)',
-            borderRadius: '8px', color: '#93c5fd', fontSize: '0.68rem', fontWeight: 700,
-            cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '5px',
-            transition: 'all 0.15s', flexShrink: 0
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.35)'; e.currentTarget.style.color = '#bfdbfe'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.2)'; e.currentTarget.style.color = '#93c5fd'; }}
-        >
-          <MousePointer2 size={11} /> Kirim ke Chat
-        </button>
+        <div style={{ display: 'flex', gap: '5px' }}>
+          <button
+            onClick={() => setShowProps(v => !v)}
+            title="Toggle property inspector"
+            style={{ padding: '5px 7px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '7px', color: '#94a3b8', fontSize: '0.65rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+          >
+            {showProps ? <EyeOff size={10} /> : <Eye size={10} />}
+          </button>
+          <button
+            onClick={onSendToChat}
+            title="Send widget context to chat"
+            style={{ padding: '5px 8px', background: 'rgba(59,130,246,0.2)', border: '1px solid rgba(59,130,246,0.4)', borderRadius: '7px', color: '#93c5fd', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.15s' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.35)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.2)'; }}
+          >
+            <MousePointer2 size={10} /> Chat
+          </button>
+        </div>
       </div>
 
-      {/* Quick action buttons */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-        {quickActions.map((action, i) => (
+      {/* UPGRADE 5: Mini Property Inspector */}
+      {showProps && (
+        <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '8px 10px', marginBottom: '10px', fontSize: '0.65rem', color: '#94a3b8', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+          <div>📍 Pos: ({widget.x}, {widget.y}) &nbsp;|&nbsp; Size: {widget.w}×{widget.h}</div>
+          {widget.props?.targetVariable && <div style={{ color: '#34d399' }}>🔗 Bound: {widget.props.targetVariable}</div>}
+          {widget.props?.tableId && <div style={{ color: '#60a5fa' }}>🗄️ Table: {widget.props.tableId}</div>}
+          {widget.props?.text && <div>📝 Text: "{String(widget.props.text).slice(0,30)}{String(widget.props.text).length > 30 ? '…' : ''}"</div>}
+          {widget.props?.hint && <div>💬 Hint: "{widget.props.hint}"</div>}
+          {(widget.props?.triggers || []).length > 0 && (
+            <div style={{ color: '#fbbf24' }}>⚡ Triggers: {(widget.props.triggers || []).map(t => t.event).join(', ')}</div>
+          )}
+          {widget.id && <div style={{ color: '#475569' }}>🔑 ID: {widget.id.slice(0,20)}</div>}
+        </div>
+      )}
+
+      {/* Smart Quick action buttons */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px' }}>
+        {smartActions.slice(0,6).map((action, i) => (
           <button
             key={i}
             onClick={() => onPrompt(action.prompt)}
+            title={action.prompt.slice(0,100)}
             style={{
-              padding: '8px 10px', borderRadius: '8px',
+              padding: '7px 9px', borderRadius: '8px',
               background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-              color: '#cbd5e1', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer',
-              textAlign: 'left', display: 'flex', alignItems: 'center', gap: '6px',
+              color: '#cbd5e1', fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer',
+              textAlign: 'left', display: 'flex', alignItems: 'center', gap: '5px',
               transition: 'all 0.15s',
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; e.currentTarget.style.color = '#f1f5f9'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = '#cbd5e1'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.13)'; e.currentTarget.style.color = '#f1f5f9'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = '#cbd5e1'; }}
           >
-            <span style={{ fontSize: '0.85rem' }}>{action.icon}</span>
-            {action.label}
+            <span style={{ fontSize: '0.8rem', flexShrink: 0 }}>{action.icon}</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{action.label}</span>
           </button>
         ))}
       </div>
@@ -205,6 +305,7 @@ const BuilderCopilot = ({
   const [messages, setMessages] = useState(loadMessages);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [streamingText, setStreamingText] = useState('');  // UPGRADE 2: streaming
   const [aiConnector, setAiConnector] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const scrollRef = useRef(null);
@@ -213,6 +314,15 @@ const BuilderCopilot = ({
   const [commandStatus, setCommandStatus] = useState({});
   const [chipMode, setChipMode] = useState('build');
   const [prevWidget, setPrevWidget] = useState(null);
+  // UPGRADE 4: App health issues
+  const [appIssues, setAppIssues] = useState([]);
+  const [showIssues, setShowIssues] = useState(false);
+  // UPGRADE 6: Command log
+  const [commandLog, setCommandLog] = useState([]);
+  const [showCommandLog, setShowCommandLog] = useState(false);
+  // UPGRADE 3: Rolling memory
+  const [sessionSummary, setSessionSummary] = useState('');
+  const [isDiagnosing, setIsDiagnosing] = useState(false); // UPGRADE 8
 
   // Auto-announce newly selected widget in chat
   useEffect(() => {
@@ -222,6 +332,45 @@ const BuilderCopilot = ({
     setPrevWidget(selectedWidget);
     // Don't spam — only announce if different widget
   }, [selectedWidget, isOpen]);
+
+  // UPGRADE 4: App Health Scanner
+  useEffect(() => {
+    if (!context?.widgets) return;
+    const widgets = context.widgets || [];
+    const issues = [];
+    const inputTypes = ['TEXT_INPUT','NUMBER_INPUT','DROPDOWN','DATE_PICKER','DATETIME_PICKER'];
+    const unbound = widgets.filter(w => inputTypes.includes(w.type) && !w.props?.targetVariable);
+    if (unbound.length > 0) issues.push(`${unbound.length} input widget belum di-bind ke tabel`);
+    const untriggered = widgets.filter(w => w.type === 'BUTTON' && !(w.props?.triggers || []).length);
+    if (untriggered.length > 0) issues.push(`${untriggered.length} button belum punya trigger`);
+    const tables = context.tables || [];
+    const placeholders = context.recordPlaceholders || [];
+    if (tables.length > 0 && placeholders.length === 0) issues.push('Ada tabel tapi belum ada Record Placeholder');
+    const hasInputs = unbound.length > 0 || widgets.some(w => inputTypes.includes(w.type));
+    const hasNoTable = tables.length === 0 && hasInputs;
+    if (hasNoTable) issues.push('Ada form input tapi belum ada tabel data');
+    setAppIssues(issues);
+  }, [context?.widgets, context?.tables, context?.recordPlaceholders]);
+
+  // UPGRADE 3: Auto-compress memory when messages grow
+  useEffect(() => {
+    const compress = async () => {
+      if (messages.length < 20 || !aiConnector) return;
+      // Only compress if we haven't summarized yet and have many messages
+      if (sessionSummary && messages.length < 30) return;
+      try {
+        const toSummarize = messages.slice(0, messages.length - 8);
+        const summaryPrompt = `Ringkas percakapan Mavi Builder Copilot berikut dalam 5 poin bullet singkat (max 300 kata total). Fokus pada: widget apa yang dibuat, tabel apa yang ada, screen apa yang ada, dan masalah apa yang sudah diselesaikan:\n\n${toSummarize.map(m => `${m.role}: ${String(m.content).slice(0, 300)}`).join('\n')}`;
+        const { getChatCompletion } = await import('../utils/aiService');
+        // We use the connector directly for a quick summary
+        const summaryResult = await getChatCompletion([{ role: 'user', content: summaryPrompt }], aiConnector);
+        setSessionSummary(summaryResult);
+        // Trim messages to last 8
+        setMessages(prev => prev.slice(-8));
+      } catch(e) { console.warn('[Copilot] Memory compression failed:', e); }
+    };
+    compress();
+  }, [messages.length]);
 
   // Persist messages
   useEffect(() => {
@@ -306,6 +455,7 @@ const BuilderCopilot = ({
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
+    setStreamingText(''); // UPGRADE 2: reset streaming
 
     try {
       const settings = aiConnector?.aiSettings || aiConnector?.config;
@@ -318,8 +468,24 @@ const BuilderCopilot = ({
         response = await getBuilderVisionAdvice(selectedFile, context, aiConnector);
         setSelectedFile(null);
       } else {
-        const history = messages.slice(-10).map(m => ({ role: m.role, content: m.content }));
-        response = await getBuilderCopilotAdvice(text, history, context, aiConnector);
+        const history = messages.slice(-8).map(m => ({ role: m.role, content: m.content }));
+        // Pass selectedWidget explicitly so AI knows which component is currently selected
+        const enrichedContext = { ...context, selectedWidget: selectedWidget || null, sessionSummary };
+
+        // UPGRADE 2: Try streaming first, fallback to non-streaming
+        try {
+          let streamedText = '';
+          await streamBuilderCopilotAdvice(text, history, enrichedContext, aiConnector, (chunk) => {
+            streamedText += chunk;
+            setStreamingText(streamedText);
+          });
+          response = streamedText;
+          setStreamingText('');
+        } catch (streamErr) {
+          console.warn('[Copilot] Streaming failed, falling back to non-streaming:', streamErr.message);
+          setStreamingText('');
+          response = await getBuilderCopilotAdvice(text, history, enrichedContext, aiConnector);
+        }
       }
 
       setMessages(prev => [...prev, { role: 'assistant', content: response, timestamp: new Date() }]);
@@ -330,8 +496,10 @@ const BuilderCopilot = ({
       }]);
     } finally {
       setIsLoading(false);
+      setStreamingText('');
     }
   };
+
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) setSelectedFile(e.target.files[0]);
@@ -346,16 +514,32 @@ const BuilderCopilot = ({
     if (!selectedWidget) return;
     const widgetName = selectedWidget.displayName || selectedWidget.props?.label || selectedWidget.type;
     const triggerInfo = (selectedWidget.props?.triggers || []).map(t => `  • ${t.name} (${t.event})`).join('\n') || '  (tidak ada trigger)';
-    const context = `📌 Widget yang saya pilih di canvas:
+    const ctx = `📌 Widget yang saya pilih di canvas:
 **Nama:** ${widgetName}
 **Type:** ${selectedWidget.type}
 **ID:** ${selectedWidget.id}
 **Posisi:** x=${selectedWidget.x}, y=${selectedWidget.y}
+**Binding:** ${selectedWidget.props?.targetVariable || 'tidak ada'}
 **Triggers:**
 ${triggerInfo}
 
 Apa yang bisa kamu bantu untuk widget ini?`;
-    handleSend(context);
+    handleSend(ctx);
+  };
+
+  // UPGRADE 8: Handle App Diagnosis
+  const handleDiagnose = async () => {
+    if (!aiConnector || isDiagnosing) return;
+    setIsDiagnosing(true);
+    setMessages(prev => [...prev, { role: 'user', content: '🔬 Diagnosa aplikasi saya sekarang — berikan laporan lengkap dan auto-fix jika ada masalah.', timestamp: new Date() }]);
+    try {
+      const report = await diagnoseApp({ ...context, selectedWidget: selectedWidget || null }, aiConnector);
+      setMessages(prev => [...prev, { role: 'assistant', content: report, timestamp: new Date() }]);
+    } catch (err) {
+      setMessages(prev => [...prev, { role: 'assistant', content: `Diagnosis Error: ${err.message}`, timestamp: new Date(), isError: true }]);
+    } finally {
+      setIsDiagnosing(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -451,6 +635,31 @@ Apa yang bisa kamu bantu untuk widget ini?`;
             </button>
           </div>
 
+          {/* UPGRADE 8: Diagnose button */}
+          <button
+            onClick={handleDiagnose}
+            disabled={isDiagnosing}
+            title="Diagnosa aplikasi — AI akan menganalisis dan auto-fix masalah"
+            style={{ background: isDiagnosing ? 'rgba(139,92,246,0.3)' : 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)', color: '#a78bfa', cursor: isDiagnosing ? 'default' : 'pointer', padding: '7px 10px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.7rem', fontWeight: 700, transition: 'all 0.15s' }}
+            onMouseEnter={e => { if (!isDiagnosing) { e.currentTarget.style.background = 'rgba(139,92,246,0.3)'; e.currentTarget.style.color = '#c4b5fd'; }}}
+            onMouseLeave={e => { if (!isDiagnosing) { e.currentTarget.style.background = 'rgba(139,92,246,0.15)'; e.currentTarget.style.color = '#a78bfa'; }}}
+          >
+            {isDiagnosing ? <Loader2 size={13} className="animate-spin" /> : <Stethoscope size={13} />}
+            {isDiagnosing ? 'Diagnosing...' : 'Diagnose'}
+          </button>
+
+          {/* UPGRADE 4: Health Issues Badge */}
+          {appIssues.length > 0 && (
+            <button
+              onClick={() => setShowIssues(v => !v)}
+              title={`${appIssues.length} masalah terdeteksi — klik untuk lihat`}
+              style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.35)', color: '#fca5a5', cursor: 'pointer', padding: '7px 10px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.7rem', fontWeight: 800, transition: 'all 0.15s' }}
+            >
+              <AlertCircle size={13} />
+              {appIssues.length}
+            </button>
+          )}
+
           {/* Clear chat */}
           <button
             onClick={() => {
@@ -481,14 +690,42 @@ Apa yang bisa kamu bantu untuk widget ini?`;
         </div>
       </div>
 
+      {/* UPGRADE 4: App Issues Panel */}
+      {showIssues && appIssues.length > 0 && (
+        <div style={{ background: '#fef2f2', borderBottom: '1px solid #fecaca', padding: '12px 16px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#991b1b', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <AlertCircle size={12} /> {appIssues.length} Masalah Terdeteksi
+            </span>
+            <button
+              onClick={() => {
+                const prompt = `Perbaiki semua masalah ini:\n${appIssues.map((i, n) => `${n + 1}. ${i}`).join('\n')}`;
+                handleSend(prompt);
+                setShowIssues(false);
+              }}
+              style={{ fontSize: '0.68rem', fontWeight: 800, color: '#fff', background: '#ef4444', border: 'none', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer' }}
+            >
+              🤖 Fix All
+            </button>
+          </div>
+          {appIssues.map((issue, i) => (
+            <div key={i} style={{ fontSize: '0.72rem', color: '#7f1d1d', padding: '3px 0', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+              <span style={{ flexShrink: 0, marginTop: '1px' }}>⚠️</span> {issue}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* ── Selected Widget Panel (pinned below header) ─────────────────────── */}
       {selectedWidget && (
         <WidgetContextPanel
           widget={selectedWidget}
-          onPrompt={(prompt) => { setInput(prompt); setTimeout(() => textareaRef.current?.focus(), 50); }}
+          onPrompt={(prompt) => { handleSend(prompt); }}
           onSendToChat={handleSendWidgetToChat}
+          context={context}
         />
       )}
+
 
       {/* ── Messages ───────────────────────────────────────────────────────── */}
       <div
@@ -649,6 +886,12 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                                 try {
                                   await onApplyCommand(cmd);
                                   setCommandStatus(prev => ({ ...prev, [cmdKey]: 'success' }));
+                                  // UPGRADE 6: Track applied command in log
+                                  setCommandLog(prev => [...prev, {
+                                    label: getCommandPreview(cmd),
+                                    type: cmd.type,
+                                    timestamp: new Date().toLocaleTimeString('id', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                                  }]);
                                 } catch (e) {
                                   setCommandStatus(prev => ({ ...prev, [cmdKey]: 'error' }));
                                 }
@@ -673,6 +916,12 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                                       (cmd.type.startsWith('CREATE') || cmd.type.startsWith('ADD')) ? <Sparkles size={11} /> : <PlusCircle size={11} />}
                               {status === 'loading' ? 'Applying...' : status === 'success' ? 'Applied ✓' : status === 'error' ? 'Failed' : cmd.type.startsWith('DELETE') ? 'Delete' : 'Apply'}
                             </button>
+                          </div>
+
+                          {/* UPGRADE 7: Command Preview */}
+                          <div style={{ fontSize: '0.68rem', color: '#64748b', padding: '4px 8px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <span style={{ flexShrink: 0 }}>💡</span>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getCommandPreview(cmd)}</span>
                           </div>
 
                           {cmd.type.startsWith('DELETE') && (
@@ -711,7 +960,30 @@ Apa yang bisa kamu bantu untuk widget ini?`;
           );
         })}
 
-        {isLoading && (
+        {/* UPGRADE 2: Streaming text bubble (live preview while streaming) */}
+        {streamingText && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '5px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ width: '22px', height: '22px', borderRadius: '7px', background: 'linear-gradient(135deg,#6366f1,#3b82f6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Wand2 size={12} color="white" />
+              </div>
+              <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Copilot</span>
+              <span style={{ fontSize: '0.6rem', color: '#a5b4fc', fontWeight: 700 }}>● streaming...</span>
+            </div>
+            <div style={{
+              maxWidth: '88%', padding: '12px 16px', borderRadius: '4px 18px 18px 18px',
+              background: '#ffffff', border: '1px solid #e2e8f0',
+              fontSize: '0.85rem', lineHeight: 1.65, color: '#1e293b',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06)', whiteSpace: 'pre-wrap',
+              borderLeft: '3px solid #6366f1',
+            }}>
+              {streamingText.replace(/<builder_cmds>[\s\S]*?<\/builder_cmds>/g, '').trim()}
+              <span style={{ display: 'inline-block', width: '2px', height: '14px', background: '#6366f1', marginLeft: '2px', verticalAlign: 'text-bottom', animation: 'blink 0.8s step-end infinite' }} />
+            </div>
+          </div>
+        )}
+
+        {isLoading && !streamingText && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '5px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <div style={{ width: '22px', height: '22px', borderRadius: '7px', background: 'linear-gradient(135deg,#6366f1,#3b82f6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -726,6 +998,35 @@ Apa yang bisa kamu bantu untuk widget ini?`;
 
       {/* ── Input Area ─────────────────────────────────────────────────────── */}
       <div style={{ padding: '14px 16px 18px', borderTop: '1px solid #e2e8f0', backgroundColor: '#ffffff', flexShrink: 0 }}>
+
+        {/* UPGRADE 6: Command Log panel (collapsible) */}
+        {commandLog.length > 0 && (
+          <div style={{ marginBottom: '10px' }}>
+            <button
+              onClick={() => setShowCommandLog(v => !v)}
+              style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', fontSize: '0.68rem', fontWeight: 700, color: '#475569' }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <ClipboardList size={11} /> Applied Commands ({commandLog.length})
+              </span>
+              {showCommandLog ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
+            {showCommandLog && (
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '6px', maxHeight: '120px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                {commandLog.slice().reverse().map((log, i) => {
+                  const cs = getCmdStyle(log.type);
+                  return (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.67rem', padding: '3px 6px', borderRadius: '5px', background: '#fff', border: '1px solid #e2e8f0' }}>
+                      <span style={{ padding: '1px 5px', borderRadius: '4px', fontSize: '0.58rem', fontWeight: 800, backgroundColor: cs.bg, color: cs.color, flexShrink: 0 }}>{log.type.replace(/_/g, ' ')}</span>
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#475569' }}>{log.label}</span>
+                      <span style={{ color: '#94a3b8', flexShrink: 0 }}>{log.timestamp}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Chip mode tabs */}
         <div style={{ marginBottom: '10px' }}>

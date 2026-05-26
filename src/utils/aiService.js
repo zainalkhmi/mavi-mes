@@ -300,16 +300,78 @@ Be concise and helpful. Respond in the user's language (default to Indonesian if
 };
 
 /**
- * Enhanced AI Architect Engine for Mavi-MES
- * Includes Planning System, Session Memory, and Layout Intelligence
+ * UPGRADE 1 — App Intelligence Snapshot
+ * Analyzes the current app structure and returns a summary for the AI.
  */
-export const getBuilderCopilotAdvice = async (userInput, messageHistory, context, connector) => {
-  const settings = connector?.aiSettings || connector?.config;
-  if (!connector || !settings?.apiKey) {
-    throw new Error('AI Connector not configured');
-  }
+const generateAppIntelligence = (context) => {
+  const widgets = context.widgets || [];
+  const allWidgets = (context.allScreensWidgets || []).flatMap(s => s.widgets || []);
+  const steps = context.steps || [];
+  const tables = context.tables || [];
+  const functions = context.functions || [];
+  const variables = context.variables || [];
 
-  const WIDGET_CATALOG = {
+  // Detect orphan widgets (interactive but no trigger or binding)
+  const interactiveTypes = ['BUTTON','TEXT_INPUT','NUMBER_INPUT','DROPDOWN','CHECKBOX','BOOLEAN_TOGGLE','SLIDER','RADIO_GROUP','DATE_PICKER','DATETIME_PICKER','MULTI_SELECT'];
+  const orphans = widgets.filter(w =>
+    interactiveTypes.includes(w.type) &&
+    !(w.props?.triggers || []).length &&
+    !w.props?.targetVariable
+  );
+
+  // Detect inputs bound vs unbound
+  const inputTypes = ['TEXT_INPUT','NUMBER_INPUT','DROPDOWN','DATE_PICKER','DATETIME_PICKER','SLIDER','CHECKBOX','RADIO_GROUP'];
+  const inputWidgets = widgets.filter(w => inputTypes.includes(w.type));
+  const boundInputs = inputWidgets.filter(w => w.props?.targetVariable);
+
+  // Detect buttons with/without triggers
+  const buttons = widgets.filter(w => w.type === 'BUTTON');
+  const triggeredButtons = buttons.filter(w => (w.props?.triggers || []).length > 0);
+
+  // Detect navigation between screens
+  const allTriggerActions = allWidgets.flatMap(w =>
+    (w.triggers || []).flatMap(t =>
+      (t.actions || []).concat(
+        ...(t.clauses || []).flatMap(cl => cl.actions || [])
+      )
+    )
+  );
+  const navActions = allTriggerActions.filter(a => a?.type === 'GO_TO_STEP');
+  const connectedScreens = new Set(navActions.map(a => a?.payload?.stepId).filter(Boolean));
+
+  // Detect app pattern
+  const hasTable = tables.length > 0;
+  const hasForm = widgets.some(w => inputTypes.includes(w.type));
+  const hasDashboard = widgets.some(w => ['CHART','GAUGE','DIAL_GAUGE','MACHINE_STATUS'].includes(w.type));
+  const hasMultiScreen = steps.length > 1;
+  let pattern = 'Simple Screen';
+  if (hasMultiScreen && hasForm && hasTable) pattern = 'Multi-Screen Form + Data App';
+  else if (hasDashboard && hasTable) pattern = 'Dashboard + Monitoring App';
+  else if (hasForm && hasTable) pattern = 'Data Entry Form App';
+  else if (hasDashboard) pattern = 'Dashboard App';
+  else if (hasForm) pattern = 'Form App (No Table Yet)';
+
+  const completionPct = widgets.length === 0 ? 0 :
+    Math.round(((triggeredButtons.length + boundInputs.length) / Math.max(1, buttons.length + inputWidgets.length)) * 100);
+
+  return `
+════════════════════════════════════
+🧠 APP INTELLIGENCE SNAPSHOT
+════════════════════════════════════
+▸ Pattern Detected: ${pattern}
+▸ Screens: ${steps.length} | Widgets on Current Screen: ${widgets.length} | All App Widgets: ${allWidgets.length}
+▸ Tables: ${tables.map(t => t.name).join(', ') || 'none'}
+▸ Variables: ${variables.map(v => v.name).join(', ') || 'none'}
+▸ Functions: ${functions.map(f => f.name).join(', ') || 'none'}
+▸ Input Binding: ${boundInputs.length}/${inputWidgets.length} inputs bound to table columns
+▸ Button Triggers: ${triggeredButtons.length}/${buttons.length} buttons have triggers
+▸ Navigation Links: ${connectedScreens.size} screens connected via GO_TO_STEP
+▸ App Completion Estimate: ~${completionPct}%
+${orphans.length > 0 ? `⚠️ Orphan Widgets (interactive but no trigger/binding): ${orphans.map(w => `"${w.displayName || w.type}"`).join(', ')}` : '✅ No orphan widgets found'}
+════════════════════════════════════`;
+};
+
+const WIDGET_CATALOG = {
     UI_INPUT: ['BUTTON','TEXT','TEXT_INPUT','TEXT_AREA','PASSWORD_TEXT','NUMBER_INPUT','CHECKBOX','BOOLEAN_TOGGLE','SLIDER','DROPDOWN','MULTI_SELECT','LIST_PICKER','LIST_VIEW','RADIO_GROUP','DATE_PICKER','DATETIME_PICKER','VARIABLE_TEXT'],
     UI_DISPLAY: ['IMAGE','EMBED_WEB','VIDEO_PLAYER','FILE_PICKER','IMAGE_PICKER','SIGNATURE_PAD','SIGNATURE','NOTIFIER','CUSTOM_WIDGET'],
     QUALITY: ['CHECKLIST','QUALITY_TOLERANCE','QUALITY_PASS_FAIL','CAMERA_CAPTURE'],
@@ -326,9 +388,10 @@ export const getBuilderCopilotAdvice = async (userInput, messageHistory, context
     OBD2: ['OBD2_SCANNER','OBD2_RPM','OBD2_SPEED','OBD2_COOLANT_TEMP','OBD2_THROTTLE','OBD2_ENGINE_LOAD','OBD2_FUEL_LEVEL','OBD2_BATTERY_VOLTAGE','OBD2_DTC'],
     DRAWING: ['CANVAS','BALL','IMAGE_SPRITE'],
     SYSTEM: ['TIMER','IOT_DEVICE','IOT_CONNECTOR','DATABASE_CONNECTOR','API_CONNECTOR','LOGIC_NODE','EVENT_TRIGGER','CAMERA_SCANNER']
-  };
+};
 
-  const systemPrompt = `
+const getBuilderSystemPrompt = (context) => {
+  return `
 ROLE: You are "Mavi Enterprise Architect AI" — an elite multi-agent system for building world-class industrial MES applications.
 
 ════════════════════════════════════════════════
@@ -442,7 +505,7 @@ DATA COMMANDS:
 {type:"CREATE_VARIABLE", payload:{name:"varName", type:"TEXT|NUMBER|BOOLEAN", defaultValue:""}}
 {type:"CREATE_RECORD_PLACEHOLDER", payload:{name:"placeholderName", tableId:"tableName"}}
   ↳ tableId MUST match the EXACT name from a CREATE_TABLE command (case-insensitive match).
-{type:"CREATE_FUNCTION", payload:{name:"functionName", description:"What it does", logic:{code:"// JS code here\nreturn result;"}}}
+{type:"CREATE_FUNCTION", payload:{name:"functionName", description:"What it does", logic:{code:"// JS code here\\nreturn result;"}}}
 {type:"CREATE_AUTOMATION", payload:{name:"automationName", description:"Rule description", trigger:{type:"TABLE_CHANGE",tableId:"tableName"}, conditions:[{field:"status",operator:"equals",value:"REJECT"}], actions:[{type:"SHOW_NOTIFICATION",payload:{message:"Rejected!",msgType:"error"}}]}}
 
 TRIGGER COMMAND (creates event→action automation):
@@ -580,6 +643,7 @@ Example for a data entry form:
 12. EDIT MODE: When user asks to "change", "update", "modify", "ubah", "ganti", "edit" something → use UPDATE_WIDGET, UPDATE_TRIGGER, UPDATE_VARIABLE, UPDATE_STEP, UPDATE_FUNCTION.
 13. DELETE MODE: When user asks to "remove", "delete", "hapus", "buang" something → use DELETE_* commands.
 14. EDIT ONLY WHAT'S ASKED: On UPDATE commands, only include the specific props/fields user wants changed.
+15. DATA COMMANDS: Never output table columns (like UUID, RECORD, TEXT) directly as top-level objects in the "commands" array. Columns MUST always be nested inside the columns array of a CREATE_TABLE command payload: {type:"CREATE_TABLE", payload:{name:"tableName", columns:[{name:"colName", type:"text"}]}}.
 
 CURRENT CONTEXT:
 - Active Screen: ${context.currentStepName || 'Screen 1'} (ID: ${context.currentStepId || ''})
@@ -601,18 +665,150 @@ CURRENT CONTEXT:
 - Global Triggers: ${JSON.stringify((context.triggers || []).filter(t => !t._isAutomation).map(t => ({ id: t.id, name: t.name, event: t.event, actions: (t.clauses || []).flatMap(cl => (cl.actions || []).map(a => ({ type: a.type, payload: a.payload }))) })))}
 - Functions: ${JSON.stringify((context.functions || []).map(f => ({ id: f.id, name: f.name, description: f.description || '', codeSnippet: String(f.logic?.code || '').slice(0, 200) })))}
 - Automations: ${JSON.stringify((context.automations || []).map(a => ({ id: a.id, name: a.name, trigger: a.trigger, conditions: a.conditions, actions: a.actions })))}
+- ⭐ CURRENTLY SELECTED WIDGET: ${context.selectedWidget ? JSON.stringify({ id: context.selectedWidget.id, type: context.selectedWidget.type, name: context.selectedWidget.displayName || context.selectedWidget.props?.label || context.selectedWidget.type, existingTriggers: (context.selectedWidget.props?.triggers || []).map(t => ({ id: t.id, name: t.name, event: t.event })) }) : 'none (no widget selected)'}
+
+IMPORTANT: When the user says "add trigger", "add function", "tambahkan trigger", "tambahkan function" WITHOUT specifying a widget name, ALWAYS target the CURRENTLY SELECTED WIDGET above. Use its exact "name" as the widgetId in CREATE_TRIGGER commands.
 
 OUTPUT: Brief explanation (Indonesian if user writes Indonesian), then <ai_plan>...</ai_plan>, then ALWAYS:
 <builder_cmds>
 {"commands": [...]}
 </builder_cmds>`;
-    const messages = [
-        { role: 'system', content: systemPrompt },
+};
+
+/**
+ * Enhanced AI Architect Engine for Mavi-MES
+ * Includes Planning System, Session Memory, and Layout Intelligence
+ */
+export const getBuilderCopilotAdvice = async (userInput, messageHistory, context, connector) => {
+  const settings = connector?.aiSettings || connector?.config;
+  if (!connector || !settings?.apiKey) {
+    throw new Error('AI Connector not configured');
+  }
+
+  const intelligenceBlock = generateAppIntelligence(context);
+  const fullSystemPrompt = getBuilderSystemPrompt(context) + '\n' + intelligenceBlock;
+
+  // UPGRADE 3 — Rolling Memory: prepend session summary if provided
+  const summaryBlock = context.sessionSummary
+      ? { role: 'system', content: `📋 SESSION SUMMARY (previous conversation):\n${context.sessionSummary}` }
+      : null;
+
+  const messages = [
+      { role: 'system', content: fullSystemPrompt },
+      ...(summaryBlock ? [summaryBlock] : []),
+      ...messageHistory.map(m => ({ role: m.role, content: m.content })),
+      { role: 'user', content: userInput }
+  ];
+
+  return await getChatCompletion(messages, connector);
+};
+
+/**
+ * UPGRADE 2 — Streaming Builder Copilot Advice
+ * Streams response token-by-token via onChunk callback
+ */
+export const streamBuilderCopilotAdvice = async (userInput, messageHistory, context, connector, onChunk) => {
+    const settings = connector?.aiSettings || connector?.config;
+    if (!connector || !settings?.apiKey) throw new Error('AI Connector not configured');
+
+    const provider = normalizeProvider(settings.provider);
+    const modelId = String(settings.modelId || '').trim();
+    const apiKey = settings.apiKey;
+
+    // Build messages same as getBuilderCopilotAdvice (reuse the function to get full system prompt)
+    // We call the non-streaming version to get the full response if streaming not supported
+    const intelligenceBlock = generateAppIntelligence(context);
+    const fullSystemPrompt = getBuilderSystemPrompt(context) + '\n' + intelligenceBlock;
+
+    const summaryBlock = context.sessionSummary
+        ? { role: 'system', content: `📋 SESSION SUMMARY:\n${context.sessionSummary}` }
+        : null;
+
+    const streamMessages = [
+        { role: 'system', content: fullSystemPrompt },
+        ...(summaryBlock ? [summaryBlock] : []),
         ...messageHistory.map(m => ({ role: m.role, content: m.content })),
         { role: 'user', content: userInput }
     ];
 
-    return await getChatCompletion(messages, connector);
+    if (provider === 'gemini') {
+        const cleanModelId = modelId.includes('/') ? modelId.split('/').pop() : modelId;
+        const url = `https://generativelanguage.googleapis.com/v1/models/${cleanModelId}:streamGenerateContent?key=${apiKey}&alt=sse`;
+        
+        const combinedSystemPrompt = summaryBlock
+            ? `${fullSystemPrompt}\n\n📋 SESSION SUMMARY:\n${context.sessionSummary}`
+            : fullSystemPrompt;
+
+        const payload = {
+            contents: streamMessages
+                .filter(m => m.role !== 'system')
+                .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
+            systemInstruction: {
+                parts: [{ text: combinedSystemPrompt }]
+            },
+            generationConfig: { temperature: 0.7 }
+        };
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!response.ok) throw new Error('Gemini Stream Error');
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = '';
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
+            for (const line of lines) {
+                try {
+                    const data = JSON.parse(line.slice(6));
+                    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                    if (text) { fullText += text; onChunk(text); }
+                } catch { /* skip malformed chunks */ }
+            }
+        }
+        return fullText;
+    }
+
+    // OpenAI-compatible streaming (OpenAI, Groq, OpenRouter, Ollama, Custom)
+    const baseUrl = provider === 'groq' ? 'https://api.groq.com/openai/v1' :
+        provider === 'openrouter' ? 'https://openrouter.ai/api/v1' :
+        provider === 'ollama' ? (settings.baseUrl || 'http://localhost:11434/v1') :
+        (settings.baseUrl || 'https://api.openai.com/v1');
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST', headers,
+        body: JSON.stringify({
+            model: modelId,
+            messages: streamMessages.map(m => ({ role: m.role, content: m.content })),
+            temperature: 0.7,
+            stream: true
+        })
+    });
+    if (!response.ok) throw new Error('Stream API Error');
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = '';
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n').filter(l => l.startsWith('data: ') && l !== 'data: [DONE]');
+        for (const line of lines) {
+            try {
+                const data = JSON.parse(line.slice(6));
+                const text = data?.choices?.[0]?.delta?.content || '';
+                if (text) { fullText += text; onChunk(text); }
+            } catch { /* skip */ }
+        }
+    }
+    return fullText;
 };
 
 /**
@@ -707,6 +903,66 @@ export const getAnalysisInsight = async (analysisData, config, connector) => {
     const messages = [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: 'Analyze this data and give me insights.' }
+    ];
+
+    return await getChatCompletion(messages, connector);
+};
+
+/**
+ * UPGRADE 8 — App Diagnosis
+ * Full health scan of the app → returns markdown report + optional auto-fix commands
+ */
+export const diagnoseApp = async (context, connector) => {
+    const settings = connector?.aiSettings || connector?.config;
+    if (!settings?.apiKey) throw new Error('AI Connector not configured');
+
+    const intelligence = generateAppIntelligence(context);
+
+    const appSnapshot = {
+        screens: (context.steps || []).map(s => ({
+            title: s.title,
+            type: s.stepType,
+            widgetCount: (s.components || []).length,
+            widgets: (s.components || []).map(w => ({
+                name: w.displayName, type: w.type,
+                hasBinding: !!w.props?.targetVariable,
+                hasTrigger: (w.props?.triggers || []).length > 0,
+                tableId: w.props?.tableId || null
+            }))
+        })),
+        tables: (context.tables || []).map(t => ({ name: t.name, columns: (t.fields || t.columns || []).map(c => c.name) })),
+        variables: (context.variables || []).map(v => ({ name: v.name, type: v.type })),
+        functions: (context.functions || []).map(f => ({ name: f.name, description: f.description })),
+        triggers: (context.triggers || []).filter(t => !t._isAutomation).map(t => ({ name: t.name, event: t.event })),
+        placeholders: (context.recordPlaceholders || []).map(r => ({ name: r.name, tableId: r.tableId }))
+    };
+
+    const systemPrompt = `You are a Senior MES Application Quality Assurance Engineer and Expert Reviewer.
+Analyze this Mavi MES application structure and provide a comprehensive diagnosis.
+
+Your response MUST be structured in these sections:
+## ✅ Yang Sudah Bagus
+## ⚠️ Yang Perlu Diperbaiki
+## 🚀 Rekomendasi Peningkatan
+## 🔗 Missing Connections (binding/trigger/navigasi yang belum ada)
+## 🤖 Auto-Fix Commands
+
+For "Auto-Fix Commands", output ONLY valid JSON inside <builder_cmds> tags with commands to fix the issues you identified.
+For example, bind unbound inputs, add missing triggers, create missing placeholders.
+If nothing to fix, output <builder_cmds>{"commands":[]}</builder_cmds>
+
+Be specific, actionable, and respond in Indonesian.`;
+
+    const userMessage = `Ini adalah struktur aplikasi yang perlu didiagnosis:
+
+${intelligence}
+
+Detail lengkap:
+${JSON.stringify(appSnapshot, null, 2)}`;
+
+    const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage }
     ];
 
     return await getChatCompletion(messages, connector);

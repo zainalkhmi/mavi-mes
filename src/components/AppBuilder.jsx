@@ -2097,6 +2097,25 @@ const AppBuilder = () => {
     const [recordPlaceholders, setRecordPlaceholders] = useState([]);
     const [recordPlaceholderData, setRecordPlaceholderData] = useState({});
 
+    // Refs to track the latest state synchronously during batch Copilot command execution
+    const currentStepIdRef = useRef(currentStepId);
+    const stepsRef = useRef(steps);
+    const baseComponentsRef = useRef(baseComponents);
+    const appVariablesRef = useRef(appVariables);
+    const appFunctionsRef = useRef(appFunctions);
+    const appTriggersRef = useRef(appTriggers);
+    const tablesRef = useRef(tables);
+    const recordPlaceholdersRef = useRef(recordPlaceholders);
+
+    useEffect(() => { currentStepIdRef.current = currentStepId; }, [currentStepId]);
+    useEffect(() => { stepsRef.current = steps; }, [steps]);
+    useEffect(() => { baseComponentsRef.current = baseComponents; }, [baseComponents]);
+    useEffect(() => { appVariablesRef.current = appVariables; }, [appVariables]);
+    useEffect(() => { appFunctionsRef.current = appFunctions; }, [appFunctions]);
+    useEffect(() => { appTriggersRef.current = appTriggers; }, [appTriggers]);
+    useEffect(() => { tablesRef.current = tables; }, [tables]);
+    useEffect(() => { recordPlaceholdersRef.current = recordPlaceholders; }, [recordPlaceholders]);
+
     const renderTargetVariableOptions = () => {
         const options = [];
         options.push(<option key="static" value="">None (Static)</option>);
@@ -2362,66 +2381,98 @@ const AppBuilder = () => {
             const { type, payload, widgetId } = command;
             console.log('[Copilot] Executing Command:', type, payload);
 
-            switch (type) {
-                case 'ADD_WIDGET': {
-                    // --- AI Type Normalization Layer ---
-                    // The AI may output types like "Panel", "TextInput" etc.
-                    // that don't exist in COMPONENT_TYPES. Normalize them here.
-                    const AI_TYPE_ALIASES = {
-                        'Panel': 'SHAPE_RECTANGLE', 'panel': 'SHAPE_RECTANGLE',
-                        'Container': 'SHAPE_RECTANGLE', 'container': 'SHAPE_RECTANGLE',
-                        'Box': 'SHAPE_RECTANGLE', 'box': 'SHAPE_RECTANGLE',
-                        'Div': 'SHAPE_RECTANGLE', 'div': 'SHAPE_RECTANGLE',
-                        'Flex': 'SHAPE_RECTANGLE', 'flex': 'SHAPE_RECTANGLE',
-                        'Card': 'SHAPE_RECTANGLE', 'card': 'SHAPE_RECTANGLE',
-                        'Frame': 'SHAPE_RECTANGLE', 'frame': 'SHAPE_RECTANGLE',
-                        'Section': 'SHAPE_RECTANGLE', 'section': 'SHAPE_RECTANGLE',
-                        'TextInput': 'TEXT_INPUT', 'textInput': 'TEXT_INPUT', 'textinput': 'TEXT_INPUT', 'Input': 'TEXT_INPUT', 'input': 'TEXT_INPUT',
-                        'TextArea': 'TEXT_AREA', 'textarea': 'TEXT_AREA', 'Textarea': 'TEXT_AREA',
-                        'Label': 'TEXT', 'label': 'TEXT', 'Heading': 'TEXT', 'heading': 'TEXT', 'Title': 'TEXT', 'Paragraph': 'TEXT',
-                        'Table': 'INTERACTIVE_TABLE', 'table': 'INTERACTIVE_TABLE', 'DataTable': 'INTERACTIVE_TABLE', 'dataTable': 'INTERACTIVE_TABLE',
-                        'Select': 'DROPDOWN', 'select': 'DROPDOWN', 'Spinner': 'DROPDOWN',
-                        'Switch': 'BOOLEAN_TOGGLE', 'switch': 'BOOLEAN_TOGGLE', 'Toggle': 'BOOLEAN_TOGGLE', 'toggle': 'BOOLEAN_TOGGLE',
-                        'NumberInput': 'NUMBER_INPUT', 'numberInput': 'NUMBER_INPUT', 'number_input': 'NUMBER_INPUT',
-                        'Radio': 'RADIO_GROUP', 'radio': 'RADIO_GROUP', 'RadioGroup': 'RADIO_GROUP',
-                        'Check': 'CHECKBOX', 'check': 'CHECKBOX', 'Checkbox': 'CHECKBOX',
-                        'BarChart': 'CHART', 'LineChart': 'CHART', 'PieChart': 'CHART',
-                        'Progress': 'GAUGE', 'ProgressBar': 'GAUGE', 'progress': 'GAUGE',
-                        'Scanner': 'BARCODE_SCANNER', 'BarcodeScanner': 'BARCODE_SCANNER', 'Scan': 'BARCODE_SCANNER',
-                        'Signature': 'SIGNATURE', 'signature': 'SIGNATURE',
-                        'Camera': 'CAMERA_CAPTURE', 'camera': 'CAMERA_CAPTURE',
-                        'Video': 'VIDEO', 'video': 'VIDEO',
-                        'Document': 'DOCUMENT', 'document': 'DOCUMENT',
-                        'Webpage': 'WEBPAGE', 'webpage': 'WEBPAGE', 'WebView': 'EMBED_WEB', 'webview': 'EMBED_WEB',
-                        'Checklist': 'CHECKLIST', 'checklist': 'CHECKLIST',
-                        'Chart': 'CHART', 'chart': 'CHART',
-                        'Gauge': 'GAUGE', 'gauge': 'GAUGE',
-                        'Grid': 'GRID', 'grid': 'GRID',
-                        'Slider': 'SLIDER', 'slider': 'SLIDER',
-                        'Button': 'BUTTON', 'button': 'BUTTON',
-                        'Image': 'IMAGE', 'image': 'IMAGE',
-                        'Text': 'TEXT', 'text': 'TEXT',
-                    };
+            // --- AI Type Normalization Helper ---
+            const AI_TYPE_ALIASES = {
+                'Panel': 'SHAPE_RECTANGLE', 'panel': 'SHAPE_RECTANGLE',
+                'Container': 'SHAPE_RECTANGLE', 'container': 'SHAPE_RECTANGLE',
+                'Box': 'SHAPE_RECTANGLE', 'box': 'SHAPE_RECTANGLE',
+                'Div': 'SHAPE_RECTANGLE', 'div': 'SHAPE_RECTANGLE',
+                'Flex': 'SHAPE_RECTANGLE', 'flex': 'SHAPE_RECTANGLE',
+                'Card': 'SHAPE_RECTANGLE', 'card': 'SHAPE_RECTANGLE',
+                'Frame': 'SHAPE_RECTANGLE', 'frame': 'SHAPE_RECTANGLE',
+                'Section': 'SHAPE_RECTANGLE', 'section': 'SHAPE_RECTANGLE',
+                'TextInput': 'TEXT_INPUT', 'textInput': 'TEXT_INPUT', 'textinput': 'TEXT_INPUT', 'Input': 'TEXT_INPUT', 'input': 'TEXT_INPUT',
+                'TextArea': 'TEXT_AREA', 'textarea': 'TEXT_AREA', 'Textarea': 'TEXT_AREA',
+                'Label': 'TEXT', 'label': 'TEXT', 'Heading': 'TEXT', 'heading': 'TEXT', 'Title': 'TEXT', 'Paragraph': 'TEXT',
+                'Table': 'INTERACTIVE_TABLE', 'table': 'INTERACTIVE_TABLE', 'DataTable': 'INTERACTIVE_TABLE', 'dataTable': 'INTERACTIVE_TABLE',
+                'Select': 'DROPDOWN', 'select': 'DROPDOWN', 'Spinner': 'DROPDOWN',
+                'Switch': 'BOOLEAN_TOGGLE', 'switch': 'BOOLEAN_TOGGLE', 'Toggle': 'BOOLEAN_TOGGLE', 'toggle': 'BOOLEAN_TOGGLE',
+                'NumberInput': 'NUMBER_INPUT', 'numberInput': 'NUMBER_INPUT', 'number_input': 'NUMBER_INPUT',
+                'Radio': 'RADIO_GROUP', 'radio': 'RADIO_GROUP', 'RadioGroup': 'RADIO_GROUP',
+                'Check': 'CHECKBOX', 'check': 'CHECKBOX', 'Checkbox': 'CHECKBOX',
+                'BarChart': 'CHART', 'LineChart': 'CHART', 'PieChart': 'CHART',
+                'Progress': 'GAUGE', 'ProgressBar': 'GAUGE', 'progress': 'GAUGE',
+                'Scanner': 'BARCODE_SCANNER', 'BarcodeScanner': 'BARCODE_SCANNER', 'Scan': 'BARCODE_SCANNER',
+                'Signature': 'SIGNATURE', 'signature': 'SIGNATURE',
+                'Camera': 'CAMERA_CAPTURE', 'camera': 'CAMERA_CAPTURE',
+                'Video': 'VIDEO', 'video': 'VIDEO',
+                'Document': 'DOCUMENT', 'document': 'DOCUMENT',
+                'Webpage': 'WEBPAGE', 'webpage': 'WEBPAGE', 'WebView': 'EMBED_WEB', 'webview': 'EMBED_WEB',
+                'Checklist': 'CHECKLIST', 'checklist': 'CHECKLIST',
+                'Chart': 'CHART', 'chart': 'CHART',
+                'Gauge': 'GAUGE', 'gauge': 'GAUGE',
+                'Grid': 'GRID', 'grid': 'GRID',
+                'Slider': 'SLIDER', 'slider': 'SLIDER',
+                'Button': 'BUTTON', 'button': 'BUTTON',
+                'Image': 'IMAGE', 'image': 'IMAGE',
+                'Text': 'TEXT', 'text': 'TEXT',
+            };
 
-                    let resolvedType = payload.type;
-                    if (!COMPONENT_TYPES[resolvedType]) {
-                        const aliased = AI_TYPE_ALIASES[resolvedType];
-                        if (aliased) {
-                            console.log(`[Copilot] Type normalized: "${resolvedType}" → "${aliased}"`);
-                            resolvedType = aliased;
+            const normalizeType = (rawType) => {
+                let resolvedType = rawType;
+                if (!resolvedType) return 'SHAPE_RECTANGLE';
+                if (!COMPONENT_TYPES[resolvedType]) {
+                    const aliased = AI_TYPE_ALIASES[resolvedType];
+                    if (aliased) {
+                        resolvedType = aliased;
+                    } else {
+                        const upperSnake = resolvedType.replace(/([a-z])([A-Z])/g, '$1_$2').toUpperCase();
+                        if (COMPONENT_TYPES[upperSnake]) {
+                            resolvedType = upperSnake;
                         } else {
-                            // Try UPPER_SNAKE_CASE conversion as last resort
-                            const upperSnake = resolvedType.replace(/([a-z])([A-Z])/g, '$1_$2').toUpperCase();
-                            if (COMPONENT_TYPES[upperSnake]) {
-                                console.log(`[Copilot] Type auto-converted: "${resolvedType}" → "${upperSnake}"`);
-                                resolvedType = upperSnake;
-                            } else {
-                                console.warn(`[Copilot] Unknown widget type: "${resolvedType}". Defaulting to SHAPE_RECTANGLE.`);
-                                resolvedType = 'SHAPE_RECTANGLE';
-                            }
+                            resolvedType = 'SHAPE_RECTANGLE';
                         }
                     }
+                }
+                return resolvedType;
+            };
 
+            // Safely cast coordinates and dimensions to integers to avoid string concatenation issues
+            const sanitizeComponentCoords = (comp, compType) => {
+                if (!comp || typeof comp !== 'object') return comp;
+                const normalized = { ...comp };
+                const finalType = compType || normalized.type || 'SHAPE_RECTANGLE';
+
+                if (normalized.x !== undefined && normalized.x !== null) {
+                    normalized.x = Math.round(Number(normalized.x));
+                } else {
+                    normalized.x = 0;
+                }
+
+                if (normalized.y !== undefined && normalized.y !== null) {
+                    normalized.y = Math.round(Number(normalized.y));
+                } else {
+                    normalized.y = 0;
+                }
+
+                if (normalized.w !== undefined && normalized.w !== null) {
+                    normalized.w = Math.round(Number(normalized.w));
+                } else {
+                    normalized.w = COMPONENT_TYPES[finalType]?.defaultSize?.w || 100;
+                }
+
+                if (normalized.h !== undefined && normalized.h !== null) {
+                    normalized.h = Math.round(Number(normalized.h));
+                } else {
+                    normalized.h = COMPONENT_TYPES[finalType]?.defaultSize?.h || 80;
+                }
+
+                return normalized;
+            };
+
+            switch (type) {
+                case 'ADD_WIDGET': {
+                    let resolvedType = normalizeType(payload.type);
                     const rawTriggers = payload.triggers || payload.props?.triggers;
                     const mergedProps = sanitizeAiProps({
                         ...(COMPONENT_TYPES[resolvedType]?.defaultProps || {}),
@@ -2431,17 +2482,22 @@ const AppBuilder = () => {
                         mergedProps.triggers = rawTriggers;
                     }
 
-                    const newComp = {
+                    const newComp = sanitizeComponentCoords({
                         id: `w_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                         displayName: payload.displayName || COMPONENT_TYPES[resolvedType]?.label || resolvedType,
                         ...payload,
                         type: resolvedType,
                         props: mergedProps
-                    };
-                    if (currentStepId === 'BASE') {
-                        setBaseComponents(prev => [...prev, newComp]);
+                    }, resolvedType);
+
+                    if (currentStepIdRef.current === 'BASE') {
+                        const nextBase = [...baseComponentsRef.current, newComp];
+                        baseComponentsRef.current = nextBase;
+                        setBaseComponents(nextBase);
                     } else {
-                        setSteps(prev => prev.map(s => s.id === currentStepId ? { ...s, components: [...s.components, newComp] } : s));
+                        const nextSteps = stepsRef.current.map(s => s.id === currentStepIdRef.current ? { ...s, components: [...s.components, newComp] } : s);
+                        stepsRef.current = nextSteps;
+                        setSteps(nextSteps);
                     }
                     setRecentlyAddedCompId(newComp.id);
                     setSelectedCompIds([newComp.id]);
@@ -2472,15 +2528,15 @@ const AppBuilder = () => {
                     };
 
                     // Search current step first, then all steps, then base
-                    const currentComps = currentStepId === 'BASE' ? baseComponents : (steps.find(s => s.id === currentStepId)?.components || []);
+                    const currentComps = currentStepIdRef.current === 'BASE' ? baseComponentsRef.current : (stepsRef.current.find(s => s.id === currentStepIdRef.current)?.components || []);
                     let resolvedId = resolveWidgetId(currentComps);
                     if (!resolvedId) {
-                        for (const s of steps) {
+                        for (const s of stepsRef.current) {
                             resolvedId = resolveWidgetId(s.components);
                             if (resolvedId) break;
                         }
                     }
-                    if (!resolvedId && currentStepId !== 'BASE') resolvedId = resolveWidgetId(baseComponents);
+                    if (!resolvedId && currentStepIdRef.current !== 'BASE') resolvedId = resolveWidgetId(baseComponentsRef.current);
 
                     if (!resolvedId) {
                         toast.error(`Widget "${rawName}" tidak ditemukan`, { position: 'bottom-right' });
@@ -2488,9 +2544,59 @@ const AppBuilder = () => {
                         break;
                     }
 
-                    const updateFn = (c) => c.id === resolvedId ? { ...c, props: sanitizeAiProps({ ...c.props, ...(payload.props || {}) }) } : c;
-                    setBaseComponents(prev => prev.map(updateFn));
-                    setSteps(prev => prev.map(s => ({ ...s, components: s.components.map(updateFn) })));
+                    const updateFn = (c) => {
+                        if (c.id !== resolvedId) return c;
+                        
+                        const updatedComp = { ...c };
+                        
+                        // Support root-level coordinate updates from payload
+                        if (payload.x !== undefined && payload.x !== null) {
+                            updatedComp.x = Math.round(Number(payload.x));
+                        }
+                        if (payload.y !== undefined && payload.y !== null) {
+                            updatedComp.y = Math.round(Number(payload.y));
+                        }
+                        if (payload.w !== undefined && payload.w !== null) {
+                            updatedComp.w = Math.round(Number(payload.w));
+                        }
+                        if (payload.h !== undefined && payload.h !== null) {
+                            updatedComp.h = Math.round(Number(payload.h));
+                        }
+                        if (payload.displayName) {
+                            updatedComp.displayName = payload.displayName;
+                        }
+                        
+                        // Support coordinate updates nested in payload.props
+                        if (payload.props) {
+                            if (payload.props.x !== undefined && payload.props.x !== null) {
+                                updatedComp.x = Math.round(Number(payload.props.x));
+                            }
+                            if (payload.props.y !== undefined && payload.props.y !== null) {
+                                updatedComp.y = Math.round(Number(payload.props.y));
+                            }
+                            if (payload.props.w !== undefined && payload.props.w !== null) {
+                                updatedComp.w = Math.round(Number(payload.props.w));
+                            }
+                            if (payload.props.h !== undefined && payload.props.h !== null) {
+                                updatedComp.h = Math.round(Number(payload.props.h));
+                            }
+                        }
+
+                        updatedComp.props = sanitizeAiProps({
+                            ...c.props,
+                            ...(payload.props || {})
+                        });
+                        return updatedComp;
+                    };
+
+                    const nextBase = baseComponentsRef.current.map(updateFn);
+                    baseComponentsRef.current = nextBase;
+                    setBaseComponents(nextBase);
+
+                    const nextSteps = stepsRef.current.map(s => ({ ...s, components: s.components.map(updateFn) }));
+                    stepsRef.current = nextSteps;
+                    setSteps(nextSteps);
+
                     toast.success(`✏️ Widget "${rawName}" diperbarui`, { position: 'bottom-right' });
                     console.log(`[Copilot] UPDATE_WIDGET: "${rawName}" → ${resolvedId}, props:`, Object.keys(payload.props || {}));
                     break;
@@ -2515,15 +2621,15 @@ const AppBuilder = () => {
                         return null;
                     };
 
-                    const currentComps = currentStepId === 'BASE' ? baseComponents : (steps.find(s => s.id === currentStepId)?.components || []);
+                    const currentComps = currentStepIdRef.current === 'BASE' ? baseComponentsRef.current : (stepsRef.current.find(s => s.id === currentStepIdRef.current)?.components || []);
                     let resolvedId = resolveWidgetId(currentComps);
                     if (!resolvedId) {
-                        for (const s of steps) {
+                        for (const s of stepsRef.current) {
                             resolvedId = resolveWidgetId(s.components);
                             if (resolvedId) break;
                         }
                     }
-                    if (!resolvedId && currentStepId !== 'BASE') resolvedId = resolveWidgetId(baseComponents);
+                    if (!resolvedId && currentStepIdRef.current !== 'BASE') resolvedId = resolveWidgetId(baseComponentsRef.current);
 
                     if (!resolvedId) {
                         toast.error(`Widget "${rawName}" tidak ditemukan`, { position: 'bottom-right' });
@@ -2531,8 +2637,14 @@ const AppBuilder = () => {
                         break;
                     }
 
-                    setBaseComponents(prev => prev.filter(c => c.id !== resolvedId));
-                    setSteps(prev => prev.map(s => ({ ...s, components: s.components.filter(c => c.id !== resolvedId) })));
+                    const nextBase = baseComponentsRef.current.filter(c => c.id !== resolvedId);
+                    baseComponentsRef.current = nextBase;
+                    setBaseComponents(nextBase);
+
+                    const nextSteps = stepsRef.current.map(s => ({ ...s, components: s.components.filter(c => c.id !== resolvedId) }));
+                    stepsRef.current = nextSteps;
+                    setSteps(nextSteps);
+
                     if (selectedCompIds.includes(resolvedId)) setSelectedCompIds(prev => prev.filter(id => id !== resolvedId));
                     toast.success(`🗑️ Widget "${rawName}" dihapus`, { position: 'bottom-right' });
                     console.log(`[Copilot] DELETE_WIDGET: "${rawName}" → ${resolvedId} removed`);
@@ -2542,16 +2654,40 @@ const AppBuilder = () => {
                     setAppName(payload);
                     break;
                 case 'ADD_STEP': {
+                    const stepComponents = (payload.components || []).map(c => {
+                        let resolvedType = normalizeType(c.type);
+                        const rawTriggers = c.triggers || c.props?.triggers;
+                        const mergedProps = sanitizeAiProps({
+                            ...(COMPONENT_TYPES[resolvedType]?.defaultProps || {}),
+                            ...(c.props || {})
+                        });
+                        if (rawTriggers) {
+                            mergedProps.triggers = rawTriggers;
+                        }
+                        return sanitizeComponentCoords({
+                            id: c.id || `w_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                            displayName: c.displayName || COMPONENT_TYPES[resolvedType]?.label || resolvedType,
+                            ...c,
+                            type: resolvedType,
+                            props: mergedProps
+                        }, resolvedType);
+                    });
+
                     const newStep = {
                         id: `screen_${Date.now()}`,
                         title: payload.title || 'New Screen',
                         stepType: 'Screen',
                         cycleTimeSeconds: 60,
-                        components: payload.components || [],
+                        components: stepComponents,
                         triggers: [],
                         logic: { xml: null, code: '' }
                     };
-                    setSteps(prev => [...prev, newStep]);
+
+                    const nextSteps = [...stepsRef.current, newStep];
+                    stepsRef.current = nextSteps;
+                    setSteps(nextSteps);
+
+                    currentStepIdRef.current = newStep.id;
                     setCurrentStepId(newStep.id);
                     break;
                 }
@@ -2573,8 +2709,8 @@ const AppBuilder = () => {
 
                     // Auto-wire form submit when AI creates table inside a Form Step.
                     // This removes dependency on explicit trigger creation for basic save flow.
-                    setSteps(prev => prev.map(s => {
-                        if (s.id !== currentStepId) return s;
+                    const nextSteps = stepsRef.current.map(s => {
+                        if (s.id !== currentStepIdRef.current) return s;
                         if (!FORM_STEP_TYPES.includes(s.stepType)) return s;
 
                         const existing = normalizeFormSubmitConfig(s);
@@ -2588,9 +2724,14 @@ const AppBuilder = () => {
                                 autoSubmitOnNext: true
                             }
                         };
-                    }));
+                    });
+                    stepsRef.current = nextSteps;
+                    setSteps(nextSteps);
 
-                    await getTables().then(setTables);
+                    await getTables().then(nextTables => {
+                        tablesRef.current = nextTables;
+                        setTables(nextTables);
+                    });
                     break;
                 }
                 case 'CREATE_TRIGGER': {
@@ -2689,7 +2830,7 @@ const AppBuilder = () => {
 
                                 // 3. Resolve placeholder name→ID inside action payload
                                 if (normalized.payload?.placeholderId && !String(normalized.payload.placeholderId).startsWith('ph_')) {
-                                    const matchPh = recordPlaceholders.find(rp => 
+                                    const matchPh = recordPlaceholdersRef.current.find(rp => 
                                         String(rp.name || '').toLowerCase() === String(normalized.payload.placeholderId).toLowerCase()
                                     );
                                     if (matchPh) {
@@ -2701,7 +2842,7 @@ const AppBuilder = () => {
                                 // 4. Resolve table name→ID inside action payload
                                 const actionTableId = normalized.payload?.tableId || normalized.tableId;
                                 if (actionTableId && !String(actionTableId).includes('-')) {
-                                    const matchingTable = tables.find(tbl => String(tbl.name || '').toLowerCase() === String(actionTableId).toLowerCase());
+                                    const matchingTable = tablesRef.current.find(tbl => String(tbl.name || '').toLowerCase() === String(actionTableId).toLowerCase());
                                     if (matchingTable) {
                                         if (normalized.payload) normalized.payload.tableId = matchingTable.id;
                                         else normalized.tableId = matchingTable.id;
@@ -2748,10 +2889,10 @@ const AppBuilder = () => {
                             return null;
                         };
 
-                        resolvedTargetId = findInList(currentStepId === 'BASE' ? baseComponents : (steps.find(s => s.id === currentStepId)?.components || []));
+                        resolvedTargetId = findInList(currentStepIdRef.current === 'BASE' ? baseComponentsRef.current : (stepsRef.current.find(s => s.id === currentStepIdRef.current)?.components || []));
                         // Deep search if not found in current step
                         if (!resolvedTargetId) {
-                            for (const s of steps) {
+                            for (const s of stepsRef.current) {
                                 resolvedTargetId = findInList(s.components);
                                 if (resolvedTargetId) break;
                             }
@@ -2772,28 +2913,38 @@ const AppBuilder = () => {
                             } 
                         } : c;
                         
-                        if (currentStepId === 'BASE') {
-                            setBaseComponents(prev => prev.map(updateTriggersFn));
+                        if (currentStepIdRef.current === 'BASE') {
+                            const nextBase = baseComponentsRef.current.map(updateTriggersFn);
+                            baseComponentsRef.current = nextBase;
+                            setBaseComponents(nextBase);
                         } else {
-                            setSteps(prev => prev.map(s => ({ ...s, components: s.components.map(updateTriggersFn) })));
+                            const nextSteps = stepsRef.current.map(s => ({ ...s, components: s.components.map(updateTriggersFn) }));
+                            stepsRef.current = nextSteps;
+                            setSteps(nextSteps);
                         }
                         
                         // Get widget name for toast
-                        const targetWidget = (currentStepId === 'BASE' ? baseComponents : (steps.find(s => s.id === currentStepId)?.components || [])).find(c => c.id === resolvedTargetId);
+                        const targetWidget = (currentStepIdRef.current === 'BASE' ? baseComponentsRef.current : (stepsRef.current.find(s => s.id === currentStepIdRef.current)?.components || []))
+                            .find(c => c.id === resolvedTargetId);
                         const widgetName = targetWidget?.displayName || targetWidget?.props?.label || resolvedTargetId;
                         const actionCount = clauses.reduce((sum, cl) => sum + (cl.actions?.length || 0), 0);
                         toast.success(`✅ Trigger ${normalizedEvent} → ${widgetName} (${actionCount} actions)`, { position: 'bottom-right' });
                         console.log(`[Copilot] Trigger added to widget: ${resolvedTargetId} with ${actionCount} actions`);
                     } else if (normalizedEvent === 'ON_STEP_ENTER' || normalizedEvent === 'ON_STEP_EXIT') {
-                        setSteps(prev => prev.map(s => s.id === currentStepId ? {
+                        const nextSteps = stepsRef.current.map(s => s.id === currentStepIdRef.current ? {
                             ...s,
                             triggers: [...(s.triggers || []), newTrigger]
-                        } : s));
-                        const stepTitle = steps.find(s => s.id === currentStepId)?.title || 'Current Step';
+                        } : s);
+                        stepsRef.current = nextSteps;
+                        setSteps(nextSteps);
+
+                        const stepTitle = stepsRef.current.find(s => s.id === currentStepIdRef.current)?.title || 'Current Step';
                         toast.success(`✅ Trigger ${normalizedEvent} → Step: ${stepTitle}`, { position: 'bottom-right' });
-                        console.log(`[Copilot] Trigger added to step: ${currentStepId}`);
+                        console.log(`[Copilot] Trigger added to step: ${currentStepIdRef.current}`);
                     } else {
-                        setAppTriggers(prev => [...prev, newTrigger]);
+                        const nextAppTriggers = [...appTriggersRef.current, newTrigger];
+                        appTriggersRef.current = nextAppTriggers;
+                        setAppTriggers(nextAppTriggers);
                         toast.success(`✅ App Trigger: ${normalizedEvent} (Global)`, { position: 'bottom-right' });
                         console.log(`[Copilot] Trigger added to app (global)`);
                     }
@@ -2801,7 +2952,7 @@ const AppBuilder = () => {
                 }
                 case 'CREATE_VARIABLE': {
                     // Prevent duplicate variable names
-                    const existingVar = appVariables.find(v => String(v.name).toLowerCase() === String(payload.name).toLowerCase());
+                    const existingVar = appVariablesRef.current.find(v => String(v.name).toLowerCase() === String(payload.name).toLowerCase());
                     if (existingVar) {
                         console.log(`[Copilot] Variable "${payload.name}" already exists, skipping.`);
                         toast.info(`Variable "${payload.name}" sudah ada`, { position: 'bottom-right' });
@@ -2815,7 +2966,11 @@ const AppBuilder = () => {
                         value: payload.defaultValue ?? '',
                         persisted: payload.persisted || false
                     };
-                    setAppVariables(prev => [...prev, newVar]);
+
+                    const nextAppVariables = [...appVariablesRef.current, newVar];
+                    appVariablesRef.current = nextAppVariables;
+                    setAppVariables(nextAppVariables);
+
                     saveVariable(newVar).catch(console.error);
                     toast.success(`📌 Variable: ${newVar.name} (${newVar.type})`, { position: 'bottom-right' });
                     console.log(`[Copilot] Variable "${newVar.name}" created (${newVar.type})`);
@@ -2823,7 +2978,7 @@ const AppBuilder = () => {
                 }
                 case 'CREATE_RECORD_PLACEHOLDER': {
                     // Prevent duplicate placeholder names
-                    const existingPh = recordPlaceholders.find(rp => String(rp.name).toLowerCase() === String(payload.name).toLowerCase());
+                    const existingPh = recordPlaceholdersRef.current.find(rp => String(rp.name).toLowerCase() === String(payload.name).toLowerCase());
                     if (existingPh) {
                         console.log(`[Copilot] Placeholder "${payload.name}" already exists, skipping.`);
                         toast.info(`Placeholder "${payload.name}" sudah ada`, { position: 'bottom-right' });
@@ -2833,7 +2988,7 @@ const AppBuilder = () => {
                     let resolvedTableId = payload.tableId || '';
                     // Try to resolve table name → ID from both tables state and appTables
                     if (resolvedTableId && !resolvedTableId.includes('-')) {
-                         const allTables = [...(tables || []), ...(appTables || [])];
+                         const allTables = [...(tablesRef.current || []), ...(appTables || [])];
                          const matchingTable = allTables.find(tbl => String(tbl.name || '').toLowerCase() === String(resolvedTableId).toLowerCase());
                          if (matchingTable) {
                              resolvedTableId = matchingTable.id;
@@ -2848,7 +3003,9 @@ const AppBuilder = () => {
                         name: payload.name,
                         tableId: resolvedTableId
                     };
-                    setRecordPlaceholders(prev => [...prev, newPh]);
+                    const nextPh = [...recordPlaceholdersRef.current, newPh];
+                    recordPlaceholdersRef.current = nextPh;
+                    setRecordPlaceholders(nextPh);
                     const tableName = payload.tableId || resolvedTableId;
                     toast.success(`📋 Placeholder: ${newPh.name} → ${tableName}`, { position: 'bottom-right' });
                     console.log(`[Copilot] Placeholder "${newPh.name}" created → table: ${resolvedTableId}`);
@@ -2861,7 +3018,11 @@ const AppBuilder = () => {
                         description: payload.description || '',
                         logic: payload.logic || { xml: null, code: '' }
                     };
-                    setAppFunctions(prev => [...prev, newFunc]);
+
+                    const nextAppFunctions = [...appFunctionsRef.current, newFunc];
+                    appFunctionsRef.current = nextAppFunctions;
+                    setAppFunctions(nextAppFunctions);
+
                     toast.success(`⚡ Function: ${newFunc.name}`, { position: 'bottom-right' });
                     break;
                 }
@@ -2891,8 +3052,11 @@ const AppBuilder = () => {
                         return { ...c, props: { ...c.props, triggers: updated } };
                     });
 
-                    setBaseComponents(prev => updateWidgetTriggers(prev));
-                    setSteps(prev => prev.map(s => ({
+                    const nextBase = updateWidgetTriggers(baseComponentsRef.current);
+                    baseComponentsRef.current = nextBase;
+                    setBaseComponents(nextBase);
+
+                    const nextSteps = stepsRef.current.map(s => ({
                         ...s,
                         components: updateWidgetTriggers(s.components),
                         triggers: (s.triggers || []).map(t =>
@@ -2900,14 +3064,18 @@ const AppBuilder = () => {
                                 ? (found = true, { ...t, ...tUpdates })
                                 : t
                         )
-                    })));
+                    }));
+                    stepsRef.current = nextSteps;
+                    setSteps(nextSteps);
 
                     // 2) Search in global app triggers
-                    setAppTriggers(prev => prev.map(t =>
+                    const nextAppTriggers = appTriggersRef.current.map(t =>
                         (t.id === tName || String(t.name || '').toLowerCase() === tNameLower)
                             ? (found = true, { ...t, ...tUpdates })
                             : t
-                    ));
+                    );
+                    appTriggersRef.current = nextAppTriggers;
+                    setAppTriggers(nextAppTriggers);
 
                     if (found) {
                         toast.success(`✏️ Trigger "${tName}" diperbarui`, { position: 'bottom-right' });
@@ -2931,20 +3099,25 @@ const AppBuilder = () => {
                         return { ...c, props: { ...c.props, triggers: filtered } };
                     });
 
-                    setBaseComponents(prev => removeWidgetTrigger(prev));
-                    setSteps(prev => prev.map(s => {
+                    const nextBase = removeWidgetTrigger(baseComponentsRef.current);
+                    baseComponentsRef.current = nextBase;
+                    setBaseComponents(nextBase);
+
+                    const nextSteps = stepsRef.current.map(s => {
                         const beforeCount = (s.triggers || []).length;
                         const filteredStepTriggers = (s.triggers || []).filter(t =>
                             t.id !== tName && String(t.name || '').toLowerCase() !== tNameLower
                         );
                         if (filteredStepTriggers.length < beforeCount) found = true;
                         return { ...s, components: removeWidgetTrigger(s.components), triggers: filteredStepTriggers };
-                    }));
-                    setAppTriggers(prev => {
-                        const filtered = prev.filter(t => t.id !== tName && String(t.name || '').toLowerCase() !== tNameLower);
-                        if (filtered.length < prev.length) found = true;
-                        return filtered;
                     });
+                    stepsRef.current = nextSteps;
+                    setSteps(nextSteps);
+
+                    const nextAppTriggers = appTriggersRef.current.filter(t => t.id !== tName && String(t.name || '').toLowerCase() !== tNameLower);
+                    if (nextAppTriggers.length < appTriggersRef.current.length) found = true;
+                    appTriggersRef.current = nextAppTriggers;
+                    setAppTriggers(nextAppTriggers);
 
                     if (found) {
                         toast.success(`🗑️ Trigger "${tName}" dihapus`, { position: 'bottom-right' });
@@ -2959,13 +3132,17 @@ const AppBuilder = () => {
                     const vNameLower = String(vName || '').toLowerCase();
                     const vUpdates = payload?.updates || {};
 
-                    const existing = appVariables.find(v => String(v.name || '').toLowerCase() === vNameLower);
+                    const existing = appVariablesRef.current.find(v => String(v.name || '').toLowerCase() === vNameLower);
                     if (!existing) {
                         toast.error(`Variable "${vName}" tidak ditemukan`, { position: 'bottom-right' });
                         break;
                     }
                     const updated = { ...existing, ...vUpdates };
-                    setAppVariables(prev => prev.map(v => v.id === existing.id ? updated : v));
+
+                    const nextAppVariables = appVariablesRef.current.map(v => v.id === existing.id ? updated : v);
+                    appVariablesRef.current = nextAppVariables;
+                    setAppVariables(nextAppVariables);
+
                     saveVariable(updated).catch(console.error);
                     toast.success(`✏️ Variable "${vName}" diperbarui`, { position: 'bottom-right' });
                     break;
@@ -2974,12 +3151,16 @@ const AppBuilder = () => {
                 case 'DELETE_VARIABLE': {
                     const vName = payload?.variableName || payload?.name;
                     const vNameLower = String(vName || '').toLowerCase();
-                    const existing = appVariables.find(v => String(v.name || '').toLowerCase() === vNameLower);
+                    const existing = appVariablesRef.current.find(v => String(v.name || '').toLowerCase() === vNameLower);
                     if (!existing) {
                         toast.error(`Variable "${vName}" tidak ditemukan`, { position: 'bottom-right' });
                         break;
                     }
-                    setAppVariables(prev => prev.filter(v => v.id !== existing.id));
+
+                    const nextAppVariables = appVariablesRef.current.filter(v => v.id !== existing.id);
+                    appVariablesRef.current = nextAppVariables;
+                    setAppVariables(nextAppVariables);
+
                     toast.success(`🗑️ Variable "${vName}" dihapus`, { position: 'bottom-right' });
                     break;
                 }
@@ -2989,7 +3170,7 @@ const AppBuilder = () => {
                     const sTitleLower = String(sTitle || '').toLowerCase();
                     const sUpdates = payload?.updates || {};
 
-                    const targetStep = steps.find(s =>
+                    const targetStep = stepsRef.current.find(s =>
                         s.id === sTitle ||
                         String(s.title || '').toLowerCase() === sTitleLower
                     );
@@ -2997,7 +3178,11 @@ const AppBuilder = () => {
                         toast.error(`Screen "${sTitle}" tidak ditemukan`, { position: 'bottom-right' });
                         break;
                     }
-                    setSteps(prev => prev.map(s => s.id === targetStep.id ? { ...s, ...sUpdates } : s));
+
+                    const nextSteps = stepsRef.current.map(s => s.id === targetStep.id ? { ...s, ...sUpdates } : s);
+                    stepsRef.current = nextSteps;
+                    setSteps(nextSteps);
+
                     toast.success(`✏️ Screen "${sTitle}" diperbarui`, { position: 'bottom-right' });
                     break;
                 }
@@ -3005,7 +3190,7 @@ const AppBuilder = () => {
                 case 'DELETE_STEP': {
                     const sTitle = payload?.stepTitle || payload?.title || payload?.name;
                     const sTitleLower = String(sTitle || '').toLowerCase();
-                    const targetStep = steps.find(s =>
+                    const targetStep = stepsRef.current.find(s =>
                         s.id === sTitle ||
                         String(s.title || '').toLowerCase() === sTitleLower
                     );
@@ -3023,14 +3208,15 @@ const AppBuilder = () => {
                         break;
                     }
 
-                    setSteps(prev => {
-                        const filtered = prev.filter(s => s.id !== targetStep.id);
-                        // If we deleted the active step, switch to first available step
-                        if (currentStepId === targetStep.id && filtered.length > 0) {
-                            setCurrentStepId(filtered[0].id);
-                        }
-                        return filtered;
-                    });
+                    const nextSteps = stepsRef.current.filter(s => s.id !== targetStep.id);
+                    stepsRef.current = nextSteps;
+                    setSteps(nextSteps);
+
+                    // If we deleted the active step, switch to first available step
+                    if (currentStepIdRef.current === targetStep.id && nextSteps.length > 0) {
+                        currentStepIdRef.current = nextSteps[0].id;
+                        setCurrentStepId(nextSteps[0].id);
+                    }
                     toast.success(`🗑️ Screen "${targetStep.title}" dihapus`, { position: 'bottom-right' });
                     break;
                 }
@@ -3040,14 +3226,18 @@ const AppBuilder = () => {
                     const fNameLower = String(fName || '').toLowerCase();
                     const fUpdates = payload?.updates || {};
 
-                    const existing = appFunctions.find(f =>
+                    const existing = appFunctionsRef.current.find(f =>
                         f.id === fName || String(f.name || '').toLowerCase() === fNameLower
                     );
                     if (!existing) {
                         toast.error(`Function "${fName}" tidak ditemukan`, { position: 'bottom-right' });
                         break;
                     }
-                    setAppFunctions(prev => prev.map(f => f.id === existing.id ? { ...f, ...fUpdates } : f));
+
+                    const nextAppFunctions = appFunctionsRef.current.map(f => f.id === existing.id ? { ...f, ...fUpdates } : f);
+                    appFunctionsRef.current = nextAppFunctions;
+                    setAppFunctions(nextAppFunctions);
+
                     toast.success(`✏️ Function "${fName}" diperbarui`, { position: 'bottom-right' });
                     break;
                 }
@@ -3055,14 +3245,18 @@ const AppBuilder = () => {
                 case 'DELETE_FUNCTION': {
                     const fName = payload?.functionName || payload?.name;
                     const fNameLower = String(fName || '').toLowerCase();
-                    const existing = appFunctions.find(f =>
+                    const existing = appFunctionsRef.current.find(f =>
                         f.id === fName || String(f.name || '').toLowerCase() === fNameLower
                     );
                     if (!existing) {
                         toast.error(`Function "${fName}" tidak ditemukan`, { position: 'bottom-right' });
                         break;
                     }
-                    setAppFunctions(prev => prev.filter(f => f.id !== existing.id));
+
+                    const nextAppFunctions = appFunctionsRef.current.filter(f => f.id !== existing.id);
+                    appFunctionsRef.current = nextAppFunctions;
+                    setAppFunctions(nextAppFunctions);
+
                     toast.success(`🗑️ Function "${fName}" dihapus`, { position: 'bottom-right' });
                     break;
                 }
@@ -3078,7 +3272,10 @@ const AppBuilder = () => {
                         actions: payload.actions || []
                     };
                     // Store automation in appTriggers with special marker (automations use same storage)
-                    setAppTriggers(prev => [...prev, { ...newAutomation, _isAutomation: true }]);
+                    const nextAppTriggers = [...appTriggersRef.current, { ...newAutomation, _isAutomation: true }];
+                    appTriggersRef.current = nextAppTriggers;
+                    setAppTriggers(nextAppTriggers);
+
                     toast.success(`🤖 Automation "${newAutomation.name}" dibuat`, { position: 'bottom-right' });
                     break;
                 }
@@ -3089,13 +3286,15 @@ const AppBuilder = () => {
                     const aUpdates = payload?.updates || {};
 
                     let found = false;
-                    setAppTriggers(prev => prev.map(t => {
+                    const nextAppTriggers = appTriggersRef.current.map(t => {
                         if (t._isAutomation && (t.id === aName || String(t.name || '').toLowerCase() === aNameLower)) {
                             found = true;
                             return { ...t, ...aUpdates };
                         }
                         return t;
-                    }));
+                    });
+                    appTriggersRef.current = nextAppTriggers;
+                    setAppTriggers(nextAppTriggers);
 
                     if (found) {
                         toast.success(`✏️ Automation "${aName}" diperbarui`, { position: 'bottom-right' });
@@ -3109,16 +3308,16 @@ const AppBuilder = () => {
                     const aName = payload?.automationName || payload?.name;
                     const aNameLower = String(aName || '').toLowerCase();
                     let found = false;
-                    setAppTriggers(prev => {
-                        const filtered = prev.filter(t => {
-                            if (t._isAutomation && (t.id === aName || String(t.name || '').toLowerCase() === aNameLower)) {
-                                found = true;
-                                return false;
-                            }
-                            return true;
-                        });
-                        return filtered;
+                    const nextAppTriggers = appTriggersRef.current.filter(t => {
+                        if (t._isAutomation && (t.id === aName || String(t.name || '').toLowerCase() === aNameLower)) {
+                            found = true;
+                            return false;
+                        }
+                        return true;
                     });
+                    appTriggersRef.current = nextAppTriggers;
+                    setAppTriggers(nextAppTriggers);
+
                     if (found) {
                         toast.success(`🗑️ Automation "${aName}" dihapus`, { position: 'bottom-right' });
                     } else {
@@ -3130,7 +3329,7 @@ const AppBuilder = () => {
                 case 'DELETE_TABLE': {
                     const tName = payload?.tableName || payload?.name;
                     const tNameLower = String(tName || '').toLowerCase();
-                    const targetTable = tables.find(t =>
+                    const targetTable = tablesRef.current.find(t =>
                         t.id === tName || String(t.name || '').toLowerCase() === tNameLower
                     );
                     if (!targetTable) {
@@ -3148,9 +3347,33 @@ const AppBuilder = () => {
                     }
 
                     await deleteTableDb(targetTable.id);
-                    await getTables().then(setTables);
+                    await getTables().then(nextTables => {
+                        tablesRef.current = nextTables;
+                        setTables(nextTables);
+                    });
                     toast.success(`🗑️ Tabel "${targetTable.name}" dihapus`, { position: 'bottom-right' });
                     console.log(`[Copilot] DELETE_TABLE: "${targetTable.name}" (${targetTable.id}) deleted`);
+                    break;
+                }
+
+                case 'GO_TO_STEP': {
+                    const targetIdOrTitle = payload?.stepId || payload?.targetId || payload?.title;
+                    const lowerTarget = String(targetIdOrTitle || '').toLowerCase();
+                    const targetStep = stepsRef.current.find(s =>
+                        s.id === targetIdOrTitle ||
+                        String(s.title || '').toLowerCase() === lowerTarget
+                    );
+                    if (targetStep) {
+                        currentStepIdRef.current = targetStep.id;
+                        setCurrentStepId(targetStep.id);
+                        toast.success(`Navigasi ke screen "${targetStep.title}"`, { position: 'bottom-right' });
+                    } else if (lowerTarget === 'base') {
+                        currentStepIdRef.current = 'BASE';
+                        setCurrentStepId('BASE');
+                        toast.success(`Navigasi ke screen "BASE"`, { position: 'bottom-right' });
+                    } else {
+                        toast.error(`Screen "${targetIdOrTitle}" tidak ditemukan`, { position: 'bottom-right' });
+                    }
                     break;
                 }
 
@@ -14092,15 +14315,15 @@ const AppBuilder = () => {
                                         }
                                     }}
                                     style={{
-                                        width: isPresetCanvasMode
+                                        width: (viewMode === 'DESIGN' || isPresetCanvasMode)
                                             ? `${canvasBaseSize.width}px`
                                             : '100%',
-                                        maxWidth: isPresetCanvasMode ? 'none' : '100%',
-                                        height: isPresetCanvasMode
+                                        maxWidth: (viewMode === 'DESIGN' || isPresetCanvasMode) ? 'none' : '100%',
+                                        height: (viewMode === 'DESIGN' || isPresetCanvasMode)
                                             ? `${canvasBaseSize.height}px`
                                             : 'auto',
-                                        minHeight: isPresetCanvasMode ? 'none' : '600px',
-                                        aspectRatio: isPresetCanvasMode ? 'none' : '16/10',
+                                        minHeight: (viewMode === 'DESIGN' || isPresetCanvasMode) ? 'none' : '600px',
+                                        aspectRatio: (viewMode === 'DESIGN' || isPresetCanvasMode) ? 'none' : '16/10',
                                         backgroundColor: appThemeMode === 'DARK' ? '#0f172a' : (currentStep?.backgroundColor || appBackgroundColor || '#ffffff'),
                                         backgroundImage: currentStep?.backgroundImage
                                             ? `url(${currentStep.backgroundImage})`

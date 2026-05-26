@@ -29,6 +29,7 @@ const ALLOWED_COMMAND_TYPES = new Set([
     'ADD_STEP',
     'UPDATE_STEP',
     'DELETE_STEP',
+    'GO_TO_STEP',
 
     // App-level
     'SET_APP_NAME',
@@ -90,6 +91,7 @@ const REQUIRED_FIELDS_BY_TYPE = {
     ADD_STEP: ['payload.title'],
     UPDATE_STEP: [],            // accepts stepId OR payload.stepTitle
     DELETE_STEP: [],            // accepts stepId OR payload.stepTitle
+    GO_TO_STEP: [],
 
     // App
     SET_APP_NAME: [],
@@ -163,7 +165,39 @@ export const sanitizeCopilotCommands = (commandData, context = {}, options = {})
     let blockedCount = 0;
     const contextIndex = buildContextIndex(context);
 
-    const safeCommands = commandData.commands
+    let commands = commandData.commands;
+
+    // Detect if commands is actually a flat list of database column definitions
+    const isFlatColumnList = commands.length > 0 && commands.every(cmd => {
+        if (!cmd || typeof cmd !== 'object') return false;
+        
+        // If it is a known allowed builder command type, it is not a raw column
+        const type = String(cmd.type || '').toUpperCase().trim();
+        if (ALLOWED_COMMAND_TYPES.has(type)) return false;
+
+        const hasColumnIndicator = 'name' in cmd || 'columnName' in cmd || 'fieldName' in cmd;
+        const isDbDataType = ['UUID', 'RECORD', 'TEXT', 'INTEGER', 'NUMERIC', 'BOOLEAN', 'JSONB', 'DATE', 'TIMESTAMP', 'TIMESTAMPTZ', 'VARCHAR', 'DOUBLE', 'FLOAT'].includes(type) || type === '';
+        
+        return hasColumnIndicator && isDbDataType;
+    });
+
+    if (isFlatColumnList) {
+        const columns = commands.map(cmd => ({
+            name: cmd.name || cmd.columnName || cmd.fieldName,
+            type: cmd.type || 'text'
+        }));
+        
+        commands = [{
+            type: 'CREATE_TABLE',
+            payload: {
+                name: 'new_table',
+                columns: columns
+            }
+        }];
+        warnings.push(`[REPAIR] Detected a flat column list in commands. Automatically wrapped ${columns.length} columns into a single 'CREATE_TABLE' command.`);
+    }
+
+    const safeCommands = commands
         .map((raw, cmdIndex) => {
             const normalized = normalizePayloadShape({ ...raw, type: normalizeCommandType(raw?.type) });
             const cmdWarnings = [];
@@ -238,7 +272,7 @@ export const sanitizeCopilotCommands = (commandData, context = {}, options = {})
         })
         .filter(Boolean);
 
-    const totalCount = commandData.commands.length;
+    const totalCount = commands.length;
     const safeCount = safeCommands.length;
     const safeRatio = totalCount > 0 ? safeCount / totalCount : 0;
     const threshold = typeof options.threshold === 'number'
