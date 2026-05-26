@@ -88,7 +88,11 @@ import {
   LogOut,
   MoreVertical,
   HardDrive,
-  Lock
+  Lock,
+  Unlock,
+  Volume2,
+  BatteryCharging,
+  Power
 } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
 import obd2Service from '../utils/obd2Service';
@@ -5448,6 +5452,908 @@ const LiveTerminal = () => {
                 </button>
               </div>
             )}
+          </div>
+        );
+      }
+      case 'SMARTHOME_DEVICE': {
+        const deviceName = comp.props.deviceName || 'Smart Switch';
+        const deviceBrand = comp.props.deviceBrand || 'TUYA';
+        const deviceType = comp.props.deviceType || 'SWITCH';
+        const mqttPublishTopic = comp.props.mqttPublishTopic || '';
+
+        const swOn = toggleState[comp.id] ?? comp.props.on ?? false;
+        const brVal = sliderValues[comp.id + '_brightness'] ?? comp.props.brightness ?? 100;
+        const tempVal = sliderValues[comp.id + '_temperature'] ?? comp.props.temperature ?? 24;
+
+        const setVal = (key, val, interactionEvent = 'Changed') => {
+          setSliderValues(prev => ({ ...prev, [key]: val }));
+          if (mqttPublishTopic) {
+            const payload = comp.props.jsonPayload 
+              ? JSON.stringify({ [key.replace(comp.id + '_', '')]: val }) 
+              : String(val);
+            iotConnector.publish(mqttPublishTopic, payload);
+          }
+          fireWidgetTriggers(comp, interactionEvent, { [key.replace(comp.id + '_', '')]: val });
+        };
+
+        const setToggle = (key, val, interactionEvent = 'Changed') => {
+          setToggleState(prev => ({ ...prev, [key]: val }));
+          if (mqttPublishTopic) {
+            const payload = comp.props.jsonPayload 
+              ? JSON.stringify({ [key.replace(comp.id + '_', '').replace(comp.id, 'on')]: val }) 
+              : String(val);
+            iotConnector.publish(mqttPublishTopic, payload);
+          }
+          fireWidgetTriggers(comp, interactionEvent, { [key.replace(comp.id + '_', '').replace(comp.id, 'on')]: val });
+        };
+
+        return (
+          <div style={{
+            width: '100%', height: '100%', 
+            backgroundColor: comp.props.backgroundColor || (isDark ? '#1e293b' : '#ffffff'),
+            border: `1.5px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+            borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px',
+            boxSizing: 'border-box'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#ff5f00' }}>{deviceBrand} CONTROLLER</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '8px', height: '8px', backgroundColor: '#22c55e', borderRadius: '50%' }}></span>
+                <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Online</span>
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: '1rem', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a' }}>{deviceName}</div>
+              <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Type: {deviceType}</div>
+            </div>
+
+            <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: isDark ? '#94a3b8' : '#475569' }}>Power Status</span>
+                <button
+                  onClick={() => setToggle(comp.id, !swOn)}
+                  style={{
+                    padding: '6px 12px', borderRadius: '20px', border: 'none',
+                    backgroundColor: swOn ? '#ff5f00' : '#64748b', color: 'white',
+                    fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer'
+                  }}
+                >
+                  {swOn ? 'ON' : 'OFF'}
+                </button>
+              </div>
+
+              {deviceType === 'BULB' && swOn && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#64748b' }}>
+                    <span>Brightness</span>
+                    <span>{brVal}%</span>
+                  </div>
+                  <input
+                    type="range" min="10" max="100" value={brVal}
+                    onChange={(e) => setVal(comp.id + '_brightness', parseInt(e.target.value), 'BrightnessChanged')}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+              )}
+
+              {(deviceType === 'THERMOSTAT' || deviceType === 'AIR_CON') && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px', backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderRadius: '8px' }}>
+                  <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Target Temp</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button 
+                      onClick={() => setVal(comp.id + '_temperature', tempVal - 1, 'TemperatureChanged')}
+                      style={{ width: '24px', height: '24px', borderRadius: '50%', border: '1px solid #cbd5e1', cursor: 'pointer' }}
+                    >-</button>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>{tempVal}°C</span>
+                    <button 
+                      onClick={() => setVal(comp.id + '_temperature', tempVal + 1, 'TemperatureChanged')}
+                      style={{ width: '24px', height: '24px', borderRadius: '50%', border: '1px solid #cbd5e1', cursor: 'pointer' }}
+                    >+</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+      case 'TUYA_PRODUCT': {
+        const productCase = comp.props.productCase || 'LIGHTING';
+        const deviceName = comp.props.deviceName || 'Tuya Smart Product';
+        const mqttPublishTopic = comp.props.mqttPublishTopic || '';
+
+        // State resolution from MQTT machineData or local play states
+        const mqttData = comp.props.iotTopicId ? machineData[comp.props.iotTopicId] : null;
+        let parsedMqttState = {};
+        if (mqttData !== null && mqttData !== undefined) {
+          try {
+            const parsed = typeof mqttData === 'string' ? JSON.parse(mqttData) : mqttData;
+            if (typeof parsed === 'object') {
+              parsedMqttState = parsed;
+            }
+          } catch (e) {}
+        }
+
+        const swOn = toggleState[comp.id] ?? parsedMqttState.on ?? comp.props.on ?? false;
+        const brVal = sliderValues[comp.id + '_brightness'] ?? parsedMqttState.brightness ?? comp.props.brightness ?? 80;
+        const colorTemp = sliderValues[comp.id + '_colorTemp'] ?? parsedMqttState.colorTemp ?? comp.props.colorTemp ?? 50;
+        const colorHex = textInputValues[comp.id + '_colorHex'] ?? parsedMqttState.colorHex ?? comp.props.colorHex ?? '#ff5f00';
+        const tempVal = sliderValues[comp.id + '_temperature'] ?? parsedMqttState.temperature ?? comp.props.temperature ?? 24;
+        const targetTempVal = sliderValues[comp.id + '_targetTemperature'] ?? parsedMqttState.targetTemperature ?? comp.props.targetTemperature ?? 22;
+        const fanSpeed = textInputValues[comp.id + '_fanSpeed'] ?? parsedMqttState.fanSpeed ?? comp.props.fanSpeed ?? 'AUTO';
+        const mode = textInputValues[comp.id + '_mode'] ?? parsedMqttState.mode ?? comp.props.mode ?? 'AUTO';
+        const locked = toggleState[comp.id + '_locked'] ?? parsedMqttState.locked ?? comp.props.locked ?? true;
+        const usbOn = toggleState[comp.id + '_usbOn'] ?? parsedMqttState.usbOn ?? comp.props.usbOn ?? false;
+        const powerConsumption = sliderValues[comp.id + '_powerConsumption'] ?? parsedMqttState.powerConsumption ?? comp.props.powerConsumption ?? 12.5;
+        const totalEnergy = sliderValues[comp.id + '_totalEnergy'] ?? parsedMqttState.totalEnergy ?? comp.props.totalEnergy ?? 4.8;
+        const aqiValue = sliderValues[comp.id + '_aqiValue'] ?? parsedMqttState.aqiValue ?? comp.props.aqiValue ?? 12;
+        const filterLife = sliderValues[comp.id + '_filterLife'] ?? parsedMqttState.filterLife ?? comp.props.filterLife ?? 92;
+        const batteryLevel = sliderValues[comp.id + '_batteryLevel'] ?? parsedMqttState.batteryLevel ?? comp.props.batteryLevel ?? 85;
+
+        const setVal = (key, val, interactionEvent = 'Changed') => {
+          setSliderValues(prev => ({ ...prev, [key]: val }));
+          if (mqttPublishTopic) {
+            const payload = comp.props.jsonPayload 
+              ? JSON.stringify({ [key.replace(comp.id + '_', '')]: val }) 
+              : String(val);
+            iotConnector.publish(mqttPublishTopic, payload);
+          }
+          fireWidgetTriggers(comp, interactionEvent, { [key.replace(comp.id + '_', '')]: val });
+        };
+
+        const setValText = (key, val, interactionEvent = 'Changed') => {
+          setTextInputValues(prev => ({ ...prev, [key]: val }));
+          if (mqttPublishTopic) {
+            const payload = comp.props.jsonPayload 
+              ? JSON.stringify({ [key.replace(comp.id + '_', '')]: val }) 
+              : String(val);
+            iotConnector.publish(mqttPublishTopic, payload);
+          }
+          fireWidgetTriggers(comp, interactionEvent, { [key.replace(comp.id + '_', '')]: val });
+        };
+
+        const setToggle = (key, val, interactionEvent = 'Changed') => {
+          setToggleState(prev => ({ ...prev, [key]: val }));
+          if (mqttPublishTopic) {
+            const payload = comp.props.jsonPayload 
+              ? JSON.stringify({ [key.replace(comp.id + '_', '').replace(comp.id, 'on')]: val }) 
+              : String(val);
+            iotConnector.publish(mqttPublishTopic, payload);
+          }
+          fireWidgetTriggers(comp, interactionEvent, { [key.replace(comp.id + '_', '').replace(comp.id, 'on')]: val });
+        };
+
+        const cardStyle = {
+          width: '100%',
+          height: '100%',
+          backgroundColor: comp.props.backgroundColor || (isDark ? '#1e293b' : '#ffffff'),
+          border: `1.5px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+          borderRadius: '16px',
+          padding: '16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02)',
+          fontFamily: 'inherit',
+          position: 'relative',
+          overflow: 'hidden',
+          boxSizing: 'border-box'
+        };
+
+        const tuyaOrangeGradient = 'linear-gradient(135deg, #ff5f00, #ff8c00)';
+
+        return (
+          <div style={cardStyle}>
+            <style>{`
+              @keyframes mavi-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+              @keyframes radar-sweep { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+            `}</style>
+            {/* Header: Badge & Status */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ 
+                  background: tuyaOrangeGradient, 
+                  color: '#ffffff', 
+                  fontSize: '0.65rem', 
+                  fontWeight: 900, 
+                  padding: '3px 8px', 
+                  borderRadius: '6px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px'
+                }}>
+                  TUYA
+                </span>
+                <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 700 }}>
+                  • Client
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ 
+                  width: '8px', 
+                  height: '8px', 
+                  backgroundColor: '#22c55e', 
+                  borderRadius: '50%',
+                  display: 'inline-block',
+                  boxShadow: '0 0 8px #22c55e'
+                }}></span>
+                <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Active</span>
+              </div>
+            </div>
+
+            {/* Title Section */}
+            <div>
+              <div style={{ fontSize: '1rem', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {deviceName}
+              </div>
+              <div style={{ fontSize: '0.65rem', color: '#ff5f00', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.5px', marginTop: '2px' }}>
+                Case: {productCase.replace('_', ' ')}
+              </div>
+            </div>
+
+            <div style={{ height: '1px', backgroundColor: isDark ? '#334155' : '#e2e8f0', margin: '4px 0' }} />
+
+            {/* Content Body */}
+            <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '12px', justifyContent: 'flex-start', overflowY: 'auto', paddingRight: '2px' }}>
+              {productCase === 'LIGHTING' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                  <div style={{ 
+                    position: 'relative',
+                    width: '80px',
+                    height: '80px',
+                    borderRadius: '50%',
+                    backgroundColor: swOn ? colorHex : (isDark ? '#0f172a' : '#f8fafc'),
+                    border: `2px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: swOn ? `0 0 ${brVal / 2}px ${colorHex}, inset 0 0 15px rgba(255,255,255,0.4)` : 'none',
+                    transition: 'all 0.3s ease'
+                  }}>
+                    <Sun size={36} color={swOn ? '#ffffff' : '#64748b'} style={{ opacity: swOn ? (brVal / 100) : 0.4 }} />
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', backgroundColor: isDark ? '#0f172a' : '#f8fafc', padding: '10px 12px', borderRadius: '10px', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}` }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b' }}>Power State</span>
+                    <div 
+                      style={{
+                        width: '44px', height: '22px', borderRadius: '11px',
+                        backgroundColor: swOn ? '#ff5f00' : (isDark ? '#334155' : '#cbd5e1'),
+                        position: 'relative', transition: 'background-color 0.2s',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => setToggle(comp.id, !swOn)}
+                    >
+                      <div style={{
+                        position: 'absolute', top: '2px', left: swOn ? '24px' : '2px',
+                        width: '18px', height: '18px', borderRadius: '50%',
+                        backgroundColor: '#ffffff', transition: 'left 0.2s',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                      }} />
+                    </div>
+                  </div>
+
+                  {swOn && (
+                    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#64748b' }}>
+                          <span>Brightness</span>
+                          <span>{brVal}%</span>
+                        </div>
+                        <input 
+                          type="range" min="10" max="100" value={brVal}
+                          style={{ width: '100%', height: '6px', borderRadius: '3px', cursor: 'pointer', accentColor: '#ff5f00' }}
+                          onChange={(e) => setVal(comp.id + '_brightness', parseInt(e.target.value), 'BrightnessChanged')}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#64748b' }}>
+                          <span>Color Temperature</span>
+                          <span>{colorTemp}%</span>
+                        </div>
+                        <input 
+                          type="range" min="0" max="100" value={colorTemp}
+                          style={{ 
+                            width: '100%', height: '6px', borderRadius: '3px', 
+                            cursor: 'pointer', 
+                            background: 'linear-gradient(to right, #ffb050, #ffebd5, #c8e0ff)',
+                            accentColor: '#3b82f6'
+                          }}
+                          onChange={(e) => setVal(comp.id + '_colorTemp', parseInt(e.target.value), 'ColorTempChanged')}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Presets</span>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
+                          {['#ff5f00', '#ff0000', '#00ff00', '#0000ff', '#8b00ff', '#ffd700'].map(preset => (
+                            <div 
+                              key={preset}
+                              style={{
+                                width: '20px', height: '20px', borderRadius: '50%',
+                                backgroundColor: preset, border: colorHex === preset ? `2px solid ${isDark ? '#ffffff' : '#000000'}` : `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                                cursor: 'pointer',
+                                transform: colorHex === preset ? 'scale(1.2)' : 'none',
+                                transition: 'transform 0.1s'
+                              }}
+                              onClick={() => setValText(comp.id + '_colorHex', preset, 'ColorHexChanged')}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {productCase === 'CAMERA' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', height: '100%' }}>
+                  <div style={{ 
+                    position: 'relative', height: '130px', backgroundColor: '#000000', 
+                    borderRadius: '10px', overflow: 'hidden', display: 'flex', 
+                    alignItems: 'center', justifyContent: 'center', border: '1px solid #334155'
+                  }}>
+                    <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06))', backgroundSize: '100% 4px, 6px 100%', pointerEvents: 'none' }} />
+                    
+                    <div style={{ textAlign: 'center', color: '#64748b', fontSize: '0.8rem', zIndex: 1 }}>
+                      <Video size={36} color="#475569" style={{ margin: '0 auto 6px', display: 'block', animation: swOn ? 'pulse 2s infinite' : 'none' }} />
+                      <span>{swOn ? 'STREAMING LIVE (1080P)' : 'CAMERA STANDBY'}</span>
+                    </div>
+
+                    {swOn && (
+                      <>
+                        <div style={{ position: 'absolute', top: '8px', left: '8px', display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: 'rgba(0,0,0,0.5)', padding: '2px 6px', borderRadius: '4px', zIndex: 2 }}>
+                          <span style={{ width: '6px', height: '6px', backgroundColor: '#ef4444', borderRadius: '50%', display: 'inline-block', animation: 'mavi-blink 1s infinite' }}></span>
+                          <span style={{ fontSize: '0.55rem', color: '#ffffff', fontWeight: 'bold' }}>REC</span>
+                        </div>
+                        <div style={{ position: 'absolute', bottom: '8px', left: '8px', color: '#ffffff', fontSize: '0.55rem', fontFamily: 'monospace', backgroundColor: 'rgba(0,0,0,0.5)', padding: '2px 6px', borderRadius: '4px', zIndex: 2 }}>
+                          CAM-01 | {new Date().toISOString().slice(0, 10)}
+                        </div>
+                        <div style={{ position: 'absolute', inset: 0, border: '2px solid rgba(255, 95, 0, 0.3)', pointerEvents: 'none' }} />
+                      </>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <button 
+                      style={{
+                        flex: 1, padding: '8px', borderRadius: '8px', border: 'none',
+                        backgroundColor: swOn ? '#ef4444' : '#ff5f00', color: '#ffffff',
+                        fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px'
+                      }}
+                      onClick={() => setToggle(comp.id, !swOn)}
+                    >
+                      <Power size={12} />
+                      {swOn ? 'Turn Off' : 'Turn On'}
+                    </button>
+
+                    {swOn && (
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button 
+                          style={{
+                            padding: '8px', borderRadius: '8px', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                            backgroundColor: usbOn ? '#3b82f6' : (isDark ? '#0f172a' : '#f8fafc'), color: usbOn ? '#ffffff' : '#64748b',
+                            cursor: 'pointer'
+                          }}
+                          onClick={() => setToggle(comp.id + '_usbOn', !usbOn, 'MicrophoneToggled')}
+                          title="Toggle Microphone"
+                        >
+                          <Mic size={14} style={{ color: usbOn ? '#ffffff' : 'inherit' }} />
+                        </button>
+                        <button 
+                          style={{
+                            padding: '8px', borderRadius: '8px', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                            backgroundColor: !locked ? '#10b981' : (isDark ? '#0f172a' : '#f8fafc'), color: !locked ? '#ffffff' : '#64748b',
+                            cursor: 'pointer'
+                          }}
+                          onClick={() => setToggle(comp.id + '_locked', !locked, 'SpeakerToggled')}
+                          title="Toggle Speaker"
+                        >
+                          <Volume2 size={14} style={{ color: !locked ? '#ffffff' : 'inherit' }} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {swOn && (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', backgroundColor: isDark ? '#0f172a' : '#f8fafc', padding: '8px', borderRadius: '10px', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}` }}>
+                      <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>PTZ CONTROLLER</span>
+                      <div style={{ position: 'relative', width: '80px', height: '80px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2px', marginTop: '4px' }}>
+                        <div></div>
+                        <button 
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`, borderRadius: '4px', backgroundColor: isDark ? '#1e293b' : '#ffffff', cursor: 'pointer', color: isDark ? 'white' : 'black' }}
+                          onClick={() => fireWidgetTriggers(comp, 'PTZ', { direction: 'UP' })}
+                        >
+                          ▲
+                        </button>
+                        <div></div>
+
+                        <button 
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`, borderRadius: '4px', backgroundColor: isDark ? '#1e293b' : '#ffffff', cursor: 'pointer', color: isDark ? 'white' : 'black' }}
+                          onClick={() => fireWidgetTriggers(comp, 'PTZ', { direction: 'LEFT' })}
+                        >
+                          ◀
+                        </button>
+                        <div style={{ backgroundColor: '#ff5f00', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', color: 'white', fontWeight: 'bold' }}>
+                          PTZ
+                        </div>
+                        <button 
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`, borderRadius: '4px', backgroundColor: isDark ? '#1e293b' : '#ffffff', cursor: 'pointer', color: isDark ? 'white' : 'black' }}
+                          onClick={() => fireWidgetTriggers(comp, 'PTZ', { direction: 'RIGHT' })}
+                        >
+                          ▶
+                        </button>
+
+                        <div></div>
+                        <button 
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`, borderRadius: '4px', backgroundColor: isDark ? '#1e293b' : '#ffffff', cursor: 'pointer', color: isDark ? 'white' : 'black' }}
+                          onClick={() => fireWidgetTriggers(comp, 'PTZ', { direction: 'DOWN' })}
+                        >
+                          ▼
+                        </button>
+                        <div></div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {productCase === 'THERMOSTAT' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', height: '100%', justifyContent: 'space-between' }}>
+                  <div style={{ 
+                    margin: '0 auto', width: '110px', height: '110px', borderRadius: '50%',
+                    border: `4px solid ${isDark ? '#334155' : '#cbd5e1'}`, backgroundColor: isDark ? '#0f172a' : '#f8fafc',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: 'inset 0 4px 10px rgba(0,0,0,0.05), 0 4px 12px rgba(255, 95, 0, 0.1)',
+                    position: 'relative'
+                  }}>
+                    <span style={{ fontSize: '0.55rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Target Temp</span>
+                    <span style={{ fontSize: '1.8rem', fontWeight: 900, color: isDark ? '#f8fafc' : '#0f172a', lineHeight: 1 }}>
+                      {targetTempVal}°C
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginTop: '4px' }}>
+                      <Thermometer size={10} color="#ff5f00" />
+                      <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 600 }}>Room: {tempVal}°C</span>
+                    </div>
+                    <div style={{
+                      position: 'absolute', bottom: '10px', fontSize: '0.55rem', 
+                      color: mode === 'COOL' ? '#0ea5e9' : mode === 'HEAT' ? '#f43f5e' : '#94a3b8',
+                      fontWeight: 800
+                    }}>
+                      {mode === 'COOL' ? '❄️ COOLING' : mode === 'HEAT' ? '🔥 HEATING' : '⚙️ AUTO'}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', alignItems: 'center' }}>
+                    <button
+                      disabled={targetTempVal <= 16}
+                      style={{
+                        width: '32px', height: '32px', borderRadius: '50%',
+                        border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`, backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                        color: isDark ? '#ffffff' : '#000000', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: targetTempVal > 16 ? 'pointer' : 'not-allowed',
+                        fontSize: '1.1rem', fontWeight: 'bold'
+                      }}
+                      onClick={() => setVal(comp.id + '_targetTemperature', targetTempVal - 1, 'TargetTempChanged')}
+                    >
+                      -
+                    </button>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: isDark ? '#ffffff' : '#000000' }}>Adjust</span>
+                    <button
+                      disabled={targetTempVal >= 32}
+                      style={{
+                        width: '32px', height: '32px', borderRadius: '50%',
+                        border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`, backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                        color: isDark ? '#ffffff' : '#000000', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: targetTempVal < 32 ? 'pointer' : 'not-allowed',
+                        fontSize: '1.1rem', fontWeight: 'bold'
+                      }}
+                      onClick={() => setVal(comp.id + '_targetTemperature', targetTempVal + 1, 'TargetTempChanged')}
+                    >
+                      +
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ display: 'flex', backgroundColor: isDark ? '#0f172a' : '#cbd5e1', padding: '3px', borderRadius: '8px', gap: '2px' }}>
+                      {['AUTO', 'COOL', 'HEAT', 'FAN'].map(m => (
+                        <button
+                          key={m}
+                          style={{
+                            flex: 1, padding: '5px 0', border: 'none', borderRadius: '6px',
+                            fontSize: '0.65rem', fontWeight: 'bold',
+                            backgroundColor: mode === m ? (isDark ? '#1e293b' : '#ffffff') : 'transparent',
+                            color: mode === m ? '#ff5f00' : '#64748b',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s'
+                          }}
+                          onClick={() => setValText(comp.id + '_mode', m, 'ModeChanged')}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#64748b', backgroundColor: isDark ? '#0f172a' : '#f8fafc', padding: '6px 10px', borderRadius: '8px', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Droplets size={12} color="#0ea5e9" />
+                      <span>Humidity: 48%</span>
+                    </div>
+                    <span>Status: Idle</span>
+                  </div>
+                </div>
+              )}
+
+              {productCase === 'AIR_PURIFIER' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', height: '100%', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', backgroundColor: isDark ? '#0f172a' : '#f8fafc', padding: '12px', borderRadius: '12px', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}` }}>
+                    <div style={{ 
+                      width: '60px', height: '60px', borderRadius: '50%',
+                      border: `4px solid ${aqiValue <= 50 ? '#22c55e' : aqiValue <= 100 ? '#eab308' : '#ef4444'}`,
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
+                    }}>
+                      <span style={{ fontSize: '1.2rem', fontWeight: 900, color: isDark ? '#ffffff' : '#000000' }}>{aqiValue}</span>
+                      <span style={{ fontSize: '0.45rem', color: '#64748b', fontWeight: 800 }}>AQI PM2.5</span>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 700, color: isDark ? '#ffffff' : '#000000' }}>
+                        {aqiValue <= 50 ? 'Excellent Quality' : aqiValue <= 100 ? 'Moderate Quality' : 'Poor Quality'}
+                      </div>
+                      <span style={{ fontSize: '0.65rem', color: '#64748b' }}>
+                        HEPA Clean active
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: isDark ? '#0f172a' : '#f8fafc', padding: '8px 12px', borderRadius: '10px', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}` }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b' }}>Power State</span>
+                    <div 
+                      style={{
+                        width: '44px', height: '22px', borderRadius: '11px',
+                        backgroundColor: swOn ? '#ff5f00' : (isDark ? '#334155' : '#cbd5e1'),
+                        position: 'relative', transition: 'background-color 0.2s',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => setToggle(comp.id, !swOn)}
+                    >
+                      <div style={{
+                        position: 'absolute', top: '2px', left: swOn ? '24px' : '2px',
+                        width: '18px', height: '18px', borderRadius: '50%',
+                        backgroundColor: '#ffffff', transition: 'left 0.2s',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                      }} />
+                    </div>
+                  </div>
+
+                  {swOn && (
+                    <>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ display: 'flex', backgroundColor: isDark ? '#0f172a' : '#cbd5e1', padding: '3px', borderRadius: '8px', gap: '2px' }}>
+                          {['AUTO', 'LOW', 'MEDIUM', 'HIGH'].map(s => (
+                            <button
+                              key={s}
+                              style={{
+                                flex: 1, padding: '5px 0', border: 'none', borderRadius: '6px',
+                                fontSize: '0.65rem', fontWeight: 'bold',
+                                backgroundColor: fanSpeed === s ? (isDark ? '#1e293b' : '#ffffff') : 'transparent',
+                                color: fanSpeed === s ? '#ff5f00' : '#64748b',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                              }}
+                              onClick={() => setValText(comp.id + '_fanSpeed', s, 'FanSpeedChanged')}
+                            >
+                              {s}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', backgroundColor: isDark ? '#0f172a' : '#f8fafc', padding: '8px 12px', borderRadius: '10px', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}` }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#64748b' }}>
+                          <span>HEPA Filter Life</span>
+                          <span style={{ fontWeight: 'bold' }}>{filterLife}%</span>
+                        </div>
+                        <div style={{ width: '100%', height: '6px', backgroundColor: isDark ? '#334155' : '#cbd5e1', borderRadius: '3px', overflow: 'hidden' }}>
+                          <div style={{ width: `${filterLife}%`, height: '100%', backgroundColor: filterLife > 20 ? '#10b981' : '#ef4444', borderRadius: '3px' }} />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {productCase === 'ROBOT_VACUUM' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', height: '100%', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: isDark ? '#0f172a' : '#f8fafc', padding: '8px 12px', borderRadius: '10px', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ 
+                        width: '10px', height: '10px', borderRadius: '50%',
+                        backgroundColor: swOn ? '#22c55e' : locked ? '#3b82f6' : '#94a3b8',
+                        boxShadow: swOn ? '0 0 8px #22c55e' : 'none'
+                      }} />
+                      <span style={{ fontSize: '0.8rem', fontWeight: 700, color: isDark ? '#ffffff' : '#000000' }}>
+                        {swOn ? 'Sweeping...' : locked ? 'Charging' : 'Standby'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: '#64748b' }}>
+                      <BatteryCharging size={12} color="#22c55e" />
+                      <span>{locked ? '100%' : `${batteryLevel}%`}</span>
+                    </div>
+                  </div>
+
+                  <div style={{ 
+                    margin: '0 auto', width: '100px', height: '100px', borderRadius: '50%',
+                    border: `3px dashed ${isDark ? '#334155' : '#cbd5e1'}`, backgroundColor: isDark ? '#0f172a' : '#f8fafc',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    position: 'relative', overflow: 'hidden'
+                  }}>
+                    {swOn && (
+                      <div style={{
+                        position: 'absolute', width: '100%', height: '100%',
+                        background: 'conic-gradient(from 0deg, rgba(255, 95, 0, 0.15) 0deg, rgba(255, 95, 0, 0.3) 120deg, transparent 180deg)',
+                        animation: 'radar-sweep 3s linear infinite',
+                        pointerEvents: 'none'
+                      }} />
+                    )}
+                    <Cpu size={36} color={swOn ? '#ff5f00' : '#64748b'} style={{ zIndex: 2 }} />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button 
+                      style={{
+                        flex: 1, padding: '8px', borderRadius: '8px', border: 'none',
+                        backgroundColor: swOn ? '#e11d48' : '#ff5f00', color: '#ffffff',
+                        fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px'
+                      }}
+                      onClick={() => {
+                        const nextState = !swOn;
+                        setToggle(comp.id, nextState);
+                        if (nextState) {
+                          setToggle(comp.id + '_locked', false);
+                        }
+                      }}
+                    >
+                      <Power size={12} />
+                      {swOn ? 'Stop' : 'Start'}
+                    </button>
+                    <button 
+                      disabled={locked}
+                      style={{
+                        flex: 1, padding: '8px', borderRadius: '8px', 
+                        border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                        backgroundColor: locked ? (isDark ? '#0f172a' : '#cbd5e1') : (isDark ? '#1e293b' : '#ffffff'), 
+                        color: '#64748b',
+                        fontWeight: 'bold', fontSize: '0.75rem', cursor: !locked ? 'pointer' : 'default',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px'
+                      }}
+                      onClick={() => {
+                        setToggle(comp.id + '_locked', true, 'DockReturned');
+                        setToggle(comp.id, false);
+                      }}
+                    >
+                      Dock
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '0.65rem', color: '#64748b' }}>
+                    <div style={{ backgroundColor: isDark ? '#0f172a' : '#f8fafc', padding: '6px', borderRadius: '8px', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`, textAlign: 'center' }}>
+                      <div style={{ fontWeight: 800 }}>Area</div>
+                      <div>{swOn ? '14.2 m²' : '0.0 m²'}</div>
+                    </div>
+                    <div style={{ backgroundColor: isDark ? '#0f172a' : '#f8fafc', padding: '6px', borderRadius: '8px', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`, textAlign: 'center' }}>
+                      <div style={{ fontWeight: 800 }}>Time</div>
+                      <div>{swOn ? '18 min' : '0 min'}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {productCase === 'LOCK' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', height: '100%', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: isDark ? '#0f172a' : '#f8fafc', padding: '8px 12px', borderRadius: '10px', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}` }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: isDark ? '#ffffff' : '#000000' }}>Lock State</span>
+                    <span style={{ fontSize: '0.7rem', color: locked ? '#ef4444' : '#10b981', fontWeight: 'bold' }}>
+                      {locked ? '🔒 LOCKED' : '🔓 UNLOCKED'}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <button 
+                      style={{
+                        width: '90px', height: '90px', borderRadius: '50%',
+                        border: `4px solid ${locked ? '#ef4444' : '#10b981'}`,
+                        backgroundColor: isDark ? '#0f172a' : '#f8fafc', display: 'flex', flexDirection: 'column',
+                        alignItems: 'center', justifyContent: 'center', gap: '6px',
+                        cursor: 'pointer',
+                        boxShadow: locked ? '0 0 15px rgba(239, 68, 68, 0.15)' : '0 0 15px rgba(16, 185, 129, 0.15)',
+                        transition: 'all 0.2s'
+                      }}
+                      onClick={() => setToggle(comp.id + '_locked', !locked, 'LockStateChanged')}
+                    >
+                      {locked ? <Lock size={28} color="#ef4444" /> : <Unlock size={28} color="#10b981" />}
+                      <span style={{ fontSize: '0.5rem', fontWeight: 800, textTransform: 'uppercase', color: '#64748b' }}>
+                        {locked ? 'Open' : 'Lock'}
+                      </span>
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', backgroundColor: isDark ? '#0f172a' : '#f8fafc', padding: '6px 10px', borderRadius: '8px', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}` }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.65rem', color: '#64748b' }}>Temporary PIN</span>
+                      <button 
+                        style={{ border: 'none', background: 'transparent', color: '#ff5f00', fontSize: '0.65rem', fontWeight: 'bold', cursor: 'pointer' }}
+                        onClick={() => {
+                          const code = Math.floor(100000 + Math.random() * 900000);
+                          setVal(comp.id + '_pinCode', code, 'PINCodeGenerated');
+                        }}
+                      >
+                        Generate
+                      </button>
+                    </div>
+                    <div style={{ fontSize: '1rem', fontWeight: 800, letterSpacing: '2px', color: isDark ? '#ffffff' : '#000000', textAlign: 'center' }}>
+                      {sliderValues[comp.id + '_pinCode'] || '------'}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxHeight: '55px', overflowY: 'auto', fontSize: '0.6rem', color: '#64748b' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 4px', borderBottom: `1px solid ${isDark ? '#334155' : '#e2e8f0'}` }}>
+                        <span>Fingerprint (Admin)</span>
+                        <span>10:15 AM</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 4px' }}>
+                        <span>App Unlock (Operator)</span>
+                        <span>08:15 AM</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {productCase === 'SENSOR' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', height: '100%', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div style={{ backgroundColor: isDark ? '#0f172a' : '#f8fafc', padding: '8px', borderRadius: '10px', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.55rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Temp</span>
+                      <span style={{ fontSize: '1.2rem', fontWeight: 900, color: '#f43f5e' }}>{tempVal}°C</span>
+                    </div>
+                    <div style={{ backgroundColor: isDark ? '#0f172a' : '#f8fafc', padding: '8px', borderRadius: '10px', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.55rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Humidity</span>
+                      <span style={{ fontSize: '1.2rem', fontWeight: 900, color: '#0ea5e9' }}>48%</span>
+                    </div>
+                  </div>
+
+                  <div style={{ 
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                    backgroundColor: swOn ? (isDark ? '#7f1d1d' : '#fef2f2') : (isDark ? '#0f172a' : '#f8fafc'), padding: '8px 10px', 
+                    borderRadius: '10px', border: swOn ? '1px solid #fecaca' : `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s'
+                  }}
+                  onClick={() => setToggle(comp.id, !swOn, 'DoorStateChanged')}
+                  >
+                    <div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: swOn ? '#ef4444' : (isDark ? '#ffffff' : '#000000') }}>
+                        {swOn ? 'Door: OPEN' : 'Door: CLOSED'}
+                      </div>
+                      <span style={{ fontSize: '0.55rem', color: '#64748b' }}>Trigger sensor</span>
+                    </div>
+                    <span style={{ fontSize: '1.1rem' }}>{swOn ? '🚨' : '🚪'}</span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ height: '60px', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`, borderRadius: '8px', padding: '4px', backgroundColor: isDark ? '#0f172a' : '#f8fafc' }}>
+                      <svg viewBox="0 0 100 30" width="100%" height="100%" preserveAspectRatio="none">
+                        <line x1="0" y1="10" x2="100" y2="10" stroke={isDark ? '#334155' : '#e2e8f0'} strokeWidth="0.5" strokeDasharray="2,2" />
+                        <line x1="0" y1="20" x2="100" y2="20" stroke={isDark ? '#334155' : '#e2e8f0'} strokeWidth="0.5" strokeDasharray="2,2" />
+                        <path d="M 0 22 Q 20 12, 40 18 T 80 14 T 100 12" fill="none" stroke="#f43f5e" strokeWidth="1.5" />
+                        <path d="M 0 22 Q 20 12, 40 18 T 80 14 T 100 12 L 100 30 L 0 30 Z" fill="rgba(244, 63, 94, 0.08)" />
+                      </svg>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.6rem', color: '#64748b' }}>
+                    <span>Battery: {batteryLevel}%</span>
+                    <span>Signal: Excellent</span>
+                  </div>
+                </div>
+              )}
+
+              {productCase === 'PLUG' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', height: '100%', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', backgroundColor: isDark ? '#0f172a' : '#f8fafc', padding: '8px', borderRadius: '10px', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}` }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.5rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Active Load</span>
+                      <span style={{ fontSize: '1.1rem', fontWeight: 900, color: '#ff5f00' }}>
+                        {swOn ? (powerConsumption + (usbOn ? 4.2 : 0) + (locked ? 6.5 : 0)).toFixed(1) : '0.0'} W
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.5rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Energy</span>
+                      <span style={{ fontSize: '1.1rem', fontWeight: 900, color: isDark ? '#ffffff' : '#000000' }}>{totalEnergy} kWh</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', backgroundColor: isDark ? '#0f172a' : '#f8fafc', padding: '8px', borderRadius: '10px', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}` }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0', borderBottom: `1px solid ${isDark ? '#334155' : '#cbd5e1'}` }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem', fontWeight: 600, color: isDark ? '#ffffff' : '#000000' }}>
+                        <span style={{ width: '5px', height: '5px', backgroundColor: swOn ? '#22c55e' : '#cbd5e1', borderRadius: '50%' }} />
+                        <span>Socket 1</span>
+                      </div>
+                      <div 
+                        style={{
+                          width: '32px', height: '16px', borderRadius: '8px',
+                          backgroundColor: swOn ? '#ff5f00' : (isDark ? '#334155' : '#cbd5e1'),
+                          position: 'relative', transition: 'background-color 0.2s',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => setToggle(comp.id, !swOn, 'Outlet1Toggled')}
+                      >
+                        <div style={{
+                          position: 'absolute', top: '2px', left: swOn ? '18px' : '2px',
+                          width: '12px', height: '12px', borderRadius: '50%',
+                          backgroundColor: '#ffffff', transition: 'left 0.2s',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                        }} />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0', borderBottom: `1px solid ${isDark ? '#334155' : '#cbd5e1'}` }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem', fontWeight: 600, color: isDark ? '#ffffff' : '#000000' }}>
+                        <span style={{ width: '5px', height: '5px', backgroundColor: usbOn ? '#22c55e' : '#cbd5e1', borderRadius: '50%' }} />
+                        <span>Socket 2 (USB)</span>
+                      </div>
+                      <div 
+                        style={{
+                          width: '32px', height: '16px', borderRadius: '8px',
+                          backgroundColor: usbOn ? '#ff5f00' : (isDark ? '#334155' : '#cbd5e1'),
+                          position: 'relative', transition: 'background-color 0.2s',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => setToggle(comp.id + '_usbOn', !usbOn, 'Outlet2Toggled')}
+                      >
+                        <div style={{
+                          position: 'absolute', top: '2px', left: usbOn ? '18px' : '2px',
+                          width: '12px', height: '12px', borderRadius: '50%',
+                          backgroundColor: '#ffffff', transition: 'left 0.2s',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                        }} />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem', fontWeight: 600, color: isDark ? '#ffffff' : '#000000' }}>
+                        <span style={{ width: '5px', height: '5px', backgroundColor: !locked ? '#22c55e' : '#cbd5e1', borderRadius: '50%' }} />
+                        <span>Socket 3 (Plug)</span>
+                      </div>
+                      <div 
+                        style={{
+                          width: '32px', height: '16px', borderRadius: '8px',
+                          backgroundColor: !locked ? '#ff5f00' : (isDark ? '#334155' : '#cbd5e1'),
+                          position: 'relative', transition: 'background-color 0.2s',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => setToggle(comp.id + '_locked', !locked, 'Outlet3Toggled')}
+                      >
+                        <div style={{
+                          position: 'absolute', top: '2px', left: !locked ? '18px' : '2px',
+                          width: '12px', height: '12px', borderRadius: '50%',
+                          backgroundColor: '#ffffff', transition: 'left 0.2s',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                        }} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.6rem', color: '#64748b' }}>
+                    <span>WiFi: Active</span>
+                    <span>AC 220V</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         );
       }

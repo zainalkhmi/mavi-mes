@@ -38,6 +38,7 @@ import { createMaterialWarehouseTemplate } from '../utils/materialWarehouseTempl
 import { createQualityInspectionSuiteTemplate } from '../utils/qualityInspectionSuiteTemplate';
 import { createFrontlineQmsTemplate } from '../utils/frontlineQmsTemplate';
 import { createMaterialReviewBoardTemplate } from '../utils/materialReviewBoardTemplate';
+import { createSmartHomeTemplate } from '../utils/smartHomeTemplate';
 
 import { saveFrontlineApp, deleteFrontlineApp, getAllFrontlineApps } from '../utils/supabaseFrontlineDB';
 import {
@@ -349,7 +350,7 @@ const AppStore = () => {
         }
     };
 
-    const categories = ['All', 'App Management', 'Quality', 'Manufacturing', 'Production', 'MES Production Suite', 'Inventory App Suite', 'Warehouse', 'Automotive', 'Analytic'];
+    const categories = ['All', 'App Management', 'Quality', 'Manufacturing', 'Production', 'MES Production Suite', 'Inventory App Suite', 'Warehouse', 'Automotive', 'Analytic', 'SmartHome / IoT'];
 
 
     const rawTemplates = [
@@ -1327,6 +1328,33 @@ const AppStore = () => {
                     { name: 'Scrap Disposition', description: 'Log justification and upload evidence to scrap material.' },
                     { name: 'Rework Disposition', description: 'Specify instructions, assignee, and rework station.' },
                     { name: 'Use-As-Is Disposition', description: 'Input deviation justifications and engineering approval.' }
+                ]
+            }
+        },
+        {
+            id: 'smarthome-iot',
+            name: 'SmartHome Control Center',
+            category: 'SmartHome / IoT',
+            description: 'Command and monitor smart switches, lighting, thermostats, cameras, locks, and vacuums in real-time.',
+            longDescription: 'A premium smart home dashboard template featuring full integrations with Tuya, Bardi, and Sonoff devices. Allows toggling power, setting temperature and brightness levels, monitoring sensors, and securing your home.',
+            icon: <Cpu size={28} color="#ff5f00" />,
+            bg: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
+            accent: '#ff5f00',
+            rating: 4.9,
+            installs: 'New',
+            features: ['Multi-brand Compatibility', 'MQTT Real-time Sync', 'Security Arming'],
+            guide: {
+                operation: '1. View active device status\n2. Toggle smart switch power outlets\n3. Adjust lighting brightness/color\n4. Set AC temperature\n5. Arm/Disarm home security system',
+                widgets: ['SmartHome Controller', 'Tuya Smart IoT Product', 'Interactive Gauge', 'Action Buttons'],
+                components: ['Living Room Control Panel', 'Security & Sensors Panel', 'System Logs & Metrics Gauge'],
+                tables: [],
+                triggers: [
+                    { event: 'ARM_SECURITY', function: 'Sets Security_Status variable to ARMED and sends notification.' },
+                    { event: 'DISARM_SECURITY', function: 'Sets Security_Status variable to DISARMED and logs time.' }
+                ],
+                mechanism: 'Binds UI components to MQTT topics for real-time publishing and updates.',
+                steps: [
+                    { name: 'SmartHome Panel', description: 'Consolidated dashboard for all active smart home and security IoT devices.' }
                 ]
             }
         }
@@ -3492,6 +3520,8 @@ const AppStore = () => {
                 } catch (mrbErr) {
                     console.warn('Could not create Material Review Board tables:', mrbErr);
                 }
+            } else if (templateId === 'smarthome-iot') {
+                templateApp = createSmartHomeTemplate();
             } else {
                 toast.error('Template not found', { id: loadingToast });
                 return;

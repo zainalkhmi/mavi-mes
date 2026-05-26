@@ -10,7 +10,8 @@ Analyze the provided document (SOP, PDF, or Image) and extract the manufacturing
 VALID COMPONENT TYPES (USE ONLY THESE):
 TEXT, IMAGE, CHECKLIST, BUTTON, TEXT_INPUT, TEXT_AREA, DROPDOWN, SIGNATURE, 
 QUALITY_PASS_FAIL, CAMERA_CAPTURE, RADIO_GROUP, CHECKBOX, GAUGE, INTERACTIVE_TABLE,
-SHAPE_RECTANGLE, NUMBER_INPUT, VARIABLE_TEXT, SLIDER, DATE_PICKER, DATETIME_PICKER
+SHAPE_RECTANGLE, NUMBER_INPUT, VARIABLE_TEXT, SLIDER, DATE_PICKER, DATETIME_PICKER,
+SMARTHOME_DEVICE, TUYA_PRODUCT
 
 Output MUST be a valid JSON object following this schema:
 {
@@ -387,12 +388,13 @@ const WIDGET_CATALOG = {
     STORAGE: ['CLOUD_DB','TINY_DB','DATA_FILE','FILE','SPREADSHEET'],
     OBD2: ['OBD2_SCANNER','OBD2_RPM','OBD2_SPEED','OBD2_COOLANT_TEMP','OBD2_THROTTLE','OBD2_ENGINE_LOAD','OBD2_FUEL_LEVEL','OBD2_BATTERY_VOLTAGE','OBD2_DTC'],
     DRAWING: ['CANVAS','BALL','IMAGE_SPRITE'],
-    SYSTEM: ['TIMER','IOT_DEVICE','IOT_CONNECTOR','DATABASE_CONNECTOR','API_CONNECTOR','LOGIC_NODE','EVENT_TRIGGER','CAMERA_SCANNER']
+    SYSTEM: ['TIMER','IOT_DEVICE','IOT_CONNECTOR','DATABASE_CONNECTOR','API_CONNECTOR','LOGIC_NODE','EVENT_TRIGGER','CAMERA_SCANNER'],
+    SMARTHOME: ['SMARTHOME_DEVICE','TUYA_PRODUCT']
 };
 
 const getBuilderSystemPrompt = (context) => {
   return `
-ROLE: You are "Mavi Enterprise Architect AI" — an elite multi-agent system for building world-class industrial MES applications.
+ROLE: You are "Mavi Enterprise & IoT Architect AI" — an elite multi-agent system for building world-class industrial MES and SmartHome IoT applications.
 
 ════════════════════════════════════════════════
 📦 COMPLETE WIDGET CATALOG (USE ONLY THESE EXACT TYPES)
@@ -433,6 +435,7 @@ Grid: multiples of 4. Standard sizes:
   CAMERA_CAPTURE(w=440,h=300) | BARCODE_SCANNER(w=320,h=280)
   TABLE_AGGREGATION(w=200,h=80) | RECORD_DISPLAY(w=440,h=240)
   AI_CHAT(w=440,h=400) | MAP(w=960,h=360) | STEP_TIME(w=200,h=60)
+  SMARTHOME_DEVICE(w=220,h=140) | TUYA_PRODUCT(w=320,h=420)
 
 Columns:
   Full-width: x=20, w=960
@@ -490,6 +493,8 @@ VISION_MEASUREMENT: {label:"Measurement", unit:"mm", precision:2, min:0, max:100
 CUSTOM_WIDGET: {title:"Custom", htmlTemplate:"<div></div>", cssTemplate:"", jsTemplate:""}
 MAP: {center:"-6.2,106.8", zoomLevel:14, mapType:"Roads", enablePan:true, showUser:false}
 OBD2_SCANNER: {label:"OBD2 Scanner", transport:"BLUETOOTH", protocol:"AUTO"}
+SMARTHOME_DEVICE: {deviceName:"Smart Switch", deviceBrand:"TUYA|BARDI|SONOFF", deviceType:"SWITCH|BULB|THERMOSTAT|AIR_CON", on:false, brightness:100, temperature:24}
+TUYA_PRODUCT: {deviceName:"Tuya Smart Light", productCase:"LIGHTING|CAMERA|THERMOSTAT|AIR_PURIFIER|ROBOT_VACUUM|LOCK|PLUG|SENSOR", on:false, brightness:80, colorTemp:50, colorHex:"#ff5f00", temperature:24, targetTemperature:22, fanSpeed:"AUTO|LOW|MEDIUM|HIGH", mode:"AUTO|COOL|HEAT|DRY", batteryLevel:85, aqiValue:12, filterLife:92, locked:true, usbOn:false, powerConsumption:12.5, totalEnergy:4.8}
 
 ════════════════════════════════════════════════
 🔧 COMMANDS — BUILD (Create new elements)

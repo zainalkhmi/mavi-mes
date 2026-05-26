@@ -167,7 +167,8 @@ import {
     Wrench,
     Ruler,
     Disc,
-    Minus
+    Minus,
+    Power
 } from 'lucide-react';
 
 // --- Device Presets for Builder/Preview Canvas ---
@@ -725,6 +726,61 @@ const COMPONENT_TYPES = {
             visible: true,
             triggers: [],
             visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SMARTHOME_DEVICE: {
+        id: 'SMARTHOME_DEVICE',
+        label: 'SmartHome Controller',
+        icon: Home,
+        defaultSize: { w: 220, h: 140 },
+        defaultProps: {
+            deviceName: 'Smart Switch',
+            deviceBrand: 'TUYA', // 'TUYA', 'BARDI', 'SONOFF', 'CUSTOM'
+            deviceType: 'SWITCH', // 'SWITCH', 'BULB', 'THERMOSTAT', 'AIR_CON'
+            on: false,
+            brightness: 100,
+            temperature: 24,
+            mqttTopic: 'tuya/device/state',
+            mqttPublishTopic: 'tuya/device/set',
+            visible: true,
+            enabled: true,
+            textColor: 'var(--text-primary)',
+            backgroundColor: 'var(--bg-panel)',
+            triggers: [],
+            rotation: 0
+        }
+    },
+    TUYA_PRODUCT: {
+        id: 'TUYA_PRODUCT',
+        label: 'Tuya Smart IoT Product',
+        icon: Cpu,
+        defaultSize: { w: 320, h: 420 },
+        defaultProps: {
+            deviceName: 'Tuya Smart Light',
+            productCase: 'LIGHTING', // 'LIGHTING', 'CAMERA', 'THERMOSTAT', 'AIR_PURIFIER', 'ROBOT_VACUUM', 'LOCK', 'SENSOR', 'PLUG'
+            on: false,
+            brightness: 80,
+            colorTemp: 50,
+            colorHex: '#ff5f00',
+            temperature: 24,
+            targetTemperature: 22,
+            fanSpeed: 'AUTO',
+            mode: 'AUTO',
+            batteryLevel: 85,
+            aqiValue: 12,
+            filterLife: 92,
+            locked: true,
+            usbOn: false,
+            powerConsumption: 12.5,
+            totalEnergy: 4.8,
+            mqttTopic: 'tuya/iot/state',
+            mqttPublishTopic: 'tuya/iot/set',
+            visible: true,
+            enabled: true,
+            textColor: 'var(--text-primary)',
+            backgroundColor: 'var(--bg-panel)',
+            triggers: [],
             rotation: 0
         }
     },
@@ -1483,6 +1539,12 @@ const CATEGORIZED_COMPONENTS = {
             'NOTIFIER', 'CUSTOM_WIDGET', 'PRINT_AREA'
         ]
     },
+    SMARTHOME: {
+        label: 'Smart Home',
+        icon: Home,
+        color: '#10b981',
+        types: ['SMARTHOME_DEVICE', 'TUYA_PRODUCT']
+    },
     QUALITY: {
         label: 'Quality & Inspection',
         icon: Activity,
@@ -1599,11 +1661,11 @@ const DEVICE_TRIGGER_COMPONENT_TYPES = [
 const FORM_BINDABLE_COMPONENT_TYPES = [
     'TEXT_INPUT', 'TEXT_AREA', 'DROPDOWN', 'RADIO_GROUP', 'MULTI_SELECT', 'NUMBER_INPUT', 'DATE_PICKER',
     'DATETIME_PICKER', 'BOOLEAN_TOGGLE', 'BARCODE', 'CAMERA_SCANNER', 'VISION_DETECTOR', 'VISION_MEASUREMENT', 'MENU',
-    'SLIDER', 'CHECKBOX', 'LIST_PICKER', 'LIST_VIEW', 'PASSWORD_TEXT', 'SPEECH_RECOGNIZER'
+    'SLIDER', 'CHECKBOX', 'LIST_PICKER', 'LIST_VIEW', 'PASSWORD_TEXT', 'SPEECH_RECOGNIZER', 'SMARTHOME_DEVICE', 'TUYA_PRODUCT'
 ];
 const INPUT_WIDGET_TYPES_WITH_DATASOURCE = [
     'TEXT_INPUT', 'TEXT_AREA', 'NUMBER_INPUT', 'DATE_PICKER', 'DATETIME_PICKER', 'BOOLEAN_TOGGLE',
-    'DROPDOWN', 'MULTI_SELECT', 'CHECKBOX', 'PASSWORD_TEXT', 'LIST_PICKER', 'LIST_VIEW', 'SPEECH_RECOGNIZER'
+    'DROPDOWN', 'MULTI_SELECT', 'CHECKBOX', 'PASSWORD_TEXT', 'LIST_PICKER', 'LIST_VIEW', 'SPEECH_RECOGNIZER', 'SMARTHOME_DEVICE', 'TUYA_PRODUCT'
 ];
 const FORM_STEP_TYPES = ['Form Step', 'Signature Form'];
 
@@ -10857,6 +10919,1073 @@ const AppBuilder = () => {
                     </div>
                 );
             }
+            case 'SMARTHOME_DEVICE': {
+                const deviceType = comp.props.deviceType || 'SWITCH';
+                const deviceBrand = comp.props.deviceBrand || 'TUYA';
+                const deviceName = comp.props.deviceName || 'Smart Switch';
+                const mqttPublishTopic = comp.props.mqttPublishTopic || '';
+                
+                // State resolution from MQTT live data if configured
+                const mqttData = comp.props.iotTopicId ? iotLiveData[comp.props.iotTopicId]?.payload : null;
+                let parsedState = null;
+                if (mqttData !== null && mqttData !== undefined) {
+                    const rawVal = String(mqttData).trim().toUpperCase();
+                    if (rawVal === 'ON' || rawVal === 'TRUE' || rawVal === '1') {
+                        parsedState = true;
+                    } else if (rawVal === 'OFF' || rawVal === 'FALSE' || rawVal === '0') {
+                        parsedState = false;
+                    } else {
+                        try {
+                            const json = JSON.parse(mqttData);
+                            if (json.state !== undefined) {
+                                const s = String(json.state).toUpperCase();
+                                parsedState = (s === 'ON' || s === 'TRUE' || s === '1');
+                            } else if (json.on !== undefined) {
+                                parsedState = Boolean(json.on);
+                            }
+                        } catch (e) {}
+                    }
+                }
+                
+                const swOn = previewToggleState[comp.id] ?? parsedState ?? resolveComponentDatasourceValue(comp, comp.props.on ?? false);
+                const brVal = previewFormValues[comp.id + '_brightness'] ?? comp.props.brightness ?? 100;
+                const tempVal = previewFormValues[comp.id + '_temperature'] ?? comp.props.temperature ?? 24;
+                
+                const cardStyle = {
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: comp.props.backgroundColor || 'var(--bg-panel)',
+                    border: '1px solid var(--border-primary)',
+                    borderRadius: '12px',
+                    padding: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+                    fontFamily: 'inherit',
+                    position: 'relative',
+                    overflow: 'hidden'
+                };
+                
+                // Brand color selection
+                let brandBg = 'linear-gradient(135deg, #64748b, #475569)';
+                if (deviceBrand === 'TUYA') brandBg = 'linear-gradient(135deg, #ff5f00, #ff8c00)';
+                else if (deviceBrand === 'BARDI') brandBg = 'linear-gradient(135deg, #2563eb, #1d4ed8)';
+                else if (deviceBrand === 'SONOFF') brandBg = 'linear-gradient(135deg, #0d9488, #0f766e)';
+                
+                return (
+                    <div style={cardStyle}>
+                        {/* Top Bar: Brand Badge & Status */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ 
+                                background: brandBg, 
+                                color: '#ffffff', 
+                                fontSize: '0.65rem', 
+                                fontWeight: 800, 
+                                padding: '2px 6px', 
+                                borderRadius: '4px',
+                                textTransform: 'uppercase'
+                            }}>
+                                {deviceBrand}
+                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span style={{ 
+                                    width: '6px', 
+                                    height: '6px', 
+                                    backgroundColor: '#22c55e', 
+                                    borderRadius: '50%',
+                                    display: 'inline-block'
+                                }}></span>
+                                <span style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>Online</span>
+                            </div>
+                        </div>
+                        
+                        {/* Device Info */}
+                        <div>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {deviceName}
+                            </div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', textTransform: 'uppercase', fontWeight: 600 }}>
+                                {deviceType.replace('_', ' ')}
+                            </div>
+                        </div>
+                        
+                        {/* Control Section */}
+                        <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '6px' }}>
+                            {(deviceType === 'SWITCH' || deviceType === 'BULB') && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Power</span>
+                                        <div 
+                                            style={{
+                                                width: '40px', height: '20px', borderRadius: '10px',
+                                                backgroundColor: swOn ? '#22c55e' : '#cbd5e1',
+                                                position: 'relative', transition: 'background-color 0.2s',
+                                                cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default',
+                                                border: '1px solid rgba(0,0,0,0.05)'
+                                            }}
+                                            onClick={() => {
+                                                if (viewMode !== 'PREVIEW') return;
+                                                const newState = !swOn;
+                                                setPreviewToggleState(prev => ({ ...prev, [comp.id]: newState }));
+                                                setPreviewFormValues(prev => ({ ...prev, [comp.id]: newState }));
+                                                
+                                                if (mqttPublishTopic) {
+                                                    const payload = comp.props.jsonPayload 
+                                                        ? JSON.stringify({ state: newState ? 'ON' : 'OFF' }) 
+                                                        : (newState ? 'ON' : 'OFF');
+                                                    iotConnector.publish(mqttPublishTopic, payload);
+                                                }
+                                                onWidgetInteraction(comp, 'Changed', { on: newState });
+                                            }}
+                                        >
+                                            <div style={{
+                                                position: 'absolute', top: '2px', left: swOn ? '22px' : '2px',
+                                                width: '14px', height: '14px', borderRadius: '50%',
+                                                backgroundColor: '#ffffff', transition: 'left 0.2s',
+                                                boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                                            }} />
+                                        </div>
+                                    </div>
+                                    
+                                    {deviceType === 'BULB' && swOn && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <Sun size={12} style={{ color: '#eab308' }} />
+                                            <input 
+                                                type="range" 
+                                                min="10" 
+                                                max="100" 
+                                                value={brVal}
+                                                style={{ flexGrow: 1, height: '4px', cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default' }}
+                                                onChange={(e) => {
+                                                    if (viewMode !== 'PREVIEW') return;
+                                                    const nextBr = parseInt(e.target.value);
+                                                    setPreviewFormValues(prev => ({ ...prev, [comp.id + '_brightness']: nextBr }));
+                                                    if (mqttPublishTopic) {
+                                                        const payload = comp.props.jsonPayload 
+                                                            ? JSON.stringify({ brightness: nextBr }) 
+                                                            : String(nextBr);
+                                                        iotConnector.publish(mqttPublishTopic, payload);
+                                                    }
+                                                    onWidgetInteraction(comp, 'BrightnessChanged', { brightness: nextBr });
+                                                }}
+                                            />
+                                            <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', minWidth: '24px' }}>{brVal}%</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            
+                            {(deviceType === 'THERMOSTAT' || deviceType === 'AIR_CON') && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 4px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        {deviceType === 'AIR_CON' ? <Wind size={16} style={{ color: '#0ea5e9' }} /> : <Thermometer size={16} style={{ color: '#f43f5e' }} />}
+                                        <span style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)' }}>{tempVal}°C</span>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                        <button 
+                                            disabled={viewMode !== 'PREVIEW' || tempVal <= 16}
+                                            style={{
+                                                width: '24px', height: '24px', borderRadius: '50%',
+                                                border: '1px solid var(--border-primary)',
+                                                backgroundColor: 'var(--bg-card)',
+                                                color: 'var(--text-primary)',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                cursor: (viewMode === 'PREVIEW' && tempVal > 16) ? 'pointer' : 'not-allowed',
+                                                fontSize: '0.9rem', fontWeight: 'bold'
+                                            }}
+                                            onClick={() => {
+                                                const nextTemp = tempVal - 1;
+                                                setPreviewFormValues(prev => ({ ...prev, [comp.id + '_temperature']: nextTemp }));
+                                                if (mqttPublishTopic) {
+                                                    const payload = comp.props.jsonPayload 
+                                                        ? JSON.stringify({ temperature: nextTemp }) 
+                                                        : String(nextTemp);
+                                                    iotConnector.publish(mqttPublishTopic, payload);
+                                                }
+                                                onWidgetInteraction(comp, 'TemperatureChanged', { temperature: nextTemp });
+                                            }}
+                                        >
+                                            -
+                                        </button>
+                                        <button 
+                                            disabled={viewMode !== 'PREVIEW' || tempVal >= 30}
+                                            style={{
+                                                width: '24px', height: '24px', borderRadius: '50%',
+                                                border: '1px solid var(--border-primary)',
+                                                backgroundColor: 'var(--bg-card)',
+                                                color: 'var(--text-primary)',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                cursor: (viewMode === 'PREVIEW' && tempVal < 30) ? 'pointer' : 'not-allowed',
+                                                fontSize: '0.9rem', fontWeight: 'bold'
+                                            }}
+                                            onClick={() => {
+                                                const nextTemp = tempVal + 1;
+                                                setPreviewFormValues(prev => ({ ...prev, [comp.id + '_temperature']: nextTemp }));
+                                                if (mqttPublishTopic) {
+                                                    const payload = comp.props.jsonPayload 
+                                                        ? JSON.stringify({ temperature: nextTemp }) 
+                                                        : String(nextTemp);
+                                                    iotConnector.publish(mqttPublishTopic, payload);
+                                                }
+                                                onWidgetInteraction(comp, 'TemperatureChanged', { temperature: nextTemp });
+                                            }}
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
+            case 'TUYA_PRODUCT': {
+                const productCase = comp.props.productCase || 'LIGHTING';
+                const deviceName = comp.props.deviceName || 'Tuya Smart Product';
+                const mqttPublishTopic = comp.props.mqttPublishTopic || '';
+                const pVisible = comp.props.visible !== false;
+                const pEnabled = comp.props.enabled !== false;
+
+                if (!pVisible && viewMode === 'PREVIEW') return null;
+
+                // State resolution from MQTT or local preview state
+                const mqttData = comp.props.iotTopicId ? iotLiveData[comp.props.iotTopicId]?.payload : null;
+                let parsedMqttState = {};
+                if (mqttData !== null && mqttData !== undefined) {
+                    try {
+                        const parsed = typeof mqttData === 'string' ? JSON.parse(mqttData) : mqttData;
+                        if (typeof parsed === 'object') {
+                            parsedMqttState = parsed;
+                        }
+                    } catch (e) {}
+                }
+
+                // local preview values or mqtt values
+                const swOn = previewToggleState[comp.id] ?? parsedMqttState.on ?? resolveComponentDatasourceValue(comp, comp.props.on ?? false);
+                const brVal = previewFormValues[comp.id + '_brightness'] ?? parsedMqttState.brightness ?? comp.props.brightness ?? 80;
+                const colorTemp = previewFormValues[comp.id + '_colorTemp'] ?? parsedMqttState.colorTemp ?? comp.props.colorTemp ?? 50;
+                const colorHex = previewFormValues[comp.id + '_colorHex'] ?? parsedMqttState.colorHex ?? comp.props.colorHex ?? '#ff5f00';
+                const tempVal = previewFormValues[comp.id + '_temperature'] ?? parsedMqttState.temperature ?? comp.props.temperature ?? 24;
+                const targetTempVal = previewFormValues[comp.id + '_targetTemperature'] ?? parsedMqttState.targetTemperature ?? comp.props.targetTemperature ?? 22;
+                const fanSpeed = previewFormValues[comp.id + '_fanSpeed'] ?? parsedMqttState.fanSpeed ?? comp.props.fanSpeed ?? 'AUTO';
+                const mode = previewFormValues[comp.id + '_mode'] ?? parsedMqttState.mode ?? comp.props.mode ?? 'AUTO';
+                const locked = previewToggleState[comp.id + '_locked'] ?? parsedMqttState.locked ?? comp.props.locked ?? true;
+                const usbOn = previewToggleState[comp.id + '_usbOn'] ?? parsedMqttState.usbOn ?? comp.props.usbOn ?? false;
+                const powerConsumption = previewFormValues[comp.id + '_powerConsumption'] ?? parsedMqttState.powerConsumption ?? comp.props.powerConsumption ?? 12.5;
+                const totalEnergy = previewFormValues[comp.id + '_totalEnergy'] ?? parsedMqttState.totalEnergy ?? comp.props.totalEnergy ?? 4.8;
+                const aqiValue = previewFormValues[comp.id + '_aqiValue'] ?? parsedMqttState.aqiValue ?? comp.props.aqiValue ?? 12;
+                const filterLife = previewFormValues[comp.id + '_filterLife'] ?? parsedMqttState.filterLife ?? comp.props.filterLife ?? 92;
+                const batteryLevel = previewFormValues[comp.id + '_batteryLevel'] ?? parsedMqttState.batteryLevel ?? comp.props.batteryLevel ?? 85;
+
+                // State setter helpers
+                const setVal = (key, val, interactionEvent = 'Changed') => {
+                    setPreviewFormValues(prev => ({ ...prev, [key]: val }));
+                    if (mqttPublishTopic) {
+                        const payload = comp.props.jsonPayload 
+                            ? JSON.stringify({ [key.replace(comp.id + '_', '')]: val }) 
+                            : String(val);
+                        iotConnector.publish(mqttPublishTopic, payload);
+                    }
+                    onWidgetInteraction(comp, interactionEvent, { [key.replace(comp.id + '_', '')]: val });
+                };
+
+                const setToggle = (key, val, interactionEvent = 'Changed') => {
+                    setPreviewToggleState(prev => ({ ...prev, [key]: val }));
+                    if (mqttPublishTopic) {
+                        const payload = comp.props.jsonPayload 
+                            ? JSON.stringify({ [key.replace(comp.id + '_', '').replace(comp.id, 'on')]: val }) 
+                            : String(val);
+                        iotConnector.publish(mqttPublishTopic, payload);
+                    }
+                    onWidgetInteraction(comp, interactionEvent, { [key.replace(comp.id + '_', '').replace(comp.id, 'on')]: val });
+                };
+
+                // Styling
+                const cardStyle = {
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: comp.props.backgroundColor || 'var(--bg-panel)',
+                    border: '1px solid var(--border-primary)',
+                    borderRadius: '16px',
+                    padding: '16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02)',
+                    fontFamily: 'inherit',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    boxSizing: 'border-box',
+                    opacity: pEnabled ? 1 : 0.6
+                };
+
+                const tuyaOrangeGradient = 'linear-gradient(135deg, #ff5f00, #ff8c00)';
+
+                return (
+                    <div style={cardStyle}>
+                        <style>{`
+                            @keyframes mavi-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+                            @keyframes radar-sweep { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+                        `}</style>
+                        {/* Header: Badge & Status */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ 
+                                    background: tuyaOrangeGradient, 
+                                    color: '#ffffff', 
+                                    fontSize: '0.65rem', 
+                                    fontWeight: 900, 
+                                    padding: '3px 8px', 
+                                    borderRadius: '6px',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.5px'
+                                }}>
+                                    TUYA
+                                </span>
+                                <span style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)', fontWeight: 700 }}>
+                                    • Client
+                                </span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ 
+                                    width: '8px', 
+                                    height: '8px', 
+                                    backgroundColor: '#22c55e', 
+                                    borderRadius: '50%',
+                                    display: 'inline-block',
+                                    boxShadow: '0 0 8px #22c55e'
+                                }}></span>
+                                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Active</span>
+                            </div>
+                        </div>
+
+                        {/* Title Section */}
+                        <div>
+                            <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {deviceName}
+                            </div>
+                            <div style={{ fontSize: '0.65rem', color: '#ff5f00', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.5px', marginTop: '2px' }}>
+                                Case: {productCase.replace('_', ' ')}
+                            </div>
+                        </div>
+
+                        <div style={{ height: '1px', backgroundColor: 'var(--border-secondary)', margin: '4px 0' }} />
+
+                        {/* Content Body */}
+                        <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '12px', justifyContent: 'flex-start', overflowY: 'auto', paddingRight: '2px' }}>
+                            {productCase === 'LIGHTING' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                                    <div style={{ 
+                                        position: 'relative',
+                                        width: '80px',
+                                        height: '80px',
+                                        borderRadius: '50%',
+                                        backgroundColor: swOn ? colorHex : 'var(--bg-card)',
+                                        border: '2px solid var(--border-primary)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxShadow: swOn ? `0 0 ${brVal / 2}px ${colorHex}, inset 0 0 15px rgba(255,255,255,0.4)` : 'none',
+                                        transition: 'all 0.3s ease'
+                                    }}>
+                                        <Sun size={36} color={swOn ? '#ffffff' : 'var(--text-quaternary)'} style={{ opacity: swOn ? (brVal / 100) : 0.4 }} />
+                                    </div>
+
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', backgroundColor: 'var(--bg-card)', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-secondary)' }}>
+                                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Power State</span>
+                                        <div 
+                                            style={{
+                                                width: '44px', height: '22px', borderRadius: '11px',
+                                                backgroundColor: swOn ? '#ff5f00' : 'var(--border-primary)',
+                                                position: 'relative', transition: 'background-color 0.2s',
+                                                cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default'
+                                            }}
+                                            onClick={() => {
+                                                if (viewMode !== 'PREVIEW') return;
+                                                setToggle(comp.id, !swOn);
+                                            }}
+                                        >
+                                            <div style={{
+                                                position: 'absolute', top: '2px', left: swOn ? '24px' : '2px',
+                                                width: '18px', height: '18px', borderRadius: '50%',
+                                                backgroundColor: '#ffffff', transition: 'left 0.2s',
+                                                boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                                            }} />
+                                        </div>
+                                    </div>
+
+                                    {swOn && (
+                                        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                                    <span>Brightness</span>
+                                                    <span>{brVal}%</span>
+                                                </div>
+                                                <input 
+                                                    type="range" min="10" max="100" value={brVal}
+                                                    style={{ width: '100%', height: '6px', borderRadius: '3px', cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default', accentColor: '#ff5f00' }}
+                                                    onChange={(e) => {
+                                                        if (viewMode !== 'PREVIEW') return;
+                                                        setVal(comp.id + '_brightness', parseInt(e.target.value), 'BrightnessChanged');
+                                                    }}
+                                                />
+                                            </div>
+
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                                    <span>Color Temperature</span>
+                                                    <span>{colorTemp}%</span>
+                                                </div>
+                                                <input 
+                                                    type="range" min="0" max="100" value={colorTemp}
+                                                    style={{ 
+                                                        width: '100%', height: '6px', borderRadius: '3px', 
+                                                        cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default', 
+                                                        background: 'linear-gradient(to right, #ffb050, #ffebd5, #c8e0ff)',
+                                                        accentColor: '#3b82f6'
+                                                    }}
+                                                    onChange={(e) => {
+                                                        if (viewMode !== 'PREVIEW') return;
+                                                        setVal(comp.id + '_colorTemp', parseInt(e.target.value), 'ColorTempChanged');
+                                                    }}
+                                                />
+                                            </div>
+
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Presets</span>
+                                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
+                                                    {['#ff5f00', '#ff0000', '#00ff00', '#0000ff', '#8b00ff', '#ffd700'].map(preset => (
+                                                        <div 
+                                                            key={preset}
+                                                            style={{
+                                                                width: '20px', height: '20px', borderRadius: '50%',
+                                                                backgroundColor: preset, border: colorHex === preset ? '2px solid var(--text-primary)' : '1px solid var(--border-primary)',
+                                                                cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default',
+                                                                transform: colorHex === preset ? 'scale(1.2)' : 'none',
+                                                                transition: 'transform 0.1s'
+                                                            }}
+                                                            onClick={() => {
+                                                                if (viewMode !== 'PREVIEW') return;
+                                                                setVal(comp.id + '_colorHex', preset, 'ColorHexChanged');
+                                                            }}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {productCase === 'CAMERA' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', height: '100%' }}>
+                                    <div style={{ 
+                                        position: 'relative', height: '130px', backgroundColor: '#000000', 
+                                        borderRadius: '10px', overflow: 'hidden', display: 'flex', 
+                                        alignItems: 'center', justifyContent: 'center', border: '1px solid #334155'
+                                    }}>
+                                        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06))', backgroundSize: '100% 4px, 6px 100%', pointerEvents: 'none' }} />
+                                        
+                                        <div style={{ textAlign: 'center', color: '#64748b', fontSize: '0.8rem', zIndex: 1 }}>
+                                            <Video size={36} color="#475569" style={{ margin: '0 auto 6px', display: 'block', animation: swOn ? 'pulse 2s infinite' : 'none' }} />
+                                            <span>{swOn ? 'STREAMING LIVE (1080P)' : 'CAMERA STANDBY'}</span>
+                                        </div>
+
+                                        {swOn && (
+                                            <>
+                                                <div style={{ position: 'absolute', top: '8px', left: '8px', display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: 'rgba(0,0,0,0.5)', padding: '2px 6px', borderRadius: '4px', zIndex: 2 }}>
+                                                    <span style={{ width: '6px', height: '6px', backgroundColor: '#ef4444', borderRadius: '50%', display: 'inline-block', animation: 'mavi-blink 1s infinite' }}></span>
+                                                    <span style={{ fontSize: '0.55rem', color: '#ffffff', fontWeight: 'bold' }}>REC</span>
+                                                </div>
+                                                <div style={{ position: 'absolute', bottom: '8px', left: '8px', color: '#ffffff', fontSize: '0.55rem', fontFamily: 'monospace', backgroundColor: 'rgba(0,0,0,0.5)', padding: '2px 6px', borderRadius: '4px', zIndex: 2 }}>
+                                                    CAM-01 | {new Date().toISOString().slice(0, 10)}
+                                                </div>
+                                                <div style={{ position: 'absolute', inset: 0, border: '2px solid rgba(255, 95, 0, 0.3)', pointerEvents: 'none' }} />
+                                            </>
+                                        )}
+                                    </div>
+
+                                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                        <button 
+                                            style={{
+                                                flex: 1, padding: '8px', borderRadius: '8px', border: 'none',
+                                                backgroundColor: swOn ? '#ef4444' : '#ff5f00', color: '#ffffff',
+                                                fontWeight: 'bold', fontSize: '0.75rem', cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px'
+                                            }}
+                                            onClick={() => {
+                                                if (viewMode !== 'PREVIEW') return;
+                                                setToggle(comp.id, !swOn);
+                                            }}
+                                        >
+                                            <Power size={12} />
+                                            {swOn ? 'Turn Off' : 'Turn On'}
+                                        </button>
+
+                                        {swOn && (
+                                            <div style={{ display: 'flex', gap: '6px' }}>
+                                                <button 
+                                                    style={{
+                                                        padding: '8px', borderRadius: '8px', border: '1px solid var(--border-primary)',
+                                                        backgroundColor: usbOn ? '#3b82f6' : 'var(--bg-card)', color: usbOn ? '#ffffff' : 'var(--text-secondary)',
+                                                        cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default'
+                                                    }}
+                                                    onClick={() => {
+                                                        if (viewMode !== 'PREVIEW') return;
+                                                        setToggle(comp.id + '_usbOn', !usbOn, 'MicrophoneToggled');
+                                                    }}
+                                                    title="Toggle Microphone"
+                                                >
+                                                    <Mic size={14} style={{ color: usbOn ? '#ffffff' : 'inherit' }} />
+                                                </button>
+                                                <button 
+                                                    style={{
+                                                        padding: '8px', borderRadius: '8px', border: '1px solid var(--border-primary)',
+                                                        backgroundColor: !locked ? '#10b981' : 'var(--bg-card)', color: !locked ? '#ffffff' : 'var(--text-secondary)',
+                                                        cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default'
+                                                    }}
+                                                    onClick={() => {
+                                                        if (viewMode !== 'PREVIEW') return;
+                                                        setToggle(comp.id + '_locked', !locked, 'SpeakerToggled');
+                                                    }}
+                                                    title="Toggle Speaker"
+                                                >
+                                                    <Volume2 size={14} style={{ color: !locked ? '#ffffff' : 'inherit' }} />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {swOn && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', backgroundColor: 'var(--bg-card)', padding: '8px', borderRadius: '10px', border: '1px solid var(--border-secondary)' }}>
+                                            <span style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)', fontWeight: 700, textTransform: 'uppercase' }}>PTZ CONTROLLER</span>
+                                            <div style={{ position: 'relative', width: '80px', height: '80px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2px', marginTop: '4px' }}>
+                                                <div></div>
+                                                <button 
+                                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-secondary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default' }}
+                                                    onClick={() => viewMode === 'PREVIEW' && onWidgetInteraction(comp, 'PTZ', { direction: 'UP' })}
+                                                >
+                                                    ▲
+                                                </button>
+                                                <div></div>
+
+                                                <button 
+                                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-secondary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default' }}
+                                                    onClick={() => viewMode === 'PREVIEW' && onWidgetInteraction(comp, 'PTZ', { direction: 'LEFT' })}
+                                                >
+                                                    ◀
+                                                </button>
+                                                <div style={{ backgroundColor: '#ff5f00', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', color: 'white', fontWeight: 'bold' }}>
+                                                    PTZ
+                                                </div>
+                                                <button 
+                                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-secondary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default' }}
+                                                    onClick={() => viewMode === 'PREVIEW' && onWidgetInteraction(comp, 'PTZ', { direction: 'RIGHT' })}
+                                                >
+                                                    ▶
+                                                </button>
+
+                                                <div></div>
+                                                <button 
+                                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-secondary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default' }}
+                                                    onClick={() => viewMode === 'PREVIEW' && onWidgetInteraction(comp, 'PTZ', { direction: 'DOWN' })}
+                                                >
+                                                    ▼
+                                                </button>
+                                                <div></div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {productCase === 'THERMOSTAT' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', height: '100%', justifyContent: 'space-between' }}>
+                                    <div style={{ 
+                                        margin: '0 auto', width: '110px', height: '110px', borderRadius: '50%',
+                                        border: '4px solid var(--border-primary)', backgroundColor: 'var(--bg-card)',
+                                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                        boxShadow: 'inset 0 4px 10px rgba(0,0,0,0.05), 0 4px 12px rgba(255, 95, 0, 0.1)',
+                                        position: 'relative'
+                                    }}>
+                                        <span style={{ fontSize: '0.55rem', color: 'var(--text-tertiary)', fontWeight: 700, textTransform: 'uppercase' }}>Target Temp</span>
+                                        <span style={{ fontSize: '1.8rem', fontWeight: 900, color: 'var(--text-primary)', lineHeight: 1 }}>
+                                            {targetTempVal}°C
+                                        </span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginTop: '4px' }}>
+                                            <Thermometer size={10} color="#ff5f00" />
+                                            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Room: {tempVal}°C</span>
+                                        </div>
+                                        <div style={{
+                                            position: 'absolute', bottom: '10px', fontSize: '0.55rem', 
+                                            color: mode === 'COOL' ? '#0ea5e9' : mode === 'HEAT' ? '#f43f5e' : 'var(--text-quaternary)',
+                                            fontWeight: 800
+                                        }}>
+                                            {mode === 'COOL' ? '❄️ COOLING' : mode === 'HEAT' ? '🔥 HEATING' : '⚙️ AUTO'}
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', alignItems: 'center' }}>
+                                        <button
+                                            disabled={viewMode !== 'PREVIEW' || targetTempVal <= 16}
+                                            style={{
+                                                width: '32px', height: '32px', borderRadius: '50%',
+                                                border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-panel)',
+                                                color: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                cursor: (viewMode === 'PREVIEW' && targetTempVal > 16) ? 'pointer' : 'not-allowed',
+                                                fontSize: '1.1rem', fontWeight: 'bold'
+                                            }}
+                                            onClick={() => setVal(comp.id + '_targetTemperature', targetTempVal - 1, 'TargetTempChanged')}
+                                        >
+                                            -
+                                        </button>
+                                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>Adjust</span>
+                                        <button
+                                            disabled={viewMode !== 'PREVIEW' || targetTempVal >= 32}
+                                            style={{
+                                                width: '32px', height: '32px', borderRadius: '50%',
+                                                border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-panel)',
+                                                color: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                cursor: (viewMode === 'PREVIEW' && targetTempVal < 32) ? 'pointer' : 'not-allowed',
+                                                fontSize: '1.1rem', fontWeight: 'bold'
+                                            }}
+                                            onClick={() => setVal(comp.id + '_targetTemperature', targetTempVal + 1, 'TargetTempChanged')}
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <div style={{ display: 'flex', backgroundColor: 'var(--border-secondary)', padding: '3px', borderRadius: '8px', gap: '2px' }}>
+                                            {['AUTO', 'COOL', 'HEAT', 'FAN'].map(m => (
+                                                <button
+                                                    key={m}
+                                                    style={{
+                                                        flex: 1, padding: '5px 0', border: 'none', borderRadius: '6px',
+                                                        fontSize: '0.65rem', fontWeight: 'bold',
+                                                        backgroundColor: mode === m ? 'var(--bg-card)' : 'transparent',
+                                                        color: mode === m ? '#ff5f00' : 'var(--text-secondary)',
+                                                        cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default',
+                                                        transition: 'all 0.2s'
+                                                    }}
+                                                    onClick={() => {
+                                                        if (viewMode !== 'PREVIEW') return;
+                                                        setVal(comp.id + '_mode', m, 'ModeChanged');
+                                                    }}
+                                                >
+                                                    {m}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-card)', padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--border-secondary)' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <Droplets size={12} color="#0ea5e9" />
+                                            <span>Humidity: 48%</span>
+                                        </div>
+                                        <span>Status: Idle</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {productCase === 'AIR_PURIFIER' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', height: '100%', justifyContent: 'space-between' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', backgroundColor: 'var(--bg-card)', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-secondary)' }}>
+                                        <div style={{ 
+                                            width: '60px', height: '60px', borderRadius: '50%',
+                                            border: `4px solid ${aqiValue <= 50 ? '#22c55e' : aqiValue <= 100 ? '#eab308' : '#ef4444'}`,
+                                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
+                                        }}>
+                                            <span style={{ fontSize: '1.2rem', fontWeight: 900, color: 'var(--text-primary)' }}>{aqiValue}</span>
+                                            <span style={{ fontSize: '0.45rem', color: 'var(--text-tertiary)', fontWeight: 800 }}>AQI PM2.5</span>
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                {aqiValue <= 50 ? 'Excellent Quality' : aqiValue <= 100 ? 'Moderate Quality' : 'Poor Quality'}
+                                            </div>
+                                            <span style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)' }}>
+                                                HEPA Clean active
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg-card)', padding: '8px 12px', borderRadius: '10px', border: '1px solid var(--border-secondary)' }}>
+                                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Purifier State</span>
+                                        <div 
+                                            style={{
+                                                width: '44px', height: '22px', borderRadius: '11px',
+                                                backgroundColor: swOn ? '#ff5f00' : 'var(--border-primary)',
+                                                position: 'relative', transition: 'background-color 0.2s',
+                                                cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default'
+                                            }}
+                                            onClick={() => {
+                                                if (viewMode !== 'PREVIEW') return;
+                                                setToggle(comp.id, !swOn);
+                                            }}
+                                        >
+                                            <div style={{
+                                                position: 'absolute', top: '2px', left: swOn ? '24px' : '2px',
+                                                width: '18px', height: '18px', borderRadius: '50%',
+                                                backgroundColor: '#ffffff', transition: 'left 0.2s',
+                                                boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                                            }} />
+                                        </div>
+                                    </div>
+
+                                    {swOn && (
+                                        <>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <div style={{ display: 'flex', backgroundColor: 'var(--border-secondary)', padding: '3px', borderRadius: '8px', gap: '2px' }}>
+                                                    {['AUTO', 'LOW', 'MEDIUM', 'HIGH'].map(s => (
+                                                        <button
+                                                            key={s}
+                                                            style={{
+                                                                flex: 1, padding: '5px 0', border: 'none', borderRadius: '6px',
+                                                                fontSize: '0.65rem', fontWeight: 'bold',
+                                                                backgroundColor: fanSpeed === s ? 'var(--bg-card)' : 'transparent',
+                                                                color: fanSpeed === s ? '#ff5f00' : 'var(--text-secondary)',
+                                                                cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default',
+                                                                transition: 'all 0.2s'
+                                                            }}
+                                                            onClick={() => {
+                                                                if (viewMode !== 'PREVIEW') return;
+                                                                setVal(comp.id + '_fanSpeed', s, 'FanSpeedChanged');
+                                                            }}
+                                                        >
+                                                            {s}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', backgroundColor: 'var(--bg-card)', padding: '8px 12px', borderRadius: '10px', border: '1px solid var(--border-secondary)' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                                                    <span>HEPA Filter Life</span>
+                                                    <span style={{ fontWeight: 'bold' }}>{filterLife}%</span>
+                                                </div>
+                                                <div style={{ width: '100%', height: '6px', backgroundColor: 'var(--border-secondary)', borderRadius: '3px', overflow: 'hidden' }}>
+                                                    <div style={{ width: `${filterLife}%`, height: '100%', backgroundColor: filterLife > 20 ? '#10b981' : '#ef4444', borderRadius: '3px' }} />
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+
+                            {productCase === 'ROBOT_VACUUM' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', height: '100%', justifyContent: 'space-between' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg-card)', padding: '8px 12px', borderRadius: '10px', border: '1px solid var(--border-secondary)' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <div style={{ 
+                                                width: '10px', height: '10px', borderRadius: '50%',
+                                                backgroundColor: swOn ? '#22c55e' : locked ? '#3b82f6' : '#94a3b8',
+                                                boxShadow: swOn ? '0 0 8px #22c55e' : 'none'
+                                            }} />
+                                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                {swOn ? 'Sweeping...' : locked ? 'Charging' : 'Standby'}
+                                            </span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                                            <BatteryCharging size={12} color="#22c55e" />
+                                            <span>{locked ? '100%' : `${batteryLevel}%`}</span>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ 
+                                        margin: '0 auto', width: '100px', height: '100px', borderRadius: '50%',
+                                        border: '3px dashed var(--border-primary)', backgroundColor: 'var(--bg-card)',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        position: 'relative', overflow: 'hidden'
+                                    }}>
+                                        {swOn && (
+                                            <div style={{
+                                                position: 'absolute', width: '100%', height: '100%',
+                                                background: 'conic-gradient(from 0deg, rgba(255, 95, 0, 0.15) 0deg, rgba(255, 95, 0, 0.3) 120deg, transparent 180deg)',
+                                                animation: 'radar-sweep 3s linear infinite',
+                                                pointerEvents: 'none'
+                                            }} />
+                                        )}
+                                        <Cpu size={36} color={swOn ? '#ff5f00' : 'var(--text-quaternary)'} style={{ zIndex: 2 }} />
+                                    </div>
+
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button 
+                                            style={{
+                                                flex: 1, padding: '8px', borderRadius: '8px', border: 'none',
+                                                backgroundColor: swOn ? '#e11d48' : '#ff5f00', color: '#ffffff',
+                                                fontWeight: 'bold', fontSize: '0.75rem', cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px'
+                                            }}
+                                            onClick={() => {
+                                                if (viewMode !== 'PREVIEW') return;
+                                                const nextState = !swOn;
+                                                setToggle(comp.id, nextState);
+                                                if (nextState) {
+                                                    setToggle(comp.id + '_locked', false);
+                                                }
+                                            }}
+                                        >
+                                            <Power size={12} />
+                                            {swOn ? 'Stop' : 'Start'}
+                                        </button>
+                                        <button 
+                                            disabled={locked}
+                                            style={{
+                                                flex: 1, padding: '8px', borderRadius: '8px', 
+                                                border: '1px solid var(--border-primary)',
+                                                backgroundColor: locked ? 'var(--border-secondary)' : 'var(--bg-card)', 
+                                                color: 'var(--text-secondary)',
+                                                fontWeight: 'bold', fontSize: '0.75rem', cursor: (viewMode === 'PREVIEW' && !locked) ? 'pointer' : 'default',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px'
+                                            }}
+                                            onClick={() => {
+                                                if (viewMode !== 'PREVIEW') return;
+                                                setToggle(comp.id + '_locked', true, 'DockReturned');
+                                                setToggle(comp.id, false);
+                                            }}
+                                        >
+                                            Dock
+                                        </button>
+                                    </div>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                                        <div style={{ backgroundColor: 'var(--bg-card)', padding: '6px', borderRadius: '8px', border: '1px solid var(--border-secondary)', textAlign: 'center' }}>
+                                            <div style={{ fontWeight: 800 }}>Area</div>
+                                            <div>{swOn ? '14.2 m²' : '0.0 m²'}</div>
+                                        </div>
+                                        <div style={{ backgroundColor: 'var(--bg-card)', padding: '6px', borderRadius: '8px', border: '1px solid var(--border-secondary)', textAlign: 'center' }}>
+                                            <div style={{ fontWeight: 800 }}>Time</div>
+                                            <div>{swOn ? '18 min' : '0 min'}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {productCase === 'LOCK' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', height: '100%', justifyContent: 'space-between' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg-card)', padding: '8px 12px', borderRadius: '10px', border: '1px solid var(--border-secondary)' }}>
+                                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>Lock State</span>
+                                        <span style={{ fontSize: '0.7rem', color: locked ? '#ef4444' : '#10b981', fontWeight: 'bold' }}>
+                                            {locked ? '🔒 LOCKED' : '🔓 UNLOCKED'}
+                                        </span>
+                                    </div>
+
+                                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                                        <button 
+                                            style={{
+                                                width: '90px', height: '90px', borderRadius: '50%',
+                                                border: `4px solid ${locked ? '#ef4444' : '#10b981'}`,
+                                                backgroundColor: 'var(--bg-card)', display: 'flex', flexDirection: 'column',
+                                                alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                                cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default',
+                                                boxShadow: locked ? '0 0 15px rgba(239, 68, 68, 0.15)' : '0 0 15px rgba(16, 185, 129, 0.15)',
+                                                transition: 'all 0.2s'
+                                            }}
+                                            onClick={() => {
+                                                if (viewMode !== 'PREVIEW') return;
+                                                setToggle(comp.id + '_locked', !locked, 'LockStateChanged');
+                                            }}
+                                        >
+                                            {locked ? <Lock size={28} color="#ef4444" /> : <Unlock size={28} color="#10b981" />}
+                                            <span style={{ fontSize: '0.5rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-tertiary)' }}>
+                                                {locked ? 'Open' : 'Lock'}
+                                            </span>
+                                        </button>
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', backgroundColor: 'var(--bg-card)', padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--border-secondary)' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Temporary PIN</span>
+                                            <button 
+                                                style={{ border: 'none', background: 'transparent', color: '#ff5f00', fontSize: '0.65rem', fontWeight: 'bold', cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default' }}
+                                                onClick={() => {
+                                                    if (viewMode !== 'PREVIEW') return;
+                                                    const code = Math.floor(100000 + Math.random() * 900000);
+                                                    setVal(comp.id + '_pinCode', code, 'PINCodeGenerated');
+                                                }}
+                                            >
+                                                Generate
+                                            </button>
+                                        </div>
+                                        <div style={{ fontSize: '1rem', fontWeight: 800, letterSpacing: '2px', color: 'var(--text-primary)', textAlign: 'center' }}>
+                                            {previewFormValues[comp.id + '_pinCode'] || '------'}
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxHeight: '55px', overflowY: 'auto', fontSize: '0.6rem', color: 'var(--text-secondary)' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 4px', borderBottom: '1px solid var(--border-secondary)' }}>
+                                                <span>Fingerprint (Admin)</span>
+                                                <span>10:15 AM</span>
+                                            </div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 4px' }}>
+                                                <span>App Unlock (Operator)</span>
+                                                <span>08:15 AM</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {productCase === 'SENSOR' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', height: '100%', justifyContent: 'space-between' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                        <div style={{ backgroundColor: 'var(--bg-card)', padding: '8px', borderRadius: '10px', border: '1px solid var(--border-secondary)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '0.55rem', color: 'var(--text-tertiary)', fontWeight: 700, textTransform: 'uppercase' }}>Temp</span>
+                                            <span style={{ fontSize: '1.2rem', fontWeight: 900, color: '#f43f5e' }}>{tempVal}°C</span>
+                                        </div>
+                                        <div style={{ backgroundColor: 'var(--bg-card)', padding: '8px', borderRadius: '10px', border: '1px solid var(--border-secondary)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '0.55rem', color: 'var(--text-tertiary)', fontWeight: 700, textTransform: 'uppercase' }}>Humidity</span>
+                                            <span style={{ fontSize: '1.2rem', fontWeight: 900, color: '#0ea5e9' }}>48%</span>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ 
+                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                                        backgroundColor: swOn ? '#fef2f2' : 'var(--bg-card)', padding: '8px 10px', 
+                                        borderRadius: '10px', border: swOn ? '1px solid #fecaca' : '1px solid var(--border-secondary)',
+                                        cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default',
+                                        transition: 'background-color 0.2s'
+                                    }}
+                                    onClick={() => {
+                                        if (viewMode !== 'PREVIEW') return;
+                                        setToggle(comp.id, !swOn, 'DoorStateChanged');
+                                    }}
+                                    >
+                                        <div>
+                                            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: swOn ? '#b91c1c' : 'var(--text-primary)' }}>
+                                                {swOn ? 'Door: OPEN' : 'Door: CLOSED'}
+                                            </div>
+                                            <span style={{ fontSize: '0.55rem', color: 'var(--text-tertiary)' }}>Trigger sensor</span>
+                                        </div>
+                                        <span style={{ fontSize: '1.1rem' }}>{swOn ? '🚨' : '🚪'}</span>
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <div style={{ height: '60px', border: '1px solid var(--border-secondary)', borderRadius: '8px', padding: '4px', backgroundColor: 'var(--bg-card)' }}>
+                                            <svg viewBox="0 0 100 30" width="100%" height="100%" preserveAspectRatio="none">
+                                                <line x1="0" y1="10" x2="100" y2="10" stroke="var(--border-secondary)" strokeWidth="0.5" strokeDasharray="2,2" />
+                                                <line x1="0" y1="20" x2="100" y2="20" stroke="var(--border-secondary)" strokeWidth="0.5" strokeDasharray="2,2" />
+                                                <path d="M 0 22 Q 20 12, 40 18 T 80 14 T 100 12" fill="none" stroke="#f43f5e" strokeWidth="1.5" />
+                                                <path d="M 0 22 Q 20 12, 40 18 T 80 14 T 100 12 L 100 30 L 0 30 Z" fill="rgba(244, 63, 94, 0.08)" />
+                                            </svg>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.6rem', color: 'var(--text-tertiary)' }}>
+                                        <span>Battery: {batteryLevel}%</span>
+                                        <span>Signal: Excellent</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {productCase === 'PLUG' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', height: '100%', justifyContent: 'space-between' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', backgroundColor: 'var(--bg-card)', padding: '8px', borderRadius: '10px', border: '1px solid var(--border-secondary)' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '0.5rem', color: 'var(--text-tertiary)', fontWeight: 700, textTransform: 'uppercase' }}>Active Load</span>
+                                            <span style={{ fontSize: '1.1rem', fontWeight: 900, color: '#ff5f00' }}>
+                                                {swOn ? (powerConsumption + (usbOn ? 4.2 : 0) + (locked ? 6.5 : 0)).toFixed(1) : '0.0'} W
+                                            </span>
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '0.5rem', color: 'var(--text-tertiary)', fontWeight: 700, textTransform: 'uppercase' }}>Energy</span>
+                                            <span style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--text-primary)' }}>{totalEnergy} kWh</span>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', backgroundColor: 'var(--bg-card)', padding: '8px', borderRadius: '10px', border: '1px solid var(--border-secondary)' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0', borderBottom: '1px solid var(--border-secondary)' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                                <span style={{ width: '5px', height: '5px', backgroundColor: swOn ? '#22c55e' : '#cbd5e1', borderRadius: '50%' }} />
+                                                <span>Socket 1</span>
+                                            </div>
+                                            <div 
+                                                style={{
+                                                    width: '32px', height: '16px', borderRadius: '8px',
+                                                    backgroundColor: swOn ? '#ff5f00' : 'var(--border-primary)',
+                                                    position: 'relative', transition: 'background-color 0.2s',
+                                                    cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default'
+                                                }}
+                                                onClick={() => {
+                                                    if (viewMode !== 'PREVIEW') return;
+                                                    setToggle(comp.id, !swOn, 'Outlet1Toggled');
+                                                }}
+                                            >
+                                                <div style={{
+                                                    position: 'absolute', top: '2px', left: swOn ? '18px' : '2px',
+                                                    width: '12px', height: '12px', borderRadius: '50%',
+                                                    backgroundColor: '#ffffff', transition: 'left 0.2s',
+                                                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                                                }} />
+                                            </div>
+                                        </div>
+
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0', borderBottom: '1px solid var(--border-secondary)' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                                <span style={{ width: '5px', height: '5px', backgroundColor: usbOn ? '#22c55e' : '#cbd5e1', borderRadius: '50%' }} />
+                                                <span>Socket 2 (USB)</span>
+                                            </div>
+                                            <div 
+                                                style={{
+                                                    width: '32px', height: '16px', borderRadius: '8px',
+                                                    backgroundColor: usbOn ? '#ff5f00' : 'var(--border-primary)',
+                                                    position: 'relative', transition: 'background-color 0.2s',
+                                                    cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default'
+                                                }}
+                                                onClick={() => {
+                                                    if (viewMode !== 'PREVIEW') return;
+                                                    setToggle(comp.id + '_usbOn', !usbOn, 'Outlet2Toggled');
+                                                }}
+                                            >
+                                                <div style={{
+                                                    position: 'absolute', top: '2px', left: usbOn ? '18px' : '2px',
+                                                    width: '12px', height: '12px', borderRadius: '50%',
+                                                    backgroundColor: '#ffffff', transition: 'left 0.2s',
+                                                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                                                }} />
+                                            </div>
+                                        </div>
+
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                                <span style={{ width: '5px', height: '5px', backgroundColor: !locked ? '#22c55e' : '#cbd5e1', borderRadius: '50%' }} />
+                                                <span>Socket 3 (Plug)</span>
+                                            </div>
+                                            <div 
+                                                style={{
+                                                    width: '32px', height: '16px', borderRadius: '8px',
+                                                    backgroundColor: !locked ? '#ff5f00' : 'var(--border-primary)',
+                                                    position: 'relative', transition: 'background-color 0.2s',
+                                                    cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default'
+                                                }}
+                                                onClick={() => {
+                                                    if (viewMode !== 'PREVIEW') return;
+                                                    setToggle(comp.id + '_locked', !locked, 'Outlet3Toggled');
+                                                }}
+                                            >
+                                                <div style={{
+                                                    position: 'absolute', top: '2px', left: !locked ? '18px' : '2px',
+                                                    width: '12px', height: '12px', borderRadius: '50%',
+                                                    backgroundColor: '#ffffff', transition: 'left 0.2s',
+                                                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                                                }} />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.6rem', color: 'var(--text-tertiary)' }}>
+                                        <span>WiFi: Active</span>
+                                        <span>AC 220V</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
             case 'PASSWORD_TEXT':
             case 'TEXT_INPUT':
             case 'NUMBER_INPUT':
@@ -18082,6 +19211,391 @@ const AppBuilder = () => {
                                                                 </div>
                                                             </div>
                                                         )}
+                                                    </div>
+                                                )}
+
+                                                {selectedComp.type === 'SMARTHOME_DEVICE' && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                                        {/* Section: Device Info */}
+                                                        <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Device Details</label>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Device Name</label>
+                                                                    <input 
+                                                                        value={selectedComp.props.deviceName || ''} 
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { deviceName: e.target.value })} 
+                                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} 
+                                                                    />
+                                                                </div>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Brand</label>
+                                                                    <select 
+                                                                        value={selectedComp.props.deviceBrand || 'TUYA'} 
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { deviceBrand: e.target.value })} 
+                                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                    >
+                                                                        <option value="TUYA">Tuya Smart</option>
+                                                                        <option value="BARDI">Bardi Smart Home</option>
+                                                                        <option value="SONOFF">Sonoff</option>
+                                                                        <option value="CUSTOM">Custom / Generic</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Device Type</label>
+                                                                    <select 
+                                                                        value={selectedComp.props.deviceType || 'SWITCH'} 
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { deviceType: e.target.value })} 
+                                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                    >
+                                                                        <option value="SWITCH">Smart Switch</option>
+                                                                        <option value="BULB">Smart Bulb (Dimmer)</option>
+                                                                        <option value="THERMOSTAT">Thermostat</option>
+                                                                        <option value="AIR_CON">Air Conditioner</option>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        {/* Section: Connectivity */}
+                                                        <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>MQTT Connectivity</label>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Subscribe Topic</label>
+                                                                    <select 
+                                                                        value={selectedComp.props.iotTopicId || ''} 
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { iotTopicId: e.target.value, dataSourceType: e.target.value ? 'IOT' : '' })} 
+                                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                    >
+                                                                        <option value="">(None - Local state only)</option>
+                                                                        {iotConfig.topics && iotConfig.topics.map(t => (
+                                                                            <option key={t.id} value={t.id}>{t.topic} ({t.name || t.topic})</option>
+                                                                        ))}
+                                                                    </select>
+                                                                </div>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Publish Topic</label>
+                                                                    <input 
+                                                                        value={selectedComp.props.mqttPublishTopic || ''} 
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { mqttPublishTopic: e.target.value })} 
+                                                                        placeholder="tuya/device/set"
+                                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} 
+                                                                    />
+                                                                </div>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                                                                    <input 
+                                                                        type="checkbox" 
+                                                                        id={`json-pl-${selectedComp.id}`}
+                                                                        checked={!!selectedComp.props.jsonPayload} 
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { jsonPayload: e.target.checked })} 
+                                                                    />
+                                                                    <label htmlFor={`json-pl-${selectedComp.id}`} style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', cursor: 'pointer' }}>Use JSON Payload</label>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Section: Defaults */}
+                                                        <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Initial Settings</label>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                                {(selectedComp.props.deviceType === 'SWITCH' || selectedComp.props.deviceType === 'BULB' || !selectedComp.props.deviceType) && (
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                                        <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Initial Switch On</label>
+                                                                        <input 
+                                                                            type="checkbox" 
+                                                                            checked={!!selectedComp.props.on} 
+                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { on: e.target.checked })} 
+                                                                            style={{ width: '16px', height: '16px' }} 
+                                                                        />
+                                                                    </div>
+                                                                )}
+                                                                {selectedComp.props.deviceType === 'BULB' && (
+                                                                    <div className="prop-group">
+                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Brightness ({selectedComp.props.brightness || 100}%)</label>
+                                                                        <input 
+                                                                            type="range" 
+                                                                            min="10" 
+                                                                            max="100" 
+                                                                            value={selectedComp.props.brightness || 100} 
+                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { brightness: parseInt(e.target.value) })} 
+                                                                            style={{ width: '100%' }} 
+                                                                        />
+                                                                    </div>
+                                                                )}
+                                                                {(selectedComp.props.deviceType === 'THERMOSTAT' || selectedComp.props.deviceType === 'AIR_CON') && (
+                                                                    <div className="prop-group">
+                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Temperature (°C)</label>
+                                                                        <input 
+                                                                            type="number" 
+                                                                            min="16" 
+                                                                            max="30" 
+                                                                            value={selectedComp.props.temperature || 24} 
+                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { temperature: parseInt(e.target.value) || 24 })} 
+                                                                            style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} 
+                                                                        />
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Section: Appearance */}
+                                                        <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Background Color</label>
+                                                                    <ColorPicker value={selectedComp.props.backgroundColor || '#ffffff'} onChange={(val) => updateComponentProps(selectedComp.id, { backgroundColor: val })} />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Target Variable Binding */}
+                                                        <div className="prop-group" style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Variable Binding</label>
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Bind State to Variable</label>
+                                                            <select
+                                                                value={selectedComp.props.targetVariable || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value, dataSourceType: e.target.value ? 'VARIABLE' : (selectedComp.props.iotTopicId ? 'IOT' : ''), varSource: e.target.value })}
+                                                                style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            >
+                                                                <option value="">(None)</option>
+                                                                {renderTargetVariableOptions()}
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {selectedComp.type === 'TUYA_PRODUCT' && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                                        {/* Section: Device Info */}
+                                                        <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Tuya Device Details</label>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Device Name</label>
+                                                                    <input 
+                                                                        value={selectedComp.props.deviceName || ''} 
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { deviceName: e.target.value })} 
+                                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} 
+                                                                    />
+                                                                </div>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Product Case</label>
+                                                                    <select 
+                                                                        value={selectedComp.props.productCase || 'LIGHTING'} 
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { productCase: e.target.value })} 
+                                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                    >
+                                                                        <option value="LIGHTING">Smart Lighting / Bulb</option>
+                                                                        <option value="CAMERA">Smart Security Camera</option>
+                                                                        <option value="THERMOSTAT">Smart Thermostat</option>
+                                                                        <option value="AIR_PURIFIER">Smart Air Purifier</option>
+                                                                        <option value="ROBOT_VACUUM">Smart Robot Vacuum</option>
+                                                                        <option value="LOCK">Smart Door Lock</option>
+                                                                        <option value="SENSOR">Smart Sensor (Door/Temp)</option>
+                                                                        <option value="PLUG">Smart Power Strip / Plug</option>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        {/* Section: Connectivity */}
+                                                        <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>MQTT Connectivity</label>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Subscribe Topic</label>
+                                                                    <select 
+                                                                        value={selectedComp.props.iotTopicId || ''} 
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { iotTopicId: e.target.value, dataSourceType: e.target.value ? 'IOT' : '' })} 
+                                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                    >
+                                                                        <option value="">(None - Local state only)</option>
+                                                                        {iotConfig.topics && iotConfig.topics.map(t => (
+                                                                            <option key={t.id} value={t.id}>{t.topic} ({t.name || t.topic})</option>
+                                                                        ))}
+                                                                    </select>
+                                                                </div>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Publish Topic</label>
+                                                                    <input 
+                                                                        value={selectedComp.props.mqttPublishTopic || ''} 
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { mqttPublishTopic: e.target.value })} 
+                                                                        placeholder="tuya/iot/set"
+                                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} 
+                                                                    />
+                                                                </div>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                                                                    <input 
+                                                                        type="checkbox" 
+                                                                        id={`tuya-json-pl-${selectedComp.id}`}
+                                                                        checked={!!selectedComp.props.jsonPayload} 
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { jsonPayload: e.target.checked })} 
+                                                                    />
+                                                                    <label htmlFor={`tuya-json-pl-${selectedComp.id}`} style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', cursor: 'pointer' }}>Use JSON Payload</label>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Section: Defaults */}
+                                                        <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Initial Settings</label>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                                {['LIGHTING', 'CAMERA', 'AIR_PURIFIER', 'ROBOT_VACUUM', 'PLUG'].includes(selectedComp.props.productCase) && (
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                                        <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Initial Power On</label>
+                                                                        <input 
+                                                                            type="checkbox" 
+                                                                            checked={!!selectedComp.props.on} 
+                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { on: e.target.checked })} 
+                                                                            style={{ width: '16px', height: '16px' }} 
+                                                                        />
+                                                                    </div>
+                                                                )}
+                                                                {selectedComp.props.productCase === 'LIGHTING' && (
+                                                                    <>
+                                                                        <div className="prop-group">
+                                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Brightness ({selectedComp.props.brightness || 80}%)</label>
+                                                                            <input 
+                                                                                type="range" min="10" max="100" 
+                                                                                value={selectedComp.props.brightness || 80} 
+                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { brightness: parseInt(e.target.value) })} 
+                                                                                style={{ width: '100%' }} 
+                                                                            />
+                                                                        </div>
+                                                                        <div className="prop-group">
+                                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Color Temp ({selectedComp.props.colorTemp || 50}%)</label>
+                                                                            <input 
+                                                                                type="range" min="0" max="100" 
+                                                                                value={selectedComp.props.colorTemp || 50} 
+                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { colorTemp: parseInt(e.target.value) })} 
+                                                                                style={{ width: '100%' }} 
+                                                                            />
+                                                                        </div>
+                                                                        <div className="prop-group">
+                                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Color</label>
+                                                                            <ColorPicker value={selectedComp.props.colorHex || '#ff5f00'} onChange={(val) => updateComponentProps(selectedComp.id, { colorHex: val })} />
+                                                                        </div>
+                                                                    </>
+                                                                )}
+                                                                {selectedComp.props.productCase === 'THERMOSTAT' && (
+                                                                    <>
+                                                                        <div className="prop-group">
+                                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Target Temp (°C)</label>
+                                                                            <input 
+                                                                                type="number" min="16" max="32"
+                                                                                value={selectedComp.props.targetTemperature || 22} 
+                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { targetTemperature: parseInt(e.target.value) || 22 })} 
+                                                                                style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} 
+                                                                            />
+                                                                        </div>
+                                                                        <div className="prop-group">
+                                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Room Temp (°C)</label>
+                                                                            <input 
+                                                                                type="number" min="10" max="40"
+                                                                                value={selectedComp.props.temperature || 24} 
+                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { temperature: parseInt(e.target.value) || 24 })} 
+                                                                                style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} 
+                                                                            />
+                                                                        </div>
+                                                                    </>
+                                                                )}
+                                                                {selectedComp.props.productCase === 'AIR_PURIFIER' && (
+                                                                    <>
+                                                                        <div className="prop-group">
+                                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>AQI Value</label>
+                                                                            <input 
+                                                                                type="number" min="1" max="500"
+                                                                                value={selectedComp.props.aqiValue || 12} 
+                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { aqiValue: parseInt(e.target.value) || 12 })} 
+                                                                                style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} 
+                                                                            />
+                                                                        </div>
+                                                                    </>
+                                                                )}
+                                                                {selectedComp.props.productCase === 'LOCK' && (
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                                        <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Initial Locked State</label>
+                                                                        <input 
+                                                                            type="checkbox" 
+                                                                            checked={selectedComp.props.locked !== false} 
+                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { locked: e.target.checked })} 
+                                                                            style={{ width: '16px', height: '16px' }} 
+                                                                        />
+                                                                    </div>
+                                                                )}
+                                                                {selectedComp.props.productCase === 'SENSOR' && (
+                                                                    <>
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                                            <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Initial Door Open</label>
+                                                                            <input 
+                                                                                type="checkbox" 
+                                                                                checked={!!selectedComp.props.on} 
+                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { on: e.target.checked })} 
+                                                                                style={{ width: '16px', height: '16px' }} 
+                                                                            />
+                                                                        </div>
+                                                                        <div className="prop-group">
+                                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Room Temp (°C)</label>
+                                                                            <input 
+                                                                                type="number" min="-10" max="60"
+                                                                                value={selectedComp.props.temperature || 24} 
+                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { temperature: parseInt(e.target.value) || 24 })} 
+                                                                                style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} 
+                                                                            />
+                                                                        </div>
+                                                                    </>
+                                                                )}
+                                                                {selectedComp.props.productCase === 'PLUG' && (
+                                                                    <>
+                                                                        <div className="prop-group">
+                                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Load Power (W)</label>
+                                                                            <input 
+                                                                                type="number" step="0.1"
+                                                                                value={selectedComp.props.powerConsumption || 12.5} 
+                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { powerConsumption: parseFloat(e.target.value) || 12.5 })} 
+                                                                                style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} 
+                                                                            />
+                                                                        </div>
+                                                                        <div className="prop-group">
+                                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Total Energy (kWh)</label>
+                                                                            <input 
+                                                                                type="number" step="0.1"
+                                                                                value={selectedComp.props.totalEnergy || 4.8} 
+                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { totalEnergy: parseFloat(e.target.value) || 4.8 })} 
+                                                                                style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} 
+                                                                            />
+                                                                        </div>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Section: Appearance */}
+                                                        <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Appearance</label>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Background Color</label>
+                                                                    <ColorPicker value={selectedComp.props.backgroundColor || '#ffffff'} onChange={(val) => updateComponentProps(selectedComp.id, { backgroundColor: val })} />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Target Variable Binding */}
+                                                        <div className="prop-group" style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Variable Binding</label>
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Bind State to Variable</label>
+                                                            <select
+                                                                value={selectedComp.props.targetVariable || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value, dataSourceType: e.target.value ? 'VARIABLE' : (selectedComp.props.iotTopicId ? 'IOT' : ''), varSource: e.target.value })}
+                                                                style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            >
+                                                                <option value="">(None)</option>
+                                                                {renderTargetVariableOptions()}
+                                                            </select>
+                                                        </div>
                                                     </div>
                                                 )}
 
