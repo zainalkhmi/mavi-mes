@@ -8523,10 +8523,10 @@ const AppBuilder = () => {
             if (isSupabaseReady()) {
                 const storagePath = `app-builder/${currentAppId || 'new'}/${compId}_${Date.now()}.jpg`;
                 const publicUrl = await uploadManualImage(storagePath, file);
-                updateComponentProps(compId, { src: publicUrl });
+                updateComponentProps(compId, { picture: publicUrl, src: publicUrl });
             } else {
                 const dataUrl = await fileToDataUrl(file);
-                updateComponentProps(compId, { src: dataUrl });
+                updateComponentProps(compId, { picture: dataUrl, src: dataUrl });
                 alert('Supabase belum dikonfigurasi. Gambar dipakai sebagai local (data URL).');
             }
         } catch (err) {
@@ -8538,7 +8538,7 @@ const AppBuilder = () => {
                     reader.onerror = () => reject(new Error('Failed to read image file'));
                     reader.readAsDataURL(file);
                 });
-                updateComponentProps(compId, { src: fallbackDataUrl });
+                updateComponentProps(compId, { picture: fallbackDataUrl, src: fallbackDataUrl });
                 alert(`Upload ke Supabase gagal, gambar tetap dipakai lokal. Detail: ${err?.message || 'unknown error'}`);
             } catch {
                 alert('Failed to upload image and failed to read local file.');

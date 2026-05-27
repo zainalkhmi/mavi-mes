@@ -9,11 +9,22 @@
 const AUTH_KEY = 'mavi_mes_auth_session';
 const USERS_STORAGE_KEY = 'mavi_mes_users_list';
 
+const ROLE_MAP = {
+    'ADMIN': 'ADMINISTRATOR',
+    'ENGINEER': 'APPLICATION_ENGINEER',
+    'OPERATOR': 'STATION_OPERATOR'
+};
+
 // Preconfigured factory users (fallback if DB is empty)
 const DEFAULT_USERS = [
-    { id: 'usr-admin', username: 'admin', password: '123', name: 'System Admin', role: 'ADMIN', assignedStation: 'ALL', assignedApp: 'ALL' },
-    { id: 'usr-eng', username: 'engineer', password: '123', name: 'Manufacturing Engineer', role: 'ENGINEER', assignedStation: 'ALL', assignedApp: 'ALL' },
-    { id: 'usr-operator', username: 'operator', password: '123', name: 'Station Operator', role: 'OPERATOR', assignedStation: 'NONE', assignedApp: 'NONE' }
+    { id: 'usr-owner', username: 'owner', password: '123', name: 'Account Owner', role: 'ACCOUNT_OWNER', assignedStation: 'ALL', assignedApp: 'ALL' },
+    { id: 'usr-admin', username: 'admin', password: '123', name: 'System Admin', role: 'ADMINISTRATOR', assignedStation: 'ALL', assignedApp: 'ALL' },
+    { id: 'usr-conn-sup', username: 'conn_supervisor', password: '123', name: 'Connector Supervisor', role: 'CONNECTOR_SUPERVISOR', assignedStation: 'ALL', assignedApp: 'ALL' },
+    { id: 'usr-station-sup', username: 'station_supervisor', password: '123', name: 'Station Supervisor', role: 'STATION_SUPERVISOR', assignedStation: 'ALL', assignedApp: 'ALL' },
+    { id: 'usr-tables-sup', username: 'tables_supervisor', password: '123', name: 'Tables Supervisor', role: 'TABLES_SUPERVISOR', assignedStation: 'ALL', assignedApp: 'ALL' },
+    { id: 'usr-eng', username: 'engineer', password: '123', name: 'Manufacturing Engineer', role: 'APPLICATION_ENGINEER', assignedStation: 'ALL', assignedApp: 'ALL' },
+    { id: 'usr-viewer', username: 'viewer', password: '123', name: 'Quality Viewer', role: 'VIEWER', assignedStation: 'ALL', assignedApp: 'ALL' },
+    { id: 'usr-operator', username: 'operator', password: '123', name: 'Station Operator', role: 'STATION_OPERATOR', assignedStation: 'NONE', assignedApp: 'NONE' }
 ];
 
 /**
@@ -26,7 +37,20 @@ export function getAllUsers() {
         if (rawUsers) {
             const parsed = JSON.parse(rawUsers);
             if (Array.isArray(parsed) && parsed.length > 0) {
-                return parsed;
+                // Backward-compatibility role mapping
+                let updated = false;
+                const mappedUsers = parsed.map(u => {
+                    const mappedRole = ROLE_MAP[u.role?.toUpperCase()];
+                    if (mappedRole) {
+                        updated = true;
+                        return { ...u, role: mappedRole };
+                    }
+                    return u;
+                });
+                if (updated) {
+                    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(mappedUsers));
+                }
+                return mappedUsers;
             }
         }
     } catch (err) {
@@ -126,7 +150,14 @@ export function getCurrentUser() {
     try {
         const session = localStorage.getItem(AUTH_KEY);
         if (session) {
-            return JSON.parse(session);
+            const user = JSON.parse(session);
+            if (user && user.role) {
+                const mappedRole = ROLE_MAP[user.role.toUpperCase()];
+                if (mappedRole) {
+                    user.role = mappedRole;
+                }
+            }
+            return user;
         }
     } catch (err) {
         console.error('Failed to read auth session', err);
@@ -148,5 +179,15 @@ export function logout() {
  */
 export function isPrivileged(user) {
     if (!user) return false;
-    return user.role === 'ADMIN' || user.role === 'ENGINEER';
+    const privilegedRoles = [
+        'ACCOUNT_OWNER',
+        'ADMINISTRATOR',
+        'CONNECTOR_SUPERVISOR',
+        'STATION_SUPERVISOR',
+        'TABLES_SUPERVISOR',
+        'APPLICATION_ENGINEER',
+        'ADMIN', // Legacy support
+        'ENGINEER' // Legacy support
+    ];
+    return privilegedRoles.includes(user.role?.toUpperCase());
 }

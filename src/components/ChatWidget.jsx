@@ -108,10 +108,13 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
         const msg = payload.new;
         const targetId = String(msg.target_station_id || '').toLowerCase();
         
+        const isAdminTarget = ['ADMINISTRATOR', 'ACCOUNT_OWNER', 'ADMIN'].includes(userRole);
+        const isEngineerTarget = ['CONNECTOR_SUPERVISOR', 'STATION_SUPERVISOR', 'TABLES_SUPERVISOR', 'APPLICATION_ENGINEER', 'ENGINEER'].includes(userRole);
+
         const isGroup = !targetId || targetId === 'all';
         const isForMe = targetId === String(currentStation || '').toLowerCase() || 
-                        (targetId === 'admin' && userRole === 'ADMIN') ||
-                        (targetId === 'engineer' && userRole === 'ENGINEER') ||
+                        (targetId === 'admin' && isAdminTarget) ||
+                        (targetId === 'engineer' && isEngineerTarget) ||
                         (targetId === username);
         const amISender = String(msg.sender_id || '').toLowerCase() === username || msg.sender_id === currentUser;
         

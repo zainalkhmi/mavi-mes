@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
     Users, Plus, Search, Edit3, Trash2, X, Save, 
     ShieldAlert, AlertCircle, ShieldCheck, Wrench, User as UserIcon,
-    MapPin, Layout
+    MapPin, Layout, Link2, Database, Eye
 } from 'lucide-react';
 import { getAllUsers, saveUser, deleteUser } from '../utils/auth';
 import { getStations, getStationGroups } from '../utils/database';
@@ -52,7 +52,7 @@ const UserManager = () => {
             username: '', 
             password: '', 
             name: '', 
-            role: 'OPERATOR',
+            role: 'STATION_OPERATOR',
             assignedStation: 'NONE',
             assignedApp: 'ALL'
         });
@@ -113,10 +113,27 @@ const UserManager = () => {
 
     const getRoleBadge = (role) => {
         switch(role) {
-            case 'ADMIN': return { icon: <ShieldAlert size={14}/>, color: '#991b1b', bg: '#fee2e2' };
-            case 'ENGINEER': return { icon: <Wrench size={14}/>, color: '#1d4ed8', bg: '#dbeafe' };
-            case 'OPERATOR': return { icon: <UserIcon size={14}/>, color: '#166534', bg: '#dcfce7' };
-            default: return { icon: <ShieldCheck size={14}/>, color: '#475569', bg: '#f1f5f9' };
+            case 'ACCOUNT_OWNER': 
+                return { icon: <ShieldAlert size={14}/>, label: 'Account Owner', color: '#7f1d1d', bg: '#fef2f2' };
+            case 'ADMINISTRATOR': 
+            case 'ADMIN':
+                return { icon: <ShieldCheck size={14}/>, label: 'Administrator', color: '#b91c1c', bg: '#fee2e2' };
+            case 'CONNECTOR_SUPERVISOR': 
+                return { icon: <Link2 size={14}/>, label: 'Connector Supervisor', color: '#6b21a8', bg: '#f3e8ff' };
+            case 'STATION_SUPERVISOR': 
+                return { icon: <MapPin size={14}/>, label: 'Station Supervisor', color: '#0369a1', bg: '#e0f2fe' };
+            case 'TABLES_SUPERVISOR': 
+                return { icon: <Database size={14}/>, label: 'Tables Supervisor', color: '#a21caf', bg: '#fae8ff' };
+            case 'APPLICATION_ENGINEER': 
+            case 'ENGINEER':
+                return { icon: <Wrench size={14}/>, label: 'Application Engineer', color: '#1d4ed8', bg: '#dbeafe' };
+            case 'VIEWER': 
+                return { icon: <Eye size={14}/>, label: 'Viewer', color: '#475569', bg: '#f1f5f9' };
+            case 'STATION_OPERATOR': 
+            case 'OPERATOR':
+                return { icon: <UserIcon size={14}/>, label: 'Station Operator', color: '#166534', bg: '#dcfce7' };
+            default: 
+                return { icon: <ShieldCheck size={14}/>, label: role, color: '#475569', bg: '#f1f5f9' };
         }
     };
 
@@ -217,7 +234,7 @@ const UserManager = () => {
                                                 display: 'inline-flex', padding: '4px 8px', borderRadius: '12px', alignItems: 'center', gap: '4px',
                                                 backgroundColor: badge.bg, color: badge.color, fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.5px' 
                                             }}>
-                                                {badge.icon} {u.role}
+                                                {badge.icon} {badge.label}
                                             </span>
                                         </td>
                                         <td style={{ padding: '12px 16px', color: '#475569', fontSize: '0.85rem' }}>
@@ -308,9 +325,14 @@ const UserManager = () => {
                                     disabled={currentUser.username === 'admin'}
                                     style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--border-color)', outline: 'none', appearance: 'none', boxSizing: 'border-box', backgroundColor: currentUser.username === 'admin' ? '#f1f5f9' : 'white' }}
                                 >
-                                    <option value="OPERATOR">OPERATOR - Execute Only (Live Terminal)</option>
-                                    <option value="ENGINEER">ENGINEER - App Building & Configuration</option>
-                                    <option value="ADMIN">ADMIN - Global System Access</option>
+                                    <option value="ACCOUNT_OWNER">Account Owner (Full Access & User Management)</option>
+                                    <option value="ADMINISTRATOR">Administrator (All Assets & User Management)</option>
+                                    <option value="CONNECTOR_SUPERVISOR">Connector Supervisor (App Building & Connectors)</option>
+                                    <option value="STATION_SUPERVISOR">Station Supervisor (App Building & Shop Floor)</option>
+                                    <option value="TABLES_SUPERVISOR">Tables Supervisor (App Building & Tables)</option>
+                                    <option value="APPLICATION_ENGINEER">Application Engineer (App Building only)</option>
+                                    <option value="VIEWER">Viewer (Read-only access to assets & analytics)</option>
+                                    <option value="STATION_OPERATOR">Station Operator (Execute Only - Live Terminal/Player)</option>
                                 </select>
                             </div>
 

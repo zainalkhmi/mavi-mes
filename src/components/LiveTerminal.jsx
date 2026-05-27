@@ -3904,7 +3904,7 @@ const LiveTerminal = () => {
     const isDark = selectedApp?.config?.appThemeMode === 'DARK';
 
     // 2. Resolve Data Bindings (@Variable, @Record.Field)
-    const propsToResolve = ['text', 'label', 'defaultValue', 'value', 'placeholder', 'src', 'title', 'url', 'varSource', 'targetVariable'];
+    const propsToResolve = ['text', 'label', 'defaultValue', 'value', 'placeholder', 'src', 'picture', 'title', 'url', 'varSource', 'targetVariable'];
     propsToResolve.forEach(p => {
       const val = resolvedProps[p];
       if (typeof val === 'string') {
@@ -4838,7 +4838,7 @@ const LiveTerminal = () => {
         return <div style={{ width: '100%', height: '100%', backgroundColor: shapeColor, borderRadius: shapeType === 'circle' ? '999px' : (comp.props.borderRadius || 0) + 'px' }} />;
       }
       case 'IMAGE': {
-        const imgSrc = resolvedProps.src || resolvedProps.url || resolvedProps.text || comp.props.src || comp.props.url;
+        const imgSrc = resolvedProps.picture || resolvedProps.src || resolvedProps.url || resolvedProps.text || comp.props.picture || comp.props.src || comp.props.url;
         const isCamera = comp.props.mode === 'CAMERA';
 
         if (isCamera && !imgSrc) {
