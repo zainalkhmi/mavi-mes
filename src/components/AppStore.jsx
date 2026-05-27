@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-    Layout, Sparkles, Settings2, Package, Wrench, ArrowRight, CheckCircle2,
+    Layout, Sparkles, Settings2, Package, Wrench, ArrowRight, CheckCircle2, ClipboardList,
     Search, Filter, Star, Zap, Info, Rocket, Database, ShieldCheck,
     ChevronRight, ShoppingBag, Plus, Award, Boxes, ShieldAlert, BookOpen, X, Trash2,
     List, Cpu, Settings, FileText, PlayCircle, Activity, HeartPulse, Truck,
@@ -39,6 +39,8 @@ import { createQualityInspectionSuiteTemplate } from '../utils/qualityInspection
 import { createFrontlineQmsTemplate } from '../utils/frontlineQmsTemplate';
 import { createMaterialReviewBoardTemplate } from '../utils/materialReviewBoardTemplate';
 import { createSmartHomeTemplate } from '../utils/smartHomeTemplate';
+import { createWorkInstructionsTemplate } from '../utils/workInstructionsTemplate';
+import { createProductDrawingInspectionTemplate } from '../utils/productDrawingInspectionTemplate';
 
 import { saveFrontlineApp, deleteFrontlineApp, getAllFrontlineApps } from '../utils/supabaseFrontlineDB';
 import {
@@ -385,6 +387,42 @@ const AppStore = () => {
                     { name: 'Dimensional Checks', description: 'Interactive steps to measure lengths and diameters using specified equipment, automatically verifying against LSL/USL.' },
                     { name: 'Visual Inspection', description: 'Operator checks for visual defects like lead damage and logs the pass/fail result.' },
                     { name: 'Review & Sign-off', description: 'Summary of all recorded measurements and overall pass/fail judgment with digital signature.' }
+                ]
+            }
+        },
+        {
+            id: 'work-instructions',
+            name: 'Work Instructions Example App',
+            category: 'Production',
+            description: 'Guided multi-step manufacturing instructions with checklists, serial verification, torque limits, and quality sign-off.',
+            longDescription: 'Digitize shop floor instructions. Select active work orders, guide operators using visual references and task checklists, log serial numbers, check torque values against specification limits, and submit digital signatures to complete production runs.',
+            icon: <ClipboardList size={28} color="#10b981" />,
+            bg: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+            accent: '#10b981',
+            rating: 5.0,
+            installs: 'New',
+            features: ['Visual Step Guidance', 'Serial Number Scan', 'Torque Limit Check', 'Signature Pad'],
+            guide: {
+                operation: '1. Select a released Work Order\n2. Perform Base Plate Mounting and complete checklist\n3. Perform Wiring Assembly and scan PCB serial number\n4. Perform Torque Inspection and enter torque (2.5 - 3.0 Nm)\n5. Record visual quality and sign off\n6. Review summary and log run to database',
+                widgets: ['Interactive WO Table', 'Task Checklist', 'Barcode Scanner', 'Torque Spec Field', 'Signature Widget'],
+                components: ['Multi-step assembly flow', 'Digital dispatcher dashboard', 'Activity logging system'],
+                tables: [
+                    { name: 'WI_Work_Orders', description: 'Tracks work orders dispatch, status, and completion quantities.' },
+                    { name: 'WI_Activity_Logs', description: 'Logs detailed activity for each assembly run, including operator, cycle time, serial numbers, measurements, and quality status.' }
+                ],
+                triggers: [
+                    { event: 'START_ASSEMBLY', function: 'Starts station timer and changes Work Order status to IN PROGRESS.' },
+                    { event: 'VERIFY_TORQUE', function: 'Compares torque value to LSL/USL limits.' },
+                    { event: 'COMPLETE_RUN', function: 'Saves run details to WI_Activity_Logs and increments completed qty in WI_Work_Orders.' }
+                ],
+                mechanism: 'Step-by-step guided run tracking cycle times, quality results, torque limits, and digital signature sign-offs.',
+                steps: [
+                    { name: 'Work Order Select', description: 'Select a released work order and start assembly timer.' },
+                    { name: 'Base Plate Mount', description: 'Mount rubber feet and verify task checklist.' },
+                    { name: 'Wiring Assembly', description: 'Assemble wiring harness and scan PCB serial number.' },
+                    { name: 'Torque Inspection', description: 'Torque bolts and verify spec limits (2.5 - 3.0 Nm).' },
+                    { name: 'Quality Sign-Off', description: 'Perform quality visual check, log defects, and capture signature.' },
+                    { name: 'Review & Finalize', description: 'Review assembly run summary and log results.' }
                 ]
             }
         },
@@ -1266,6 +1304,38 @@ const AppStore = () => {
             }
         },
         {
+            id: 'product-drawing-inspection',
+            name: 'Product Drawing QC Terminal',
+            category: 'Quality',
+            description: 'Pengecekan kualitas presisi produk menggunakan blueprint 2D interaktif dan 3D CAD digital twin.',
+            longDescription: 'Standardisasikan proses pengecekan kualitas produk manufaktur secara visual dan dimensional. Operator dapat mengklik bagian dimensi langsung pada blueprint teknik 2D untuk memasukkan nilai ukur aktual, serta memutar/zoom model 3D CAD untuk memverifikasi detail perakitan.',
+            icon: <Sparkles size={28} color="#2563eb" />,
+            bg: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+            accent: '#2563eb',
+            rating: 4.9,
+            installs: 'New',
+            features: ['Interactive 2D Blueprint Check', '3D CAD Orbit Viewer', 'Digital Signature Sign-Off'],
+            guide: {
+                operation: '1. Inisialisasi pengecekan dengan memilih atau mengetik nomor Work Order dan identitas operator.\n2. Klik titik-titik dimensi penting langsung di blueprint 2D (Panjang, Diameter, Bore) lalu masukkan nilai ukur aktual.\n3. Putar dan periksa model CAD 3D untuk memverifikasi sambungan las dan kelengkapan baut.\n4. Tinjau rangkuman laporan, bubuhkan tanda tangan digital operator, lalu kirimkan laporan ke database.',
+                widgets: ['Interactive SVG blueprint', 'Canvas 3D CAD player', 'Signature Pad Widget'],
+                components: ['CAD Flange Blueprint', '3D CAD digital twin viewer', 'Operator Sign-off Board'],
+                tables: [
+                    { name: 'Inspection_Plans', description: 'Menyimpan target toleransi panjang dan diameter.' },
+                    { name: 'Inspection_Results', description: 'Menyimpan hasil ukur dimensi 2D, visual 3D, tanda tangan, dan status kelulusan.' }
+                ],
+                triggers: [
+                    { event: 'SUBMIT_QC', function: 'Menyimpan hasil pengecekan produk ke database dan memperbarui status work order.' }
+                ],
+                mechanism: 'Mengintegrasikan representasi file desain CAD (2D & 3D) langsung ke dalam alur kerja frontline operator di shopfloor untuk meminimalkan error interpretasi gambar teknik.',
+                steps: [
+                    { name: 'Inisialisasi Pengecekan', description: 'Mencatat WO dan operator.' },
+                    { name: 'Dimensi 2D Drawing', description: 'Pengukuran fisik berbasis blueprint interaktif.' },
+                    { name: 'Visual 3D Assembly', description: 'Inspeksi model 3D CAD interaktif.' },
+                    { name: 'Ringkasan & Sign-Off', description: 'Rangkuman akhir dan tanda tangan.' }
+                ]
+            }
+        },
+        {
             id: 'frontline-qms',
             name: 'Frontline QMS',
             category: 'Quality',
@@ -1416,6 +1486,96 @@ const AppStore = () => {
                     }
                 } catch (iqcErr) {
                     console.warn('Could not create IQC table:', iqcErr);
+                }
+            } else if (templateId === 'work-instructions') {
+                templateApp = createWorkInstructionsTemplate();
+                try {
+                    const woTable = await getOrCreateTableAndSeed(allTables, {
+                        name: 'WI_Work_Orders',
+                        fields: [
+                            { name: 'Work_Order_ID', type: 'text' },
+                            { name: 'Material_ID', type: 'text' },
+                            { name: 'Description', type: 'text' },
+                            { name: 'QTY_Required', type: 'number' },
+                            { name: 'QTY_Complete', type: 'number' },
+                            { name: 'Status', type: 'text' },
+                            { name: 'Due_Date', type: 'datetime' }
+                        ]
+                    }, true); // skip generic seed, we do custom seeding next
+
+                    // Seed specific work order data if table is new or empty
+                    if (woTable) {
+                        try {
+                            const { getTableRecords, addTableRecord } = await import('../utils/supabaseTablesDB');
+                            const existingRecords = await getTableRecords(woTable.id);
+                            if (!existingRecords || existingRecords.length === 0) {
+                                const initialWorkOrders = [
+                                    {
+                                        'Work_Order_ID': 'WO-2026-001',
+                                        'Material_ID': 'PCB-A-901',
+                                        'Description': 'Smart PCB Main Assembly',
+                                        'QTY_Required': 10,
+                                        'QTY_Complete': 0,
+                                        'Status': 'RELEASED',
+                                        'Due_Date': new Date(Date.now() + 5*24*3600*1000).toISOString()
+                                    },
+                                    {
+                                        'Work_Order_ID': 'WO-2026-002',
+                                        'Material_ID': 'BP-M-102',
+                                        'Description': 'Heavy Baseplate Mechanical Unit',
+                                        'QTY_Required': 25,
+                                        'QTY_Complete': 2,
+                                        'Status': 'IN PROGRESS',
+                                        'Due_Date': new Date(Date.now() + 2*24*3600*1000).toISOString()
+                                    },
+                                    {
+                                        'Work_Order_ID': 'WO-2026-003',
+                                        'Material_ID': 'SEN-S-404',
+                                        'Description': 'Optical Sensor Mounting Unit',
+                                        'QTY_Required': 5,
+                                        'QTY_Complete': 0,
+                                        'Status': 'RELEASED',
+                                        'Due_Date': new Date(Date.now() + 8*24*3600*1000).toISOString()
+                                    }
+                                ];
+                                for (const wo of initialWorkOrders) {
+                                    await addTableRecord({ tableId: woTable.id, fields: wo });
+                                }
+                            }
+                        } catch (seedErr) {
+                            console.warn('Could not seed initial Work Orders:', seedErr);
+                        }
+                    }
+
+                    const logsTable = await getOrCreateTableAndSeed(allTables, {
+                        name: 'WI_Activity_Logs',
+                        fields: [
+                            { name: 'Work_Order_ID', type: 'text' },
+                            { name: 'Operator', type: 'text' },
+                            { name: 'Station_ID', type: 'text' },
+                            { name: 'PCB_Serial', type: 'text' },
+                            { name: 'Torque_Value', type: 'number' },
+                            { name: 'Quality_Status', type: 'text' },
+                            { name: 'Defect_Reason', type: 'text' },
+                            { name: 'Cycle_Time_Sec', type: 'number' },
+                            { name: 'Timestamp', type: 'datetime' }
+                        ]
+                    }, true); // skip automatic seeding
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (woTable?.id) {
+                        appStr = appStr.replace(/tbl_wi_work_orders/g, woTable.id);
+                        tIds.push(woTable.id);
+                    }
+                    if (logsTable?.id) {
+                        appStr = appStr.replace(/tbl_wi_activity_logs/g, logsTable.id);
+                        tIds.push(logsTable.id);
+                    }
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (wiErr) {
+                    console.warn('Could not create WI tables:', wiErr);
                 }
             } else if (templateId === 'weigh-dispense') {
                 templateApp = createWeighDispenseTemplate();
@@ -3186,6 +3346,30 @@ const AppStore = () => {
                     }
                 } catch (qiErr) {
                     console.warn('Could not create Quality Inspection tables:', qiErr);
+                }
+            } else if (templateId === 'product-drawing-inspection') {
+                templateApp = createProductDrawingInspectionTemplate();
+                try {
+                    const plTable = await getOrCreateTableAndSeed(allTables, { name: 'Inspection_Plans', fields: [
+                        { name: 'Product_ID', type: 'text' }, { name: 'Inspection_Name', type: 'text' },
+                        { name: 'Inspection_Description', type: 'text' }, { name: 'Target', type: 'number' },
+                        { name: 'UoM', type: 'text' }
+                    ]});
+
+                    const rsTable = await getOrCreateTableAndSeed(allTables, { name: 'Inspection_Results', fields: [
+                        { name: 'Work_Order_ID', type: 'text' }, { name: 'Inspection_Plan_ID', type: 'text' },
+                        { name: 'Operator', type: 'text' }, { name: 'Recorded_Value', type: 'number' },
+                        { name: 'Status', type: 'text' }, { name: 'Comments', type: 'text' }
+                    ]});
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (plTable?.id) { appStr = appStr.replace(/tbl_qi_inspection_plans/g, plTable.id); tIds.push(plTable.id); }
+                    if (rsTable?.id) { appStr = appStr.replace(/tbl_qi_inspection_results/g, rsTable.id); tIds.push(rsTable.id); }
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (qiErr) {
+                    console.warn('Could not create Quality Inspection tables for product drawing inspection:', qiErr);
                 }
             } else if (templateId === 'frontline-qms') {
                 templateApp = createFrontlineQmsTemplate();

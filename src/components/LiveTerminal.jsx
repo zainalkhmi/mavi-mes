@@ -64,6 +64,7 @@ import {
   Edit3,
   Cpu,
   Wifi,
+  Bluetooth,
   Printer,
   Webcam,
   TrendingUp,
@@ -103,7 +104,7 @@ import { saveLiveMeasurement } from '../utils/supabaseUtilityDB';
 import { getAllFrontlineApps, getProductionQueue } from '../utils/supabaseFrontlineDB';
 import { getTableRecords, queryTableRecords, getTableById, resolveTableIdReference, addTableRecord } from '../utils/supabaseTablesDB';
 import { saveCompletion } from '../utils/supabaseCompletionsDB';
-import { getMachines, getStations } from '../utils/database';
+import { getMachines, getStations, getInterfaces } from '../utils/database';
 import { useLanguage } from '../contexts/LanguageContext';
 import iotConnector from '../utils/iotConnector';
 import webhookUtility from '../utils/webhookUtility';
@@ -259,6 +260,562 @@ const LiveAnalyticWrapper = ({ analysisId, title, refreshSeconds, isDark }) => {
   );
 };
 
+const CADViewer2D = ({ appVariables, setAppVariables }) => {
+  const activeDim = appVariables.find(v => v.name === 'Active_Dimension_Key')?.value || 'length';
+  
+  const lengthVal = parseFloat(appVariables.find(v => v.name === 'Meas_Length')?.value) || 0;
+  const diameterVal = parseFloat(appVariables.find(v => v.name === 'Meas_Diameter')?.value) || 0;
+  const boreVal = parseFloat(appVariables.find(v => v.name === 'Meas_Bore')?.value) || 0;
+
+  // Validation functions
+  const validateLength = (val) => val === 0 ? 'PENDING' : (val >= 119.5 && val <= 120.5 ? 'PASS' : 'FAIL');
+  const validateDiameter = (val) => val === 0 ? 'PENDING' : (val >= 79.8 && val <= 80.2 ? 'PASS' : 'FAIL');
+  const validateBore = (val) => val === 0 ? 'PENDING' : (val >= 24.9 && val <= 25.1 ? 'PASS' : 'FAIL');
+
+  const lenStatus = validateLength(lengthVal);
+  const diaStatus = validateDiameter(diameterVal);
+  const boreStatus = validateBore(boreVal);
+
+  const getStatusColor = (status, isActive) => {
+    if (status === 'PASS') return '#22c55e'; // Green
+    if (status === 'FAIL') return '#ef4444'; // Red
+    return isActive ? '#60a5fa' : '#94a3b8'; // Blue active or slate
+  };
+
+  const selectDim = (dimKey) => {
+    setAppVariables(prev => prev.map(v => v.name === 'Active_Dimension_Key' ? { ...v, value: dimKey } : v));
+  };
+
+  return (
+    <div style={{ backgroundColor: '#0b1d33', borderRadius: '12px', border: '1px solid #1e3a8a', padding: '16px', display: 'flex', flexDirection: 'column', height: '100%', color: 'white', position: 'relative' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#93c5fd', textTransform: 'uppercase', letterSpacing: '0.05em' }}>📐 Blueprint 2D Flange CAD</div>
+        <div style={{ display: 'flex', gap: '8px', fontSize: '0.65rem' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#22c55e' }}></span>PASS</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#ef4444' }}></span>FAIL</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#60a5fa' }}></span>ACTIVE</span>
+        </div>
+      </div>
+
+      <svg viewBox="0 0 500 360" style={{ flex: 1, width: '100%', height: '100%' }}>
+        {/* Drawing grid */}
+        <defs>
+          <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1e3a8a" strokeWidth="0.5" strokeOpacity="0.3" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        {/* Blueprint Border */}
+        <rect x="5" y="5" width="490" height="350" fill="none" stroke="#1e40af" strokeWidth="1" />
+        <rect x="8" y="8" width="484" height="344" fill="none" stroke="#1e3a8a" strokeWidth="0.5" />
+
+        {/* ── LEFT VIEW: FRONT VIEW (CIRCULAR) ── */}
+        <g transform="translate(0, 0)">
+          {/* Main outer flange circle */}
+          <circle cx="140" cy="180" r="90" fill="none" stroke="#3b82f6" strokeWidth="1.5" />
+          
+          {/* Bolt circle */}
+          <circle cx="140" cy="180" r="65" fill="none" stroke="#3b82f6" strokeWidth="1" strokeDasharray="5,5" />
+          
+          {/* Center bore circle */}
+          <circle cx="140" cy="180" r="30" fill="none" stroke="#3b82f6" strokeWidth="1.5" />
+
+          {/* Centerlines cross */}
+          <line x1="140" y1="75" x2="140" y2="285" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="15,4,2,4" />
+          <line x1="35" y1="180" x2="245" y2="180" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="15,4,2,4" />
+
+          {/* 8 Bolt Holes */}
+          {[0, 45, 90, 135, 180, 225, 270, 315].map((angle, idx) => {
+            const rad = (angle * Math.PI) / 180;
+            const bx = 140 + 65 * Math.cos(rad);
+            const by = 180 + 65 * Math.sin(rad);
+            return (
+              <g key={idx}>
+                <circle cx={bx} cy={by} r="8" fill="none" stroke="#3b82f6" strokeWidth="1" />
+                <line x1={bx - 12} y1={by} x2={bx + 12} y2={by} stroke="#3b82f6" strokeWidth="0.5" />
+                <line x1={bx} y1={by - 12} x2={bx} y2={by} stroke="#3b82f6" strokeWidth="0.5" />
+              </g>
+            );
+          })}
+        </g>
+
+        {/* ── RIGHT VIEW: SECTION CUT VIEW ── */}
+        <g transform="translate(300, 0)">
+          {/* Centerline */}
+          <line x1="100" y1="65" x2="100" y2="295" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="15,4,2,4" />
+
+          {/* Flange plate profile (cut out section) */}
+          {/* Top half cut */}
+          <path d="M 40,110 L 100,110 L 100,140 L 90,140 L 90,220 L 100,220 L 100,250 L 40,250 L 40,220 L 15,220 L 15,140 L 40,140 Z" fill="none" stroke="#60a5fa" strokeWidth="1.5" />
+          
+          {/* Hatching for top half */}
+          <path d="M 40,120 L 50,110 M 40,140 L 70,110 M 40,160 L 90,110 M 40,180 L 100,120 M 40,200 L 100,140 M 45,210 L 100,155 M 65,210 L 100,175 M 85,210 L 100,195 M 40,230 L 60,210 M 40,250 L 80,210" fill="none" stroke="#1e3a8a" strokeWidth="0.5" strokeOpacity="0.5" />
+        </g>
+
+        {/* ── DIMENSION ANNOTATIONS & INTERACTIVE HOTSPOTS ── */}
+
+        {/* 1. Flange Diameter (D) - Vertical Dimension */}
+        <g style={{ cursor: 'pointer' }} onClick={() => selectDim('diameter')}>
+          <line x1="20" y1="90" x2="120" y2="90" stroke="#334155" strokeWidth="0.5" strokeDasharray="2,2" />
+          <line x1="20" y1="270" x2="120" y2="270" stroke="#334155" strokeWidth="0.5" strokeDasharray="2,2" />
+          
+          {/* Dimension line with arrows */}
+          <line x1="30" y1="100" x2="30" y2="260" stroke={getStatusColor(diaStatus, activeDim === 'diameter')} strokeWidth="2" />
+          <polygon points="30,90 26,102 34,102" fill={getStatusColor(diaStatus, activeDim === 'diameter')} />
+          <polygon points="30,270 26,258 34,258" fill={getStatusColor(diaStatus, activeDim === 'diameter')} />
+
+          {/* Interactive Text Label */}
+          <rect x="15" y="165" width="55" height="30" rx="4" fill="#0f172a" stroke={getStatusColor(diaStatus, activeDim === 'diameter')} strokeWidth={activeDim === 'diameter' ? 2 : 1} />
+          <text x="42" y="184" textAnchor="middle" fill={getStatusColor(diaStatus, activeDim === 'diameter')} fontSize="11" fontWeight="bold">
+            Ø 80.0
+          </text>
+          
+          {/* Glowing pulse if active */}
+          {activeDim === 'diameter' && (
+            <circle cx="30" cy="180" r="16" fill="none" stroke="#60a5fa" strokeWidth="1.5" opacity="0.8">
+              <animate attributeName="r" values="10;25;10" dur="1.8s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.8;0;0.8" dur="1.8s" repeatCount="indefinite" />
+            </circle>
+          )}
+        </g>
+
+        {/* 2. Overall Length (L) - Horizontal Dimension */}
+        <g style={{ cursor: 'pointer' }} onClick={() => selectDim('length')}>
+          <line x1="315" y1="130" x2="315" y2="70" stroke="#334155" strokeWidth="0.5" strokeDasharray="2,2" />
+          <line x1="400" y1="130" x2="400" y2="70" stroke="#334155" strokeWidth="0.5" strokeDasharray="2,2" />
+
+          {/* Dimension line with arrows */}
+          <line x1="325" y1="80" x2="390" y2="80" stroke={getStatusColor(lenStatus, activeDim === 'length')} strokeWidth="2" />
+          <polygon points="315,80 327,76 327,84" fill={getStatusColor(lenStatus, activeDim === 'length')} />
+          <polygon points="400,80 388,76 388,84" fill={getStatusColor(lenStatus, activeDim === 'length')} />
+
+          {/* Interactive Text Label */}
+          <rect x="338" y="65" width="44" height="26" rx="4" fill="#0f172a" stroke={getStatusColor(lenStatus, activeDim === 'length')} strokeWidth={activeDim === 'length' ? 2 : 1} />
+          <text x="360" y="81" textAnchor="middle" fill={getStatusColor(lenStatus, activeDim === 'length')} fontSize="10" fontWeight="bold">
+            120.0
+          </text>
+
+          {/* Glowing pulse if active */}
+          {activeDim === 'length' && (
+            <circle cx="360" cy="80" r="16" fill="none" stroke="#60a5fa" strokeWidth="1.5" opacity="0.8">
+              <animate attributeName="r" values="10;22;10" dur="1.8s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.8;0;0.8" dur="1.8s" repeatCount="indefinite" />
+            </circle>
+          )}
+        </g>
+
+        {/* 3. Center Bore (B) - Angled Leader Dimension */}
+        <g style={{ cursor: 'pointer' }} onClick={() => selectDim('bore')}>
+          {/* Leader line pointing to inner circle */}
+          <path d="M 125,165 L 85,115 L 45,115" fill="none" stroke={getStatusColor(boreStatus, activeDim === 'bore')} strokeWidth="1.5" />
+          <polygon points="125,165 117,162 121,156" fill={getStatusColor(boreStatus, activeDim === 'bore')} transform="rotate(-5, 125, 165)" />
+
+          {/* Interactive Text Label */}
+          <rect x="42" y="98" width="46" height="26" rx="4" fill="#0f172a" stroke={getStatusColor(boreStatus, activeDim === 'bore')} strokeWidth={activeDim === 'bore' ? 2 : 1} />
+          <text x="65" y="114" textAnchor="middle" fill={getStatusColor(boreStatus, activeDim === 'bore')} fontSize="10" fontWeight="bold">
+            Ø 25.0
+          </text>
+
+          {/* Glowing pulse if active */}
+          {activeDim === 'bore' && (
+            <circle cx="65" cy="111" r="14" fill="none" stroke="#60a5fa" strokeWidth="1.5" opacity="0.8">
+              <animate attributeName="r" values="8;18;8" dur="1.8s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.8;0;0.8" dur="1.8s" repeatCount="indefinite" />
+            </circle>
+          )}
+        </g>
+      </svg>
+
+      <div style={{ backgroundColor: '#081225', border: '1px solid #1e3a8a', padding: '8px 12px', borderRadius: '6px', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.7rem' }}>
+        <div style={{ color: '#93c5fd', fontWeight: 600 }}>TIPS OPERATOR:</div>
+        <div style={{ color: '#94a3b8' }}>Sentuh dimensi pada gambar di atas untuk memilih parameter input yang akan direkam pada panel kanan.</div>
+      </div>
+    </div>
+  );
+};
+
+const CADViewer3D = ({ appVariables, setAppVariables }) => {
+  const canvasRef = useRef(null);
+  
+  // Track rotation angles (in radians)
+  const [yaw, setYaw] = useState(0.8);
+  const [pitch, setPitch] = useState(0.6);
+  const [zoom, setZoom] = useState(2.3);
+  const [isDragging, setIsDragging] = useState(false);
+  const lastMousePos = useRef({ x: 0, y: 0 });
+
+  // Get current visual inspection values
+  const weldStatus = appVariables.find(v => v.name === 'Visual_Weld')?.value || 'PENDING';
+  const screwsStatus = appVariables.find(v => v.name === 'Visual_Screws')?.value || 'PENDING';
+
+  // Generate 3D vertices for a mechanical flange
+  const createFlangeGeometry = useCallback(() => {
+    const vertices = [];
+    const segments = 16;
+
+    // Helper to generate a ring
+    const addRing = (z, radius) => {
+      for (let i = 0; i < segments; i++) {
+        const angle = (i * 2 * Math.PI) / segments;
+        vertices.push({
+          x: radius * Math.cos(angle),
+          y: radius * Math.sin(angle),
+          z: z,
+          ringId: z + '_' + radius
+        });
+      }
+    };
+
+    // 1. Neck Front Ring (Z = -30, R = 28)
+    addRing(-30, 28);
+    // 2. Neck Flange Joint Ring (Z = 5, R = 28)
+    addRing(5, 28);
+    // 3. Flange Rim Start (Z = 5, R = 60)
+    addRing(5, 60);
+    // 4. Flange Rim End (Z = 20, R = 60)
+    addRing(20, 60);
+    
+    // Bore inner tunnel
+    // 5. Bore Front (Z = -30, R = 14)
+    addRing(-30, 14);
+    // 6. Bore Back (Z = 20, R = 14)
+    addRing(20, 14);
+
+    return { vertices, segments };
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    
+    // Handle retina display
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+
+    const width = rect.width;
+    const height = rect.height;
+    const cx = width / 2;
+    const cy = height / 2;
+
+    const { vertices, segments } = createFlangeGeometry();
+
+    const render = () => {
+      ctx.clearRect(0, 0, width, height);
+
+      // Draw workspace background gradient inside canvas
+      const grad = ctx.createRadialGradient(cx, cy, 10, cx, cy, Math.max(cx, cy));
+      grad.addColorStop(0, '#0f172a');
+      grad.addColorStop(1, '#020617');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
+
+      // Rotate vertices
+      const cosY = Math.cos(yaw);
+      const sinY = Math.sin(yaw);
+      const cosP = Math.cos(pitch);
+      const sinP = Math.sin(pitch);
+
+      const projected = vertices.map(v => {
+        // Yaw (Rotate Y)
+        const x1 = v.x * cosY - v.z * sinY;
+        const z1 = v.x * sinY + v.z * cosY;
+
+        // Pitch (Rotate X)
+        const y2 = v.y * cosP - z1 * sinP;
+        const z2 = v.y * sinP + z1 * cosP;
+
+        // Perspective or Orthographic Scale
+        const scaleFactor = zoom * (250 / (250 + z2)); // Subtle perspective
+        
+        return {
+          projX: cx + x1 * scaleFactor,
+          projY: cy + y2 * scaleFactor,
+          depth: z2,
+          orig: v
+        };
+      });
+
+      // Drawing Helper for rings
+      const drawRing = (ringIndex, color, lineWidth, isDashed = false) => {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth;
+        ctx.beginPath();
+        if (isDashed) ctx.setLineDash([4, 4]);
+        else ctx.setLineDash([]);
+
+        const startIdx = ringIndex * segments;
+        ctx.moveTo(projected[startIdx].projX, projected[startIdx].projY);
+        for (let i = 1; i < segments; i++) {
+          ctx.lineTo(projected[startIdx + i].projX, projected[startIdx + i].projY);
+        }
+        ctx.closePath();
+        ctx.stroke();
+      };
+
+      // Draw solid surface fills for depth simulation (back to front)
+      const drawShadedCylinder = (ringIdxStart, ringIdxEnd, baseColor, opacity) => {
+        const startA = ringIdxStart * segments;
+        const startB = ringIdxEnd * segments;
+        
+        for (let i = 0; i < segments; i++) {
+          const nextI = (i + 1) % segments;
+          const pA1 = projected[startA + i];
+          const pA2 = projected[startA + nextI];
+          const pB1 = projected[startB + i];
+          const pB2 = projected[startB + nextI];
+          
+          // Shading intensity based on depth alignment (lighting from top-left)
+          const lightFactor = Math.max(0.1, 0.4 + 0.6 * Math.sin(i * 2 * Math.PI / segments + yaw));
+          
+          ctx.fillStyle = `rgba(14, 165, 233, ${opacity * lightFactor})`;
+          ctx.beginPath();
+          ctx.moveTo(pA1.projX, pA1.projY);
+          ctx.lineTo(pA2.projX, pA2.projY);
+          ctx.lineTo(pB2.projX, pB2.projY);
+          ctx.lineTo(pB1.projX, pB1.projY);
+          ctx.closePath();
+          ctx.fill();
+        }
+      };
+
+      // 1. Shaded neck assembly
+      drawShadedCylinder(0, 1, 'rgba(14, 165, 233, 0.05)', 0.15);
+      // 2. Shaded flange rim
+      drawShadedCylinder(2, 3, 'rgba(14, 165, 233, 0.08)', 0.2);
+
+      // Draw wireframe rings (back to front depending on depth)
+      drawRing(0, '#1e3a8a', 1, true); // Neck Front (dashed)
+      drawRing(4, '#0f172a', 1, true); // Bore Front
+      drawRing(5, '#3b82f6', 1); // Bore Back
+      drawRing(1, '#1e40af', 1.5); // Joint
+      drawRing(2, '#3b82f6', 1.5); // Flange Shoulder
+      drawRing(3, '#60a5fa', 2); // Flange Rim
+
+      // Draw longitudinal connecting edges
+      ctx.setLineDash([]);
+      ctx.lineWidth = 1;
+      for (let i = 0; i < segments; i += 2) {
+        const idx0 = i;
+        const idx1 = segments + i;
+        const idx2 = 2 * segments + i;
+        const idx3 = 3 * segments + i;
+        const idx4 = 4 * segments + i;
+        const idx5 = 5 * segments + i;
+
+        // Draw neck edge
+        ctx.strokeStyle = '#1e40af';
+        ctx.beginPath();
+        ctx.moveTo(projected[idx0].projX, projected[idx0].projY);
+        ctx.lineTo(projected[idx1].projX, projected[idx1].projY);
+        ctx.stroke();
+
+        // Draw flange edge
+        ctx.strokeStyle = '#3b82f6';
+        ctx.beginPath();
+        ctx.moveTo(projected[idx2].projX, projected[idx2].projY);
+        ctx.lineTo(projected[idx3].projX, projected[idx3].projY);
+        ctx.stroke();
+
+        // Draw bore tunnel edge
+        ctx.strokeStyle = '#1d4ed8';
+        ctx.beginPath();
+        ctx.moveTo(projected[idx4].projX, projected[idx4].projY);
+        ctx.lineTo(projected[idx5].projX, projected[idx5].projY);
+        ctx.stroke();
+      }
+
+      // ── GLOWING WELD SEAM (Z = 5, R = 28) ──
+      let weldColor = '#06b6d4'; // Cyan default
+      let weldText = 'SAMBUNGAN LAS: PENDING';
+      if (weldStatus === 'PASS') { weldColor = '#10b981'; weldText = 'SAMBUNGAN LAS: PASS'; }
+      else if (weldStatus === 'FAIL') { weldColor = '#ef4444'; weldText = 'SAMBUNGAN LAS: FAIL'; }
+
+      // Draw weld seam path thicker
+      drawRing(1, weldColor, 3.5);
+      
+      // Draw 3D Weld Seam Hotspot Marker at ring 1, index 2
+      const weldPoint = projected[segments + 2];
+      ctx.beginPath();
+      ctx.arc(weldPoint.projX, weldPoint.projY, 8, 0, 2 * Math.PI);
+      ctx.fillStyle = weldColor;
+      ctx.shadowColor = weldColor;
+      ctx.shadowBlur = 12;
+      ctx.fill();
+      ctx.shadowBlur = 0; // reset
+
+      // Draw pointer line to label
+      ctx.strokeStyle = weldColor;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(weldPoint.projX, weldPoint.projY);
+      ctx.lineTo(weldPoint.projX - 45, weldPoint.projY - 35);
+      ctx.lineTo(weldPoint.projX - 145, weldPoint.projY - 35);
+      ctx.stroke();
+
+      // Draw label background and text
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = weldColor;
+      ctx.lineWidth = 1;
+      ctx.fillRect(weldPoint.projX - 145, weldPoint.projY - 51, 100, 20);
+      ctx.strokeRect(weldPoint.projX - 145, weldPoint.projY - 51, 100, 20);
+      
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 8px sans-serif';
+      ctx.fillText(weldText, weldPoint.projX - 139, weldPoint.projY - 38);
+
+      // ── GLOWING BOLT HOLES (Z = 12, R = 45) ──
+      let screwsColor = '#eab308'; // Yellow default
+      let screwsText = 'BAUT: PENDING';
+      if (screwsStatus === 'PASS') { screwsColor = '#10b981'; screwsText = 'BAUT: LENGKAP'; }
+      else if (screwsStatus === 'FAIL') { screwsColor = '#ef4444'; screwsText = 'BAUT: reject'; }
+
+      // Let's place 8 bolt hole markers projected in 3D
+      const boltRadius = 45;
+      const boltZ = 12; // halfway
+      const boltProjectedPoints = [];
+
+      for (let i = 0; i < 8; i++) {
+        const bAngle = (i * 2 * Math.PI) / 8 + Math.PI/8;
+        const bx = boltRadius * Math.cos(bAngle);
+        const by = boltRadius * Math.sin(bAngle);
+
+        // Rotate
+        const bx1 = bx * cosY - boltZ * sinY;
+        const bz1 = bx * sinY + boltZ * cosY;
+        const by2 = by * cosP - bz1 * sinP;
+        const bz2 = by * sinP + bz1 * cosP;
+        const bScale = zoom * (250 / (250 + bz2));
+
+        const px = cx + bx1 * bScale;
+        const py = cy + by2 * bScale;
+        boltProjectedPoints.push({ x: px, y: py });
+
+        // Draw bolt node
+        ctx.beginPath();
+        ctx.arc(px, py, 4, 0, 2 * Math.PI);
+        ctx.fillStyle = screwsColor;
+        ctx.fill();
+        ctx.strokeStyle = '#020617';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+
+      // Draw pointer line to bolts label (pointer from first bolt point)
+      const boltPoint = boltProjectedPoints[1];
+      ctx.strokeStyle = screwsColor;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(boltPoint.x, boltPoint.y);
+      ctx.lineTo(boltPoint.x + 45, boltPoint.y - 25);
+      ctx.lineTo(boltPoint.x + 135, boltPoint.y - 25);
+      ctx.stroke();
+
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = screwsColor;
+      ctx.lineWidth = 1;
+      ctx.fillRect(boltPoint.x + 45, boltPoint.y - 41, 90, 20);
+      ctx.strokeRect(boltPoint.x + 45, boltPoint.y - 41, 90, 20);
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 8px sans-serif';
+      ctx.fillText(screwsText, boltPoint.x + 51, boltPoint.y - 28);
+    };
+
+    render();
+
+    // Drag handlers
+    let isMouseDown = false;
+    const handleMouseDown = e => {
+      isMouseDown = true;
+      setIsDragging(true);
+      lastMousePos.current = { x: e.clientX, y: e.clientY };
+    };
+
+    const handleMouseMove = e => {
+      if (!isMouseDown) return;
+      const dx = e.clientX - lastMousePos.current.x;
+      const dy = e.clientY - lastMousePos.current.y;
+      
+      setYaw(prev => prev + dx * 0.015);
+      setPitch(prev => Math.max(-Math.PI/2, Math.min(Math.PI/2, prev + dy * 0.015)));
+      
+      lastMousePos.current = { x: e.clientX, y: e.clientY };
+    };
+
+    const handleMouseUp = () => {
+      isMouseDown = false;
+      setIsDragging(false);
+    };
+
+    canvas.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    // Touch events for mobile
+    const handleTouchStart = e => {
+      if (e.touches.length === 1) {
+        isMouseDown = true;
+        setIsDragging(true);
+        lastMousePos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
+    };
+
+    const handleTouchMove = e => {
+      if (!isMouseDown || e.touches.length !== 1) return;
+      const dx = e.touches[0].clientX - lastMousePos.current.x;
+      const dy = e.touches[0].clientY - lastMousePos.current.y;
+      
+      setYaw(prev => prev + dx * 0.015);
+      setPitch(prev => Math.max(-Math.PI/2, Math.min(Math.PI/2, prev + dy * 0.015)));
+      
+      lastMousePos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    };
+
+    const handleTouchEnd = () => {
+      isMouseDown = false;
+      setIsDragging(false);
+    };
+
+    canvas.addEventListener('touchstart', handleTouchStart);
+    canvas.addEventListener('touchmove', handleTouchMove);
+    canvas.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      canvas.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      
+      canvas.removeEventListener('touchstart', handleTouchStart);
+      canvas.removeEventListener('touchmove', handleTouchMove);
+      canvas.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [yaw, pitch, zoom, createFlangeGeometry, weldStatus, screwsStatus]);
+
+  return (
+    <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid #334155', padding: '16px', display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', zIndex: 10 }}>
+        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🧊 Interactive 3D CAD Twin</div>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <button onClick={() => setZoom(prev => Math.max(1, prev - 0.2))} style={{ width: 22, height: 22, display: 'grid', placeItems: 'center', backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '4px', color: 'white', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>-</button>
+          <button onClick={() => setZoom(prev => Math.min(5, prev + 0.2))} style={{ width: 22, height: 22, display: 'grid', placeItems: 'center', backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '4px', color: 'white', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+</button>
+          <button onClick={() => { setYaw(0.8); setPitch(0.6); setZoom(2.3); }} style={{ height: 22, padding: '0 8px', display: 'grid', placeItems: 'center', backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '4px', color: 'white', cursor: 'pointer', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>Reset</button>
+        </div>
+      </div>
+      
+      <canvas ref={canvasRef} style={{ flex: 1, width: '100%', height: '100%', cursor: isDragging ? 'grabbing' : 'grab', borderRadius: '8px' }} />
+
+      <div style={{ position: 'absolute', bottom: '24px', left: '24px', right: '24px', backgroundColor: 'rgba(15, 23, 42, 0.8)', border: '1px solid #1e293b', padding: '6px 10px', borderRadius: '6px', fontSize: '0.62rem', color: '#94a3b8', zIndex: 10 }}>
+        💡 Drag tetikus / swipe untuk memutar model 3D CAD secara real-time.
+      </div>
+    </div>
+  );
+};
+
 const LiveTerminal = () => {
   const [showChat, setShowChat] = useState(false);
   const [devMode, setDevMode] = useState(false);
@@ -305,6 +862,7 @@ const LiveTerminal = () => {
   const [showOperatorMenu, setShowOperatorMenu] = useState(false);
   const { changeLanguage, currentLanguage } = useLanguage();
 
+  const [interfaces, setInterfaces] = useState([]);
   const [loading, setLoading] = useState(true);
   const [manuals, setManuals] = useState([]);
   const [frontlineApps, setFrontlineApps] = useState([]);
@@ -436,6 +994,18 @@ const LiveTerminal = () => {
       obd2Service.stopAllStreams();
     };
   }, []);
+
+  useEffect(() => {
+    if (currentWorkOrder) {
+      setAppVariables(prev => prev.map(v => {
+        const nameUpper = (v.name || '').toUpperCase();
+        if (nameUpper === 'WORK_ORDER_ID' || nameUpper === 'SELECTED_WO_ID' || nameUpper === 'WORKORDER' || nameUpper === 'WORK_ORDER' || nameUpper === 'WO_ID') {
+          return { ...v, value: currentWorkOrder };
+        }
+        return v;
+      }));
+    }
+  }, [currentWorkOrder]);
 
   useEffect(() => {
     let active = true;
@@ -595,6 +1165,8 @@ const LiveTerminal = () => {
             setToggleState(prev => prev[comp.id] === val ? prev : { ...prev, [comp.id]: !!val });
           } else if (comp.type === 'TEXT_AREA') {
             setTextAreaValues(prev => prev[comp.id] === val ? prev : { ...prev, [comp.id]: val });
+          } else if (comp.type === 'BARCODE_SCANNER' || comp.type === 'BARCODE') {
+            setBarcodeValues(prev => prev[comp.id] === val ? prev : { ...prev, [comp.id]: val });
           }
         }
       }
@@ -610,6 +1182,8 @@ const LiveTerminal = () => {
             setNumberInputValues(prev => prev[comp.id] === val ? prev : { ...prev, [comp.id]: val });
           } else if (comp.type === 'TEXT_AREA') {
             setTextAreaValues(prev => prev[comp.id] === val ? prev : { ...prev, [comp.id]: val });
+          } else if (comp.type === 'BARCODE_SCANNER' || comp.type === 'BARCODE') {
+            setBarcodeValues(prev => prev[comp.id] === val ? prev : { ...prev, [comp.id]: val });
           }
         }
       }
@@ -1192,14 +1766,16 @@ const LiveTerminal = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [manualData, appData, queueData, stationData] = await Promise.all([
+        const [manualData, appData, queueData, stationData, interfaceData] = await Promise.all([
           listManualSummaries(),
           getAllFrontlineApps(),
           getProductionQueue(),
-          getStations()
+          getStations(),
+          getInterfaces()
         ]);
 
         setStations(stationData || []);
+        setInterfaces(interfaceData || []);
 
         setManuals(manualData || []);
 
@@ -1378,6 +1954,10 @@ const LiveTerminal = () => {
         if (val === '@APP_INFO.USER') val = launchOperator || appContext.user || 'Operator';
         else if (val === '@APP_INFO.STATION') val = launchStation || appContext.station || 'WS-01';
         else if (val === '@APP_INFO.APP_NAME') val = normalizedApp.name || '';
+      }
+      const nameUpper = (v.name || '').toUpperCase();
+      if (currentWorkOrder && (nameUpper === 'WORK_ORDER_ID' || nameUpper === 'SELECTED_WO_ID' || nameUpper === 'WORKORDER' || nameUpper === 'WORK_ORDER' || nameUpper === 'WO_ID')) {
+        val = currentWorkOrder;
       }
       return { ...v, value: val };
     });
@@ -3373,7 +3953,8 @@ const LiveTerminal = () => {
     // 1. Resolve current value based on component type
     let currentValue = null;
     switch (comp.type) {
-      case 'BARCODE': currentValue = barcodeValues[comp.id]; break;
+      case 'BARCODE':
+      case 'BARCODE_SCANNER': currentValue = barcodeValues[comp.id] ?? cameraScannerValues[comp.id]; break;
       case 'CAMERA_SCANNER': currentValue = cameraScannerValues[comp.id]; break;
       case 'CAMERA_CAPTURE': currentValue = cameraValues[comp.id]; break;
       case 'FILE_UPLOAD': currentValue = uploadValues[comp.id]?.url || uploadValues[comp.id]?.name; break;
@@ -7070,16 +7651,128 @@ const LiveTerminal = () => {
           </div>
         );
       // ── BARCODE_SCANNER ──
-      case 'BARCODE_SCANNER':
+      case 'BARCODE_SCANNER': {
+        const isCompact = comp.h ? comp.h < 120 : true;
+        const val = barcodeValues[comp.id] || '';
+        
         return (
-          <div style={{ border: `2px dashed ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', padding: '24px', textAlign: 'center', backgroundColor: isDark ? '#0f172a' : '#f8fafc' }}>
-            <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>📷</div>
-            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: isDark ? '#f8fafc' : '#0f172a', marginBottom: '4px' }}>{comp.props.label || 'Barcode Scanner'}</div>
-            <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Point camera at barcode to scan</div>
-            <input type="text" placeholder="Or type/paste barcode..." onChange={e => { syncVariable(e.target.value); fireWidgetTriggers(comp, 'ON_SCAN', e.target.value); }}
-              style={{ marginTop: '12px', width: '100%', padding: '10px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '8px', backgroundColor: isDark ? '#1e293b' : 'white', color: isDark ? '#f8fafc' : '#0f172a', fontSize: '0.85rem', textAlign: 'center', outline: 'none' }} />
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px',
+            width: '100%',
+            height: '100%',
+            justifyContent: 'center',
+            boxSizing: 'border-box'
+          }}>
+            {comp.props.label && (
+              <div style={{
+                fontSize: '0.72rem',
+                color: isDark ? '#94a3b8' : '#475569',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em'
+              }}>
+                {comp.props.label} {comp.props.required ? '*' : ''}
+              </div>
+            )}
+            
+            <div style={{
+              display: 'flex',
+              gap: '8px',
+              alignItems: 'center',
+              width: '100%'
+            }}>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <input
+                  type="text"
+                  placeholder={comp.props.placeholder || 'Scan or type barcode...'}
+                  value={val}
+                  autoFocus={comp.props.autoFocus}
+                  onChange={(e) => {
+                    const nextVal = e.target.value;
+                    setBarcodeValues(prev => ({ ...prev, [comp.id]: nextVal }));
+                    syncVariable(nextVal);
+                    fireWidgetTriggers(comp, 'ON_SCAN', nextVal);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    paddingRight: '32px',
+                    borderRadius: '8px',
+                    border: `1.5px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                    backgroundColor: isDark ? '#1e293b' : 'white',
+                    color: isDark ? '#f8fafc' : '#0f172a',
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                    outline: 'none',
+                    transition: 'border-color 0.2s',
+                    boxSizing: 'border-box'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                  onBlur={(e) => e.target.style.borderColor = isDark ? '#334155' : '#cbd5e1'}
+                />
+                <span style={{
+                  position: 'absolute',
+                  right: '10px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: isDark ? '#64748b' : '#94a3b8',
+                  pointerEvents: 'none',
+                  fontSize: '0.8rem'
+                }}>
+                  🔍
+                </span>
+              </div>
+              
+              <button
+                type="button"
+                onClick={() => setCameraScannerActive(prev => ({ ...prev, [comp.id]: true }))}
+                title="Scan using camera"
+                style={{
+                  height: '36px',
+                  width: '36px',
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#2563eb'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#3b82f6'}
+              >
+                <Camera size={16} />
+              </button>
+            </div>
+
+            {/* Status indicator if camera scanner succeeded */}
+            {cameraScannerStatus[comp.id] && !isCompact && (
+              <div style={{ fontSize: '0.65rem', color: '#15803d', fontWeight: 600, marginTop: '2px' }}>
+                {cameraScannerStatus[comp.id]}
+              </div>
+            )}
+
+            {cameraScannerActive[comp.id] && (
+              <UnifiedScanner
+                label={comp.props.label || 'Scan Barcode / QR'}
+                onScan={(scannedVal) => {
+                  setBarcodeValues(prev => ({ ...prev, [comp.id]: scannedVal }));
+                  syncVariable(scannedVal);
+                  fireWidgetTriggers(comp, 'ON_SCAN', scannedVal);
+                  setCameraScannerActive(prev => ({ ...prev, [comp.id]: false }));
+                }}
+                onClose={() => setCameraScannerActive(prev => ({ ...prev, [comp.id]: false }))}
+              />
+            )}
           </div>
         );
+      }
       // ── SIGNATURE_PAD ──
       case 'SIGNATURE_PAD':
         return (
@@ -7216,7 +7909,24 @@ const LiveTerminal = () => {
         );
       }
       // ── CAD_VIEWER ──
-      case 'CAD_VIEWER':
+      case 'CAD_VIEWER': {
+        const fileUrl = comp.props?.fileUrl || '';
+        if (fileUrl === 'interactive-2d-blueprint') {
+          return (
+            <CADViewer2D 
+              appVariables={appVariables} 
+              setAppVariables={setAppVariables} 
+            />
+          );
+        }
+        if (fileUrl === 'interactive-3d-cad') {
+          return (
+            <CADViewer3D 
+              appVariables={appVariables} 
+              setAppVariables={setAppVariables} 
+            />
+          );
+        }
         return (
           <div style={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', height: '100%' }}>
             <div style={{ fontSize: '2.5rem' }}>🧊</div>
@@ -7224,6 +7934,7 @@ const LiveTerminal = () => {
             <div style={{ fontSize: '0.7rem', color: '#475569' }}>{comp.props.fileUrl ? comp.props.fileUrl : 'No CAD file configured'}</div>
           </div>
         );
+      }
       default: return (
         <div style={{ color: '#dc2626', backgroundColor: '#fee2e2', padding: '10px', borderRadius: '4px', fontSize: '0.75rem', border: '1px solid #fecaca' }}>
           Unknown Type: {comp.type}
@@ -8660,19 +9371,69 @@ const LiveTerminal = () => {
 
               <div style={{ marginBottom: '24px' }}>
                 <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '12px' }}>Connected Edge Devices</h3>
-                <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
-                  {['Barcode Scanner (USB)', 'Scale (COM3)', 'Edge IO (192.168.1.50)'].map((dev, i) => (
-                    <div key={i} style={{ padding: '12px 16px', borderBottom: i < 2 ? '1px solid #e2e8f0' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <Cpu size={16} color="#64748b" />
-                        <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#334155' }}>{dev}</span>
+                {(() => {
+                  const activeStationObj = stations.find(s => s.name === appContext.station);
+                  const activeInterface = activeStationObj ? interfaces.find(i => i.id === activeStationObj.interfaceId) : null;
+                  
+                  const activeDrivers = [];
+                  if (activeInterface && activeInterface.drivers) {
+                    const drvs = activeInterface.drivers;
+                    if (drvs.serialCaliper?.enabled) {
+                      activeDrivers.push({
+                        name: `Web Serial Caliper (Baud: ${drvs.serialCaliper.baudRate || 9600}, Term: ${drvs.serialCaliper.terminator === '\r\n' ? 'CRLF' : drvs.serialCaliper.terminator === '\n' ? 'LF' : 'CR'})`,
+                        icon: <Cpu size={16} color="#3b82f6" />
+                      });
+                    }
+                    if (drvs.bluetoothCaliper?.enabled) {
+                      activeDrivers.push({
+                        name: `Web Bluetooth Caliper${drvs.bluetoothCaliper.prefix ? ` (Filter: ${drvs.bluetoothCaliper.prefix})` : ''}`,
+                        icon: <Bluetooth size={16} color="#2563eb" />
+                      });
+                    }
+                    if (drvs.barcodeScanner?.enabled) {
+                      activeDrivers.push({
+                        name: `USB Barcode Scanner (${drvs.barcodeScanner.mode === 'HID' ? 'HID Keyboard' : `Serial ${drvs.barcodeScanner.port || 'COM1'}`})`,
+                        icon: <SlidersHorizontal size={16} color="#ea580c" />
+                      });
+                    }
+                    if (drvs.webcam?.enabled) {
+                      activeDrivers.push({
+                        name: `Webcam/Camera (${drvs.webcam.resolution || '1080p'}${drvs.webcam.rtspUrl ? ' - IP Stream' : ''})`,
+                        icon: <Camera size={16} color="#0d9488" />
+                      });
+                    }
+                    if (drvs.obd2Reader?.enabled) {
+                      activeDrivers.push({
+                        name: `OBD2 Reader (${drvs.obd2Reader.transport || 'BLUETOOTH'})`,
+                        icon: <Monitor size={16} color="#7c3aed" />
+                      });
+                    }
+                  }
+
+                  if (activeDrivers.length === 0) {
+                    return (
+                      <div style={{ padding: '16px', fontStyle: 'italic', color: '#64748b', fontSize: '0.85rem', textAlign: 'center', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        {activeInterface ? "No hardware drivers enabled for this interface. Configure them in Shop Floor -> Interfaces." : "No interface assigned to this station."}
                       </div>
-                      <div style={{ backgroundColor: '#dcfce7', color: '#16a34a', padding: '4px 8px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 700 }}>
-                        ONLINE
-                      </div>
+                    );
+                  }
+
+                  return (
+                    <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+                      {activeDrivers.map((drv, idx) => (
+                        <div key={idx} style={{ padding: '12px 16px', borderBottom: idx < activeDrivers.length - 1 ? '1px solid #e2e8f0' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            {drv.icon}
+                            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#334155' }}>{drv.name}</span>
+                          </div>
+                          <div style={{ backgroundColor: '#dcfce7', color: '#16a34a', padding: '4px 8px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 700 }}>
+                            ACTIVE
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  );
+                })()}
               </div>
 
               <div>

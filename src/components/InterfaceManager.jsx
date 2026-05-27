@@ -15,9 +15,22 @@ import {
     ArrowRight,
     Pencil,
     CheckCircle2,
-    AlertCircle
+    AlertCircle,
+    SlidersHorizontal,
+    Cpu,
+    Bluetooth,
+    Sliders,
+    Camera
 } from 'lucide-react';
 import { getInterfaces, saveInterface, deleteInterface, getStations } from '../utils/database';
+
+const DEFAULT_DRIVERS = {
+    serialCaliper: { enabled: false, baudRate: 9600, terminator: '\r\n' },
+    bluetoothCaliper: { enabled: false, prefix: '' },
+    barcodeScanner: { enabled: false, mode: 'HID', baudRate: 9600, port: 'COM1' },
+    webcam: { enabled: false, resolution: '1080p', rtspUrl: '' },
+    obd2Reader: { enabled: false, transport: 'BLUETOOTH', baudRate: 38400, ipAddress: '192.168.0.10' }
+};
 
 const InterfaceManager = () => {
     const [interfaces, setInterfaces] = useState([]);
@@ -25,11 +38,46 @@ const InterfaceManager = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isDriversModalOpen, setIsDriversModalOpen] = useState(false);
     const [selectedInterface, setSelectedInterface] = useState(null);
     const [newInterfaceData, setNewInterfaceData] = useState({ name: '', deviceType: 'Computer', stationId: '' });
     const [editInterfaceData, setEditInterfaceData] = useState({ id: '', name: '', stationId: '' });
+    const [driversData, setDriversData] = useState({});
     const [isSaving, setIsSaving] = useState(false);
     const navigate = useNavigate();
+
+    const handleOpenDrivers = (iface) => {
+        setSelectedInterface(iface);
+        const mergedDrivers = {
+            serialCaliper: { ...DEFAULT_DRIVERS.serialCaliper, ...(iface.drivers?.serialCaliper || {}) },
+            bluetoothCaliper: { ...DEFAULT_DRIVERS.bluetoothCaliper, ...(iface.drivers?.bluetoothCaliper || {}) },
+            barcodeScanner: { ...DEFAULT_DRIVERS.barcodeScanner, ...(iface.drivers?.barcodeScanner || {}) },
+            webcam: { ...DEFAULT_DRIVERS.webcam, ...(iface.drivers?.webcam || {}) },
+            obd2Reader: { ...DEFAULT_DRIVERS.obd2Reader, ...(iface.drivers?.obd2Reader || {}) }
+        };
+        setDriversData(mergedDrivers);
+        setIsDriversModalOpen(true);
+    };
+
+    const handleSaveDrivers = async () => {
+        if (!selectedInterface) return;
+        setIsSaving(true);
+        try {
+            await saveInterface({
+                ...selectedInterface,
+                drivers: driversData,
+                lastSeen: selectedInterface.lastSeen || new Date().toISOString()
+            });
+            setIsDriversModalOpen(false);
+            setSelectedInterface(null);
+            await loadData();
+        } catch (err) {
+            console.error('Failed to save drivers configuration:', err);
+            alert(`Failed to save drivers: ${err.message || 'Unknown error'}`);
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     useEffect(() => {
         loadData();
@@ -199,6 +247,9 @@ const InterfaceManager = () => {
                                         </div>
                                     </div>
                                     <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button onClick={() => handleOpenDrivers(iface)} title="Configure Drivers" style={{ border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', color: '#10b981', borderRadius: '6px', width: '30px', height: '30px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <SlidersHorizontal size={14} />
+                                        </button>
                                         <button onClick={() => handleOpenEdit(iface)} style={{ border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', color: '#3b82f6', borderRadius: '6px', width: '30px', height: '30px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                                             <Pencil size={14} />
                                         </button>
@@ -298,7 +349,7 @@ const InterfaceManager = () => {
                 </div>
             )}
 
-            {isEditModalOpen && (
+             {isEditModalOpen && (
                 <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2100 }}>
                     <div style={{ backgroundColor: 'white', width: '500px', borderRadius: '16px', overflow: 'hidden' }}>
                         <div style={{ padding: '24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -321,6 +372,310 @@ const InterfaceManager = () => {
                         <div style={{ padding: '24px', backgroundColor: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                             <button onClick={() => setIsEditModalOpen(false)} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
                             <button onClick={handleSaveEdit} disabled={isSaving} style={{ padding: '10px 24px', borderRadius: '8px', backgroundColor: isSaving ? '#94a3b8' : '#3b82f6', color: 'white', border: 'none', fontWeight: 700, cursor: isSaving ? 'not-allowed' : 'pointer' }}>{isSaving ? 'Saving...' : 'Save Changes'}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isDriversModalOpen && (
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2100 }}>
+                    <div style={{ backgroundColor: 'white', width: '600px', maxHeight: '85vh', borderRadius: '16px', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
+                        <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc' }}>
+                            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <SlidersHorizontal size={22} color="#10b981" /> Configure Interface Drivers
+                            </h2>
+                            <button onClick={() => setIsDriversModalOpen(false)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#64748b' }}><XCircle size={20} /></button>
+                        </div>
+                        <div style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            <div style={{ padding: '12px 16px', backgroundColor: '#f0fdf4', borderRadius: '12px', border: '1px solid #bbf7d0', display: 'flex', gap: '12px' }}>
+                                <Info size={20} color="#16a34a" />
+                                <div style={{ fontSize: '0.85rem', color: '#15803d' }}>
+                                    Enable only the drivers required for the hardware connected to this display station to optimize Player performance.
+                                </div>
+                            </div>
+
+                            {/* Serial Caliper Driver Card */}
+                            <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', backgroundColor: '#fafafa' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <Cpu size={20} color="#3b82f6" />
+                                        <div>
+                                            <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#1e293b' }}>Web Serial Caliper & Micrometer</div>
+                                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Connect SPC-to-USB calipers and micrometer tools</div>
+                                        </div>
+                                    </div>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={driversData.serialCaliper?.enabled || false}
+                                        onChange={(e) => setDriversData(prev => ({
+                                            ...prev,
+                                            serialCaliper: { ...prev.serialCaliper, enabled: e.target.checked }
+                                        }))}
+                                        style={{ width: '38px', height: '20px', cursor: 'pointer' }}
+                                    />
+                                </div>
+                                {driversData.serialCaliper?.enabled && (
+                                    <div style={{ marginTop: '16px', padding: '12px', borderTop: '1px solid #e2e8f0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                        <div>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Baud Rate</label>
+                                            <select 
+                                                value={driversData.serialCaliper?.baudRate || 9600}
+                                                onChange={(e) => setDriversData(prev => ({
+                                                    ...prev,
+                                                    serialCaliper: { ...prev.serialCaliper, baudRate: Number(e.target.value) }
+                                                }))}
+                                                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                            >
+                                                <option value={9600}>9600 bps</option>
+                                                <option value={38400}>38400 bps</option>
+                                                <option value={115200}>115200 bps</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Data Terminator</label>
+                                            <select 
+                                                value={driversData.serialCaliper?.terminator || '\r\n'}
+                                                onChange={(e) => setDriversData(prev => ({
+                                                    ...prev,
+                                                    serialCaliper: { ...prev.serialCaliper, terminator: e.target.value }
+                                                }))}
+                                                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                            >
+                                                <option value="\r\n">CRLF (\r\n)</option>
+                                                <option value="\n">LF (\n)</option>
+                                                <option value="\r">CR (\r)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Bluetooth Caliper Driver Card */}
+                            <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', backgroundColor: '#fafafa' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <Bluetooth size={20} color="#2563eb" />
+                                        <div>
+                                            <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#1e293b' }}>Web Bluetooth Caliper & Scale</div>
+                                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Connect Bluetooth-enabled smart measurement tools</div>
+                                        </div>
+                                    </div>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={driversData.bluetoothCaliper?.enabled || false}
+                                        onChange={(e) => setDriversData(prev => ({
+                                            ...prev,
+                                            bluetoothCaliper: { ...prev.bluetoothCaliper, enabled: e.target.checked }
+                                        }))}
+                                        style={{ width: '38px', height: '20px', cursor: 'pointer' }}
+                                    />
+                                </div>
+                                {driversData.bluetoothCaliper?.enabled && (
+                                    <div style={{ marginTop: '16px', padding: '12px', borderTop: '1px solid #e2e8f0' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Device Name Prefix Filter (Optional)</label>
+                                        <input 
+                                            type="text"
+                                            placeholder="e.g. Mitutoyo, Caliper, Scale"
+                                            value={driversData.bluetoothCaliper?.prefix || ''}
+                                            onChange={(e) => setDriversData(prev => ({
+                                                ...prev,
+                                                bluetoothCaliper: { ...prev.bluetoothCaliper, prefix: e.target.value }
+                                            }))}
+                                            style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Barcode Scanner Driver Card */}
+                            <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', backgroundColor: '#fafafa' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <Sliders size={20} color="#ea580c" />
+                                        <div>
+                                            <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#1e293b' }}>USB Barcode Scanner</div>
+                                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Configure USB Keyboard (HID) or Serial COM Barcode Scanners</div>
+                                        </div>
+                                    </div>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={driversData.barcodeScanner?.enabled || false}
+                                        onChange={(e) => setDriversData(prev => ({
+                                            ...prev,
+                                            barcodeScanner: { ...prev.barcodeScanner, enabled: e.target.checked }
+                                        }))}
+                                        style={{ width: '38px', height: '20px', cursor: 'pointer' }}
+                                    />
+                                </div>
+                                {driversData.barcodeScanner?.enabled && (
+                                    <div style={{ marginTop: '16px', padding: '12px', borderTop: '1px solid #e2e8f0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                        <div>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Scanner Mode</label>
+                                            <select 
+                                                value={driversData.barcodeScanner?.mode || 'HID'}
+                                                onChange={(e) => setDriversData(prev => ({
+                                                    ...prev,
+                                                    barcodeScanner: { ...prev.barcodeScanner, mode: e.target.value }
+                                                }))}
+                                                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                            >
+                                                <option value="HID">Keyboard Emulation (HID)</option>
+                                                <option value="SERIAL">Serial COM Port</option>
+                                            </select>
+                                        </div>
+                                        {driversData.barcodeScanner?.mode === 'SERIAL' ? (
+                                            <div>
+                                                <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>COM Port</label>
+                                                <input 
+                                                    type="text"
+                                                    value={driversData.barcodeScanner?.port || 'COM1'}
+                                                    onChange={(e) => setDriversData(prev => ({
+                                                        ...prev,
+                                                        barcodeScanner: { ...prev.barcodeScanner, port: e.target.value }
+                                                    }))}
+                                                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div style={{ opacity: 0.5 }}>
+                                                <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>COM Port (Not Applicable)</label>
+                                                <input type="text" disabled value="N/A - Uses Keystrokes" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#e2e8f0' }} />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Camera Driver Card */}
+                            <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', backgroundColor: '#fafafa' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <Camera size={20} color="#0d9488" />
+                                        <div>
+                                            <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#1e293b' }}>Webcam & Inspection Camera</div>
+                                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Configure integrated webcams or IP streams for Vision AI OCR</div>
+                                        </div>
+                                    </div>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={driversData.webcam?.enabled || false}
+                                        onChange={(e) => setDriversData(prev => ({
+                                            ...prev,
+                                            webcam: { ...prev.webcam, enabled: e.target.checked }
+                                        }))}
+                                        style={{ width: '38px', height: '20px', cursor: 'pointer' }}
+                                    />
+                                </div>
+                                {driversData.webcam?.enabled && (
+                                    <div style={{ marginTop: '16px', padding: '12px', borderTop: '1px solid #e2e8f0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                        <div>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Target Resolution</label>
+                                            <select 
+                                                value={driversData.webcam?.resolution || '1080p'}
+                                                onChange={(e) => setDriversData(prev => ({
+                                                    ...prev,
+                                                    webcam: { ...prev.webcam, resolution: e.target.value }
+                                                }))}
+                                                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                            >
+                                                <option value="720p">720p (1280x720)</option>
+                                                <option value="1080p">1080p (1920x1080)</option>
+                                                <option value="4k">4K (3840x2160)</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>RTSP Stream IP (Optional)</label>
+                                            <input 
+                                                type="text"
+                                                placeholder="rtsp://192.168.1.100/stream"
+                                                value={driversData.webcam?.rtspUrl || ''}
+                                                onChange={(e) => setDriversData(prev => ({
+                                                    ...prev,
+                                                    webcam: { ...prev.webcam, rtspUrl: e.target.value }
+                                                }))}
+                                                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* OBD2 Driver Card */}
+                            <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', backgroundColor: '#fafafa' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <Monitor size={20} color="#7c3aed" />
+                                        <div>
+                                            <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#1e293b' }}>OBD2 ELM327 Reader</div>
+                                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Connect ELM327 adapters for automotive sensor tracking</div>
+                                        </div>
+                                    </div>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={driversData.obd2Reader?.enabled || false}
+                                        onChange={(e) => setDriversData(prev => ({
+                                            ...prev,
+                                            obd2Reader: { ...prev.obd2Reader, enabled: e.target.checked }
+                                        }))}
+                                        style={{ width: '38px', height: '20px', cursor: 'pointer' }}
+                                    />
+                                </div>
+                                {driversData.obd2Reader?.enabled && (
+                                    <div style={{ marginTop: '16px', padding: '12px', borderTop: '1px solid #e2e8f0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                        <div>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Transport Mode</label>
+                                            <select 
+                                                value={driversData.obd2Reader?.transport || 'BLUETOOTH'}
+                                                onChange={(e) => setDriversData(prev => ({
+                                                    ...prev,
+                                                    obd2Reader: { ...prev.obd2Reader, transport: e.target.value }
+                                                }))}
+                                                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                            >
+                                                <option value="BLUETOOTH">Bluetooth LE</option>
+                                                <option value="SERIAL">USB Serial</option>
+                                                <option value="WIFI">WiFi TCP Socket</option>
+                                            </select>
+                                        </div>
+                                        {driversData.obd2Reader?.transport === 'WIFI' ? (
+                                            <div>
+                                                <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Target IP Address</label>
+                                                <input 
+                                                    type="text"
+                                                    value={driversData.obd2Reader?.ipAddress || '192.168.0.10'}
+                                                    onChange={(e) => setDriversData(prev => ({
+                                                        ...prev,
+                                                        obd2Reader: { ...prev.obd2Reader, ipAddress: e.target.value }
+                                                    }))}
+                                                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Baud Rate</label>
+                                                <select 
+                                                    value={driversData.obd2Reader?.baudRate || 38400}
+                                                    onChange={(e) => setDriversData(prev => ({
+                                                        ...prev,
+                                                        obd2Reader: { ...prev.obd2Reader, baudRate: Number(e.target.value) }
+                                                    }))}
+                                                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                                >
+                                                    <option value={9600}>9600 bps</option>
+                                                    <option value={38400}>38400 bps</option>
+                                                    <option value={115200}>115200 bps</option>
+                                                </select>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <div style={{ padding: '20px 24px', backgroundColor: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                            <button onClick={() => setIsDriversModalOpen(false)} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
+                            <button onClick={handleSaveDrivers} disabled={isSaving} style={{ padding: '10px 24px', borderRadius: '8px', backgroundColor: isSaving ? '#94a3b8' : '#10b981', color: 'white', border: 'none', fontWeight: 700, cursor: isSaving ? 'not-allowed' : 'pointer' }}>
+                                {isSaving ? 'Saving...' : 'Save Configuration'}
+                            </button>
                         </div>
                     </div>
                 </div>

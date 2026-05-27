@@ -47,6 +47,9 @@ CREATE TABLE IF NOT EXISTS app_table_records (
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(table_id, record_id)
 );
+
+-- Alter interfaces table to add drivers column if not exists
+ALTER TABLE public.interfaces ADD COLUMN IF NOT EXISTS drivers JSONB DEFAULT '{}';
 `;
 
 async function runMigration() {

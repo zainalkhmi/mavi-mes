@@ -388,6 +388,7 @@ CREATE TABLE IF NOT EXISTS public.interfaces (
     version TEXT DEFAULT 'r284.1',
     last_seen TIMESTAMPTZ DEFAULT now(),
     ip_address TEXT,
+    drivers JSONB DEFAULT '{}',
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -470,6 +471,7 @@ BEGIN
     ALTER TABLE public.interfaces ADD COLUMN IF NOT EXISTS version TEXT DEFAULT 'r284.1';
     ALTER TABLE public.interfaces ADD COLUMN IF NOT EXISTS last_seen TIMESTAMPTZ DEFAULT now();
     ALTER TABLE public.interfaces ADD COLUMN IF NOT EXISTS ip_address TEXT;
+    ALTER TABLE public.interfaces ADD COLUMN IF NOT EXISTS drivers JSONB DEFAULT '{}';
     ALTER TABLE public.interfaces ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
     ALTER TABLE public.interfaces ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
     
