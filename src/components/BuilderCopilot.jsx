@@ -7,8 +7,10 @@ import {
   MousePointer2, Layers, Settings, Plus, Activity,
   Type, BarChart3, Table, ToggleLeft, Camera, Hash,
   Square, Circle, Gauge, Bell, SlidersHorizontal,
-  Stethoscope, History, Eye, EyeOff, Link, Database, ClipboardList
+  Stethoscope, History, Eye, EyeOff, Link, Database, ClipboardList,
+  Check, Edit3
 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { getPrimaryAiConnector } from '../utils/database';
 import { getBuilderCopilotAdvice, getBuilderVisionAdvice, streamBuilderCopilotAdvice, diagnoseApp } from '../utils/aiService';
 import { sanitizeCopilotCommands } from '../utils/copilotSafety';
@@ -53,6 +55,13 @@ const getCommandPreview = (cmd) => {
     case 'SET_APP_NAME': return `Ganti nama app → "${typeof p === 'string' ? p : p.name}"`;
     default: return cmd.type.replace(/_/g, ' ');
   }
+};
+
+const parsePlan = (text) => {
+  if (!text) return null;
+  const planRegex = /<ai_plan>([\s\S]*?)<\/ai_plan>/gi;
+  const match = planRegex.exec(text);
+  return match ? match[1].trim() : null;
 };
 
 // ─── UPGRADE 5: Smart quick actions per widget type ──────────────────────────────
@@ -542,6 +551,46 @@ Apa yang bisa kamu bantu untuk widget ini?`;
     }
   };
 
+  const handleApprovePlan = async (msgIdx, msg) => {
+    // 1. Mark as approved in state
+    setMessages(prev => prev.map((m, i) => i === msgIdx ? { ...m, isApproved: true } : m));
+
+    // 2. Parse commands
+    const commandData = parseCommands(msg.content);
+    const thresholdFromSettings = Number(aiConnector?.aiSettings?.copilotSafetyThreshold ?? aiConnector?.config?.copilotSafetyThreshold);
+    const safePack = commandData
+      ? sanitizeCopilotCommands(commandData, context, { threshold: Number.isFinite(thresholdFromSettings) ? thresholdFromSettings : undefined })
+      : null;
+
+    if (!safePack || !safePack.safeCommands) return;
+
+    const msgId = msg.timestamp instanceof Date ? msg.timestamp.getTime() : new Date(msg.timestamp).getTime();
+
+    // 3. Execute all safe commands
+    for (let i = 0; i < safePack.safeCommands.length; i++) {
+      const cmd = safePack.safeCommands[i];
+      const cmdKey = `${msgId}_${i}`;
+      if (commandStatus[cmdKey] === 'success') continue;
+      setCommandStatus(prev => ({ ...prev, [cmdKey]: 'loading' }));
+      try {
+        await onApplyCommand(cmd);
+        setCommandStatus(prev => ({ ...prev, [cmdKey]: 'success' }));
+        setCommandLog(prev => [...prev, {
+          label: getCommandPreview(cmd),
+          type: cmd.type,
+          timestamp: new Date().toLocaleTimeString('id', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        }]);
+      } catch (e) {
+        setCommandStatus(prev => ({ ...prev, [cmdKey]: 'error' }));
+      }
+    }
+  };
+
+  const handleRevisePlan = () => {
+    setInput('Revisi rencana: ');
+    textareaRef.current?.focus();
+  };
+
   if (!isOpen) return null;
 
   // ── Build chip sets ────────────────────────────────────────────────────────
@@ -748,7 +797,11 @@ Apa yang bisa kamu bantu untuk widget ini?`;
           const safePack = commandData
             ? sanitizeCopilotCommands(commandData, context, { threshold: Number.isFinite(thresholdFromSettings) ? thresholdFromSettings : undefined })
             : null;
-          const cleanContent = msg.content.replace(/<builder_cmds>[\s\S]*?<\/builder_cmds>/g, '').trim();
+          const planText = msg.role === 'assistant' ? parsePlan(msg.content) : null;
+          const cleanContent = msg.content
+            .replace(/<builder_cmds>[\s\S]*?<\/builder_cmds>/gi, '')
+            .replace(/<ai_plan>[\s\S]*?<\/ai_plan>/gi, '')
+            .trim();
 
           return (
             <div key={idx} style={{
@@ -803,41 +856,41 @@ Apa yang bisa kamu bantu untuk widget ini?`;
 
                 {/* Command actions panel */}
                 {safePack?.safeCommands && (
-                  <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{
+                    marginTop: '14px',
+                    paddingTop: '14px',
+                    borderTop: '1px solid #e2e8f0',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px'
+                  }}>
+                    {/* Header */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                        <Code size={12} /> AI Proposed Actions
+                      <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <ClipboardList size={14} color="#6366f1" /> 📋 Rencana Implementasi
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#475569', background: '#f1f5f9', padding: '2px 8px', borderRadius: '999px', border: '1px solid #e2e8f0' }}>
-                          Safe {safePack.safeCount ?? safePack.safeCommands.length}/{safePack.totalCount ?? safePack.safeCommands.length}
-                        </span>
-                        {commandData.commands.length > 1 && (
-                          <button
-                            onClick={async () => {
-                              const msgId = msg.timestamp instanceof Date ? msg.timestamp.getTime() : new Date(msg.timestamp).getTime();
-                              for (let i = 0; i < safePack.safeCommands.length; i++) {
-                                const cmd = safePack.safeCommands[i];
-                                const cmdKey = `${msgId}_${i}`;
-                                if (commandStatus[cmdKey] === 'success') continue;
-                                setCommandStatus(prev => ({ ...prev, [cmdKey]: 'loading' }));
-                                try {
-                                  await onApplyCommand(cmd);
-                                  setCommandStatus(prev => ({ ...prev, [cmdKey]: 'success' }));
-                                } catch (e) {
-                                  setCommandStatus(prev => ({ ...prev, [cmdKey]: 'error' }));
-                                }
-                              }
-                            }}
-                            disabled={safePack.hardFail || safePack.safeCommands.length === 0}
-                            style={{ fontSize: '0.68rem', fontWeight: 800, color: '#3b82f6', background: '#eff6ff', border: '1px solid #dbeafe', borderRadius: '6px', padding: '3px 8px', cursor: 'pointer' }}
-                          >
-                            {safePack.hardFail ? '🔒 Blocked' : `✅ Apply All (${safePack.safeCommands.length})`}
-                          </button>
-                        )}
-                      </div>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#475569', background: '#f1f5f9', padding: '2px 8px', borderRadius: '999px', border: '1px solid #e2e8f0' }}>
+                        Safe {safePack.safeCount ?? safePack.safeCommands.length}/{safePack.totalCount ?? safePack.safeCommands.length}
+                      </span>
                     </div>
 
+                    {/* Rencana/Plan description parsed from ai_plan */}
+                    {planText && (
+                      <div style={{
+                        backgroundColor: '#f8fafc',
+                        padding: '12px 14px',
+                        borderRadius: '10px',
+                        borderLeft: '4px solid #6366f1',
+                        fontSize: '0.8rem',
+                        color: '#334155',
+                        lineHeight: '1.5',
+                        overflowX: 'auto'
+                      }} className="markdown-plan">
+                        <ReactMarkdown>{planText}</ReactMarkdown>
+                      </div>
+                    )}
+
+                    {/* Hard Fail Block */}
                     {safePack.hardFail && (
                       <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', padding: '10px' }}>
                         <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#991b1b', marginBottom: '4px' }}>HARD-FAIL SAFETY MODE</div>
@@ -847,6 +900,7 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                       </div>
                     )}
 
+                    {/* Warnings */}
                     {safePack.warnings?.length > 0 && (
                       <div style={{ backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '10px', padding: '10px' }}>
                         <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#9a3412', marginBottom: '6px' }}>⚠️ Safety Warnings</div>
@@ -854,105 +908,187 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                       </div>
                     )}
 
-                    {safePack.safeCommands.map((cmd, cIdx) => {
-                      const msgId = msg.timestamp instanceof Date ? msg.timestamp.getTime() : new Date(msg.timestamp).getTime();
-                      const cmdKey = `${msgId}_${cIdx}`;
-                      const status = commandStatus[cmdKey];
-                      const cs = getCmdStyle(cmd.type);
+                    {/* If NOT approved: show plan and confirm buttons */}
+                    {!msg.isApproved ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {/* Proposed changes list (read-only) */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', background: '#f8fafc', padding: '10px 12px', borderRadius: '10px', border: '1px dashed #cbd5e1' }}>
+                          <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Daftar Perubahan yang Direncanakan:
+                          </div>
+                          {safePack.safeCommands.map((cmd, cIdx) => (
+                            <div key={cIdx} style={{ fontSize: '0.75rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ color: '#94a3b8' }}>•</span>
+                              <span>{getCommandPreview(cmd)}</span>
+                            </div>
+                          ))}
+                        </div>
 
-                      return (
-                        <div key={cIdx} style={{
-                          backgroundColor: '#f8fafc', padding: '10px 12px', borderRadius: '12px',
-                          display: 'flex', flexDirection: 'column', gap: '7px',
-                          border: `1px solid ${status === 'success' ? '#bbf7d0' : status === 'error' ? '#fecaca' : '#e2e8f0'}`,
-                          transition: 'border-color 0.2s',
+                        {/* Confirmation Buttons */}
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                          <button
+                            onClick={() => handleApprovePlan(idx, msg)}
+                            disabled={safePack.hardFail || safePack.safeCommands.length === 0}
+                            style={{
+                              flex: 1,
+                              padding: '10px 16px',
+                              background: safePack.hardFail ? '#cbd5e1' : 'linear-gradient(135deg, #10b981, #059669)',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '8px',
+                              fontSize: '0.8rem',
+                              fontWeight: 700,
+                              cursor: safePack.hardFail ? 'default' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px',
+                              boxShadow: safePack.hardFail ? 'none' : '0 4px 12px rgba(16,185,129,0.2)',
+                              transition: 'all 0.2s',
+                            }}
+                          >
+                            <Check size={14} /> Setujui & Jalankan
+                          </button>
+                          <button
+                            onClick={handleRevisePlan}
+                            style={{
+                              padding: '10px 14px',
+                              background: '#fffbeb',
+                              color: '#b45309',
+                              border: '1px solid #fcd34d',
+                              borderRadius: '8px',
+                              fontSize: '0.8rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px',
+                              transition: 'all 0.2s',
+                            }}
+                          >
+                            <Edit3 size={14} /> Revisi Rencana
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* If approved: show status and the commands with their individual retry buttons */
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          backgroundColor: '#ecfdf5',
+                          border: '1px solid #a7f3d0',
+                          borderRadius: '8px',
+                          padding: '8px 12px',
+                          color: '#065f46',
+                          fontSize: '0.75rem',
+                          fontWeight: 700
                         }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0 }}>
-                              <span style={{ padding: '3px 7px', borderRadius: '5px', fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', backgroundColor: cs.bg, color: cs.color, flexShrink: 0 }}>
-                                {cmd.type.replace(/_/g, ' ')}
-                              </span>
-                              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {cmd.payload?.name || cmd.payload?.type || cmd.widgetId || 'Component'}
-                              </span>
-                              {cmd._safety?.repaired && (
-                                <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#1d4ed8', background: '#dbeafe', padding: '2px 5px', borderRadius: '4px', flexShrink: 0 }}>REPAIRED</span>
+                          <CheckCircle2 size={14} color="#10b981" /> Rencana Disetujui & Dijalankan
+                        </div>
+
+                        {safePack.safeCommands.map((cmd, cIdx) => {
+                          const msgId = msg.timestamp instanceof Date ? msg.timestamp.getTime() : new Date(msg.timestamp).getTime();
+                          const cmdKey = `${msgId}_${cIdx}`;
+                          const status = commandStatus[cmdKey];
+                          const cs = getCmdStyle(cmd.type);
+
+                          return (
+                            <div key={cIdx} style={{
+                              backgroundColor: '#f8fafc', padding: '10px 12px', borderRadius: '12px',
+                              display: 'flex', flexDirection: 'column', gap: '7px',
+                              border: `1px solid ${status === 'success' ? '#bbf7d0' : status === 'error' ? '#fecaca' : '#e2e8f0'}`,
+                              transition: 'border-color 0.2s',
+                            }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0 }}>
+                                  <span style={{ padding: '3px 7px', borderRadius: '5px', fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', backgroundColor: cs.bg, color: cs.color, flexShrink: 0 }}>
+                                    {cmd.type.replace(/_/g, ' ')}
+                                  </span>
+                                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {cmd.payload?.name || cmd.payload?.type || cmd.widgetId || 'Component'}
+                                  </span>
+                                  {cmd._safety?.repaired && (
+                                    <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#1d4ed8', background: '#dbeafe', padding: '2px 5px', borderRadius: '4px', flexShrink: 0 }}>REPAIRED</span>
+                                  )}
+                                </div>
+                                <button
+                                  onClick={async () => {
+                                    if (status === 'success' || status === 'loading') return;
+                                    setCommandStatus(prev => ({ ...prev, [cmdKey]: 'loading' }));
+                                    try {
+                                      await onApplyCommand(cmd);
+                                      setCommandStatus(prev => ({ ...prev, [cmdKey]: 'success' }));
+                                      setCommandLog(prev => [...prev, {
+                                        label: getCommandPreview(cmd),
+                                        type: cmd.type,
+                                        timestamp: new Date().toLocaleTimeString('id', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                                      }]);
+                                    } catch (e) {
+                                      setCommandStatus(prev => ({ ...prev, [cmdKey]: 'error' }));
+                                    }
+                                  }}
+                                  disabled={status === 'success' || status === 'loading'}
+                                  onMouseEnter={() => onHoverCommand?.(cmd)}
+                                  onMouseLeave={() => onLeaveCommand?.()}
+                                  style={{
+                                    padding: '5px 12px', flexShrink: 0,
+                                    backgroundColor: status === 'success' ? '#10b981' : status === 'error' ? '#ef4444' : cmd.type.startsWith('DELETE') ? '#ef4444' : cmd.type.startsWith('CREATE') || cmd.type.startsWith('ADD') ? '#6366f1' : '#10b981',
+                                    color: 'white', border: 'none', borderRadius: '8px',
+                                    fontSize: '0.72rem', fontWeight: 700, cursor: (status === 'success' || status === 'loading') ? 'default' : 'pointer',
+                                    display: 'flex', alignItems: 'center', gap: '5px',
+                                    boxShadow: '0 2px 6px rgba(0,0,0,0.12)', opacity: status === 'loading' ? 0.7 : 1,
+                                    transition: 'all 0.15s',
+                                  }}
+                                >
+                                  {status === 'loading' ? <Loader2 size={11} className="animate-spin" /> :
+                                    status === 'success' ? <CheckCircle2 size={11} /> :
+                                      status === 'error' ? <AlertCircle size={11} /> :
+                                        cmd.type.startsWith('DELETE') ? <Trash2 size={11} /> :
+                                          (cmd.type.startsWith('CREATE') || cmd.type.startsWith('ADD')) ? <Sparkles size={11} /> : <PlusCircle size={11} />}
+                                  {status === 'loading' ? 'Applying...' : status === 'success' ? 'Applied ✓' : status === 'error' ? 'Failed' : cmd.type.startsWith('DELETE') ? 'Delete' : 'Apply'}
+                                </button>
+                              </div>
+
+                              {/* Command Preview */}
+                              <div style={{ fontSize: '0.68rem', color: '#64748b', padding: '4px 8px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <span style={{ flexShrink: 0 }}>💡</span>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getCommandPreview(cmd)}</span>
+                              </div>
+
+                              {cmd.type.startsWith('DELETE') && (
+                                <div style={{ fontSize: '0.68rem', color: '#991b1b', padding: '5px 10px', backgroundColor: '#fef2f2', borderRadius: '6px', border: '1px solid #fecaca' }}>
+                                  ⚠️ Operasi destruktif — akan meminta konfirmasi
+                                </div>
+                              )}
+                              {cmd.type === 'UPDATE_WIDGET' && cmd.payload?.props && (
+                                <div style={{ fontSize: '0.68rem', color: '#64748b', padding: '4px 8px', backgroundColor: '#fff', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                  ✏️ Props: <strong>{Object.keys(cmd.payload.props).join(', ')}</strong>
+                                </div>
+                              )}
+                              {(cmd.type === 'CREATE_TRIGGER' || cmd.type === 'UPDATE_TRIGGER') && cmd.payload?.event && (
+                                <div style={{ fontSize: '0.68rem', color: '#64748b', padding: '4px 8px', backgroundColor: '#fff', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                  ⚡ Event: {typeof cmd.payload?.event === 'object' ? (cmd.payload?.event?.eventName || cmd.payload?.event?.type || JSON.stringify(cmd.payload?.event)) : cmd.payload?.event}
+                                  {cmd.payload?.widgetId ? ` → ${cmd.payload.widgetId}` : ''}
+                                </div>
+                              )}
+                              {cmd.type === 'UPDATE_VARIABLE' && cmd.payload?.updates && (
+                                <div style={{ fontSize: '0.68rem', color: '#64748b', padding: '4px 8px', backgroundColor: '#fff', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                  📌 Variabel: {Object.keys(cmd.payload.updates).join(', ')}
+                                </div>
+                              )}
+                              {cmd.type === 'UPDATE_STEP' && cmd.payload?.updates && (
+                                <div style={{ fontSize: '0.68rem', color: '#64748b', padding: '4px 8px', backgroundColor: '#fff', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                  🖥️ Screen: {Object.keys(cmd.payload.updates).join(', ')}
+                                </div>
                               )}
                             </div>
-                            <button
-                              onClick={async () => {
-                                if (status === 'success' || status === 'loading') return;
-                                setCommandStatus(prev => ({ ...prev, [cmdKey]: 'loading' }));
-                                try {
-                                  await onApplyCommand(cmd);
-                                  setCommandStatus(prev => ({ ...prev, [cmdKey]: 'success' }));
-                                  // UPGRADE 6: Track applied command in log
-                                  setCommandLog(prev => [...prev, {
-                                    label: getCommandPreview(cmd),
-                                    type: cmd.type,
-                                    timestamp: new Date().toLocaleTimeString('id', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-                                  }]);
-                                } catch (e) {
-                                  setCommandStatus(prev => ({ ...prev, [cmdKey]: 'error' }));
-                                }
-                              }}
-                              disabled={status === 'success' || status === 'loading'}
-                              onMouseEnter={() => onHoverCommand?.(cmd)}
-                              onMouseLeave={() => onLeaveCommand?.()}
-                              style={{
-                                padding: '5px 12px', flexShrink: 0,
-                                backgroundColor: status === 'success' ? '#10b981' : status === 'error' ? '#ef4444' : cmd.type.startsWith('DELETE') ? '#ef4444' : cmd.type.startsWith('CREATE') || cmd.type.startsWith('ADD') ? '#6366f1' : '#10b981',
-                                color: 'white', border: 'none', borderRadius: '8px',
-                                fontSize: '0.72rem', fontWeight: 700, cursor: (status === 'success' || status === 'loading') ? 'default' : 'pointer',
-                                display: 'flex', alignItems: 'center', gap: '5px',
-                                boxShadow: '0 2px 6px rgba(0,0,0,0.12)', opacity: status === 'loading' ? 0.7 : 1,
-                                transition: 'all 0.15s',
-                              }}
-                            >
-                              {status === 'loading' ? <Loader2 size={11} className="animate-spin" /> :
-                                status === 'success' ? <CheckCircle2 size={11} /> :
-                                  status === 'error' ? <AlertCircle size={11} /> :
-                                    cmd.type.startsWith('DELETE') ? <Trash2 size={11} /> :
-                                      (cmd.type.startsWith('CREATE') || cmd.type.startsWith('ADD')) ? <Sparkles size={11} /> : <PlusCircle size={11} />}
-                              {status === 'loading' ? 'Applying...' : status === 'success' ? 'Applied ✓' : status === 'error' ? 'Failed' : cmd.type.startsWith('DELETE') ? 'Delete' : 'Apply'}
-                            </button>
-                          </div>
-
-                          {/* UPGRADE 7: Command Preview */}
-                          <div style={{ fontSize: '0.68rem', color: '#64748b', padding: '4px 8px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                            <span style={{ flexShrink: 0 }}>💡</span>
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getCommandPreview(cmd)}</span>
-                          </div>
-
-                          {cmd.type.startsWith('DELETE') && (
-                            <div style={{ fontSize: '0.68rem', color: '#991b1b', padding: '5px 10px', backgroundColor: '#fef2f2', borderRadius: '6px', border: '1px solid #fecaca' }}>
-                              ⚠️ Operasi destruktif — akan meminta konfirmasi
-                            </div>
-                          )}
-                          {cmd.type === 'UPDATE_WIDGET' && cmd.payload?.props && (
-                            <div style={{ fontSize: '0.68rem', color: '#64748b', padding: '4px 8px', backgroundColor: '#fff', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                              ✏️ Props: <strong>{Object.keys(cmd.payload.props).join(', ')}</strong>
-                            </div>
-                          )}
-                          {(cmd.type === 'CREATE_TRIGGER' || cmd.type === 'UPDATE_TRIGGER') && cmd.payload?.event && (
-                            <div style={{ fontSize: '0.68rem', color: '#64748b', padding: '4px 8px', backgroundColor: '#fff', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                              ⚡ Event: {typeof cmd.payload?.event === 'object' ? (cmd.payload?.event?.eventName || cmd.payload?.event?.type || JSON.stringify(cmd.payload?.event)) : cmd.payload?.event}
-                              {cmd.payload?.widgetId ? ` → ${cmd.payload.widgetId}` : ''}
-                            </div>
-                          )}
-                          {cmd.type === 'UPDATE_VARIABLE' && cmd.payload?.updates && (
-                            <div style={{ fontSize: '0.68rem', color: '#64748b', padding: '4px 8px', backgroundColor: '#fff', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                              📌 Variabel: {Object.keys(cmd.payload.updates).join(', ')}
-                            </div>
-                          )}
-                          {cmd.type === 'UPDATE_STEP' && cmd.payload?.updates && (
-                            <div style={{ fontSize: '0.68rem', color: '#64748b', padding: '4px 8px', backgroundColor: '#fff', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                              🖥️ Screen: {Object.keys(cmd.payload.updates).join(', ')}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -977,7 +1113,7 @@ Apa yang bisa kamu bantu untuk widget ini?`;
               boxShadow: '0 2px 8px rgba(0,0,0,0.06)', whiteSpace: 'pre-wrap',
               borderLeft: '3px solid #6366f1',
             }}>
-              {streamingText.replace(/<builder_cmds>[\s\S]*?<\/builder_cmds>/g, '').trim()}
+              {streamingText.replace(/<builder_cmds>[\s\S]*?<\/builder_cmds>/gi, '').replace(/<ai_plan>[\s\S]*?<\/ai_plan>/gi, '').trim()}
               <span style={{ display: 'inline-block', width: '2px', height: '14px', background: '#6366f1', marginLeft: '2px', verticalAlign: 'text-bottom', animation: 'blink 0.8s step-end infinite' }} />
             </div>
           </div>
