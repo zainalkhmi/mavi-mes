@@ -13,6 +13,7 @@ import {
   BarChart3,
   Monitor,
   MapPin,
+  Radio,
   Tv,
   Activity,
   Box,
@@ -21,7 +22,8 @@ import {
   SlidersHorizontal,
   Users,
   ShoppingBag,
-  AppWindow
+  AppWindow,
+  Folder
 } from 'lucide-react';
 import TableManager from './components/TableManager';
 import ConnectorManager from './components/ConnectorManager';
@@ -42,6 +44,7 @@ import StationManager from './components/StationManager';
 import InterfaceManager from './components/InterfaceManager';
 import MachineManager from './components/MachineManager';
 import EdgeDeviceManager from './components/EdgeDeviceManager';
+import IoTHubManager from './components/IoTHubManager';
 import VisionManager from './components/VisionManager';
 import DataEntryFormGuide from './components/DataEntryFormGuide';
 import VariableManager from './components/VariableManager';
@@ -53,6 +56,7 @@ import AiSettings from './components/AiSettings';
 import SupabaseSettings from './components/SupabaseSettings';
 import AppStore from './components/AppStore';
 import AppManagement from './components/AppManagement';
+import FileExplorer from './components/FileExplorer';
 import { Toaster } from 'react-hot-toast';
 
 const Placeholder = ({ title }) => (
@@ -190,8 +194,8 @@ const App = () => {
                 onClick={() => setAppsMenuOpen(!appsMenuOpen)}
                 style={{
                   ...navLinkStyle('/builder'),
-                  backgroundColor: ['/builder', '/tables', '/connectors', '/variables'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
-                  color: ['/builder', '/tables', '/connectors', '/variables'].includes(location.pathname) ? '#2563eb' : '#475569',
+                  backgroundColor: ['/builder', '/store', '/app-management', '/file-explorer', '/tables', '/connectors', '/variables'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
+                  color: ['/builder', '/store', '/app-management', '/file-explorer', '/tables', '/connectors', '/variables'].includes(location.pathname) ? '#2563eb' : '#475569',
                   fontSize: '0.9rem', padding: '6px 12px', fontWeight: 600
                 }}
                 onMouseEnter={(e) => { if (!['/builder', '/tables', '/connectors', '/variables'].includes(location.pathname)) { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
@@ -202,6 +206,7 @@ const App = () => {
               {appsMenuOpen && (
                 <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, backgroundColor: 'white', minWidth: '200px', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)', padding: '8px 0', display: 'flex', flexDirection: 'column', zIndex: 1001, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
                   <Link to="/builder" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/builder')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/builder' ? '#f0f7ff' : 'transparent'}><Layout size={16} /> App Builder</Link>
+                  <Link to="/file-explorer" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/file-explorer')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/file-explorer' ? '#f0f7ff' : 'transparent'}><Folder size={16} /> File Explorer</Link>
                   <Link to="/store" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/store')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/store' ? '#f0f7ff' : 'transparent'}><ShoppingBag size={16} /> App Store</Link>
                   <Link to="/app-management" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/app-management')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/app-management' ? '#f0f7ff' : 'transparent'}><AppWindow size={16} /> App Management</Link>
                   <Link to="/tables" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/tables')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/tables' ? '#f0f7ff' : 'transparent'}><Database size={16} /> Tables</Link>
@@ -217,12 +222,12 @@ const App = () => {
                 onClick={() => setShopFloorMenuOpen(!shopFloorMenuOpen)}
                 style={{
                   ...navLinkStyle('/stations'),
-                  backgroundColor: ['/stations', '/display-devices', '/machines', '/edge-devices', '/vision'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
-                  color: ['/stations', '/display-devices', '/machines', '/edge-devices', '/vision'].includes(location.pathname) ? '#2563eb' : '#475569',
+                  backgroundColor: ['/stations', '/display-devices', '/machines', '/edge-devices', '/vision', '/iot-hub'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
+                  color: ['/stations', '/display-devices', '/machines', '/edge-devices', '/vision', '/iot-hub'].includes(location.pathname) ? '#2563eb' : '#475569',
                   fontSize: '0.9rem', padding: '6px 12px', fontWeight: 600
                 }}
-                onMouseEnter={(e) => { if (!['/stations', '/display-devices', '/machines', '/edge-devices', '/vision'].includes(location.pathname)) { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
-                onMouseLeave={(e) => { if (!['/stations', '/display-devices', '/machines', '/edge-devices', '/vision'].includes(location.pathname)) { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
+                onMouseEnter={(e) => { if (!['/stations', '/display-devices', '/machines', '/edge-devices', '/vision', '/iot-hub'].includes(location.pathname)) { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
+                onMouseLeave={(e) => { if (!['/stations', '/display-devices', '/machines', '/edge-devices', '/vision', '/iot-hub'].includes(location.pathname)) { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
               >
                 Shop Floor <ChevronDown size={14} style={{ transform: shopFloorMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', marginLeft: '4px' }} />
               </button>
@@ -232,6 +237,8 @@ const App = () => {
                   <Link to="/display-devices" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/display-devices')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/display-devices' ? '#f0f7ff' : 'transparent'}><Tv size={16} /> Interfaces</Link>
                   <Link to="/machines" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/machines')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/machines' ? '#f0f7ff' : 'transparent'}><Cpu size={16} /> Machines</Link>
                   <Link to="/edge-devices" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/edge-devices')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/edge-devices' ? '#f0f7ff' : 'transparent'}><Activity size={16} /> Edge Devices</Link>
+                  <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '4px 0' }} />
+                  <Link to="/iot-hub" onClick={() => setShopFloorMenuOpen(false)} style={{ ...dropdownItemStyle('/iot-hub'), background: location.pathname === '/iot-hub' ? 'linear-gradient(135deg,#eff6ff,#f5f3ff)' : 'transparent' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = location.pathname === '/iot-hub' ? '#eff6ff' : 'transparent'}><Radio size={16} style={{ color: '#8b5cf6' }} /> <span style={{ background: 'linear-gradient(90deg,#3b82f6,#8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontWeight: 800 }}>IoT Hub</span> <span style={{ marginLeft: 'auto', fontSize: '0.6rem', fontWeight: 800, padding: '1px 6px', backgroundColor: '#8b5cf6', color: 'white', borderRadius: '10px' }}>NEW</span></Link>
                 </div>
               )}
             </div>
@@ -408,7 +415,9 @@ const App = () => {
               <Route path="/machines" element={<MachineManager />} />
               <Route path="/edge-devices" element={<EdgeDeviceManager />} />
               <Route path="/vision" element={<VisionManager />} />
+              <Route path="/iot-hub" element={<IoTHubManager />} />
               <Route path="/builder" element={<AppBuilder />} />
+              <Route path="/file-explorer" element={<FileExplorer />} />
               <Route path="/store" element={<AppStore />} />
               <Route path="/app-management" element={<AppManagement />} />
               <Route path="/tables" element={<TableManager />} />

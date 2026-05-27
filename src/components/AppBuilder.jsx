@@ -8953,6 +8953,15 @@ const AppBuilder = () => {
             approved_by: app.approved_by || null,
             approved_at: app.approved_at || null
         });
+
+        // Update URL query parameters without page reload
+        try {
+            const url = new URL(window.location.href);
+            url.searchParams.set('appId', app.id);
+            window.history.pushState({}, '', url.pathname + url.search);
+        } catch (e) {
+            console.warn('Failed to update URL search parameters:', e);
+        }
         // Migration for legacy single-config apps
         const config = app.config || {};
         const appSteps = (config.steps || [
@@ -9056,7 +9065,27 @@ const AppBuilder = () => {
         setStepListEnabled(true);
         setAppMeta({ version: 1, approval_status: 'DRAFT', is_published: false });
         setIntegrationLogs([]);
+
+        // Clear query parameters
+        try {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('appId');
+            window.history.pushState({}, '', url.pathname + url.search);
+        } catch (e) {
+            console.warn('Failed to clear URL search parameters:', e);
+        }
     };
+
+    useEffect(() => {
+        const queryParams = new URLSearchParams(window.location.search);
+        const appIdParam = queryParams.get('appId');
+        if (appIdParam && appsList.length > 0) {
+            const matchedApp = appsList.find(app => String(app.id) === String(appIdParam));
+            if (matchedApp && matchedApp.id !== currentAppId) {
+                loadApp(matchedApp);
+            }
+        }
+    }, [appsList, currentAppId]);
 
     const runAiComposer = async (file) => {
         if (!file) return;
@@ -25350,7 +25379,30 @@ const AppBuilder = () => {
                             <button onClick={() => setCompanionModal({ ...companionModal, isOpen: false })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-quaternary)' }}><X size={24} /></button>
                         </div>
 
-                        <div style={{ marginBottom: '25px', display: 'flex', justifyContent: 'center' }}>
+                        <div style={{ marginBottom: '25px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            {/* App name above QR Code */}
+                            <div style={{
+                                marginBottom: '14px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '6px 16px',
+                                backgroundColor: 'var(--bg-secondary)',
+                                border: '1px solid var(--border-primary)',
+                                borderRadius: '30px',
+                                fontSize: '0.85rem',
+                                fontWeight: 700,
+                                color: 'var(--text-secondary)',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                                maxWidth: '90%',
+                                boxSizing: 'border-box'
+                            }}>
+                                <span style={{ color: '#4f46e5', display: 'flex', alignItems: 'center' }}>
+                                    <Smartphone size={14} />
+                                </span>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{appName}</span>
+                            </div>
+
                             <div style={{ padding: '15px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
                                 <img
                                     src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(companionModal.url)}`}

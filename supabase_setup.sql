@@ -576,3 +576,64 @@ GRANT ALL ON TABLE public.player_sessions TO anon, authenticated;
 ALTER TABLE public.player_sessions ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all player_sessions" ON public.player_sessions;
 CREATE POLICY "Allow all player_sessions" ON public.player_sessions FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+-- =====================================================
+-- IoT Protocol Gateway Tables (Zigbee / Matter / BLE)
+-- Run these in Supabase SQL Editor to enable IoT Hub
+-- =====================================================
+
+-- IoT Smart Devices Registry
+CREATE TABLE IF NOT EXISTS public.iot_smart_devices (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    protocol TEXT NOT NULL CHECK (protocol IN ('ZIGBEE', 'MATTER', 'BLE')),
+    device_type TEXT NOT NULL DEFAULT 'UNKNOWN',
+    brand TEXT,
+    model TEXT,
+    status TEXT DEFAULT 'PAIRED' CHECK (status IN ('PAIRED', 'PAIRING', 'OFFLINE', 'ERROR')),
+    -- Protocol-specific identifiers
+    ieee_address TEXT,   -- Zigbee IEEE address (e.g. 0x00158d0001234567)
+    matter_id TEXT,      -- Matter device ID (e.g. A1B2-C3D4-E5F6-G7H8)
+    ble_mac TEXT,        -- BLE MAC address  (e.g. AA:BB:CC:DD:EE:FF)
+    -- Placement
+    room TEXT DEFAULT 'Unassigned',
+    -- MQTT
+    mqtt_topic TEXT,
+    mqtt_publish_topic TEXT,
+    -- Live data (JSON)
+    telemetry JSONB DEFAULT '{}',
+    -- Metadata
+    config JSONB DEFAULT '{}',   -- capabilities, icon, category, signalStrength
+    last_seen TIMESTAMPTZ,
+    paired_at TIMESTAMPTZ DEFAULT now(),
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.iot_smart_devices TO anon, authenticated;
+ALTER TABLE public.iot_smart_devices ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all iot_smart_devices" ON public.iot_smart_devices;
+CREATE POLICY "Allow all iot_smart_devices" ON public.iot_smart_devices FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+-- Index for fast protocol filtering
+CREATE INDEX IF NOT EXISTS idx_iot_smart_devices_protocol ON public.iot_smart_devices (protocol);
+CREATE INDEX IF NOT EXISTS idx_iot_smart_devices_room ON public.iot_smart_devices (room);
+
+-- ── IoT Gateways ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.iot_gateways (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('ZIGBEE2MQTT', 'MATTER_BRIDGE', 'BLE_GATEWAY', 'CUSTOM')),
+    mqtt_broker TEXT,          -- wss://broker-url:port/mqtt
+    status TEXT DEFAULT 'OFFLINE' CHECK (status IN ('ONLINE', 'OFFLINE', 'ERROR')),
+    config JSONB DEFAULT '{}', -- optional extra config (auth, topics, etc.)
+    last_ping TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.iot_gateways TO anon, authenticated;
+ALTER TABLE public.iot_gateways ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all iot_gateways" ON public.iot_gateways;
+CREATE POLICY "Allow all iot_gateways" ON public.iot_gateways FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+

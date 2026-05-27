@@ -39,17 +39,8 @@ import {
   Line
 } from 'recharts';
 
-// Mock data for analytics simulator
-const oeeData = [
-  { time: '08:00', oee: 78, yield: 92, cycle: 45 },
-  { time: '09:00', oee: 82, yield: 94, cycle: 42 },
-  { time: '10:00', oee: 80, yield: 93, cycle: 44 },
-  { time: '11:00', oee: 85, yield: 95, cycle: 40 },
-  { time: '12:00', oee: 68, yield: 89, cycle: 55 }, // lunchtime dip
-  { time: '13:00', oee: 88, yield: 97, cycle: 38 },
-  { time: '14:00', oee: 91, yield: 98, cycle: 35 },
-  { time: '15:00', oee: 89, yield: 96, cycle: 37 },
-];
+// Analytics chart data — replace with real-time data from Supabase when connected
+const oeeData = [];
 
 const LandingPage = () => {
   const navigate = useNavigate();
@@ -1016,7 +1007,7 @@ const LandingPage = () => {
             Ready to Optimize Your Shop Floor?
           </h2>
           <p style={{ color: '#94a3b8', fontSize: '1.1rem', maxWidth: '600px', margin: '0 auto 40px auto', lineHeight: '1.6' }}>
-            Experience the complete no-code manufacturing ecosystem today. Use the pre-configured mock accounts to access either the Operator Terminal or the Engineer Workspace.
+            Experience the complete no-code manufacturing ecosystem today. Sign in with your account to access either the Operator Terminal or the Engineer Workspace.
           </p>
 
           <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', flexWrap: 'wrap' }}>
@@ -1059,7 +1050,7 @@ const LandingPage = () => {
           <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
           <span>Version 3.4.0 (Latest)</span>
           <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
-          <span>Local Mock Auth Enabled</span>
+          <span>Authentication Ready</span>
         </div>
         <p style={{ margin: 0 }}>
           &copy; {new Date().getFullYear()} zainalkhmi/mavi-mes. Inspired by Tulip Frontline Operations. All rights reserved.

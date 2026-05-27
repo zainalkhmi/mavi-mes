@@ -1,7 +1,8 @@
 /**
  * auth.js
  * =====================================================
- * Frontend Mock Authentication Utility for MAVI-MES
+ * Frontend Authentication Utility for MAVI-MES
+ * Uses localStorage for session management and user DB.
  * =====================================================
  */
 

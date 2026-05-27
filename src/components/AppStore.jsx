@@ -49,6 +49,7 @@ import { getCurrentUser } from '../utils/auth';
 import toast, { Toaster } from 'react-hot-toast';
 
 
+
 const generateSmartDummyData = (fields, count = 3) => {
     const records = [];
     for (let i = 1; i <= count; i++) {
@@ -91,7 +92,7 @@ const getOrCreateTableAndSeed = async (allTables, tableDef, skipSeed = false) =>
         targetTable = await createTable(tableDef);
         isNew = true;
     }
-    
+
     if (!skipSeed && targetTable) {
         try {
             const existingRecords = await getTableRecords(targetTable.id);
@@ -109,7 +110,7 @@ const getOrCreateTableAndSeed = async (allTables, tableDef, skipSeed = false) =>
                 }
             }
         } catch (e) {
-            console.warn('Failed to insert generic dummy data for', targetTable.name, e);
+            console.warn('Failed to insert dummy data for', targetTable.name, e);
         }
     }
     return targetTable;

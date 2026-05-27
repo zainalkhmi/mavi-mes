@@ -337,3 +337,73 @@ export async function deleteStationGroup(id) {
     return true;
 }
 export const logMachineActivity = async (id, status) => {};
+
+// ── IoT Smart Devices ─────────────────────────────────────────────────────────
+export async function getSmartDevices() {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('iot_smart_devices').select('*').order('created_at', { ascending: false });
+    if (error) {
+        console.warn('[Supabase] iot_smart_devices table may not exist yet:', error.message);
+        return [];
+    }
+    return snakeToCamel(data || []);
+}
+
+export async function saveSmartDevice(device) {
+    const supabase = getSupabaseClient();
+    const payload = camelToSnake({ ...device, updated_at: new Date().toISOString() });
+    const id = device.id;
+    delete payload.id;
+
+    if (id && String(id).includes('-')) {
+        const { data, error } = await supabase.from('iot_smart_devices').update(payload).eq('id', id).select().single();
+        if (error) throw error;
+        return snakeToCamel(data);
+    } else {
+        const { data, error } = await supabase.from('iot_smart_devices').insert({ ...payload, created_at: new Date().toISOString() }).select().single();
+        if (error) throw error;
+        return snakeToCamel(data);
+    }
+}
+
+export async function deleteSmartDevice(id) {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('iot_smart_devices').delete().eq('id', id);
+    if (error) throw error;
+    return true;
+}
+
+// ── IoT Gateways ──────────────────────────────────────────────────────────────
+export async function getIotGateways() {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('iot_gateways').select('*').order('created_at', { ascending: false });
+    if (error) {
+        console.warn('[Supabase] iot_gateways table may not exist yet:', error.message);
+        return [];
+    }
+    return snakeToCamel(data || []);
+}
+
+export async function saveIotGateway(gateway) {
+    const supabase = getSupabaseClient();
+    const payload = camelToSnake({ ...gateway, updated_at: new Date().toISOString() });
+    const id = gateway.id;
+    delete payload.id;
+
+    if (id && String(id).includes('-')) {
+        const { data, error } = await supabase.from('iot_gateways').update(payload).eq('id', id).select().single();
+        if (error) throw error;
+        return snakeToCamel(data);
+    } else {
+        const { data, error } = await supabase.from('iot_gateways').insert({ ...payload, created_at: new Date().toISOString() }).select().single();
+        if (error) throw error;
+        return snakeToCamel(data);
+    }
+}
+
+export async function deleteIotGateway(id) {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('iot_gateways').delete().eq('id', id);
+    if (error) throw error;
+    return true;
+}
