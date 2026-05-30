@@ -122,7 +122,7 @@ const InterfaceManager = () => {
         const station = stations.find(s => s.id === iface.stationId);
         const stationName = station ? station.name : 'WS-01';
         // Open in new tab for player experience
-        window.open(`/terminal?station=${encodeURIComponent(stationName)}`, '_blank');
+        window.open(`/#/terminal?station=${encodeURIComponent(stationName)}`, '_blank');
     };
 
     const filteredInterfaces = useMemo(() => {

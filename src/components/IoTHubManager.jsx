@@ -10,12 +10,14 @@ import iotProtocolGateway, { DEVICE_PROFILES } from '../utils/iotProtocolGateway
 import { getSmartDevices, saveSmartDevice, deleteSmartDevice, getIotGateways, saveIotGateway, deleteIotGateway } from '../utils/database';
 import DevicePairingWizard from './DevicePairingWizard';
 import WiFiDeviceConfig from './WiFiDeviceConfig';
+import obd2Service from '../utils/obd2Service';
 
 // ── Protocol Meta ──────────────────────────────────────────────────────────
 const PROTO = {
   ZIGBEE: { label: 'Zigbee',        color: '#f59e0b', bg: '#fffbeb', Icon: Zap,       desc: 'Zigbee2MQTT · Mesh Network · IEEE 802.15.4' },
   MATTER: { label: 'Matter',        color: '#8b5cf6', bg: '#f5f3ff', Icon: Cpu,       desc: 'WiFi · Thread · Universal Standard' },
   BLE:    { label: 'Bluetooth LE',  color: '#3b82f6', bg: '#eff6ff', Icon: Bluetooth, desc: 'BLE 5.0 · Mesh · Low Power' },
+  OBD2:   { label: 'OBD2 WiFi',     color: '#06b6d4', bg: '#ecfeff', Icon: Gauge,     desc: 'ELM327 WiFi Adapter · TCP/IP Port 35000' },
 };
 
 // ── Device type → icon map ──────────────────────────────────────────────────
@@ -333,13 +335,193 @@ function GatewayConfigTab({ gateways, onSave, onDelete, onTest }) {
   );
 }
 
+function OBD2ControlPanel({ device }) {
+  const [status, setStatus] = useState(obd2Service.status);
+  const [ip, setIp] = useState(device.ip || '192.168.0.10');
+  const [port, setPort] = useState('35000');
+  const [liveData, setLiveData] = useState({ rpm: 0, speed: 0, coolantTemp: 0, batteryVoltage: 0, dtcs: [] });
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    const unsubStatus = obd2Service.subscribeStatus(s => {
+      setStatus(s);
+      if (s === 'connected' || s === 'error') setIsConnecting(false);
+    });
+
+    return unsubStatus;
+  }, []);
+
+  useEffect(() => {
+    let liveInterval = null;
+    if (status === 'connected') {
+      liveInterval = setInterval(async () => {
+        try {
+          const rpmRes = await obd2Service.queryPID('010C');
+          const speedRes = await obd2Service.queryPID('010D');
+          const tempRes = await obd2Service.queryPID('0105');
+          const voltRes = await obd2Service.queryPID('0142');
+          const dtcs = await obd2Service.readDTC();
+
+          setLiveData({
+            rpm: rpmRes?.value || 0,
+            speed: speedRes?.value || 0,
+            coolantTemp: tempRes?.value || 0,
+            batteryVoltage: voltRes?.value || 0,
+            dtcs: dtcs || [],
+          });
+        } catch (e) {
+          console.warn('[OBD2 Control] live fetch error:', e);
+        }
+      }, 1000);
+    } else {
+      setLiveData({ rpm: 0, speed: 0, coolantTemp: 0, batteryVoltage: 0, dtcs: [] });
+    }
+
+    return () => {
+      if (liveInterval) clearInterval(liveInterval);
+    };
+  }, [status]);
+
+  const handleConnectWiFi = async () => {
+    setIsConnecting(true);
+    setErrorMsg('');
+    try {
+      await obd2Service.connectWiFi(ip, Number(port));
+    } catch (e) {
+      setErrorMsg(e.message);
+      setIsConnecting(false);
+    }
+  };
+
+  const handleConnectSimulated = async () => {
+    setIsConnecting(true);
+    setErrorMsg('');
+    await obd2Service.connectSimulated('WIFI');
+  };
+
+  const handleDisconnect = async () => {
+    await obd2Service.disconnect();
+  };
+
+  const handleClearDTC = async () => {
+    if (window.confirm('Hapus semua kode error DTC dari ECU mobil?')) {
+      await obd2Service.clearDTC();
+      alert('Kode DTC berhasil dihapus!');
+    }
+  };
+
+  return (
+    <div style={{ marginTop: '20px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+      <h4 style={{ margin: '0 0 12px', fontWeight: 800, fontSize: '0.9rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <Gauge size={16} color="#06b6d4" /> OBD2 ELM327 WiFi Controller
+      </h4>
+
+      {status !== 'connected' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '8px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', marginBottom: '4px' }}>IP Address</label>
+              <input type="text" value={ip} onChange={e => setIp(e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1.5px solid #e2e8f0', fontSize: '0.8rem', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', marginBottom: '4px' }}>Port</label>
+              <input type="text" value={port} onChange={e => setPort(e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1.5px solid #e2e8f0', fontSize: '0.8rem', boxSizing: 'border-box' }} />
+            </div>
+          </div>
+
+          {errorMsg && (
+            <div style={{ padding: '8px 12px', backgroundColor: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '6px', fontSize: '0.75rem', color: '#b91c1c' }}>
+              ⚠️ {errorMsg}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+            <button
+              onClick={handleConnectWiFi}
+              disabled={isConnecting}
+              style={{ flex: 1, padding: '9px', backgroundColor: '#06b6d4', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}
+            >
+              {isConnecting ? 'Menghubungkan...' : 'Connect WiFi'}
+            </button>
+            <button
+              onClick={handleConnectSimulated}
+              disabled={isConnecting}
+              style={{ padding: '9px 12px', backgroundColor: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '8px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}
+            >
+              Simulate
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {/* Status badge */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', backgroundColor: '#ecfeff', border: '1px solid #22d3ee', borderRadius: '8px' }}>
+            <span style={{ fontSize: '0.75rem', color: '#0891b2', fontWeight: 700 }}>● Connected ({obd2Service.transport})</span>
+            <button onClick={handleDisconnect} style={{ padding: '4px 8px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}>
+              Disconnect
+            </button>
+          </div>
+
+          {/* Live Gauges */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>RPM</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a', margin: '4px 0' }}>{liveData.rpm}</div>
+              <div style={{ fontSize: '0.62rem', color: '#94a3b8' }}>Engine Speed</div>
+            </div>
+            <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Speed</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a', margin: '4px 0' }}>{liveData.speed} <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>km/h</span></div>
+              <div style={{ fontSize: '0.62rem', color: '#94a3b8' }}>Vehicle Speed</div>
+            </div>
+            <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Coolant Temp</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#e24a8a', margin: '4px 0' }}>{liveData.coolantTemp}°C</div>
+              <div style={{ fontSize: '0.62rem', color: '#94a3b8' }}>Engine Coolant</div>
+            </div>
+            <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Voltage</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#10b981', margin: '4px 0' }}>{liveData.batteryVoltage} V</div>
+              <div style={{ fontSize: '0.62rem', color: '#94a3b8' }}>Battery Voltage</div>
+            </div>
+          </div>
+
+          {/* DTC / Troubleshooting */}
+          <div style={{ padding: '12px', backgroundColor: '#fff7ed', borderRadius: '8px', border: '1px solid #ffedd5' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#c2410c' }}>Trouble Codes ({liveData.dtcs.length})</span>
+              {liveData.dtcs.length > 0 && (
+                <button onClick={handleClearDTC} style={{ padding: '3px 8px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer' }}>
+                  Clear DTC
+                </button>
+              )}
+            </div>
+            {liveData.dtcs.length === 0 ? (
+              <div style={{ fontSize: '0.7rem', color: '#16a34a', fontWeight: 600 }}>✅ Tidak ada kode kerusakan (ECU OK)</div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                {liveData.dtcs.map(code => (
+                  <span key={code} style={{ padding: '3px 8px', backgroundColor: '#fee2e2', border: '1px solid #fecaca', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700, color: '#b91c1c', fontFamily: 'monospace' }}>
+                    {code}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Component ──────────────────────────────────────────────────────────
 export default function IoTHubManager() {
   const [activeTab, setActiveTab] = useState('overview');
   const [devices, setDevices] = useState([]);
   const [gateways, setGateways] = useState([]);
-  const [discoveredMap, setDiscoveredMap] = useState({ ZIGBEE: [], MATTER: [], BLE: [] });
-  const [protocolStatus, setProtocolStatus] = useState({ ZIGBEE: 'IDLE', MATTER: 'IDLE', BLE: 'IDLE' });
+  const [discoveredMap, setDiscoveredMap] = useState({ ZIGBEE: [], MATTER: [], BLE: [], OBD2: [] });
+  const [protocolStatus, setProtocolStatus] = useState({ ZIGBEE: 'IDLE', MATTER: 'IDLE', BLE: 'IDLE', OBD2: 'IDLE' });
   const [searchTerm, setSearchTerm] = useState('');
   const [filterProtocol, setFilterProtocol] = useState('ALL');
   const [showWizard, setShowWizard] = useState(false);
@@ -536,7 +718,7 @@ export default function IoTHubManager() {
         {activeTab === 'overview' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             {/* Protocol stat cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' }}>
               {Object.entries(PROTO).map(([key, meta]) => {
                 const Icon = meta.Icon;
                 const count = stats.byProtocol[key];
@@ -631,7 +813,7 @@ export default function IoTHubManager() {
                 <input type="text" placeholder="Cari device, brand, ruangan..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ width: '100%', padding: '9px 12px 9px 36px', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '0.85rem', boxSizing: 'border-box' }} />
               </div>
               <div style={{ display: 'flex', gap: '6px' }}>
-                {['ALL', 'ZIGBEE', 'MATTER', 'BLE'].map(p => (
+                {['ALL', 'ZIGBEE', 'MATTER', 'BLE', 'OBD2'].map(p => (
                   <button key={p} onClick={() => setFilterProtocol(p)} style={{ padding: '7px 14px', borderRadius: '8px', border: `1.5px solid ${filterProtocol === p ? (PROTO[p]?.color || '#3b82f6') : '#e2e8f0'}`, backgroundColor: filterProtocol === p ? (PROTO[p]?.bg || '#eff6ff') : 'white', color: filterProtocol === p ? (PROTO[p]?.color || '#3b82f6') : '#64748b', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', transition: 'all 0.15s' }}>
                     {p === 'ALL' ? 'Semua' : PROTO[p]?.label}
                   </button>
@@ -802,6 +984,9 @@ export default function IoTHubManager() {
                   ))}
                 </div>
               </div>
+            )}
+            {selectedDevice.protocol === 'OBD2' && (
+              <OBD2ControlPanel device={selectedDevice} />
             )}
           </div>
         </div>

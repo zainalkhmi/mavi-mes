@@ -9,6 +9,7 @@ import {
   ToggleLeft, ToggleRight, Info, ChevronLeft, Loader2,
   BarChart2, Layers, Home, Tag
 } from 'lucide-react';
+import iotConnector from '../utils/iotConnector';
 
 // ── WiFi Device Brands / Firmware ──────────────────────────────────────────
 const WIFI_PLATFORMS = {
@@ -84,17 +85,40 @@ const WIFI_PLATFORMS = {
     brands: ['Any MQTT-capable device'],
     mqttPattern: 'devices/{device_id}/command',
   },
+  OBD2: {
+    label: 'OBD2 ELM327 WiFi',
+    color: '#06b6d4',
+    bg: '#ecfeff',
+    icon: '🚗',
+    desc: 'ELM327 WiFi OBD2 Adapter (TCP/IP Port 35000)',
+    discoveryPort: 35000,
+    defaultTopic: 'obd2/state',
+    setupUrl: 'Manual configuration (Port 35000)',
+    brands: ['ELM327 WiFi', 'vLinker WiFi', 'Konnwei WiFi'],
+    mqttPattern: 'obd2/command',
+  },
 };
 
 // ── Simulated WiFi Device Database ─────────────────────────────────────────
 const SIMULATED_WIFI_DEVICES = [
-  { id: 'w1', ip: '192.168.1.101', mac: 'A4:CF:12:78:3B:01', hostname: 'sonoff-pow-r2', platform: 'TASMOTA', brand: 'Sonoff', model: 'POW R2', type: 'PLUG', icon: '🔌', rssi: -42, online: true, uptime: '5d 12h', capabilities: ['on_off', 'power', 'voltage', 'current'], telemetry: { on: true, power: 45.2, voltage: 220, current: 0.21 } },
-  { id: 'w2', ip: '192.168.1.102', mac: 'DC:4F:22:11:AA:02', hostname: 'gosund-sp111', platform: 'TUYA', brand: 'Gosund', model: 'SP111 Smart Plug', type: 'PLUG', icon: '🔌', rssi: -58, online: true, uptime: '2d 3h', capabilities: ['on_off', 'power'], telemetry: { on: false, power: 0 } },
-  { id: 'w3', ip: '192.168.1.103', mac: 'EC:FA:BC:55:CC:03', hostname: 'shelly1pm-living', platform: 'SHELLY', brand: 'Shelly', model: '1PM Plus', type: 'RELAY', icon: '⚡', rssi: -50, online: true, uptime: '14d 8h', capabilities: ['on_off', 'power', 'temperature'], telemetry: { on: true, power: 120.5, temperature: 38.2 } },
-  { id: 'w4', ip: '192.168.1.104', mac: '24:D7:EB:AA:DD:04', hostname: 'esphome-temp-bed', platform: 'ESPHOME', brand: 'DIY ESP32', model: 'BME280 Sensor Node', type: 'SENSOR', icon: '🌡️', rssi: -63, online: true, uptime: '7d 21h', capabilities: ['temperature', 'humidity', 'pressure'], telemetry: { temperature: 24.5, humidity: 65, pressure: 1013 } },
-  { id: 'w5', ip: '192.168.1.105', mac: 'B8:27:EB:FE:11:05', hostname: 'tasmota-bulb-1', platform: 'TASMOTA', brand: 'Gosund', model: 'LB3 RGB Bulb', type: 'BULB', icon: '💡', rssi: -70, online: false, uptime: '—', capabilities: ['on_off', 'brightness', 'color_temp'], telemetry: { on: false, brightness: 80, color_temp: 4000 } },
-  { id: 'w6', ip: '192.168.1.106', mac: 'C8:2B:96:EE:22:06', hostname: 'shelly-dimmer-2', platform: 'SHELLY', brand: 'Shelly', model: 'Dimmer 2', type: 'BULB', icon: '💡', rssi: -45, online: true, uptime: '3d 5h', capabilities: ['on_off', 'brightness'], telemetry: { on: true, brightness: 70 } },
-  { id: 'w7', ip: '192.168.1.107', mac: 'AA:BB:CC:DD:EE:07', hostname: 'tuya-aircon-1', platform: 'TUYA', brand: 'Midea', model: 'WiFi AC Control', type: 'THERMOSTAT', icon: '❄️', rssi: -55, online: true, uptime: '1d 4h', capabilities: ['on_off', 'temperature', 'target_temp'], telemetry: { on: true, temperature: 27, target_temp: 24 } },
+  {
+    id: 'tuya_smart_plug_user',
+    ip: '157.85.207.85',
+    mac: '00:33:7a:db:5e:9a',
+    hostname: 'a3b7f7d2bd950a5d81g2pl',
+    platform: 'TUYA',
+    brand: 'Tuya',
+    model: 'Smart Plug L1',
+    type: 'PLUG',
+    icon: '🔌',
+    rssi: -55,
+    online: true,
+    capabilities: ['on_off', 'power'],
+    telemetry: {
+      on: false,
+      power: 0
+    }
+  }
 ];
 
 // ── WiFi Signal Strength Badge ─────────────────────────────────────────────
@@ -170,6 +194,8 @@ function WiFiDeviceCard({ device, onToggle, onDelete, onSelect, onConfigure }) {
         {device.telemetry?.temperature !== undefined && <span style={{ padding: '2px 8px', backgroundColor: '#fff7ed', borderRadius: '12px', fontSize: '0.72rem', fontWeight: 600, color: '#c2410c' }}>{device.telemetry.temperature}°C</span>}
         {device.telemetry?.humidity !== undefined && <span style={{ padding: '2px 8px', backgroundColor: '#eff6ff', borderRadius: '12px', fontSize: '0.72rem', fontWeight: 600, color: '#1d4ed8' }}>{device.telemetry.humidity}%</span>}
         {device.telemetry?.brightness !== undefined && <span style={{ padding: '2px 8px', backgroundColor: '#fefce8', borderRadius: '12px', fontSize: '0.72rem', fontWeight: 600, color: '#a16207' }}>💡 {device.telemetry.brightness}%</span>}
+        {device.telemetry?.rpm !== undefined && <span style={{ padding: '2px 8px', backgroundColor: '#ecfeff', borderRadius: '12px', fontSize: '0.72rem', fontWeight: 600, color: '#0891b2' }}>{device.telemetry.rpm} RPM</span>}
+        {device.telemetry?.speed !== undefined && <span style={{ padding: '2px 8px', backgroundColor: '#f0fdf4', borderRadius: '12px', fontSize: '0.72rem', fontWeight: 600, color: '#16a34a' }}>{device.telemetry.speed} km/h</span>}
       </div>
 
       {/* Footer */}
@@ -444,7 +470,28 @@ function WiFiSetupWizard({ onClose, onSaved }) {
                 <div style={{ textAlign: 'center', padding: '32px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px dashed #e2e8f0' }}>
                   <WifiOff size={36} color="#cbd5e1" style={{ marginBottom: '10px' }} />
                   <div style={{ fontWeight: 700, color: '#64748b', marginBottom: '4px' }}>Tidak ada perangkat ditemukan</div>
-                  <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Pastikan perangkat sudah terhubung ke WiFi yang sama.</div>
+                  <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '16px' }}>Pastikan perangkat sudah terhubung ke WiFi yang sama.</div>
+                  <button
+                    onClick={() => handleSelectDevice({
+                      id: `manual_${Date.now()}`,
+                      ip: '192.168.1.100',
+                      mac: '00:11:22:33:44:55',
+                      hostname: `${platform.toLowerCase()}-device`,
+                      platform: platform,
+                      brand: plat.brands[0] || 'Generic',
+                      model: 'WiFi Device',
+                      type: 'PLUG',
+                      icon: platform === 'OBD2' ? '🚗' : '🔌',
+                      rssi: -50,
+                      online: true,
+                      capabilities: platform === 'OBD2'
+                        ? ['rpm', 'speed', 'coolant_temp', 'battery_voltage', 'dtc_count']
+                        : ['on_off', 'power']
+                    })}
+                    style={{ padding: '8px 16px', backgroundColor: plat.color, color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}
+                  >
+                    ✍️ Input Secara Manual
+                  </button>
                 </div>
               )}
             </div>
@@ -566,7 +613,30 @@ function WiFiSetupWizard({ onClose, onSaved }) {
               {saving ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Menyimpan...</> : saved ? <><CheckCircle2 size={16} /> Tersimpan!</> : <><Save size={16} /> Simpan Perangkat</>}
             </button>
           ) : step === 2 ? (
-            <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Pilih perangkat dari hasil scan ↑</div>
+            <div style={{ fontSize: '0.8rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>Pilih hasil scan ↑ atau</span>
+              <button
+                onClick={() => handleSelectDevice({
+                  id: `manual_${Date.now()}`,
+                  ip: '192.168.1.100',
+                  mac: '00:11:22:33:44:55',
+                  hostname: `${platform.toLowerCase()}-device`,
+                  platform: platform,
+                  brand: plat.brands[0] || 'Generic',
+                  model: 'WiFi Device',
+                  type: 'PLUG',
+                  icon: platform === 'OBD2' ? '🚗' : '🔌',
+                  rssi: -50,
+                  online: true,
+                  capabilities: platform === 'OBD2'
+                    ? ['rpm', 'speed', 'coolant_temp', 'battery_voltage', 'dtc_count']
+                    : ['on_off', 'power']
+                })}
+                style={{ background: 'none', border: 'none', color: plat.color, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+              >
+                input manual
+              </button>
+            </div>
           ) : step === 3 ? (
             <button onClick={() => setStep(4)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 22px', borderRadius: '8px', backgroundColor: plat.color, color: 'white', border: 'none', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer' }}>
               Lanjut <ChevronRight size={16} />
@@ -755,8 +825,88 @@ export default function WiFiDeviceManager() {
   const [scanning, setScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
 
+  // MQTT Connection and Subscription
+  useEffect(() => {
+    if (devices.length === 0) return;
+
+    // Use broker from configured devices or fall back to default EMQX broker
+    const customBroker = devices.find(d => d.mqttBroker || d.config?.mqttBroker);
+    const brokerUrl = customBroker?.mqttBroker || customBroker?.config?.mqttBroker || 'wss://broker.emqx.io:8084/mqtt';
+    
+    console.log(`[WiFiManager] Connecting to MQTT broker: ${brokerUrl}`);
+    iotConnector.connect(brokerUrl);
+
+    // Subscribe to state topics for each device
+    devices.forEach(device => {
+      if (!device.mqttTopic) return;
+      
+      let stateTopic = device.mqttTopic;
+      if (device.platform === 'TUYA') {
+        stateTopic = device.mqttTopic.replace('/command', '/state');
+      } else if (device.platform === 'TASMOTA') {
+        stateTopic = device.mqttTopic.replace('/cmnd/POWER', '/stat/POWER').replace('/cmnd/', '/stat/');
+      } else if (device.platform === 'SHELLY') {
+        stateTopic = device.mqttTopic.replace('/command', '');
+      }
+
+      console.log(`[WiFiManager] Subscribing to state topic: ${stateTopic} for ${device.brand} ${device.model}`);
+      
+      iotConnector.subscribe(stateTopic, (payload) => {
+        try {
+          const parsed = JSON.parse(payload);
+          console.log(`[WiFiManager] Received state update for ${device.id}:`, parsed);
+          
+          setDevices(prev => prev.map(d => {
+            if (d.id === device.id || d.hostname === device.hostname) {
+              const updatedTelemetry = { ...d.telemetry };
+              if (parsed.on !== undefined) updatedTelemetry.on = parsed.on;
+              if (parsed.power !== undefined) updatedTelemetry.power = parsed.power;
+              return { ...d, telemetry: updatedTelemetry };
+            }
+            return d;
+          }));
+        } catch (e) {
+          const text = payload.trim().toUpperCase();
+          const isOn = text === 'ON' || text === '1' || text === 'TRUE';
+          console.log(`[WiFiManager] Received raw state update for ${device.id}:`, text);
+          
+          setDevices(prev => prev.map(d => {
+            if (d.id === device.id || d.hostname === device.hostname) {
+              return { ...d, telemetry: { ...d.telemetry, on: isOn } };
+            }
+            return d;
+          }));
+        }
+      });
+    });
+
+    return () => {
+      devices.forEach(device => {
+        if (!device.mqttTopic) return;
+        let stateTopic = device.mqttTopic;
+        if (device.platform === 'TUYA') {
+          stateTopic = device.mqttTopic.replace('/command', '/state');
+        } else if (device.platform === 'TASMOTA') {
+          stateTopic = device.mqttTopic.replace('/cmnd/POWER', '/stat/POWER').replace('/cmnd/', '/stat/');
+        } else if (device.platform === 'SHELLY') {
+          stateTopic = device.mqttTopic.replace('/command', '');
+        }
+        iotConnector.unsubscribe(stateTopic);
+      });
+    };
+  }, [devices.map(d => d.id + d.mqttTopic).join(',')]);
+
   const handleToggle = (id, command) => {
+    // Update local React state
     setDevices(prev => prev.map(d => d.id === id ? { ...d, telemetry: { ...d.telemetry, ...command } } : d));
+    
+    // Publish MQTT toggle message to physical device via bridge
+    const device = devices.find(d => d.id === id);
+    if (device && device.mqttTopic) {
+      const payload = JSON.stringify({ on: command.on });
+      console.log(`[WiFiManager] Publishing to topic: ${device.mqttTopic} with payload: ${payload}`);
+      iotConnector.publish(device.mqttTopic, payload);
+    }
   };
 
   const handleDelete = (id) => {

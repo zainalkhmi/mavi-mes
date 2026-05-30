@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   X, ChevronRight, ChevronLeft, CheckCircle2, Loader2,
-  Wifi, Bluetooth, Cpu, Zap, Home, Tag, AlertTriangle, Router
+  Wifi, Bluetooth, Cpu, Zap, Home, Tag, AlertTriangle, Router,
+  Gauge
 } from 'lucide-react';
 
 // ── Protocol meta-info ─────────────────────────────────────────────────────
@@ -61,6 +62,20 @@ const PROTOCOL_META = {
       'Setelah terhubung ke WiFi, Mavi akan menemukannya via LAN scan.',
     ],
     tip: 'WiFi devices seperti Sonoff Tasmota, Gosund, dan Shelly tidak butuh hub khusus — langsung via LAN/MQTT.'
+  },
+  OBD2: {
+    label: 'OBD2 ELM327 WiFi',
+    color: '#06b6d4',
+    bg: '#ecfeff',
+    border: '#67e8f9',
+    icon: Gauge,
+    instructions: [
+      'Nyalakan mesin mobil atau posisikan kunci kontak pada posisi ON.',
+      'Colokkan OBD2 ELM327 WiFi adapter ke port OBDII mobil.',
+      'Hubungkan laptop/device ini ke hotspot WiFi adapter (biasanya bernama OBDII, WiFi_OBDII, dll).',
+      'Mavi akan mendeteksi adapter dan membaca ECU secara real-time via TCP Port 35000.',
+    ],
+    tip: 'OBD2 WiFi menggunakan koneksi TCP/IP langsung (WebSocket/Proxy) untuk membaca ECU mobil secara real-time.'
   }
 };
 
@@ -99,6 +114,7 @@ function StepProtocol({ selected, onSelect }) {
                   {key === 'MATTER' && 'WiFi · Thread · Standard universal Apple/Google/Amazon'}
                   {key === 'BLE' && 'Bluetooth 5.0 LE · BLE Mesh · Hemat daya'}
                   {key === 'WIFI' && 'Tasmota · Tuya · Shelly · ESPHome · LAN/MQTT'}
+                  {key === 'OBD2' && 'ELM327 WiFi OBD2 Adapter · Port 35000 · ECU Diagnostics'}
                 </div>
               </div>
               {isActive && <CheckCircle2 size={20} color={meta.color} />}
@@ -177,8 +193,29 @@ function StepScanning({ protocol, onDeviceFound, discoveredDevices }) {
 
       {/* Discovered devices */}
       {discoveredDevices.length === 0 ? (
-        <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem', padding: '8px' }}>
-          Menunggu perangkat{dots}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '16px' }}>
+          <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
+            Menunggu perangkat{dots}
+          </div>
+          <button
+            onClick={() => onDeviceFound({
+              tempId: `manual_${Date.now()}`,
+              protocol: protocol,
+              brand: protocol === 'OBD2' ? 'ELM327' : (protocol === 'WIFI' ? 'Tuya' : 'Generic'),
+              model: protocol === 'OBD2' ? 'WiFi OBD2 Adapter' : (protocol === 'WIFI' ? 'Smart Plug' : 'Smart Device'),
+              type: protocol === 'OBD2' ? 'SENSOR' : 'PLUG',
+              icon: protocol === 'OBD2' ? '🚗' : '🔌',
+              category: protocol === 'OBD2' ? 'Automotive' : 'Power',
+              capabilities: protocol === 'OBD2'
+                ? ['rpm', 'speed', 'coolant_temp', 'battery_voltage', 'dtc_count']
+                : ['on_off', 'power_metering'],
+              signalStrength: -50,
+              telemetry: {}
+            })}
+            style={{ padding: '8px 16px', backgroundColor: meta.color, color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}
+          >
+            ✍️ Tambah Manual
+          </button>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

@@ -341,69 +341,147 @@ export const logMachineActivity = async (id, status) => {};
 // ── IoT Smart Devices ─────────────────────────────────────────────────────────
 export async function getSmartDevices() {
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase.from('iot_smart_devices').select('*').order('created_at', { ascending: false });
-    if (error) {
-        console.warn('[Supabase] iot_smart_devices table may not exist yet:', error.message);
-        return [];
+    try {
+        const { data, error } = await supabase.from('iot_smart_devices').select('*').order('created_at', { ascending: false });
+        if (!error) return snakeToCamel(data || []);
+        console.warn('[Supabase] smart devices fetch error, falling back to localStorage:', error.message);
+    } catch (e) {
+        console.warn('[Supabase] smart devices fetch failed, falling back to localStorage:', e);
     }
-    return snakeToCamel(data || []);
+    const local = localStorage.getItem('mavi_smart_devices');
+    return local ? JSON.parse(local) : [];
 }
 
 export async function saveSmartDevice(device) {
-    const supabase = getSupabaseClient();
-    const payload = camelToSnake({ ...device, updated_at: new Date().toISOString() });
-    const id = device.id;
-    delete payload.id;
+    const id = device.id || `paired_${Date.now()}`;
+    const deviceWithId = { ...device, id };
 
-    if (id && String(id).includes('-')) {
-        const { data, error } = await supabase.from('iot_smart_devices').update(payload).eq('id', id).select().single();
-        if (error) throw error;
-        return snakeToCamel(data);
-    } else {
-        const { data, error } = await supabase.from('iot_smart_devices').insert({ ...payload, created_at: new Date().toISOString() }).select().single();
-        if (error) throw error;
-        return snakeToCamel(data);
+    try {
+        const supabase = getSupabaseClient();
+        const payload = camelToSnake({ ...deviceWithId, updated_at: new Date().toISOString() });
+        delete payload.id;
+
+        if (id && String(id).includes('-')) {
+            const { data, error } = await supabase.from('iot_smart_devices').update(payload).eq('id', id).select().single();
+            if (!error) {
+                updateLocalSmartDevice(snakeToCamel(data));
+                return snakeToCamel(data);
+            }
+        } else {
+            const { data, error } = await supabase.from('iot_smart_devices').insert({ ...payload, created_at: new Date().toISOString() }).select().single();
+            if (!error) {
+                updateLocalSmartDevice(snakeToCamel(data));
+                return snakeToCamel(data);
+            }
+        }
+    } catch (e) {
+        console.warn('[Supabase] saveSmartDevice failed, saving to localStorage:', e);
     }
+
+    updateLocalSmartDevice(deviceWithId);
+    return deviceWithId;
+}
+
+function updateLocalSmartDevice(device) {
+    const local = localStorage.getItem('mavi_smart_devices');
+    let list = local ? JSON.parse(local) : [];
+    const idx = list.findIndex(d => d.id === device.id);
+    if (idx > -1) {
+        list[idx] = device;
+    } else {
+        list.push(device);
+    }
+    localStorage.setItem('mavi_smart_devices', JSON.stringify(list));
 }
 
 export async function deleteSmartDevice(id) {
-    const supabase = getSupabaseClient();
-    const { error } = await supabase.from('iot_smart_devices').delete().eq('id', id);
-    if (error) throw error;
+    try {
+        const supabase = getSupabaseClient();
+        const { error } = await supabase.from('iot_smart_devices').delete().eq('id', id);
+        if (error) console.warn('[Supabase] deleteSmartDevice error:', error.message);
+    } catch (e) {
+        console.warn('[Supabase] deleteSmartDevice failed:', e);
+    }
+
+    const local = localStorage.getItem('mavi_smart_devices');
+    if (local) {
+        let list = JSON.parse(local);
+        list = list.filter(d => d.id !== id);
+        localStorage.setItem('mavi_smart_devices', JSON.stringify(list));
+    }
     return true;
 }
 
 // ── IoT Gateways ──────────────────────────────────────────────────────────────
 export async function getIotGateways() {
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase.from('iot_gateways').select('*').order('created_at', { ascending: false });
-    if (error) {
-        console.warn('[Supabase] iot_gateways table may not exist yet:', error.message);
-        return [];
+    try {
+        const { data, error } = await supabase.from('iot_gateways').select('*').order('created_at', { ascending: false });
+        if (!error) return snakeToCamel(data || []);
+        console.warn('[Supabase] gateways fetch error, falling back to localStorage:', error.message);
+    } catch (e) {
+        console.warn('[Supabase] gateways fetch failed, falling back to localStorage:', e);
     }
-    return snakeToCamel(data || []);
+    const local = localStorage.getItem('mavi_iot_gateways');
+    return local ? JSON.parse(local) : [];
 }
 
 export async function saveIotGateway(gateway) {
-    const supabase = getSupabaseClient();
-    const payload = camelToSnake({ ...gateway, updated_at: new Date().toISOString() });
-    const id = gateway.id;
-    delete payload.id;
+    const id = gateway.id || `gw_${Date.now()}`;
+    const gatewayWithId = { ...gateway, id };
 
-    if (id && String(id).includes('-')) {
-        const { data, error } = await supabase.from('iot_gateways').update(payload).eq('id', id).select().single();
-        if (error) throw error;
-        return snakeToCamel(data);
-    } else {
-        const { data, error } = await supabase.from('iot_gateways').insert({ ...payload, created_at: new Date().toISOString() }).select().single();
-        if (error) throw error;
-        return snakeToCamel(data);
+    try {
+        const supabase = getSupabaseClient();
+        const payload = camelToSnake({ ...gatewayWithId, updated_at: new Date().toISOString() });
+        delete payload.id;
+
+        if (id && String(id).includes('-')) {
+            const { data, error } = await supabase.from('iot_gateways').update(payload).eq('id', id).select().single();
+            if (!error) {
+                updateLocalIotGateway(snakeToCamel(data));
+                return snakeToCamel(data);
+            }
+        } else {
+            const { data, error } = await supabase.from('iot_gateways').insert({ ...payload, created_at: new Date().toISOString() }).select().single();
+            if (!error) {
+                updateLocalIotGateway(snakeToCamel(data));
+                return snakeToCamel(data);
+            }
+        }
+    } catch (e) {
+        console.warn('[Supabase] saveIotGateway failed, saving to localStorage:', e);
     }
+
+    updateLocalIotGateway(gatewayWithId);
+    return gatewayWithId;
+}
+
+function updateLocalIotGateway(gateway) {
+    const local = localStorage.getItem('mavi_iot_gateways');
+    let list = local ? JSON.parse(local) : [];
+    const idx = list.findIndex(g => g.id === gateway.id);
+    if (idx > -1) {
+        list[idx] = gateway;
+    } else {
+        list.push(gateway);
+    }
+    localStorage.setItem('mavi_iot_gateways', JSON.stringify(list));
 }
 
 export async function deleteIotGateway(id) {
-    const supabase = getSupabaseClient();
-    const { error } = await supabase.from('iot_gateways').delete().eq('id', id);
-    if (error) throw error;
+    try {
+        const supabase = getSupabaseClient();
+        const { error } = await supabase.from('iot_gateways').delete().eq('id', id);
+        if (error) console.warn('[Supabase] deleteIotGateway error:', error.message);
+    } catch (e) {
+        console.warn('[Supabase] deleteIotGateway failed:', e);
+    }
+
+    const local = localStorage.getItem('mavi_iot_gateways');
+    if (local) {
+        let list = JSON.parse(local);
+        list = list.filter(g => g.id !== id);
+        localStorage.setItem('mavi_iot_gateways', JSON.stringify(list));
+    }
     return true;
 }

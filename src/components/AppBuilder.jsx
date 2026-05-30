@@ -6118,8 +6118,9 @@ const AppBuilder = () => {
                     break;
                 }
                 case 'OBD2_CONNECT': {
-                    const { transport } = action.payload;
+                    const { transport, ipAddress, port } = action.payload;
                     if (transport === 'SERIAL') await obd2Service.connectSerial();
+                    else if (transport === 'WIFI') await obd2Service.connectWiFi(ipAddress || '192.168.0.10', Number(port) || 35000);
                     else await obd2Service.connectBluetooth();
                     break;
                 }
@@ -6976,7 +6977,9 @@ const AppBuilder = () => {
                         const transport = (comp.props.transport || 'BLUETOOTH').toUpperCase();
                         const connectFn = transport === 'SERIAL'
                             ? () => obd2Service.connectSerial(Number(comp.props.baudRate) || 38400)
-                            : () => obd2Service.connectBluetooth();
+                            : transport === 'WIFI'
+                                ? () => obd2Service.connectWiFi(comp.props.ipAddress || '192.168.0.10', Number(comp.props.port) || 35000)
+                                : () => obd2Service.connectBluetooth();
 
                         updateComponentProps(compId, { connected: false, lastValue: 'Connecting…' });
                         connectFn()
@@ -8636,7 +8639,9 @@ const AppBuilder = () => {
                     rightSidebarEnabled,
                     copilotEnabled,
                     stepListEnabled,
-                    isLocked: isCanvasLocked
+                    isLocked: isCanvasLocked,
+                    devicePreset: previewDevice,
+                    previewOrientation: previewOrientation
                 },
                 version: appMeta.version,
                 approval_status: appMeta.approval_status,
@@ -8729,7 +8734,7 @@ const AppBuilder = () => {
                 is_published: true,
                 lastPublishedAt: published.updated_at
             });
-            const url = `${window.location.origin}/terminal/${published.id}`;
+            const url = `${window.location.origin}/#/terminal/${published.id}`;
             setPublishModal({ isOpen: true, url });
             alert(`App Published V${published.version || 1} successfully!`);
             if (!published.is_published && published.id) {
@@ -13723,6 +13728,8 @@ const AppBuilder = () => {
         }
     };
 
+    const SelectedDeviceIcon = DEVICE_PRESETS[previewDevice]?.icon || LayoutGrid;
+
     return (
         <div
             data-theme={builderTheme.toLowerCase()}
@@ -13744,29 +13751,132 @@ const AppBuilder = () => {
                 backgroundColor: 'var(--header-bg)',
                 color: 'var(--header-text)',
                 zIndex: 100,
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                position: 'relative'
             }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                    <div style={{ fontWeight: 900, fontSize: '1.2rem', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--header-text)' }}>
-                        <Zap size={20} color="var(--header-text)" fill="var(--header-text)" /> MAVI-M
-                    </div>
-                    <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
-                    <input
-                        value={appName}
-                        onChange={(e) => setAppName(e.target.value)}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    {currentAppId && (
+                        <>
+                            <ProjectManager
+                                app={getCurrentApp()}
+                                onImport={handleImportProject}
+                                onDuplicate={handleDuplicateProject}
+                                onAppChange={(app) => {
+                                    loadApp(app);
+                                    handleImportProject(app);
+                                }}
+                            />
+                            <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
+                        </>
+                    )}
+                    <button
+                        onClick={() => setIsCreateDrawerOpen(true)}
                         style={{
-                            backgroundColor: 'transparent',
+                            width: '36px',
+                            height: '36px',
+                            backgroundColor: '#10b981',
                             border: 'none',
-                            color: 'var(--header-text)',
-                            fontSize: '1rem',
-                            fontWeight: '500',
-                            outline: 'none',
-                            width: '260px'
+                            borderRadius: '6px',
+                            color: '#fff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                            transition: 'all 0.2s'
                         }}
-                    />
+                        onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.1)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.filter = 'none'; }}
+                        title="Buat Aplikasi Baru"
+                    >
+                        <FilePlus size={18} />
+                    </button>
+                    <button
+                        onClick={() => handleSave()}
+                        disabled={isSaving}
+                        style={{
+                            width: '36px',
+                            height: '36px',
+                            backgroundColor: '#06b6d4',
+                            border: 'none',
+                            borderRadius: '6px',
+                            color: '#fff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                            transition: 'all 0.2s',
+                            opacity: isSaving ? 0.7 : 1
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.1)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.filter = 'none'; }}
+                        title={isSaving ? 'Menyimpan...' : 'Simpan Aplikasi'}
+                    >
+                        <Save size={18} />
+                    </button>
+                    <button
+                        onClick={() => {
+                            if (!currentAppId) {
+                                alert('Please save the app first.');
+                                return;
+                            }
+                            const url = `${window.location.origin}/#/terminal/${currentAppId}?devMode=true`;
+                            setCompanionModal({ isOpen: true, url });
+                        }}
+                        style={{
+                            width: '36px',
+                            height: '36px',
+                            backgroundColor: '#4f46e5',
+                            border: 'none',
+                            borderRadius: '6px',
+                            color: '#fff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                            transition: 'all 0.2s',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.1)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.filter = 'none'; }}
+                        title="Companion Connect"
+                    >
+                        <Smartphone size={18} />
+                    </button>
+                    <button
+                        onClick={handlePublish}
+                        style={{
+                            width: '36px',
+                            height: '36px',
+                            backgroundColor: '#0d9488',
+                            border: 'none',
+                            borderRadius: '6px',
+                            color: '#fff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                            transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.1)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.filter = 'none'; }}
+                        title="Publikasikan Aplikasi"
+                    >
+                        <Upload size={18} />
+                    </button>
+
                 </div>
 
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <div style={{
+                    position: 'absolute',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px'
+                }}>
                     {/* Relocated Device & Lock Controls */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginRight: '4px' }}>
                         <button
@@ -13811,13 +13921,33 @@ const AppBuilder = () => {
                         </button>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: 'rgba(255, 255, 255, 0.1)', padding: '4px 8px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.2)', backdropFilter: 'blur(4px)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '2px 6px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '6px' }}>
-                            <LayoutGrid size={14} color="rgba(255,255,255,0.7)" />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: 'rgba(255, 255, 255, 0.1)', padding: '4px 6px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.2)', backdropFilter: 'blur(4px)' }}>
+                        <div style={{ 
+                            position: 'relative', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            width: '28px', 
+                            height: '28px', 
+                            backgroundColor: 'rgba(255,255,255,0.05)', 
+                            borderRadius: '6px',
+                            cursor: 'pointer'
+                        }} title={`Device Preset: ${DEVICE_PRESETS[previewDevice]?.label || 'Responsive'}`}>
+                            <SelectedDeviceIcon size={14} color="rgba(255,255,255,0.7)" />
                             <select
                                 value={previewDevice}
                                 onChange={e => handleDeviceChange(e.target.value)}
-                                style={{ border: 'none', background: 'transparent', fontSize: '0.75rem', fontWeight: 600, color: '#fff', outline: 'none', cursor: 'pointer' }}
+                                style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    width: '100%',
+                                    height: '100%',
+                                    opacity: 0,
+                                    cursor: 'pointer',
+                                    border: 'none',
+                                    outline: 'none'
+                                }}
                             >
                                 {Object.entries(DEVICE_PRESETS).map(([key, preset]) => (
                                     <option key={key} value={key} style={{ color: '#000' }}>
@@ -13844,13 +13974,12 @@ const AppBuilder = () => {
                                     style={{
                                         display: 'flex',
                                         alignItems: 'center',
-                                        gap: '4px',
-                                        padding: '4px 8px',
+                                        justifyContent: 'center',
+                                        width: '24px',
+                                        height: '24px',
                                         borderRadius: '5px',
                                         border: 'none',
                                         cursor: 'pointer',
-                                        fontSize: '0.68rem',
-                                        fontWeight: 700,
                                         transition: 'all 0.15s',
                                         backgroundColor: previewOrientation === 'PORTRAIT' ? 'rgba(255,255,255,0.20)' : 'transparent',
                                         color: previewOrientation === 'PORTRAIT' ? '#fff' : 'rgba(255,255,255,0.5)',
@@ -13861,7 +13990,6 @@ const AppBuilder = () => {
                                     <svg width="10" height="14" viewBox="0 0 10 14" fill="none" xmlns="http://www.w3.org/2000/svg">
                                         <rect x="0.5" y="0.5" width="9" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill={previewOrientation === 'PORTRAIT' ? 'currentColor' : 'none'} fillOpacity="0.2" />
                                     </svg>
-                                    Portrait
                                 </button>
 
                                 {/* Landscape */}
@@ -13871,13 +13999,12 @@ const AppBuilder = () => {
                                     style={{
                                         display: 'flex',
                                         alignItems: 'center',
-                                        gap: '4px',
-                                        padding: '4px 8px',
+                                        justifyContent: 'center',
+                                        width: '24px',
+                                        height: '24px',
                                         borderRadius: '5px',
                                         border: 'none',
                                         cursor: 'pointer',
-                                        fontSize: '0.68rem',
-                                        fontWeight: 700,
                                         transition: 'all 0.15s',
                                         backgroundColor: previewOrientation === 'LANDSCAPE' ? 'rgba(255,255,255,0.20)' : 'transparent',
                                         color: previewOrientation === 'LANDSCAPE' ? '#fff' : 'rgba(255,255,255,0.5)',
@@ -13888,7 +14015,6 @@ const AppBuilder = () => {
                                     <svg width="14" height="10" viewBox="0 0 14 10" fill="none" xmlns="http://www.w3.org/2000/svg">
                                         <rect x="0.5" y="0.5" width="13" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill={previewOrientation === 'LANDSCAPE' ? 'currentColor' : 'none'} fillOpacity="0.2" />
                                     </svg>
-                                    Landscape
                                 </button>
                             </div>
                         )}
@@ -13901,81 +14027,109 @@ const AppBuilder = () => {
                                 style={{
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: '6px',
-                                    padding: '4px 10px',
+                                    justifyContent: 'center',
+                                    width: '28px',
+                                    height: '28px',
                                     borderRadius: '6px',
                                     backgroundColor: isCanvasLocked ? 'rgba(59, 130, 246, 0.3)' : 'transparent',
                                     border: isCanvasLocked ? '1px solid #3b82f6' : '1px solid rgba(255,255,255,0.2)',
                                     color: 'white',
                                     cursor: 'pointer',
-                                    transition: 'all 0.2s'
+                                    transition: 'all 0.2s',
+                                    padding: 0
                                 }}
                             >
                                 {isCanvasLocked ? <Unlock size={14} color="#fff" /> : <Lock size={14} color="rgba(255,255,255,0.7)" />}
-                                <span style={{ fontSize: '0.7rem', fontWeight: 700 }}>{isCanvasLocked ? 'Unlock' : 'Lock'}</span>
                             </button>
                         )}
                     </div>
 
-                    <div style={{ display: 'flex', gap: '4px', backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: '8px', padding: '4px' }}>
+                    <div style={{ display: 'flex', gap: '4px', backgroundColor: 'rgba(0,0,0,0.15)', borderRadius: '8px', padding: '4px' }}>
                         <button
                             onClick={() => setViewMode('DESIGN')}
                             style={{
-                                padding: '8px 16px',
+                                width: '36px',
+                                height: '36px',
                                 borderRadius: '6px',
-                                fontSize: '0.8rem',
                                 backgroundColor: viewMode === 'DESIGN' ? '#3b82f6' : 'transparent',
                                 border: 'none',
-                                color: 'white',
+                                color: viewMode === 'DESIGN' ? 'white' : 'rgba(255, 255, 255, 0.6)',
                                 cursor: 'pointer',
-                                fontWeight: 700,
                                 transition: 'all 0.2s',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '6px',
+                                justifyContent: 'center',
                                 boxShadow: viewMode === 'DESIGN' ? '0 2px 4px rgba(0,0,0,0.2)' : 'none'
                             }}
-                        ><Layout size={14} /> Design</button>
+                            onMouseEnter={(e) => {
+                                if (viewMode !== 'DESIGN') {
+                                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                                    e.currentTarget.style.color = 'white';
+                                }
+                            }}
+                            onMouseLeave={(e) => {
+                                if (viewMode !== 'DESIGN') {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                    e.currentTarget.style.color = 'rgba(255, 255, 255, 0.6)';
+                                }
+                            }}
+                            title="Design Mode"
+                        >
+                            <Layout size={18} />
+                        </button>
                         <button
                             onClick={() => setViewMode('PREVIEW')}
                             style={{
-                                padding: '8px 16px',
+                                width: '36px',
+                                height: '36px',
                                 borderRadius: '6px',
-                                fontSize: '0.8rem',
                                 backgroundColor: viewMode === 'PREVIEW' ? '#8b5cf6' : 'transparent',
                                 border: 'none',
-                                color: 'white',
+                                color: viewMode === 'PREVIEW' ? 'white' : 'rgba(255, 255, 255, 0.6)',
                                 cursor: 'pointer',
-                                fontWeight: 700,
                                 transition: 'all 0.2s',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '6px',
+                                justifyContent: 'center',
                                 boxShadow: viewMode === 'PREVIEW' ? '0 2px 4px rgba(0,0,0,0.2)' : 'none'
                             }}
-                        ><Code size={14} /> Dev Mode</button>
+                            onMouseEnter={(e) => {
+                                if (viewMode !== 'PREVIEW') {
+                                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                                    e.currentTarget.style.color = 'white';
+                                }
+                            }}
+                            onMouseLeave={(e) => {
+                                if (viewMode !== 'PREVIEW') {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                    e.currentTarget.style.color = 'rgba(255, 255, 255, 0.6)';
+                                }
+                            }}
+                            title="Developer Mode"
+                        >
+                            <Code size={18} />
+                        </button>
                         <button
                             onClick={() => {
                                 if (!currentAppId) {
                                     toast.error('Please save the app first.');
                                     return;
                                 }
-                                window.open(`/player?appId=${currentAppId}&operator=Designer&station=Test%20Station%201`, '_blank');
+                                window.open(`/#/player?appId=${currentAppId}&operator=Designer&station=Test%20Station%201`, '_blank');
                             }}
                             title="Buka di App Player (Tab Baru)"
                             style={{
-                                padding: '8px 16px',
+                                width: '36px',
+                                height: '36px',
                                 borderRadius: '6px',
-                                fontSize: '0.8rem',
                                 backgroundColor: 'transparent',
                                 border: 'none',
                                 color: '#10b981',
                                 cursor: 'pointer',
-                                fontWeight: 700,
                                 transition: 'all 0.2s',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '6px',
+                                justifyContent: 'center'
                             }}
                             onMouseEnter={(e) => {
                                 e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.15)';
@@ -13984,127 +14138,58 @@ const AppBuilder = () => {
                                 e.currentTarget.style.backgroundColor = 'transparent';
                             }}
                         >
-                            <Play size={14} fill="#10b981" /> Play App
+                            <Play size={18} fill="#10b981" />
                         </button>
                         <button
                             onClick={() => { setActiveLogicScopeId('STEP'); setViewMode('DIAGRAM'); }}
                             style={{
-                                padding: '8px 16px',
+                                width: '36px',
+                                height: '36px',
                                 borderRadius: '6px',
-                                fontSize: '0.8rem',
                                 backgroundColor: viewMode === 'DIAGRAM' ? '#f97316' : 'transparent',
                                 border: 'none',
-                                color: 'white',
+                                color: viewMode === 'DIAGRAM' ? 'white' : 'rgba(255, 255, 255, 0.6)',
                                 cursor: 'pointer',
-                                fontWeight: 700,
                                 transition: 'all 0.2s',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '6px',
+                                justifyContent: 'center',
                                 boxShadow: viewMode === 'DIAGRAM' ? '0 2px 4px rgba(0,0,0,0.2)' : 'none'
                             }}
-                        ><Blocks size={14} /> Code Blocks</button>
-                    </div>
-                    <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
-                    <button
-                        onClick={() => setIsCreateDrawerOpen(true)}
-                        style={{
-                            padding: '10px 18px',
-                            backgroundColor: '#10b981',
-                            border: 'none',
-                            borderRadius: '6px',
-                            color: '#fff',
-                            fontSize: '0.85rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            cursor: 'pointer',
-                            fontWeight: 800,
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                            transition: 'all 0.2s'
-                        }}
-                    >
-                        <FilePlus size={16} /> New
-                    </button>
-                    <button
-                        onClick={() => handleSave()}
-                        disabled={isSaving}
-                        style={{
-                            padding: '10px 18px',
-                            backgroundColor: '#06b6d4',
-                            border: 'none',
-                            borderRadius: '6px',
-                            color: '#fff',
-                            fontSize: '0.85rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            cursor: 'pointer',
-                            fontWeight: 800,
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                            transition: 'all 0.2s',
-                            opacity: isSaving ? 0.7 : 1
-                        }}
-                    >
-                        <Save size={16} /> {isSaving ? 'Saving...' : 'Save'}
-                    </button>
-                    {currentAppId && (
-                        <ProjectManager
-                            app={getCurrentApp()}
-                            onImport={handleImportProject}
-                            onDuplicate={handleDuplicateProject}
-                            onAppChange={(app) => {
-                                loadApp(app);
-                                handleImportProject(app);
+                            onMouseEnter={(e) => {
+                                if (viewMode !== 'DIAGRAM') {
+                                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                                    e.currentTarget.style.color = 'white';
+                                }
                             }}
-                        />
-                    )}
-                    <button
-                        onClick={() => {
-                            if (!currentAppId) {
-                                alert('Please save the app first.');
-                                return;
-                            }
-                            const url = `${window.location.origin}/terminal/${currentAppId}`;
-                            setCompanionModal({ isOpen: true, url });
-                        }}
-                        style={{
-                            padding: '10px 18px',
-                            backgroundColor: '#4f46e5',
-                            border: 'none',
-                            borderRadius: '6px',
-                            color: '#fff',
-                            fontSize: '0.85rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            cursor: 'pointer',
-                            fontWeight: 800,
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                            transition: 'all 0.2s',
-                        }}
-                        title="Companion Connect"
-                    >
-                        <Smartphone size={16} /> Companion
-                    </button>
-                    <button
-                        onClick={handlePublish}
-                        style={{
-                            padding: '10px 24px',
-                            backgroundColor: '#0d9488',
-                            border: 'none',
-                            borderRadius: '6px',
-                            color: '#fff',
-                            fontSize: '0.85rem',
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                            transition: 'all 0.2s'
-                        }}
-                    >Publish</button>
+                            onMouseLeave={(e) => {
+                                if (viewMode !== 'DIAGRAM') {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                    e.currentTarget.style.color = 'rgba(255, 255, 255, 0.6)';
+                                }
+                            }}
+                            title="Code Blocks"
+                        >
+                            <Blocks size={18} />
+                        </button>
+                    </div>
+                </div>
 
-                    <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
-
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <input
+                        value={appName}
+                        onChange={(e) => setAppName(e.target.value)}
+                        style={{
+                            backgroundColor: 'transparent',
+                            border: 'none',
+                            color: 'var(--header-text)',
+                            fontSize: '1rem',
+                            fontWeight: '500',
+                            outline: 'none',
+                            width: '260px',
+                            textAlign: 'right'
+                        }}
+                    />
                 </div>
             </div>
 
@@ -26153,8 +26238,8 @@ const AppBuilder = () => {
                     onClick={() => setIsCopilotOpen(true)}
                     style={{
                         position: 'fixed',
-                        bottom: '24px',
-                        right: '24px',
+                        bottom: '80px',
+                        right: viewMode === 'DESIGN' ? '364px' : '24px',
                         width: '56px',
                         height: '56px',
                         borderRadius: '28px',
@@ -26167,7 +26252,7 @@ const AppBuilder = () => {
                         justifyContent: 'center',
                         cursor: 'pointer',
                         zIndex: 999,
-                        transition: 'transform 0.2s'
+                        transition: 'transform 0.2s, right 0.2s ease-in-out'
                     }}
                     onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
                     onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}

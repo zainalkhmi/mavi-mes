@@ -23,7 +23,10 @@ import {
   Users,
   ShoppingBag,
   AppWindow,
-  Folder
+  Folder,
+  ZoomIn,
+  ZoomOut,
+  Search
 } from 'lucide-react';
 import TableManager from './components/TableManager';
 import ConnectorManager from './components/ConnectorManager';
@@ -57,6 +60,7 @@ import SupabaseSettings from './components/SupabaseSettings';
 import AppStore from './components/AppStore';
 import AppManagement from './components/AppManagement';
 import FileExplorer from './components/FileExplorer';
+import BuildManager from './components/BuildManager';
 import { Toaster } from 'react-hot-toast';
 
 const Placeholder = ({ title }) => (
@@ -71,6 +75,55 @@ const App = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const isOperatorRoute = location.pathname.startsWith('/player') || location.pathname.startsWith('/terminal');
+
+  const [zoomLevel, setZoomLevel] = useState(() => {
+    const saved = localStorage.getItem('mavi-zoom-level');
+    return saved ? parseFloat(saved) : 1.0;
+  });
+  const [isZoomCollapsed, setIsZoomCollapsed] = useState(() => {
+    const saved = localStorage.getItem('mavi-zoom-collapsed');
+    return saved === 'true';
+  });
+
+  // Apply zoom level dynamically to document.body
+  useEffect(() => {
+    document.body.style.zoom = zoomLevel;
+    localStorage.setItem('mavi-zoom-level', zoomLevel.toFixed(2));
+  }, [zoomLevel]);
+
+  // Persist collapsed state
+  useEffect(() => {
+    localStorage.setItem('mavi-zoom-collapsed', isZoomCollapsed.toString());
+  }, [isZoomCollapsed]);
+
+  // Keyboard zoom event handler
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Check for Ctrl/Cmd key
+      if (e.ctrlKey || e.metaKey) {
+        // Ctrl + '=' or Ctrl + '+'
+        if (e.key === '=' || e.key === '+' || e.key === 'Add') {
+          e.preventDefault();
+          setZoomLevel((prev) => Math.min(Math.round((prev + 0.1) * 10) / 10, 2.0));
+        }
+        // Ctrl + '-'
+        else if (e.key === '-' || e.key === 'Subtract') {
+          e.preventDefault();
+          setZoomLevel((prev) => Math.max(Math.round((prev - 0.1) * 10) / 10, 0.5));
+        }
+        // Ctrl + '0'
+        else if (e.key === '0') {
+          e.preventDefault();
+          setZoomLevel(1.0);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
   const [appsMenuOpen, setAppsMenuOpen] = useState(false);
   const [analyticsMenuOpen, setAnalyticsMenuOpen] = useState(false);
   const [logicMenuOpen, setLogicMenuOpen] = useState(false);
@@ -363,6 +416,7 @@ const App = () => {
                 )}
               </div>
             )}
+
           </div>
         </div>
 
@@ -395,18 +449,18 @@ const App = () => {
           )}
 
           {/* SYSTEM */}
-          {['/users', '/ai-settings', '/supabase-settings'].some(hasAccess) && (
+          {['/users', '/ai-settings', '/supabase-settings', '/build-center'].some(hasAccess) && (
             <div style={{ position: 'relative' }} ref={systemMenuRef}>
               <button
                 onClick={() => setSystemMenuOpen(!systemMenuOpen)}
                 style={{
                   ...navLinkStyle('/system'),
-                  backgroundColor: ['/users', '/ai-settings', '/supabase-settings'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
-                  color: ['/users', '/ai-settings', '/supabase-settings'].includes(location.pathname) ? '#2563eb' : '#475569',
+                  backgroundColor: ['/users', '/ai-settings', '/supabase-settings', '/build-center'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
+                  color: ['/users', '/ai-settings', '/supabase-settings', '/build-center'].includes(location.pathname) ? '#2563eb' : '#475569',
                   fontSize: '0.9rem', padding: '6px 12px', fontWeight: 600
                 }}
-                onMouseEnter={(e) => { if (!['/users', '/ai-settings', '/supabase-settings'].includes(location.pathname)) { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
-                onMouseLeave={(e) => { if (!['/users', '/ai-settings', '/supabase-settings'].includes(location.pathname)) { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
+                onMouseEnter={(e) => { if (!['/users', '/ai-settings', '/supabase-settings', '/build-center'].includes(location.pathname)) { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
+                onMouseLeave={(e) => { if (!['/users', '/ai-settings', '/supabase-settings', '/build-center'].includes(location.pathname)) { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
               >
                 System <ChevronDown size={14} style={{ transform: systemMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', marginLeft: '4px' }} />
               </button>
@@ -417,6 +471,8 @@ const App = () => {
                   {hasAccess('/ai-settings') && <Link to="/ai-settings" onClick={() => setSystemMenuOpen(false)} style={dropdownItemStyle('/ai-settings')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/ai-settings' ? '#f0f7ff' : 'transparent'}><BrainCircuit size={16} /> AI Settings</Link>}
                   <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '4px 0' }}></div>
                   {hasAccess('/supabase-settings') && <Link to="/supabase-settings" onClick={() => setSystemMenuOpen(false)} style={dropdownItemStyle('/supabase-settings')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/supabase-settings' ? '#f0f7ff' : 'transparent'}><Database size={16} /> Database Settings</Link>}
+                  <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '4px 0' }}></div>
+                  {hasAccess('/build-center') && <Link to="/build-center" onClick={() => setSystemMenuOpen(false)} style={dropdownItemStyle('/build-center')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/build-center' ? '#f0f7ff' : 'transparent'}><Cpu size={16} /> App Compiler</Link>}
                 </div>
               )}
             </div>
@@ -465,24 +521,9 @@ const App = () => {
           {isOperator ? (
             // OPERATOR ROUTES ONLY
             <>
-              <Route path="/terminal" element={
-                <div style={{ position: 'relative', height: '100%' }}>
-                  <button onClick={() => { logout(); setUser(null); }} style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 9999, padding: '8px 16px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>Logout</button>
-                  <LiveTerminal />
-                </div>
-              } />
-              <Route path="/terminal/:appId" element={
-                <div style={{ position: 'relative', height: '100%' }}>
-                  <button onClick={() => { logout(); setUser(null); }} style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 9999, padding: '8px 16px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>Logout</button>
-                  <LiveTerminal />
-                </div>
-              } />
-              <Route path="/player" element={
-                <div style={{ position: 'relative', height: '100%' }}>
-                  <button onClick={() => { logout(); setUser(null); }} style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 9999, padding: '8px 16px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>Logout</button>
-                  <AppPlayer />
-                </div>
-              } />
+              <Route path="/terminal" element={<LiveTerminal />} />
+              <Route path="/terminal/:appId" element={<LiveTerminal />} />
+              <Route path="/player" element={<AppPlayer />} />
               <Route path="*" element={<Navigate to="/terminal" replace />} />
             </>
           ) : (
@@ -518,10 +559,159 @@ const App = () => {
               <Route path="/player" element={hasAccess('/player') ? <AppPlayer /> : <Navigate to="/" replace />} />
               <Route path="/ai-settings" element={hasAccess('/ai-settings') ? <AiSettings /> : <Navigate to="/" replace />} />
               <Route path="/supabase-settings" element={hasAccess('/supabase-settings') ? <SupabaseSettings /> : <Navigate to="/" replace />} />
+              <Route path="/build-center" element={hasAccess('/build-center') ? <BuildManager /> : <Navigate to="/" replace />} />
               <Route path="*" element={<Home />} />
             </>
           )}
         </Routes>
+      </div>
+
+      {/* Floating Zoom Widget */}
+      <div 
+        style={{
+          position: 'fixed',
+          bottom: '20px',
+          right: '20px',
+          zIndex: 99999,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: isZoomCollapsed ? '8px' : '6px 12px',
+          borderRadius: '24px',
+          backgroundColor: 'rgba(255, 255, 255, 0.85)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(226, 232, 240, 0.8)',
+          boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.15), 0 2px 8px -1px rgba(0, 0, 0, 0.1)',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          fontFamily: "'Inter', sans-serif",
+          color: '#1e293b',
+          userSelect: 'none'
+        }}
+      >
+        {isZoomCollapsed ? (
+          // Collapsed circular button showing magnifier
+          <button
+            onClick={() => setIsZoomCollapsed(false)}
+            title={`Zoom: ${Math.round(zoomLevel * 100)}% (Click to expand)`}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              margin: 0,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#2563eb',
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              backgroundColor: 'rgba(37, 99, 235, 0.08)',
+              transition: 'background-color 0.2s'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(37, 99, 235, 0.15)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(37, 99, 235, 0.08)'; }}
+          >
+            <Search size={18} />
+          </button>
+        ) : (
+          // Expanded pill showing full controls
+          <>
+            {/* Collapse Arrow */}
+            <button
+              onClick={() => setIsZoomCollapsed(true)}
+              title="Collapse controls"
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: '4px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#64748b',
+                borderRadius: '4px',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+            >
+              <span style={{ fontSize: '10px', fontWeight: 'bold' }}>▶</span>
+            </button>
+
+            {/* Zoom Out Button */}
+            <button
+              onClick={() => setZoomLevel((prev) => Math.max(Math.round((prev - 0.1) * 10) / 10, 0.5))}
+              disabled={zoomLevel <= 0.5}
+              title="Zoom Out (Ctrl + -)"
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: '6px',
+                cursor: zoomLevel <= 0.5 ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: zoomLevel <= 0.5 ? '#cbd5e1' : '#475569',
+                borderRadius: '50%',
+                backgroundColor: zoomLevel <= 0.5 ? 'transparent' : '#f1f5f9',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => { if (zoomLevel > 0.5) { e.currentTarget.style.backgroundColor = '#e2e8f0'; e.currentTarget.style.color = '#0f172a'; } }}
+              onMouseLeave={(e) => { if (zoomLevel > 0.5) { e.currentTarget.style.backgroundColor = '#f1f5f9'; e.currentTarget.style.color = '#475569'; } }}
+            >
+              <ZoomOut size={14} />
+            </button>
+
+            {/* Zoom Level Indicator & Reset Button */}
+            <button
+              onClick={() => setZoomLevel(1.0)}
+              title="Reset Zoom to 100% (Ctrl + 0)"
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: '4px 8px',
+                cursor: 'pointer',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                color: zoomLevel === 1.0 ? '#475569' : '#2563eb',
+                borderRadius: '6px',
+                backgroundColor: zoomLevel === 1.0 ? 'transparent' : 'rgba(37, 99, 235, 0.08)',
+                transition: 'all 0.2s',
+                minWidth: '50px',
+                textAlign: 'center'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = zoomLevel === 1.0 ? '#f1f5f9' : 'rgba(37, 99, 235, 0.15)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = zoomLevel === 1.0 ? 'transparent' : 'rgba(37, 99, 235, 0.08)'; }}
+            >
+              {Math.round(zoomLevel * 100)}%
+            </button>
+
+            {/* Zoom In Button */}
+            <button
+              onClick={() => setZoomLevel((prev) => Math.min(Math.round((prev + 0.1) * 10) / 10, 2.0))}
+              disabled={zoomLevel >= 2.0}
+              title="Zoom In (Ctrl + =)"
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: '6px',
+                cursor: zoomLevel >= 2.0 ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: zoomLevel >= 2.0 ? '#cbd5e1' : '#475569',
+                borderRadius: '50%',
+                backgroundColor: zoomLevel >= 2.0 ? 'transparent' : '#f1f5f9',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => { if (zoomLevel < 2.0) { e.currentTarget.style.backgroundColor = '#e2e8f0'; e.currentTarget.style.color = '#0f172a'; } }}
+              onMouseLeave={(e) => { if (zoomLevel < 2.0) { e.currentTarget.style.backgroundColor = '#f1f5f9'; e.currentTarget.style.color = '#475569'; } }}
+            >
+              <ZoomIn size={14} />
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

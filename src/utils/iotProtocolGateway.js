@@ -77,6 +77,14 @@ export const DEVICE_PROFILES = {
     { model: 'Ruuvi Tag',         brand: 'Ruuvi',    type: 'SENSOR', icon: '🌡️', category: 'Sensor',    capabilities: ['temperature','humidity','pressure','acceleration'] },
     { model: 'BARDI Door Sensor', brand: 'BARDI',    type: 'CONTACT',icon: '🚪', category: 'Sensor',    capabilities: ['contact','battery'] },
     { model: 'BTHome v2',         brand: 'Generic',  type: 'SENSOR', icon: '📡', category: 'Sensor',    capabilities: ['temperature','humidity','battery'] },
+  ],
+  OBD2: [
+    { model: 'ELM327 WiFi OBD2',  brand: 'ELM327',   type: 'SENSOR', icon: '🚗', category: 'Automotive', capabilities: ['rpm', 'speed', 'coolant_temp', 'battery_voltage', 'dtc_count'] }
+  ],
+  WIFI: [
+    { model: 'Tasmota Smart Plug', brand: 'Sonoff',  type: 'PLUG',   icon: '🔌', category: 'Power',      capabilities: ['on_off', 'power_metering'] },
+    { model: 'Shelly 1PM Relay',   brand: 'Shelly',  type: 'RELAY',  icon: '⚡', category: 'Power',      capabilities: ['on_off', 'power_metering'] },
+    { model: 'Tuya Smart Plug',    brand: 'Gosund',  type: 'PLUG',   icon: '🔌', category: 'Power',      capabilities: ['on_off', 'power_metering'] }
   ]
 };
 
@@ -113,6 +121,11 @@ function generateTelemetry(capabilities) {
   if (capabilities.includes('position'))     t.position = Math.round(Math.random() * 100);
   if (capabilities.includes('target_temp'))  t.targetTemp = Math.round(20 + Math.random() * 8);
   if (capabilities.includes('co2'))          t.co2 = Math.round(400 + Math.random() * 800);
+  if (capabilities.includes('rpm'))             t.rpm = Math.round(750 + Math.random() * 80);
+  if (capabilities.includes('speed'))           t.speed = 0;
+  if (capabilities.includes('coolant_temp'))    t.coolant_temp = Math.round(80 + Math.random() * 5);
+  if (capabilities.includes('battery_voltage'))  t.battery_voltage = +(13.8 + Math.random() * 0.3).toFixed(2);
+  if (capabilities.includes('dtc_count'))       t.dtc_count = 0;
   return t;
 }
 
@@ -126,6 +139,8 @@ class IoTProtocolGateway {
       ZIGBEE: { status: 'IDLE', gateway: null, mqttPrefix: 'zigbee2mqtt' },
       MATTER: { status: 'IDLE', gateway: null, mqttPrefix: 'matter' },
       BLE:    { status: 'IDLE', gateway: null, mqttPrefix: 'ble_mesh' },
+      OBD2:   { status: 'IDLE', gateway: null, mqttPrefix: 'obd2' },
+      WIFI:   { status: 'IDLE', gateway: null, mqttPrefix: 'wifi' },
     };
 
     // Discovered (not yet paired) devices
@@ -345,7 +360,8 @@ class IoTProtocolGateway {
         ...profile,
         ieeeAddress:  protocol === 'ZIGBEE' ? generateIeeeAddress() : undefined,
         matterId:     protocol === 'MATTER' ? generateMatterId()    : undefined,
-        bleMac:       protocol === 'BLE'    ? generateBleMac()      : undefined,
+        bleMac:       (protocol === 'BLE' || protocol === 'OBD2' || protocol === 'WIFI') ? generateBleMac() : undefined,
+        ip:           (protocol === 'OBD2' || protocol === 'WIFI') ? '192.168.1.' + (100 + found) : undefined,
         signalStrength: -(30 + Math.floor(Math.random() * 50)), // dBm
         rssi:         -(40 + Math.floor(Math.random() * 60)),
         telemetry:    generateTelemetry(profile.capabilities),
@@ -536,6 +552,22 @@ class IoTProtocolGateway {
           newT.co2 = Math.max(400, Math.round(newT.co2 + (Math.random() - 0.4) * 15));
           updated = true;
         }
+        if (caps.includes('rpm') && newT.rpm != null) {
+          newT.rpm = Math.max(700, Math.min(6000, Math.round(newT.rpm + (Math.random() - 0.5) * 150)));
+          updated = true;
+        }
+        if (caps.includes('speed') && newT.speed != null) {
+          newT.speed = Math.max(0, Math.min(180, Math.round(newT.speed + (Math.random() - 0.5) * 5)));
+          updated = true;
+        }
+        if (caps.includes('coolant_temp') && newT.coolant_temp != null) {
+          newT.coolant_temp = Math.max(70, Math.min(105, Math.round(newT.coolant_temp + (Math.random() - 0.5) * 1)));
+          updated = true;
+        }
+        if (caps.includes('battery_voltage') && newT.battery_voltage != null) {
+          newT.battery_voltage = Math.max(11.5, Math.min(14.8, +(newT.battery_voltage + (Math.random() - 0.5) * 0.1).toFixed(2)));
+          updated = true;
+        }
 
         if (updated) {
           device.telemetry = newT;
@@ -599,6 +631,8 @@ class IoTProtocolGateway {
         ZIGBEE: all.filter(d => d.protocol === 'ZIGBEE').length,
         MATTER: all.filter(d => d.protocol === 'MATTER').length,
         BLE:    all.filter(d => d.protocol === 'BLE').length,
+        OBD2:   all.filter(d => d.protocol === 'OBD2').length,
+        WIFI:   all.filter(d => d.protocol === 'WIFI').length,
       },
       byCategory: all.reduce((acc, d) => {
         acc[d.category] = (acc[d.category] || 0) + 1;

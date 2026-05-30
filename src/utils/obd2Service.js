@@ -440,6 +440,11 @@ class OBD2Service {
         }
     }
 
+    async connectWifi(ipAddress = '192.168.0.10', port = 35000) {
+        return this.connectWiFi(ipAddress, port);
+    }
+
+
     // ── Query a single PID ─────────────────────────────────────────────────────
     /**
      * Query a standard OBD2 PID once.

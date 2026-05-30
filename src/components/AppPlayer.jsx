@@ -4,13 +4,15 @@ import {
     Rocket, Clock3, Package, Maximize2, Minimize2, Star,
     AlertTriangle, RotateCcw, X, ChevronRight, Pause, MessageSquare, Info, Code, Play as PlayIcon,
     Wifi, Cpu, HardDrive, CheckCircle2, XCircle, AlertCircle, Signal, Bug,
-    Languages, Camera, PenTool, Globe, Plus, FilePlus, Settings2, Sparkles, CheckCircle2 as CheckIcon
+    Languages, Camera, PenTool, Globe, Plus, FilePlus, Settings2, Sparkles, CheckCircle2 as CheckIcon,
+    LogOut
 } from 'lucide-react';
 import { getAllFrontlineApps, getProductionQueue, logPlayerSession, saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { getStations, getEdgeDevices, createTable, getTables } from '../utils/database';
 import iotConnector from '../utils/iotConnector';
 import { useLanguage } from '../contexts/LanguageContext';
 import { createIncomingInspectionTemplate } from '../utils/incomingInspectionTemplate';
+import { logout } from '../utils/auth';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -730,7 +732,7 @@ const AppPlayer = () => {
             operator: operator || 'Operator',
             devMode: devMode ? 'true' : 'false'
         });
-        return `/terminal/${activeAppId}?${params.toString()}`;
+        return `/#/terminal/${activeAppId}?${params.toString()}`;
     }, [activeAppId, stationIdFilter, operator, devMode]);
 
     // ── Load data ────────────────────────────────────────────────────────────
@@ -747,8 +749,20 @@ const AppPlayer = () => {
             setQueue(queueRows || []);
             setStations(stationRows || []);
             
-            // Auto-detect station from URL parameter
-            const params = new URLSearchParams(window.location.search);
+            // Auto-detect station from URL parameter (supports both HashRouter and BrowserRouter search params)
+            const getCombinedParams = () => {
+                const searchParams = new URLSearchParams(window.location.search);
+                const hash = window.location.hash || '';
+                const hashSearchIndex = hash.indexOf('?');
+                if (hashSearchIndex !== -1) {
+                    const hashParams = new URLSearchParams(hash.substring(hashSearchIndex));
+                    for (const [key, value] of hashParams.entries()) {
+                        if (!searchParams.has(key)) searchParams.set(key, value);
+                    }
+                }
+                return searchParams;
+            };
+            const params = getCombinedParams();
             const urlStation = params.get('station');
             if (urlStation) {
                 setStationIdFilter(urlStation);
@@ -1065,12 +1079,12 @@ const AppPlayer = () => {
         boxShadow: '0 6px 24px rgba(15,23,42,0.06)'
     };
 
-    const sidebarHidden = isFullscreen;
+    const sidebarHidden = isFullscreen || !!activeAppId;
 
     return (
         <div
             ref={playerContainerRef}
-            style={{ height: '100%', backgroundColor: '#f1f5f9', padding: '20px', overflow: 'hidden', boxSizing: 'border-box' }}
+            style={{ height: '100%', backgroundColor: '#f1f5f9', padding: sidebarHidden ? '0' : '20px', overflow: 'hidden', boxSizing: 'border-box' }}
         >
             {pendingApp && (
                 <AuthModal
@@ -1104,9 +1118,9 @@ const AppPlayer = () => {
             <div style={{
                 height: '100%',
                 display: 'grid',
-                gridTemplateColumns: sidebarHidden 
-                    ? `0 1fr ${showDebugPanel && devMode ? '320px' : '0'}` 
-                    : `360px 1fr ${showDebugPanel && devMode ? '320px' : '0'}`,
+                gridTemplateColumns: sidebarHidden
+                    ? (showDebugPanel && devMode ? '1fr 320px' : '1fr')
+                    : (showDebugPanel && devMode ? '360px 1fr 320px' : '360px 1fr'),
                 gap: sidebarHidden ? '0' : '16px',
                 transition: 'grid-template-columns 0.3s ease'
             }}>
@@ -1114,9 +1128,10 @@ const AppPlayer = () => {
                 {/* ── SIDEBAR ──────────────────────────────────────────────── */}
                 <div style={{
                     ...panelStyle,
-                    display: 'flex',
+                    display: sidebarHidden ? 'none' : 'flex',
                     flexDirection: 'column',
                     overflow: 'hidden',
+                    height: '100%',
                     opacity: sidebarHidden ? 0 : 1,
                     pointerEvents: sidebarHidden ? 'none' : 'auto',
                     transition: 'opacity 0.2s'
@@ -1150,6 +1165,25 @@ const AppPlayer = () => {
                                     onMouseLeave={e => e.currentTarget.style.backgroundColor = '#2563eb'}
                                 >
                                     <Plus size={14} /> NEW
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (window.confirm("Are you sure you want to log out?")) {
+                                            logout();
+                                            window.location.reload();
+                                        }
+                                    }}
+                                    title="Logout"
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px',
+                                        border: '1px solid #ef4444', color: '#ef4444', backgroundColor: 'transparent',
+                                        borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800,
+                                        cursor: 'pointer', transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                >
+                                    <LogOut size={12} /> LOGOUT
                                 </button>
                             </div>
                         </div>
@@ -1254,56 +1288,231 @@ const AppPlayer = () => {
                 </div>
 
                 {/* ── PLAYER PANE ───────────────────────────────────────────── */}
-                <div style={{ ...panelStyle, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div style={{ 
+                    ...panelStyle, 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    overflow: 'hidden',
+                    height: '100%',
+                    border: sidebarHidden ? 'none' : panelStyle.border,
+                    borderRadius: sidebarHidden ? '0' : panelStyle.borderRadius,
+                    boxShadow: sidebarHidden ? 'none' : panelStyle.boxShadow
+                }}>
                     {/* Header */}
                     <div style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        gap: '12px', padding: '10px 14px', minHeight: '52px',
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'space-between',
+                        gap: '12px', 
+                        padding: '6px 14px', 
+                        minHeight: '48px',
                         backgroundColor: themeColor,
                         color: 'white',
-                        borderBottom: `1px solid ${themeColor}`
+                        borderBottom: `1px solid ${themeColor}`,
+                        flexShrink: 0
                     }}>
-                        <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        {/* Left Side: Logo & App Info */}
+                        <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 1 }}>
                             {companyLogo ? (
-                                <img src={companyLogo} alt="Logo" style={{ height: '24px', objectFit: 'contain' }} />
+                                <img src={companyLogo} alt="Logo" style={{ height: '20px', objectFit: 'contain' }} />
                             ) : null}
-                            <div>
-                                <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap', minWidth: 0 }}>
+                                <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {activeApp ? activeApp.name : 'Select an app to begin'}
-                                </div>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '2px' }}>
-                                    {activeApp && (
-                                        <>
-                                            <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                                                <MapPin size={11} /> {activeStationName || '-'}
+                                </span>
+                                {activeApp && (
+                                    <>
+                                        <div style={{ width: '1px', height: '14px', backgroundColor: 'rgba(255,255,255,0.3)' }} />
+                                        <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', display: 'inline-flex', alignItems: 'center', gap: '2px', whiteSpace: 'nowrap' }}>
+                                            <MapPin size={11} /> {activeStationName || '-'}
+                                        </span>
+                                        <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', display: 'inline-flex', alignItems: 'center', gap: '2px', whiteSpace: 'nowrap' }}>
+                                            <User size={11} /> {operator || '-'}
+                                        </span>
+                                        <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', display: 'inline-flex', alignItems: 'center', gap: '2px', whiteSpace: 'nowrap' }}>
+                                            <Clock3 size={11} /> {formatDuration(elapsedSeconds)}
+                                        </span>
+                                        {stepLabel && (
+                                            <span style={{
+                                                fontSize: '0.75rem', fontWeight: 700, color: themeColor, backgroundColor: 'white',
+                                                borderRadius: '4px', padding: '1px 5px', display: 'inline-flex', alignItems: 'center', gap: '2px', whiteSpace: 'nowrap'
+                                            }}>
+                                                <ChevronRight size={11} /> {stepLabel}
                                             </span>
-                                            <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                                                <User size={11} /> {operator || '-'}
-                                            </span>
-                                            <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                                                <Clock3 size={11} /> {formatDuration(elapsedSeconds)}
-                                            </span>
-                                            {stepLabel && (
-                                                <span style={{
-                                                    fontSize: '0.72rem', fontWeight: 700, color: themeColor, backgroundColor: 'white',
-                                                    borderRadius: '6px', padding: '1px 7px', display: 'inline-flex', alignItems: 'center', gap: '4px'
-                                                }}>
-                                                    <ChevronRight size={11} /> {stepLabel}
-                                                </span>
-                                            )}
-                                        </>
-                                    )}
-                                </div>
+                                        )}
+                                    </>
+                                )}
                             </div>
                         </div>
 
+                        {/* Center Side: App Action Buttons (Shown only when app is active, icon-only) */}
+                        {activeApp && (
+                            <div style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '4px',
+                                backgroundColor: 'rgba(0,0,0,0.15)',
+                                padding: '4px',
+                                borderRadius: '8px',
+                                flexShrink: 0
+                            }}>
+                                <button
+                                    onClick={() => setShowComments(true)}
+                                    title={`Step Comments (${sessionComments.length})`}
+                                    style={{ 
+                                        width: '32px',
+                                        height: '32px',
+                                        borderRadius: '6px', 
+                                        border: 'none', 
+                                        backgroundColor: 'transparent', 
+                                        color: 'white', 
+                                        cursor: 'pointer', 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center',
+                                        position: 'relative',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
+                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                >
+                                    <MessageSquare size={16} />
+                                    {sessionComments.length > 0 && (
+                                        <span style={{
+                                            position: 'absolute',
+                                            top: '-4px',
+                                            right: '-4px',
+                                            backgroundColor: '#ef4444',
+                                            color: 'white',
+                                            fontSize: '0.62rem',
+                                            fontWeight: 800,
+                                            borderRadius: '50%',
+                                            width: '14px',
+                                            height: '14px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}>
+                                            {sessionComments.length}
+                                        </span>
+                                    )}
+                                </button>
+                                <button
+                                    onClick={handlePauseToggle}
+                                    title={isPaused ? 'Resume App' : 'Pause App'}
+                                    style={{ 
+                                        width: '32px',
+                                        height: '32px',
+                                        borderRadius: '6px', 
+                                        border: 'none', 
+                                        backgroundColor: isPaused ? '#10b981' : '#f59e0b', 
+                                        color: 'white', 
+                                        cursor: 'pointer', 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.15)'}
+                                    onMouseLeave={e => e.currentTarget.style.filter = 'none'}
+                                >
+                                    {isPaused ? <PlayIcon size={16} /> : <Pause size={16} />}
+                                </button>
+                                <button
+                                    onClick={handleRestart}
+                                    title="Restart App"
+                                    style={{ 
+                                        width: '32px',
+                                        height: '32px',
+                                        borderRadius: '6px', 
+                                        border: 'none', 
+                                        backgroundColor: 'transparent', 
+                                        color: 'white', 
+                                        cursor: 'pointer', 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
+                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                >
+                                    <RotateCcw size={16} />
+                                </button>
+                                <button
+                                    onClick={handleChangeApp}
+                                    title="Change App"
+                                    style={{ 
+                                        width: '32px',
+                                        height: '32px',
+                                        borderRadius: '6px', 
+                                        border: 'none', 
+                                        backgroundColor: 'transparent', 
+                                        color: 'white', 
+                                        cursor: 'pointer', 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
+                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                >
+                                    <RefreshCw size={16} />
+                                </button>
+                                <button
+                                    onClick={() => setShowCameraModal(true)}
+                                    title="Camera Capture"
+                                    style={{ 
+                                        width: '32px',
+                                        height: '32px',
+                                        borderRadius: '6px', 
+                                        border: 'none', 
+                                        backgroundColor: 'transparent', 
+                                        color: 'white', 
+                                        cursor: 'pointer', 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
+                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                >
+                                    <Camera size={16} />
+                                </button>
+                                <button
+                                    onClick={() => setShowSignatureModal(true)}
+                                    title="Sign Session"
+                                    style={{ 
+                                        width: '32px',
+                                        height: '32px',
+                                        borderRadius: '6px', 
+                                        border: 'none', 
+                                        backgroundColor: 'transparent', 
+                                        color: 'white', 
+                                        cursor: 'pointer', 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
+                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                >
+                                    <PenTool size={16} />
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Right Side: Lang, Prod/Dev, Debug, Info, Kiosk */}
                         <div style={{ display: 'flex', gap: '6px', flexShrink: 0, alignItems: 'center' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.1)', padding: '2px 8px', borderRadius: '8px', gap: '4px' }}>
-                                <Globe size={13} color="white" />
+                            <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '6px', gap: '2px' }}>
+                                <Globe size={11} color="white" />
                                 <select 
                                     value={currentLanguage} 
                                     onChange={(e) => changeLanguage(e.target.value)}
-                                    style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '0.75rem', fontWeight: 700, outline: 'none', cursor: 'pointer' }}
+                                    style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '0.72rem', fontWeight: 700, outline: 'none', cursor: 'pointer' }}
                                 >
                                     <option value="en" style={{ color: 'black' }}>EN</option>
                                     <option value="id" style={{ color: 'black' }}>ID</option>
@@ -1315,12 +1524,15 @@ const AppPlayer = () => {
                                 onClick={() => setDevMode(!devMode)}
                                 title="Toggle Developer Mode (Skip DB writes)"
                                 style={{ 
-                                    padding: '7px 10px', border: `1px solid rgba(255,255,255,0.3)`, borderRadius: '8px', 
+                                    padding: '5px 8px', border: `1px solid rgba(255,255,255,0.2)`, borderRadius: '6px', 
                                     backgroundColor: devMode ? 'rgba(255,255,255,0.2)' : 'transparent', color: 'white', 
-                                    cursor: 'pointer', display: 'flex', gap: '5px', alignItems: 'center', fontWeight: 700, fontSize: '0.75rem' 
+                                    cursor: 'pointer', display: 'flex', gap: '4px', alignItems: 'center', fontWeight: 700, fontSize: '0.72rem',
+                                    transition: 'all 0.2s'
                                 }}
+                                onMouseEnter={e => { if(!devMode) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
+                                onMouseLeave={e => { if(!devMode) e.currentTarget.style.backgroundColor = 'transparent'; }}
                             >
-                                <Code size={13} /> {devMode ? 'Dev Mode' : 'Prod Mode'}
+                                <Code size={11} /> {devMode ? 'Dev Mode' : 'Prod Mode'}
                             </button>
 
                             {devMode && (
@@ -1328,12 +1540,15 @@ const AppPlayer = () => {
                                     onClick={() => setShowDebugPanel(!showDebugPanel)}
                                     title="Toggle Debug Inspector"
                                     style={{ 
-                                        padding: '7px 10px', border: `1px solid rgba(255,255,255,0.3)`, borderRadius: '8px', 
+                                        padding: '5px 8px', border: `1px solid rgba(255,255,255,0.2)`, borderRadius: '6px', 
                                         backgroundColor: showDebugPanel ? 'rgba(255,255,255,0.2)' : 'transparent', color: 'white', 
-                                        cursor: 'pointer', display: 'flex', gap: '5px', alignItems: 'center', fontWeight: 700, fontSize: '0.75rem' 
+                                        cursor: 'pointer', display: 'flex', gap: '4px', alignItems: 'center', fontWeight: 700, fontSize: '0.72rem',
+                                        transition: 'all 0.2s'
                                     }}
+                                    onMouseEnter={e => { if(!showDebugPanel) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
+                                    onMouseLeave={e => { if(!showDebugPanel) e.currentTarget.style.backgroundColor = 'transparent'; }}
                                 >
-                                    <Bug size={13} /> {showDebugPanel ? 'Hide Debug' : 'Show Debug'}
+                                    <Bug size={11} /> Debug
                                 </button>
                             )}
                             
@@ -1341,18 +1556,72 @@ const AppPlayer = () => {
                                 <button
                                     onClick={() => setShowTechDetails(!showTechDetails)}
                                     title="Technical Details"
-                                    style={{ padding: '7px', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '8px', backgroundColor: 'transparent', color: 'white', cursor: 'pointer', display: 'flex' }}
+                                    style={{ 
+                                        padding: '5px', 
+                                        border: '1px solid rgba(255,255,255,0.2)', 
+                                        borderRadius: '6px', 
+                                        backgroundColor: showTechDetails ? 'rgba(255,255,255,0.2)' : 'transparent', 
+                                        color: 'white', 
+                                        cursor: 'pointer', 
+                                        display: 'flex',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={e => { if(!showTechDetails) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
+                                    onMouseLeave={e => { if(!showTechDetails) e.currentTarget.style.backgroundColor = 'transparent'; }}
                                 >
-                                    <Info size={14} />
+                                    <Info size={12} />
                                 </button>
                             )}
                             <button
                                 onClick={toggleFullscreen}
                                 title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen / Kiosk Mode'}
-                                style={{ padding: '7px 10px', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '8px', backgroundColor: isFullscreen ? 'rgba(0,0,0,0.3)' : 'transparent', color: 'white', cursor: 'pointer', display: 'flex', gap: '5px', alignItems: 'center', fontWeight: 700, fontSize: '0.75rem' }}
+                                style={{ 
+                                    padding: '5px 8px', 
+                                    border: '1px solid rgba(255,255,255,0.2)', 
+                                    borderRadius: '6px', 
+                                    backgroundColor: isFullscreen ? 'rgba(0,0,0,0.3)' : 'transparent', 
+                                    color: 'white', 
+                                    cursor: 'pointer', 
+                                    display: 'flex', 
+                                    gap: '4px', 
+                                    alignItems: 'center', 
+                                    fontWeight: 700, 
+                                    fontSize: '0.72rem',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={e => { if(!isFullscreen) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
+                                onMouseLeave={e => { if(!isFullscreen) e.currentTarget.style.backgroundColor = 'transparent'; }}
                             >
-                                {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                                {isFullscreen ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
                                 {isFullscreen ? 'Exit' : 'Kiosk'}
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (window.confirm("Are you sure you want to log out?")) {
+                                        logout();
+                                        window.location.reload();
+                                    }
+                                }}
+                                title="Logout"
+                                style={{ 
+                                    padding: '5px 8px', 
+                                    border: '1px solid rgba(239,68,68,0.4)', 
+                                    borderRadius: '6px', 
+                                    backgroundColor: 'rgba(239,68,68,0.15)', 
+                                    color: '#fca5a5', 
+                                    cursor: 'pointer', 
+                                    display: 'flex', 
+                                    gap: '4px', 
+                                    alignItems: 'center', 
+                                    fontWeight: 700, 
+                                    fontSize: '0.72rem',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.35)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.15)'; }}
+                            >
+                                <LogOut size={11} />
+                                Logout
                             </button>
                         </div>
                     </div>
@@ -1369,52 +1638,7 @@ const AppPlayer = () => {
                         </div>
                     )}
 
-                    {/* App Player Action Bar (Tulip-style) */}
-                    {activeApp && (
-                        <div style={{ 
-                            padding: '8px 14px', backgroundColor: '#1e293b', display: 'flex', 
-                            justifyContent: 'center', gap: '12px', alignItems: 'center' 
-                        }}>
-                            <button
-                                onClick={() => setShowComments(true)}
-                                style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #475569', backgroundColor: '#334155', color: 'white', cursor: 'pointer', display: 'flex', gap: '6px', alignItems: 'center', fontSize: '0.75rem', fontWeight: 600 }}
-                            >
-                                <MessageSquare size={13} /> Step Comments {sessionComments.length > 0 && `(${sessionComments.length})`}
-                            </button>
-                            <div style={{ width: '1px', height: '20px', backgroundColor: '#475569' }} />
-                            <button
-                                onClick={handlePauseToggle}
-                                style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', backgroundColor: isPaused ? '#10b981' : '#f59e0b', color: 'white', cursor: 'pointer', display: 'flex', gap: '6px', alignItems: 'center', fontSize: '0.75rem', fontWeight: 600 }}
-                            >
-                                {isPaused ? <><PlayIcon size={13} /> Resume App</> : <><Pause size={13} /> Pause App</>}
-                            </button>
-                            <button
-                                onClick={handleRestart}
-                                style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #475569', backgroundColor: '#334155', color: 'white', cursor: 'pointer', display: 'flex', gap: '6px', alignItems: 'center', fontSize: '0.75rem', fontWeight: 600 }}
-                            >
-                                <RotateCcw size={13} /> Restart App
-                            </button>
-                            <button
-                                onClick={handleChangeApp}
-                                style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #475569', backgroundColor: '#334155', color: 'white', cursor: 'pointer', display: 'flex', gap: '6px', alignItems: 'center', fontSize: '0.75rem', fontWeight: 600 }}
-                            >
-                                <RefreshCw size={13} /> Change App
-                            </button>
-                            <div style={{ width: '1px', height: '20px', backgroundColor: '#475569' }} />
-                            <button
-                                onClick={() => setShowCameraModal(true)}
-                                style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #475569', backgroundColor: '#334155', color: 'white', cursor: 'pointer', display: 'flex', gap: '6px', alignItems: 'center', fontSize: '0.75rem', fontWeight: 600 }}
-                            >
-                                <Camera size={13} /> Camera
-                            </button>
-                            <button
-                                onClick={() => setShowSignatureModal(true)}
-                                style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #475569', backgroundColor: '#334155', color: 'white', cursor: 'pointer', display: 'flex', gap: '6px', alignItems: 'center', fontSize: '0.75rem', fontWeight: 600 }}
-                            >
-                                <PenTool size={13} /> Sign Session
-                            </button>
-                        </div>
-                    )}
+
 
                     {/* Main Content Area */}
                     <div style={{ flex: 1, backgroundColor: '#f8fafc', position: 'relative', overflow: 'hidden' }}>
@@ -1561,6 +1785,7 @@ const AppPlayer = () => {
                         display: 'flex',
                         flexDirection: 'column',
                         overflow: 'hidden',
+                        height: '100%',
                         backgroundColor: '#0f172a',
                         color: '#cbd5e1',
                         border: 'none'

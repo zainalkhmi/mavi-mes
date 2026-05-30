@@ -16,7 +16,8 @@ import {
   CheckCircle,
   Plus,
   ChevronDown,
-  X
+  X,
+  Menu
 } from 'lucide-react';
 import * as projectMgmt from '../utils/projectManagement';
 
@@ -191,30 +192,33 @@ const ProjectManager = ({ app, onImport, onDuplicate, onAppChange }) => {
 
   return (
     <div style={{ position: 'relative' }} ref={menuRef}>
-      {/* Main Menu Button */}
       <button
         onClick={() => setShowMenu(!showMenu)}
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '8px',
-          padding: '8px 16px',
-          backgroundColor: 'var(--bg-secondary, #f8f9fa)',
-          border: '1px solid var(--border-primary, #e2e8f0)',
+          justifyContent: 'center',
+          width: '36px',
+          height: '36px',
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          border: '1px solid rgba(255, 255, 255, 0.15)',
           borderRadius: '6px',
           cursor: 'pointer',
-          fontSize: '0.875rem',
-          fontWeight: '500',
-          color: 'var(--text-primary, #1e293b)',
-          transition: 'all 0.2s ease'
+          color: '#ffffff',
+          transition: 'all 0.2s ease',
+          backdropFilter: 'blur(4px)'
         }}
-        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover, #eef2f5)'}
-        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary, #f8f9fa)'}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+        }}
         title="Manajemen Project"
       >
-        <FileJson size={18} />
-        Manajemen Proyek
-        <ChevronDown size={16} />
+        <Menu size={20} color="#ffffff" />
       </button>
 
       {/* Dropdown Menu */}

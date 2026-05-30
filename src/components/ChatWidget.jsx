@@ -250,7 +250,7 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
 
   if (isMinimized) {
     return (
-      <div onClick={() => setIsMinimized(false)} style={{ position: 'fixed', bottom: '20px', right: '20px', backgroundColor: '#001e3c', color: 'white', padding: '12px 24px', borderRadius: '30px', boxShadow: '0 10px 25px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', zIndex: 1000 }}>
+      <div onClick={() => setIsMinimized(false)} style={{ position: 'fixed', bottom: '80px', right: '20px', backgroundColor: '#001e3c', color: 'white', padding: '12px 24px', borderRadius: '30px', boxShadow: '0 10px 25px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', zIndex: 1000 }}>
         <MessageSquare size={20} />
         {unreadCount > 0 && <div style={{ position: 'absolute', top: '-8px', right: '-8px', backgroundColor: '#ef4444', color: 'white', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '10px', border: '2px solid #001e3c', fontWeight: 800 }}>{unreadCount}</div>}
         <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>MES Chat</span>
@@ -260,7 +260,7 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
 
   return (
     <div style={{
-      position: 'fixed', bottom: isMaximized ? '0' : '20px', right: isMaximized ? '0' : '20px',
+      position: 'fixed', bottom: isMaximized ? '0' : '80px', right: isMaximized ? '0' : '20px',
       width: isMaximized ? '100vw' : '380px', height: isMaximized ? '100vh' : '550px',
       backgroundColor: '#f0f2f5', borderRadius: isMaximized ? '0' : '16px',
       boxShadow: '0 10px 25px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', zIndex: 1000, overflow: 'hidden'

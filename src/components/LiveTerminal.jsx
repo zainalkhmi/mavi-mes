@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import QRCode from 'react-qr-code';
 import {
   ResponsiveContainer,
@@ -118,7 +118,7 @@ import UnifiedScanner from './UnifiedScanner';
 import MobileBottomNav from './MobileBottomNav';
 import { listGlobalVariables, upsertGlobalVariable, subscribeToGlobalVariables } from '../utils/supabaseGlobalVars';
 import { validateVariable } from '../utils/validationEngine';
-import { getCurrentUser, getAllUsers } from '../utils/auth';
+import { getCurrentUser, getAllUsers, logout } from '../utils/auth';
 
 const STATUS_CONFIG = {
   READY: { label: 'System Ready', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.1)', border: 'rgba(34, 197, 94, 0.2)' },
@@ -140,6 +140,17 @@ const OBD2_DEFAULT_PIDS = {
   'OBD2_MAF': '0110',
   'OBD2_MAP': '010B',
   'OBD2_BARO': '0133'
+};
+const DEVICE_PRESETS = {
+  RESPONSIVE: { label: 'Responsive', width: 1000, height: 625, kind: 'RESPONSIVE' },
+  PHONE_APP_INVENTOR: { label: 'Phone size', width: 320, height: 505, kind: 'PHONE' },
+  TABLET_APP_INVENTOR: { label: 'Tablet size', width: 480, height: 675, kind: 'TABLET' },
+  IPHONE_14: { label: 'iPhone 14', width: 393, height: 852, kind: 'PHONE' },
+  SAMSUNG_S23: { label: 'Galaxy S23', width: 360, height: 780, kind: 'PHONE' },
+  IPAD_PRO: { label: 'iPad Pro', width: 1024, height: 1366, kind: 'TABLET' },
+  SURFACE_PRO_7: { label: 'Surface Pro 7', width: 912, height: 1368, kind: 'TABLET' },
+  LAPTOP_HD: { label: 'Laptop 720p', width: 1280, height: 720, kind: 'PC' },
+  DESKTOP_FHD: { label: 'Desktop FHD', width: 1920, height: 1080, kind: 'PC' }
 };
 
 
@@ -181,49 +192,6 @@ const WorkSequenceStrip = React.memo(function WorkSequenceStrip({ steps, current
           </div>
         );
       })}
-    </div>
-  );
-});
-
-const StepValidationPanel = React.memo(function StepValidationPanel({ showValidationPanel, setShowValidationPanel, requiredDone, requiredStepChecks }) {
-  return (
-    <div>
-      <button
-        onClick={() => setShowValidationPanel(prev => !prev)}
-        style={{ width: '100%', marginBottom: '8px', padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#f8fafc', color: '#334155', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}
-      >
-        {showValidationPanel ? 'Hide' : 'Show'} Step Validation ({requiredDone}/{requiredStepChecks.length})
-      </button>
-
-      {showValidationPanel && (
-        <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
-          <div style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '10px 12px' }}>
-            <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Step Validation
-            </div>
-            <div style={{ marginTop: '4px', fontSize: '0.8rem', color: '#0f172a', fontWeight: 700 }}>
-              {requiredDone}/{requiredStepChecks.length} required complete
-            </div>
-          </div>
-          <div style={{ maxHeight: '180px', overflowY: 'auto', padding: '8px 10px' }}>
-            {requiredStepChecks.map((item) => (
-              <div key={item.compId} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '6px 2px', borderBottom: '1px solid #f8fafc' }}>
-                <div style={{ marginTop: '1px' }}>
-                  {item.ok ? <CheckCircle2 size={14} color="#16a34a" /> : <AlertCircle size={14} color="#dc2626" />}
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: '0.78rem', color: item.ok ? '#166534' : '#991b1b', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {item.label}
-                  </div>
-                  {!item.ok && (
-                    <div style={{ fontSize: '0.68rem', color: '#b91c1c' }}>{item.error}</div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 });
@@ -818,7 +786,18 @@ const CADViewer3D = ({ appVariables, setAppVariables }) => {
 
 const LiveTerminal = () => {
   const [showChat, setShowChat] = useState(false);
-  const [devMode, setDevMode] = useState(false);
+  const [devMode, setDevMode] = useState(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const hash = window.location.hash || '';
+    const hashSearchIndex = hash.indexOf('?');
+    if (hashSearchIndex !== -1) {
+      const hashParams = new URLSearchParams(hash.substring(hashSearchIndex));
+      for (const [key, value] of hashParams.entries()) {
+        if (!searchParams.has(key)) searchParams.set(key, value);
+      }
+    }
+    return searchParams.get('devMode') === 'true' || searchParams.get('dev') === 'true';
+  });
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [activeMobileTab, setActiveMobileTab] = useState('apps');
@@ -845,9 +824,27 @@ const LiveTerminal = () => {
   const { t } = useLanguage();
   const { appId } = useParams();
   const location = useLocation();
-  const launchParams = new URLSearchParams(location.search || '');
+  
+  const launchParams = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search || '');
+    const hash = window.location.hash || '';
+    const hashSearchIndex = hash.indexOf('?');
+    if (hashSearchIndex !== -1) {
+      const hashParams = new URLSearchParams(hash.substring(hashSearchIndex));
+      for (const [key, value] of hashParams.entries()) {
+        if (!searchParams.has(key)) searchParams.set(key, value);
+      }
+    }
+    return searchParams;
+  }, [location.search, location.hash]);
+
   const launchOperator = (launchParams.get('operator') || '').trim();
   const launchStation = (launchParams.get('station') || '').trim();
+
+  useEffect(() => {
+    const isDev = launchParams.get('devMode') === 'true' || launchParams.get('dev') === 'true';
+    setDevMode(isDev);
+  }, [launchParams]);
 
   // Dashboard states
   const [searchQuery, setSearchQuery] = useState('');
@@ -976,6 +973,94 @@ const LiveTerminal = () => {
   const baseComponents = selectedApp?.config?.baseComponents || [];
   const stepComponents = activeStep?.components || [];
   const appComponents = [...baseComponents, ...stepComponents];
+
+  const [canvasWrapper, setCanvasWrapper] = useState(null);
+  const [containerWidth, setContainerWidth] = useState(1280);
+  const [containerHeight, setContainerHeight] = useState(800);
+
+  const canvasBaseSize = useMemo(() => {
+    const presetKey = selectedApp?.config?.devicePreset || 'RESPONSIVE';
+    const orientation = selectedApp?.config?.previewOrientation || 'PORTRAIT';
+    const preset = DEVICE_PRESETS[presetKey] || DEVICE_PRESETS.RESPONSIVE;
+    
+    if (presetKey === 'RESPONSIVE') {
+      return { width: 1000, height: 625 };
+    }
+    
+    return {
+      width: orientation === 'PORTRAIT' ? preset.width : preset.height,
+      height: orientation === 'PORTRAIT' ? preset.height : preset.width
+    };
+  }, [selectedApp]);
+
+  useEffect(() => {
+    if (!canvasWrapper) return;
+    const observer = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        if (entry.contentRect.width > 0) {
+          setContainerWidth(entry.contentRect.width);
+        }
+        if (entry.contentRect.height > 0) {
+          setContainerHeight(entry.contentRect.height);
+        }
+      }
+    });
+    observer.observe(canvasWrapper);
+    return () => observer.disconnect();
+  }, [canvasWrapper]);
+
+  const layoutWidth = useMemo(() => {
+    return canvasBaseSize.width;
+  }, [canvasBaseSize]);
+
+  const layoutHeight = useMemo(() => {
+    return canvasBaseSize.height;
+  }, [canvasBaseSize]);
+
+  const presetKey = selectedApp?.config?.devicePreset || 'RESPONSIVE';
+  const preset = DEVICE_PRESETS[presetKey] || DEVICE_PRESETS.RESPONSIVE;
+  const isPreset = presetKey !== 'RESPONSIVE';
+  const isResponsiveMode = presetKey === 'RESPONSIVE';
+  const isDark = selectedApp?.config?.appThemeMode === 'DARK';
+
+  const scaleX = useMemo(() => {
+    if (isMobile) return 1;
+    if (containerWidth <= 0 || layoutWidth <= 0) return 1;
+    const sX = containerWidth / layoutWidth;
+    if (containerHeight <= 0 || layoutHeight <= 0) return sX;
+    const sY = containerHeight / layoutHeight;
+    return Math.min(sX, sY);
+  }, [containerWidth, containerHeight, layoutWidth, layoutHeight, isMobile]);
+
+  const scaleY = useMemo(() => {
+    if (isMobile) return 1;
+    if (containerHeight <= 0 || layoutHeight <= 0) return 1;
+    const sY = containerHeight / layoutHeight;
+    if (containerWidth <= 0 || layoutWidth <= 0) return sY;
+    const sX = containerWidth / layoutWidth;
+    return Math.min(sX, sY);
+  }, [containerWidth, containerHeight, layoutWidth, layoutHeight, isMobile]);
+
+  const canvasFrameRadius = useMemo(() => {
+    if (!isPreset) return '8px';
+    return preset.kind === 'PHONE' ? '30px' : preset.kind === 'TABLET' ? '22px' : '10px';
+  }, [isPreset, preset]);
+
+  const canvasFrameShadow = useMemo(() => {
+    if (!isPreset) {
+      return '0 10px 30px -5px rgba(0, 0, 0, 0.1), 0 8px 12px -5px rgba(0, 0, 0, 0.04)';
+    }
+    return preset.kind === 'PHONE' || preset.kind === 'TABLET'
+      ? '0 0 0 12px #1e293b, 0 20px 50px rgba(0,0,0,0.3)'
+      : '0 0 0 1px #334155, 0 18px 40px rgba(15, 23, 42, 0.25)';
+  }, [isPreset, preset]);
+
+  const canvasFrameBorder = useMemo(() => {
+    if (!isPreset) {
+      return isDark ? '1px solid #334155' : '1px solid #cbd5e1';
+    }
+    return 'none';
+  }, [isPreset, isDark]);
 
   // --- OBD2 INTEGRATION ---
   useEffect(() => {
@@ -1915,9 +2000,14 @@ const LiveTerminal = () => {
     setRecentApps(newRecent);
     localStorage.setItem('mavi_terminal_recent', JSON.stringify(newRecent));
 
-    // Enterprise Governance: Use published_config if published, else draft config
-    const effectiveConfig = app.is_published ? (app.published_config || app.config) : app.config;
-    const normalizedApp = { ...app, config: effectiveConfig };
+    // Enterprise Governance: Use published_config if published and NOT in dev mode, else draft config
+    const isDev = devMode || launchParams.get('devMode') === 'true' || launchParams.get('dev') === 'true';
+    const effectiveConfig = (app.is_published && !isDev) ? (app.published_config || app.config) : app.config;
+    const normalizedApp = { 
+      ...app, 
+      config: effectiveConfig,
+      is_published: isDev ? false : app.is_published
+    };
 
     setGlobalLogic(effectiveConfig.globalLogic || null);
     setSelectedApp(normalizedApp);
@@ -3360,9 +3450,10 @@ const LiveTerminal = () => {
               if (!ok) await createById();
             }
           } else if (type === 'OBD2_CONNECT') {
-            const { transport } = payload;
+            const { transport, ipAddress, port } = payload;
             try {
               if (transport === 'SERIAL') await obd2Service.connectSerial();
+              else if (transport === 'WIFI') await obd2Service.connectWiFi(ipAddress || '192.168.0.10', Number(port) || 35000);
               else await obd2Service.connectBluetooth();
             } catch (e) {
               toast.error(`OBD2 Error: ${e.message}`);
@@ -7993,7 +8084,7 @@ const LiveTerminal = () => {
           </div>
 
           <button
-            onClick={() => window.location.href = '/terminal'}
+            onClick={() => window.location.href = '/#/terminal'}
             style={{ padding: '10px 20px', backgroundColor: 'transparent', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
           >
             Back to Selection
@@ -8459,8 +8550,7 @@ const LiveTerminal = () => {
     );
   }
 
-  const hasProductionOrderWidget = appComponents.some(c => c.type === 'PRODUCTION_ORDER') || (selectedApp?.config?.leftSidebarEnabled === false);
-  const hasProductionProgressWidget = appComponents.some(c => c.type === 'PRODUCTION_PROGRESS') || (selectedApp?.config?.rightSidebarEnabled === false);
+
   const requiredStepChecks = !selectedApp
     ? []
     : appComponents
@@ -8608,6 +8698,32 @@ const LiveTerminal = () => {
         transition: 'background-color 0.3s ease'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          {selectedApp && window.self === window.top && (
+            <button
+              onClick={() => {
+                setSelectedApp(null);
+                setSelectedManual(null);
+                window.history.pushState(null, '', '/#/terminal');
+              }}
+              style={{
+                background: 'rgba(255,255,255,0.1)',
+                border: 'none',
+                color: 'white',
+                cursor: 'pointer',
+                padding: '6px',
+                borderRadius: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
+              title="Back to Selection"
+            >
+              <ArrowLeft size={18} />
+            </button>
+          )}
           <div style={{ fontWeight: 900, fontSize: '1.2rem', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Zap size={20} fill="white" /> MAVI-M
           </div>
@@ -8690,12 +8806,43 @@ const LiveTerminal = () => {
             ))
           )}
           <div style={{ width: '1px', height: '32px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#00d1ff' }} />
-            <div style={{ textAlign: 'left' }}>
-              <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>Operator</div>
-              <div style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>{appContext.user} • {appContext.station}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#00d1ff' }} />
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>Operator</div>
+                <div style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>{appContext.user} • {appContext.station}</div>
+              </div>
             </div>
+            {window.self === window.top && (
+              <button
+                onClick={() => {
+                  if (window.confirm("Are you sure you want to log out?")) {
+                    logout();
+                    window.location.reload();
+                  }
+                }}
+                style={{
+                  background: 'rgba(239, 68, 68, 0.2)',
+                  border: '1px solid rgba(239, 68, 68, 0.4)',
+                  color: '#fca5a5',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.35)'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)'}
+              >
+                <LogOut size={12} />
+                Logout
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -8712,9 +8859,9 @@ const LiveTerminal = () => {
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
-            padding: '20px',
+            padding: (selectedApp || selectedManual) ? '0' : '20px',
             backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc',
-            overflowY: 'auto'
+            overflowY: (selectedApp || selectedManual) ? 'hidden' : 'auto'
           }}
         >
           <div style={{
@@ -8722,13 +8869,13 @@ const LiveTerminal = () => {
             backgroundImage: activeStep?.backgroundImage ? `url(${activeStep.backgroundImage})` : 'none',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
-            border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`,
-            borderRadius: '4px',
+            border: (selectedApp || selectedManual) ? 'none' : `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`,
+            borderRadius: (selectedApp || selectedManual) ? '0' : '4px',
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
             position: 'relative',
-            overflow: 'auto'
+            overflow: (selectedApp || selectedManual) ? 'hidden' : 'auto'
           }}>
             {selectedApp && !selectedApp.is_published && (
               <div style={{
@@ -8749,100 +8896,111 @@ const LiveTerminal = () => {
             )}
 
 
-            <div style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#f1f5f9'}` }}>
-              <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 500, color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a' }}>Step {currentStepIndex + 1}: {activeStep?.title}</h2>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Step Time</div>
-                <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#2e7d32', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  {formatTime(timer)} <Clock size={20} />
-                </div>
-              </div>
-            </div>
-
-            <div id="terminal-canvas-wrapper" style={{
-              flex: 1,
-              padding: '0',
-              display: 'flex',
-              flexDirection: 'column',
-              position: 'relative',
-              overflow: 'auto',
-              backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || 'transparent'
-            }}>
-              {/* App Components Render */}
-              <div id="terminal-canvas-content" style={{
-                width: '100%',
-                minHeight: '100%',
+            <div 
+              id="terminal-canvas-wrapper" 
+              ref={setCanvasWrapper}
+              style={{
+                flex: 1,
+                padding: isResponsiveMode ? '0px' : '20px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
                 position: 'relative',
-                flex: 1
+                overflow: 'hidden',
+                backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f1f5f9'
+              }}
+            >
+              {/* Scaled Layout Wrapper */}
+              <div style={{
+                width: `${layoutWidth * scaleX}px`,
+                height: `${layoutHeight * scaleY}px`,
+                position: 'relative',
+                overflow: 'hidden',
+                flexShrink: 0,
+                backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff',
+                borderRadius: isResponsiveMode ? '0px' : canvasFrameRadius,
+                boxShadow: isResponsiveMode ? 'none' : canvasFrameShadow,
+                border: isResponsiveMode ? 'none' : canvasFrameBorder
               }}>
                 {/* App Components Render */}
-                {appComponents.length > 0 ? (
-                  <div style={{
-                    position: 'relative',
-                    width: '100%',
-                    height: '100%',
-                    minHeight: '800px' // Ensure a minimum height for the canvas
-                  }}>
-                    {[...appComponents]
-                      .filter(c => visibilityMap[c.id] !== false)
-                      .sort((a, b) => (a.props?.zIndex || 0) - (b.props?.zIndex || 0))
-                      .map((comp, idx) => {
-                        const isAbsolute = comp.x != null && comp.y != null;
+                <div id="terminal-canvas-content" style={{
+                  width: `${layoutWidth}px`,
+                  height: `${layoutHeight}px`,
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  transform: `scale(${scaleX}, ${scaleY})`,
+                  transformOrigin: 'top left',
+                  backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff'
+                }}>
+                  {/* App Components Render */}
+                  {appComponents.length > 0 ? (
+                    <div style={{
+                      position: 'relative',
+                      width: '100%',
+                      height: '100%'
+                    }}>
+                      {[...appComponents]
+                        .filter(c => visibilityMap[c.id] !== false)
+                        .sort((a, b) => (a.props?.zIndex || 0) - (b.props?.zIndex || 0))
+                        .map((comp, idx) => {
+                          const isAbsolute = comp.x != null && comp.y != null;
 
+                          const containerStyle = isAbsolute ? {
+                            position: 'absolute',
+                            left: `${comp.x}px`,
+                            top: `${comp.y}px`,
+                            width: comp.w ? `${comp.w}px` : 'auto',
+                            height: comp.h ? `${comp.h}px` : 'auto',
+                            zIndex: comp.props?.zIndex || 100,
+                            transform: `rotate(${comp.props?.rotation || 0}deg)`,
+                            overflow: 'visible' // Allow labels/shadows to show
+                          } : {
+                            width: '100%',
+                            transform: `rotate(${comp.props?.rotation || 0}deg)`,
+                            marginBottom: '20px',
+                            position: 'relative'
+                          };
 
-                        const containerStyle = isAbsolute ? {
-                          position: 'absolute',
-                          left: `${comp.x}px`,
-                          top: `${comp.y}px`,
-                          width: comp.w ? `${comp.w}px` : 'auto',
-                          height: comp.h ? `${comp.h}px` : 'auto',
-                          zIndex: comp.props?.zIndex || 100,
-                          transform: `rotate(${comp.props?.rotation || 0}deg)`,
-                          overflow: 'visible' // Allow labels/shadows to show
-                        } : {
-                          width: '100%',
-                          transform: `rotate(${comp.props?.rotation || 0}deg)`,
-                          marginBottom: '20px',
-                          position: 'relative'
-                        };
-
-                        const err = validationErrors[comp.id];
-                        return (
-                          <div
-                            key={comp.id || idx}
-                            id={comp.id ? `terminal-comp-${comp.id}` : undefined}
-                            ref={(el) => { if (comp?.id) widgetContainerRefs.current[comp.id] = el; }}
-                            className={comp.props?.isBlinking ? 'animate-blink' : ''}
-                            style={containerStyle}
-                          >
-                            <div style={{
-                              border: err ? '2px solid #ef4444' : 'none',
-                              borderRadius: '8px',
-                              padding: err ? '10px' : 0,
-                              backgroundColor: err ? '#fee2e2' : 'transparent',
-                              height: isAbsolute ? '100%' : 'auto',
-                              position: 'relative',
-                              boxSizing: 'border-box'
-                            }}>
-                              {renderComponent(comp)}
-                            </div>
-                            {err && (
-                              <div style={{ marginTop: '6px', fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>
-                                {err}
+                          const err = validationErrors[comp.id];
+                          return (
+                            <div
+                              key={comp.id || idx}
+                              id={comp.id ? `terminal-comp-${comp.id}` : undefined}
+                              ref={(el) => { if (comp?.id) widgetContainerRefs.current[comp.id] = el; }}
+                              className={comp.props?.isBlinking ? 'animate-blink' : ''}
+                              style={containerStyle}
+                            >
+                              <div style={{
+                                border: err ? '2px solid #ef4444' : 'none',
+                                borderRadius: '8px',
+                                padding: err ? '10px' : 0,
+                                backgroundColor: err ? '#fee2e2' : 'transparent',
+                                height: isAbsolute ? '100%' : 'auto',
+                                position: 'relative',
+                                boxSizing: 'border-box'
+                              }}>
+                                {renderComponent(comp)}
                               </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '30px', marginTop: '40px' }}>
-                    <img src="/assets/assembly_procedure.png" style={{ maxWidth: '100%', borderRadius: '4px' }} alt="Visual" />
-                    <p style={{ textAlign: 'center', color: '#475569', fontSize: '1.1rem', lineHeight: '1.6' }}>
-                      {activeStep?.description || "Follow the standard procedure defined for this assembly step."}
-                    </p>
-                  </div>
-                )}
+                              {err && (
+                                <div style={{ marginTop: '6px', fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>
+                                  {err}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '30px', marginTop: '40px' }}>
+                      <img src="/assets/assembly_procedure.png" style={{ maxWidth: '100%', borderRadius: '4px' }} alt="Visual" />
+                      <p style={{ textAlign: 'center', color: '#475569', fontSize: '1.1rem', lineHeight: '1.6' }}>
+                        {activeStep?.description || "Follow the standard procedure defined for this assembly step."}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

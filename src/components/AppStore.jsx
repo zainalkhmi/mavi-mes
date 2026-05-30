@@ -41,6 +41,7 @@ import { createMaterialReviewBoardTemplate } from '../utils/materialReviewBoardT
 import { createSmartHomeTemplate } from '../utils/smartHomeTemplate';
 import { createWorkInstructionsTemplate } from '../utils/workInstructionsTemplate';
 import { createProductDrawingInspectionTemplate } from '../utils/productDrawingInspectionTemplate';
+import { createHydraulicCylinderInspectionTemplate } from '../utils/hydraulicCylinderInspectionTemplate';
 
 import { saveFrontlineApp, deleteFrontlineApp, getAllFrontlineApps } from '../utils/supabaseFrontlineDB';
 import {
@@ -1300,6 +1301,41 @@ const AppStore = () => {
                     { name: 'Review plan', description: 'Verify composed dynamic quality checklist rows.' },
                     { name: 'Record numeric results', description: 'Input values against dynamic limits.' },
                     { name: 'Inspect unit', description: 'Composed guided visual checklist.' }
+                ]
+            }
+        },
+        {
+            id: 'hc-cylinder-inspection',
+            name: 'HC Cylinder Inspection',
+            category: 'Quality',
+            description: 'Template inspeksi lengkap hydraulic cylinder: 2D/3D drawing dimensi, Function Test, Pressure Test, Visual Rod & Piston, Stroke Check dengan animasi.',
+            longDescription: 'Standarisasi proses inspeksi quality control hydraulic cylinder di shopfloor. Operator dibimbing langkah demi langkah: identifikasi komponen, pengukuran 10 dimensi pada 2D blueprint interaktif, verifikasi GD&T 7 karakteristik pada view isometrik 3D, function test 8 pengujian fungsional, pressure test 4 fase (Proof/Burst/Working/Min), visual inspection rod & piston, hingga stroke measurement dengan diagram animasi. Hasil tersimpan ke database dan dapat dicetak sebagai laporan QC.',
+            icon: <Wrench size={28} color="#2563eb" />,
+            bg: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+            accent: '#2563eb',
+            rating: 5.0,
+            installs: 'New',
+            features: ['2D Blueprint Drawing Interaktif', '3D Isometric + GD&T Callout', 'Pressure Test 4 Fase', 'Visual Rod & Piston Check', 'Stroke Animation & Measurement'],
+            guide: {
+                operation: '1. Isi identifikasi part (Work Order, Part Number, Serial Number, Operator).\n2. Input pengukuran 10 dimensi pada 2D blueprint (Bore, Rod, Stroke, OAL, dll).\n3. Verifikasi 7 karakteristik GD&T (Cylindricity, Straightness, Runout, dll) pada view 3D.\n4. Catat hasil 8 pengujian fungsional (extend/retract, leakage, cushioning).\n5. Input tekanan aktual pada 4 fase pressure test (Proof 250 bar, Burst 350 bar, Working 160 bar, Min 20 bar).\n6. Inspeksi visual rod, piston, seal, dan weld.\n7. Ukur stroke aktual 3x pengukuran, hitung deviasi & drift.\n8. Finalisasi keputusan PASS/FAIL dan simpan laporan ke database.',
+                widgets: ['SVG Blueprint 2D Viewer', 'SVG 3D Isometric Viewer', 'Dropdown Result Selector', 'Number Input Fields', 'Textarea Notes'],
+                components: ['Header Identifikasi', '2D Dimensi Step', '3D GD&T Step', 'Function Test Step', 'Pressure Test Step', 'Visual Inspection Step', 'Stroke Check Step', 'Summary & Sign-Off Step'],
+                tables: [
+                    { name: 'HC_Inspections', description: 'Menyimpan seluruh hasil inspeksi hydraulic cylinder termasuk dimensi, tekanan, visual, stroke, dan keputusan akhir PASS/FAIL.' }
+                ],
+                triggers: [
+                    { event: 'SIMPAN_LAPORAN', function: 'Menyimpan semua variabel inspeksi ke tabel HC_Inspections dan mengupdate status work order.' }
+                ],
+                mechanism: 'Multi-step guided inspection dengan SVG blueprint 2D interaktif dan view isometrik 3D. Setiap langkah memeriksa satu aspek cylinder secara sistematis mengikuti standar ISO 10100 untuk hydraulic cylinder.',
+                steps: [
+                    { name: '1. Identifikasi Cylinder', description: 'Input Work Order, Part Number, Serial Number, Operator, Shift.' },
+                    { name: '2. 2D Drawing & Dimensi', description: 'Pengukuran 10 parameter dimensi (Bore, Rod, Stroke, OAL, dll) dengan blueprint SVG.' },
+                    { name: '3. 3D View & GD&T', description: 'Verifikasi 7 karakteristik GD&T pada tampilan isometrik 3D.' },
+                    { name: '4. Function Test', description: 'Pengujian 8 fungsi: extend/retract no/full load, leakage, cushioning.' },
+                    { name: '5. Pressure Test', description: 'Test 4 fase tekanan: Proof 250 bar, Burst 350 bar, Working 160 bar, Min 20 bar.' },
+                    { name: '6. Visual Rod & Piston', description: 'Inspeksi visual permukaan rod, piston, seal, weld, port, coating.' },
+                    { name: '7. Stroke Check', description: 'Pengukuran stroke aktual 3x, hitung rata-rata, deviasi, dan drift test.' },
+                    { name: '8. Ringkasan & Sign-Off', description: 'Keputusan akhir PASS/FAIL, catatan, tanda tangan digital, simpan database.' }
                 ]
             }
         },
@@ -3346,6 +3382,50 @@ const AppStore = () => {
                     }
                 } catch (qiErr) {
                     console.warn('Could not create Quality Inspection tables:', qiErr);
+                }
+            } else if (templateId === 'hc-cylinder-inspection') {
+                templateApp = createHydraulicCylinderInspectionTemplate();
+                try {
+                    const hcTable = await getOrCreateTableAndSeed(allTables, {
+                        name: 'HC_Inspections',
+                        fields: [
+                            { name: 'Work_Order',      type: 'text' },
+                            { name: 'Part_Number',     type: 'text' },
+                            { name: 'Serial_Number',   type: 'text' },
+                            { name: 'Operator',        type: 'text' },
+                            { name: 'Bore_Diameter',   type: 'number' },
+                            { name: 'Rod_Diameter',    type: 'number' },
+                            { name: 'Stroke_Length',   type: 'number' },
+                            { name: 'Press_Proof',     type: 'number' },
+                            { name: 'Press_Working',   type: 'number' },
+                            { name: 'Visual_Rod',      type: 'text' },
+                            { name: 'Visual_Piston',   type: 'text' },
+                            { name: 'Overall_Result',  type: 'text' },
+                            { name: 'Notes',           type: 'text' },
+                            { name: 'Signature',       type: 'text' },
+                        ]
+                    });
+                    let appStr = JSON.stringify(templateApp);
+                    if (hcTable?.id) { appStr = appStr.replace(/tbl_hc_inspections/g, hcTable.id); }
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = hcTable?.id ? [hcTable.id] : [];
+
+                    // Seed sample data
+                    if (hcTable?.id) {
+                        await addTableRecord({ tableId: hcTable.id, fields: {
+                            'Work_Order': 'WO-HC-2026-001', 'Part_Number': 'HC-2024-001',
+                            'Serial_Number': 'SN-20260528-001', 'Operator': 'Ahmad Fauzi',
+                            'Bore_Diameter': 80.012, 'Rod_Diameter': 56.008,
+                            'Stroke_Length': 500.3, 'Press_Proof': 252.0,
+                            'Press_Working': 161.5, 'Visual_Rod': 'PASS — Bersih, mulus',
+                            'Visual_Piston': 'PASS — Bersih, mulus',
+                            'Overall_Result': 'PASS — Sesuai Spesifikasi',
+                            'Notes': 'Semua parameter dalam batas toleransi. Cylinder siap digunakan.',
+                            'Signature': 'Ahmad Fauzi'
+                        }});
+                    }
+                } catch (hcErr) {
+                    console.warn('Could not create HC Inspection table:', hcErr);
                 }
             } else if (templateId === 'product-drawing-inspection') {
                 templateApp = createProductDrawingInspectionTemplate();
