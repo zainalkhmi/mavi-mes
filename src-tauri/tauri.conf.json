@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "mavi-mes",
-  "version": "0.1.0",
+  "productName": "MAVI MES",
+  "version": "1.0.0",
   "identifier": "com.mavi.mes",
   "build": {
     "frontendDist": "../dist",
@@ -12,11 +12,18 @@
   "app": {
     "windows": [
       {
-        "title": "Mavi MES",
-        "width": 800,
-        "height": 600,
+        "title": "MAVI MES — Manufacturing Execution System",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 600,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "maximized": true,
+        "center": true,
+        "decorations": true,
+        "transparent": false,
+        "alwaysOnTop": false
       }
     ],
     "security": {
@@ -33,6 +40,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "windows": {
+      "wix": {},
+      "nsis": {
+        "languages": ["English"],
+        "installMode": "perMachine"
+      }
+    },
     "android": {
       "debugApplicationIdSuffix": ".debug"
     }
