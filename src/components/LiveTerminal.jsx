@@ -8877,18 +8877,26 @@ const LiveTerminal = () => {
                   position: 'absolute',
                   top: '100%',
                   right: 0,
-                  width: '240px',
-                  backgroundColor: 'white',
-                  color: '#1e293b',
-                  borderRadius: '8px',
-                  boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.15)',
-                  padding: '6px 0',
-                  border: '1px solid #cbd5e1',
+                  width: '260px',
+                  background: 'linear-gradient(180deg, #0f172a 0%, #1e293b 100%)',
+                  color: 'white',
+                  borderRadius: '12px',
+                  boxShadow: '0 20px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.08)',
+                  padding: '8px 0',
+                  border: '1px solid rgba(255,255,255,0.08)',
                   zIndex: 1000,
-                  marginTop: '6px',
+                  marginTop: '8px',
                   display: 'flex',
-                  flexDirection: 'column'
+                  flexDirection: 'column',
+                  backdropFilter: 'blur(20px)'
                 }}>
+                  {/* ── Menu Header Label */}
+                  <div style={{ padding: '6px 16px 10px', borderBottom: '1px solid rgba(255,255,255,0.08)', marginBottom: '4px' }}>
+                    <div style={{ fontSize: '0.6rem', fontWeight: 800, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                      Actions
+                    </div>
+                  </div>
+
                   {/* Back to Selection */}
                   <button
                     onClick={() => {
@@ -8898,80 +8906,56 @@ const LiveTerminal = () => {
                       window.history.pushState(null, '', '/#/terminal');
                     }}
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '8px 16px',
-                      width: '100%',
-                      border: 'none',
-                      background: 'none',
-                      textAlign: 'left',
-                      fontSize: '0.82rem',
-                      fontWeight: 600,
-                      color: '#334155',
-                      cursor: 'pointer',
-                      transition: 'background-color 0.15s'
+                      display: 'flex', alignItems: 'center', gap: '12px',
+                      padding: '9px 16px', width: '100%', border: 'none',
+                      background: 'none', textAlign: 'left', fontSize: '0.82rem',
+                      fontWeight: 600, color: 'rgba(255,255,255,0.75)', cursor: 'pointer',
+                      transition: 'all 0.15s', borderRadius: '0'
                     }}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
                   >
-                    <ArrowLeft size={14} color="#64748b" />
+                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(100,116,139,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <ArrowLeft size={13} color="#94a3b8" />
+                    </div>
                     <span style={{ flex: 1 }}>Back to Selection</span>
                   </button>
 
                   {/* Toggle Chat */}
                   <button
-                    onClick={() => {
-                      setMenuOpen(false);
-                      setShowChat(!showChat);
-                    }}
+                    onClick={() => { setMenuOpen(false); setShowChat(!showChat); }}
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '8px 16px',
-                      width: '100%',
-                      border: 'none',
-                      background: 'none',
-                      textAlign: 'left',
-                      fontSize: '0.82rem',
-                      fontWeight: 600,
-                      color: '#334155',
-                      cursor: 'pointer',
-                      transition: 'background-color 0.15s'
+                      display: 'flex', alignItems: 'center', gap: '12px',
+                      padding: '9px 16px', width: '100%', border: 'none',
+                      background: 'none', textAlign: 'left', fontSize: '0.82rem',
+                      fontWeight: 600, color: 'rgba(255,255,255,0.75)', cursor: 'pointer',
+                      transition: 'all 0.15s'
                     }}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
                   >
-                    <MessageSquare size={14} color="#0284c7" />
+                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(2,132,199,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <MessageSquare size={13} color="#38bdf8" />
+                    </div>
                     <span style={{ flex: 1 }}>Toggle Chat</span>
                   </button>
 
                   {/* Report Defect */}
                   <button
-                    onClick={() => {
-                      setMenuOpen(false);
-                      setShowDefectModal(true);
-                    }}
+                    onClick={() => { setMenuOpen(false); setShowDefectModal(true); }}
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '8px 16px',
-                      width: '100%',
-                      border: 'none',
-                      background: 'none',
-                      textAlign: 'left',
-                      fontSize: '0.82rem',
-                      fontWeight: 600,
-                      color: '#334155',
-                      cursor: 'pointer',
-                      transition: 'background-color 0.15s'
+                      display: 'flex', alignItems: 'center', gap: '12px',
+                      padding: '9px 16px', width: '100%', border: 'none',
+                      background: 'none', textAlign: 'left', fontSize: '0.82rem',
+                      fontWeight: 600, color: 'rgba(255,255,255,0.75)', cursor: 'pointer',
+                      transition: 'all 0.15s'
                     }}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.12)'; e.currentTarget.style.color = '#fca5a5'; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
                   >
-                    <XCircle size={14} color="#ef4444" />
+                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(239,68,68,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <XCircle size={13} color="#f87171" />
+                    </div>
                     <span style={{ flex: 1 }}>Report Defect</span>
                   </button>
 
@@ -8979,61 +8963,44 @@ const LiveTerminal = () => {
                   <button
                     onClick={() => {
                       setMenuOpen(false);
-                      if (activeAndon) {
-                        handleResolveAndon();
-                      } else {
-                        setShowAndonModal(true);
-                      }
+                      if (activeAndon) { handleResolveAndon(); } else { setShowAndonModal(true); }
                     }}
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '8px 16px',
-                      width: '100%',
-                      border: 'none',
-                      background: 'none',
-                      textAlign: 'left',
-                      fontSize: '0.82rem',
-                      fontWeight: 600,
-                      color: activeAndon ? '#ef4444' : '#334155',
-                      cursor: 'pointer',
-                      transition: 'background-color 0.15s'
+                      display: 'flex', alignItems: 'center', gap: '12px',
+                      padding: '9px 16px', width: '100%', border: 'none',
+                      background: activeAndon ? 'rgba(239,68,68,0.1)' : 'none',
+                      textAlign: 'left', fontSize: '0.82rem', fontWeight: 600,
+                      color: activeAndon ? '#fca5a5' : 'rgba(255,255,255,0.75)', cursor: 'pointer',
+                      transition: 'all 0.15s'
                     }}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(234,179,8,0.12)'; e.currentTarget.style.color = '#fde047'; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = activeAndon ? 'rgba(239,68,68,0.1)' : 'transparent'; e.currentTarget.style.color = activeAndon ? '#fca5a5' : 'rgba(255,255,255,0.75)'; }}
                   >
-                    <AlertCircle size={14} color={activeAndon ? '#ef4444' : '#eab308'} />
+                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: activeAndon ? 'rgba(239,68,68,0.2)' : 'rgba(234,179,8,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <AlertCircle size={13} color={activeAndon ? '#f87171' : '#fbbf24'} />
+                    </div>
                     <span style={{ flex: 1 }}>{activeAndon ? 'Resolve Andon' : 'Pull Andon'}</span>
+                    {activeAndon && <div style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#ef4444', animation: 'maviPulse 1.5s ease-in-out infinite' }} />}
                   </button>
 
-                  <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '4px 0' }} />
+                  <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.07)', margin: '6px 0' }} />
 
                   {/* Station Diagnostics */}
                   <button
-                    onClick={() => {
-                      setMenuOpen(false);
-                      setShowDiagnostics(true);
-                    }}
+                    onClick={() => { setMenuOpen(false); setShowDiagnostics(true); }}
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '8px 16px',
-                      width: '100%',
-                      border: 'none',
-                      background: 'none',
-                      textAlign: 'left',
-                      fontSize: '0.82rem',
-                      fontWeight: 600,
-                      color: '#334155',
-                      cursor: 'pointer',
-                      transition: 'background-color 0.15s'
+                      display: 'flex', alignItems: 'center', gap: '12px',
+                      padding: '9px 16px', width: '100%', border: 'none',
+                      background: 'none', textAlign: 'left', fontSize: '0.82rem',
+                      fontWeight: 600, color: 'rgba(255,255,255,0.75)', cursor: 'pointer',
+                      transition: 'all 0.15s'
                     }}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
                   >
-                    <HardDrive size={14} color="#6366f1" />
+                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <HardDrive size={13} color="#a5b4fc" />
+                    </div>
                     <span style={{ flex: 1 }}>Station Diagnostics</span>
                   </button>
                 </div>
@@ -9459,43 +9426,76 @@ const LiveTerminal = () => {
         </>
       )}
 
-      {/* MAVI FOOTER BAR */}
+      {/* MAVI FOOTER BAR - Premium Tactile Navigation */}
       <div style={{
-        height: '64px',
-        backgroundColor: '#1e293b',
+        height: '72px',
+        background: 'linear-gradient(90deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
         display: 'flex',
         justifyContent: 'space-between',
-        padding: '0 25px',
+        padding: '0 20px',
         alignItems: 'center',
         color: 'white',
-        borderTop: '1px solid #334155'
+        borderTop: '1px solid rgba(59, 130, 246, 0.3)',
+        boxShadow: '0 -4px 20px rgba(0,0,0,0.3)',
+        flexShrink: 0,
+        gap: '12px'
       }}>
-        <div style={{ display: 'flex', gap: '12px' }}>
+        {/* Step Progress Indicator */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
+          {steps.map((_, idx) => (
+            <div
+              key={idx}
+              style={{
+                flex: 1,
+                height: idx === currentStepIndex ? '6px' : '4px',
+                borderRadius: '3px',
+                backgroundColor: idx < currentStepIndex ? '#22c55e' :
+                  idx === currentStepIndex ? '#3b82f6' : 'rgba(255,255,255,0.15)',
+                transition: 'all 0.3s ease',
+                boxShadow: idx === currentStepIndex ? '0 0 8px rgba(59,130,246,0.6)' : 'none'
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Center: Step Label */}
+        <div style={{ flexShrink: 0, textAlign: 'center', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', fontWeight: 600, minWidth: '100px' }}>
+          STEP <span style={{ color: 'white', fontWeight: 900, fontSize: '0.9rem' }}>{currentStepIndex + 1}</span> / {steps.length}
+        </div>
+
+        {/* Right: Navigation Buttons */}
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexShrink: 0 }}>
+          {/* PREVIOUS STEP */}
           <button
             onClick={handlePrevStep}
             disabled={currentStepIndex === 0}
             style={{
-              backgroundColor: '#475569',
-              border: 'none',
-              color: 'white',
-              padding: '10px 20px',
-              borderRadius: '4px',
+              background: currentStepIndex === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.1)',
+              border: '1px solid rgba(255,255,255,0.15)',
+              color: currentStepIndex === 0 ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.85)',
+              padding: '10px 18px',
+              borderRadius: '10px',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              fontSize: '0.9rem',
+              gap: '7px',
+              fontSize: '0.85rem',
               fontWeight: 700,
               cursor: currentStepIndex === 0 ? 'not-allowed' : 'pointer',
-              opacity: currentStepIndex === 0 ? 0.5 : 1
+              transition: 'all 0.2s ease',
+              backdropFilter: 'blur(8px)',
+              letterSpacing: '0.02em'
             }}
+            onMouseEnter={e => { if (currentStepIndex > 0) { e.currentTarget.style.background = 'rgba(255,255,255,0.18)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}}
+            onMouseLeave={e => { e.currentTarget.style.background = currentStepIndex === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.1)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; e.currentTarget.style.transform = 'translateY(0)'; }}
           >
-            <ArrowLeft size={18} /> Previous
+            <ArrowLeft size={16} /> Prev
           </button>
 
-          <button
-            onClick={() => {
-              const nextIdx = currentStepIndex + 1;
-              if (nextIdx < steps.length) {
+          {/* NEXT STEP */}
+          {currentStepIndex < steps.length - 1 && (
+            <button
+              onClick={() => {
+                const nextIdx = currentStepIndex + 1;
                 if (canNavigateToStep(nextIdx)) {
                   handleNextStep();
                 } else {
@@ -9504,48 +9504,63 @@ const LiveTerminal = () => {
                     style: { borderRadius: '10px', background: '#334155', color: '#fff' }
                   });
                 }
-              }
-            }}
-            disabled={currentStepIndex >= steps.length - 1}
-            style={{
-              backgroundColor: (currentStepIndex < steps.length - 1 && canNavigateToStep(currentStepIndex + 1)) ? '#3b82f6' : '#334155',
-              border: 'none',
-              color: 'white',
-              padding: '10px 30px',
-              borderRadius: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              fontSize: '1rem',
-              fontWeight: 800,
-              cursor: (currentStepIndex < steps.length - 1 && canNavigateToStep(currentStepIndex + 1)) ? 'pointer' : 'not-allowed',
-              transition: 'all 0.2s',
-              boxShadow: (currentStepIndex < steps.length - 1 && canNavigateToStep(currentStepIndex + 1)) ? '0 4px 12px rgba(59, 130, 246, 0.4)' : 'none'
-            }}
-          >
-            Next Step <ChevronRight size={18} />
-          </button>
-        </div>
+              }}
+              style={{
+                background: canNavigateToStep(currentStepIndex + 1)
+                  ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)'
+                  : 'rgba(255,255,255,0.08)',
+                border: canNavigateToStep(currentStepIndex + 1)
+                  ? '1px solid rgba(59,130,246,0.4)'
+                  : '1px solid rgba(255,255,255,0.1)',
+                color: 'white',
+                padding: '10px 28px',
+                borderRadius: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '7px',
+                fontSize: '0.9rem',
+                fontWeight: 800,
+                cursor: canNavigateToStep(currentStepIndex + 1) ? 'pointer' : 'not-allowed',
+                transition: 'all 0.2s ease',
+                boxShadow: canNavigateToStep(currentStepIndex + 1)
+                  ? '0 4px 15px rgba(59,130,246,0.45), inset 0 1px 0 rgba(255,255,255,0.15)'
+                  : 'none',
+                letterSpacing: '0.02em'
+              }}
+              onMouseEnter={e => { if (canNavigateToStep(currentStepIndex + 1)) { e.currentTarget.style.background = 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 20px rgba(59,130,246,0.5), inset 0 1px 0 rgba(255,255,255,0.15)'; }}}
+              onMouseLeave={e => { e.currentTarget.style.background = canNavigateToStep(currentStepIndex + 1) ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' : 'rgba(255,255,255,0.08)'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = canNavigateToStep(currentStepIndex + 1) ? '0 4px 15px rgba(59,130,246,0.45), inset 0 1px 0 rgba(255,255,255,0.15)' : 'none'; }}
+            >
+              Next Step <ChevronRight size={18} />
+            </button>
+          )}
 
-        <button
-          onClick={() => setShowSignaturePad(true)}
-          style={{
-            backgroundColor: '#10b981',
-            border: 'none',
-            color: 'white',
-            padding: '12px 35px',
-            borderRadius: '4px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontSize: '1rem',
-            fontWeight: 800,
-            cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(16, 185, 129, 0.4)'
-          }}
-        >
-          <CheckCircle size={20} /> Complete Order
-        </button>
+          {/* COMPLETE ORDER - only on last step */}
+          {currentStepIndex === steps.length - 1 && (
+            <button
+              onClick={() => setShowSignaturePad(true)}
+              style={{
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                border: '1px solid rgba(16,185,129,0.4)',
+                color: 'white',
+                padding: '10px 28px',
+                borderRadius: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '0.9rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 4px 15px rgba(16,185,129,0.45), inset 0 1px 0 rgba(255,255,255,0.15)',
+                letterSpacing: '0.02em'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg, #059669 0%, #047857 100%)'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 20px rgba(16,185,129,0.5), inset 0 1px 0 rgba(255,255,255,0.15)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 15px rgba(16,185,129,0.45), inset 0 1px 0 rgba(255,255,255,0.15)'; }}
+            >
+              <CheckCircle size={18} /> Complete Order
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Signature Pad Overlay - Ported with new theme */}
@@ -9808,6 +9823,12 @@ const LiveTerminal = () => {
           </div>
         </div>
       )}
+      <style>{`
+        @keyframes maviPulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.5; transform: scale(0.85); }
+        }
+      `}</style>
       <Toaster position="top-right" />
     </div>
   );
