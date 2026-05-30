@@ -5,7 +5,7 @@ import {
     AlertTriangle, RotateCcw, X, ChevronRight, Pause, MessageSquare, Info, Code, Play as PlayIcon,
     Wifi, Cpu, HardDrive, CheckCircle2, XCircle, AlertCircle, Signal, Bug,
     Languages, Camera, PenTool, Globe, Plus, FilePlus, Settings2, Sparkles, CheckCircle2 as CheckIcon,
-    LogOut
+    LogOut, Menu, ChevronDown
 } from 'lucide-react';
 import { getAllFrontlineApps, getProductionQueue, logPlayerSession, saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { getStations, getEdgeDevices, createTable, getTables } from '../utils/database';
@@ -681,6 +681,7 @@ const AppPlayer = () => {
     const [newComment, setNewComment] = useState('');
     const [sessionComments, setSessionComments] = useState([]);
     const [showTechDetails, setShowTechDetails] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
 
     // Filter tab
     const [filterTab, setFilterTab] = useState('All');
@@ -1299,332 +1300,493 @@ const AppPlayer = () => {
                     boxShadow: sidebarHidden ? 'none' : panelStyle.boxShadow
                 }}>
                     {/* Header */}
-                    <div style={{
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'space-between',
-                        gap: '12px', 
-                        padding: '6px 14px', 
-                        minHeight: '48px',
-                        backgroundColor: themeColor,
-                        color: 'white',
-                        borderBottom: `1px solid ${themeColor}`,
-                        flexShrink: 0
-                    }}>
-                        {/* Left Side: Logo & App Info */}
-                        <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 1 }}>
-                            {companyLogo ? (
-                                <img src={companyLogo} alt="Logo" style={{ height: '20px', objectFit: 'contain' }} />
-                            ) : null}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap', minWidth: 0 }}>
-                                <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {activeApp ? activeApp.name : 'Select an app to begin'}
-                                </span>
-                                {activeApp && (
-                                    <>
-                                        <div style={{ width: '1px', height: '14px', backgroundColor: 'rgba(255,255,255,0.3)' }} />
-                                        <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', display: 'inline-flex', alignItems: 'center', gap: '2px', whiteSpace: 'nowrap' }}>
-                                            <MapPin size={11} /> {activeStationName || '-'}
-                                        </span>
-                                        <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', display: 'inline-flex', alignItems: 'center', gap: '2px', whiteSpace: 'nowrap' }}>
-                                            <User size={11} /> {operator || '-'}
-                                        </span>
-                                        <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', display: 'inline-flex', alignItems: 'center', gap: '2px', whiteSpace: 'nowrap' }}>
-                                            <Clock3 size={11} /> {formatDuration(elapsedSeconds)}
-                                        </span>
-                                        {stepLabel && (
-                                            <span style={{
-                                                fontSize: '0.75rem', fontWeight: 700, color: themeColor, backgroundColor: 'white',
-                                                borderRadius: '4px', padding: '1px 5px', display: 'inline-flex', alignItems: 'center', gap: '2px', whiteSpace: 'nowrap'
-                                            }}>
-                                                <ChevronRight size={11} /> {stepLabel}
-                                            </span>
-                                        )}
-                                    </>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Center Side: App Action Buttons (Shown only when app is active, icon-only) */}
-                        {activeApp && (
-                            <div style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                gap: '4px',
-                                backgroundColor: 'rgba(0,0,0,0.15)',
-                                padding: '4px',
-                                borderRadius: '8px',
-                                flexShrink: 0
+                    {activeApp ? (
+                        <>
+                            {/* Row 1: Dark Header */}
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '0 16px',
+                                height: '36px',
+                                backgroundColor: '#090d16', // Ultra dark background
+                                color: '#94a3b8',
+                                borderBottom: '1px solid #1e293b',
+                                flexShrink: 0,
+                                fontSize: '0.75rem',
+                                fontWeight: 600
                             }}>
-                                <button
-                                    onClick={() => setShowComments(true)}
-                                    title={`Step Comments (${sessionComments.length})`}
-                                    style={{ 
-                                        width: '32px',
-                                        height: '32px',
-                                        borderRadius: '6px', 
-                                        border: 'none', 
-                                        backgroundColor: 'transparent', 
-                                        color: 'white', 
-                                        cursor: 'pointer', 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        justifyContent: 'center',
-                                        position: 'relative',
-                                        transition: 'all 0.2s'
-                                    }}
-                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
-                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
-                                >
-                                    <MessageSquare size={16} />
-                                    {sessionComments.length > 0 && (
-                                        <span style={{
-                                            position: 'absolute',
-                                            top: '-4px',
-                                            right: '-4px',
-                                            backgroundColor: '#ef4444',
-                                            color: 'white',
-                                            fontSize: '0.62rem',
-                                            fontWeight: 800,
-                                            borderRadius: '50%',
-                                            width: '14px',
-                                            height: '14px',
+                                {/* Left side: Operator and Station Info */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', minWidth: 0 }}>
+                                    {companyLogo && (
+                                        <img src={companyLogo} alt="Logo" style={{ height: '14px', objectFit: 'contain' }} />
+                                    )}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+                                        <User size={12} color="#3b82f6" />
+                                        <span>USER: <strong style={{ color: 'white' }}>{operator || '-'}</strong></span>
+                                    </div>
+                                    <div style={{ width: '1px', height: '12px', backgroundColor: '#1e293b', flexShrink: 0 }} />
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        <MapPin size={12} color="#10b981" />
+                                        <span>STATION: <strong style={{ color: 'white' }}>{activeStationName || '-'}</strong></span>
+                                    </div>
+                                </div>
+
+                                {/* Right side: Global settings */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                    {/* Language selection */}
+                                    <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '1px 6px', borderRadius: '4px', gap: '2px' }}>
+                                        <Globe size={10} color="#cbd5e1" />
+                                        <select 
+                                            value={currentLanguage} 
+                                            onChange={(e) => changeLanguage(e.target.value)}
+                                            style={{ background: 'transparent', border: 'none', color: '#cbd5e1', fontSize: '0.68rem', fontWeight: 700, outline: 'none', cursor: 'pointer' }}
+                                        >
+                                            <option value="en" style={{ color: 'black' }}>EN</option>
+                                            <option value="id" style={{ color: 'black' }}>ID</option>
+                                            <option value="ja" style={{ color: 'black' }}>JA</option>
+                                        </select>
+                                    </div>
+
+                                    {/* Dev Mode toggle */}
+                                    <button
+                                        onClick={() => setDevMode(!devMode)}
+                                        title="Toggle Developer Mode"
+                                        style={{ 
+                                            padding: '3px 8px', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', 
+                                            backgroundColor: devMode ? 'rgba(255,255,255,0.1)' : 'transparent', color: '#cbd5e1', 
+                                            cursor: 'pointer', display: 'flex', gap: '4px', alignItems: 'center', fontWeight: 700, fontSize: '0.68rem',
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        <Code size={10} /> {devMode ? 'Dev Mode' : 'Prod Mode'}
+                                    </button>
+
+                                    {/* Fullscreen Kiosk toggle */}
+                                    <button
+                                        onClick={toggleFullscreen}
+                                        title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+                                        style={{ 
+                                            padding: '3px 8px', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', 
+                                            backgroundColor: isFullscreen ? 'rgba(0,0,0,0.3)' : 'transparent', color: '#cbd5e1', 
+                                            cursor: 'pointer', display: 'flex', gap: '4px', alignItems: 'center', fontWeight: 700, fontSize: '0.68rem',
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        {isFullscreen ? <Minimize2 size={10} /> : <Maximize2 size={10} />}
+                                        {isFullscreen ? 'Exit' : 'Kiosk'}
+                                    </button>
+
+                                    {/* Logout */}
+                                    <button
+                                        onClick={() => {
+                                            if (window.confirm("Are you sure you want to log out?")) {
+                                                logout();
+                                                window.location.reload();
+                                            }
+                                        }}
+                                        title="Logout"
+                                        style={{ 
+                                            padding: '3px 8px', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '4px', 
+                                            backgroundColor: 'rgba(239,68,68,0.05)', color: '#fca5a5', 
+                                            cursor: 'pointer', display: 'flex', gap: '4px', alignItems: 'center', fontWeight: 700, fontSize: '0.68rem',
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        <LogOut size={10} /> Logout
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Row 2: Slate Title Bar */}
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '0 16px',
+                                height: '52px',
+                                backgroundColor: themeColor || '#1e293b',
+                                color: 'white',
+                                borderBottom: `1px solid ${themeColor || '#1e293b'}`,
+                                flexShrink: 0,
+                                position: 'relative'
+                            }}>
+                                {/* Left side: App title and session parameters */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flexWrap: 'nowrap' }}>
+                                    <span style={{ fontSize: '1.15rem', fontWeight: 800, color: 'white', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {activeApp.name}
+                                    </span>
+                                    <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.2)', flexShrink: 0 }} />
+                                    <span style={{ fontSize: '0.75rem', color: '#cbd5e1', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                                        Version: <strong style={{ color: 'white' }}>{activeApp.version || 1} ({activeApp.approval_status || 'DRAFT'})</strong>
+                                    </span>
+                                    <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.2)', flexShrink: 0 }} />
+                                    <span style={{ fontSize: '0.75rem', color: '#cbd5e1', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                                        Duration: <strong style={{ color: 'white', fontFamily: 'monospace' }}>{formatDuration(elapsedSeconds)}</strong>
+                                    </span>
+                                    {stepLabel && (
+                                        <>
+                                            <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.2)', flexShrink: 0 }} />
+                                            <span style={{
+                                                fontSize: '0.72rem', fontWeight: 700, color: themeColor || '#1e293b', backgroundColor: 'white',
+                                                borderRadius: '4px', padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap',
+                                                overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '300px'
+                                            }}>
+                                                <ChevronRight size={12} /> {stepLabel}
+                                            </span>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Right side: Consolidated Menu Button */}
+                                <div style={{ position: 'relative', flexShrink: 0 }}>
+                                    <button
+                                        onClick={() => setMenuOpen(!menuOpen)}
+                                        style={{
                                             display: 'flex',
                                             alignItems: 'center',
-                                            justifyContent: 'center'
+                                            gap: '8px',
+                                            padding: '6px 12px',
+                                            borderRadius: '6px',
+                                            border: '1px solid rgba(255,255,255,0.25)',
+                                            backgroundColor: menuOpen ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)',
+                                            color: 'white',
+                                            fontWeight: 700,
+                                            fontSize: '0.78rem',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.15s'
+                                        }}
+                                    >
+                                        <Menu size={14} />
+                                        Menu
+                                        <ChevronDown size={12} style={{ transform: menuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                                    </button>
+
+                                    {/* Dropdown Menu overlay */}
+                                    {menuOpen && (
+                                        <div style={{
+                                            position: 'absolute',
+                                            top: '100%',
+                                            right: 0,
+                                            width: '240px',
+                                            backgroundColor: 'white',
+                                            color: '#1e293b',
+                                            borderRadius: '8px',
+                                            boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.15)',
+                                            padding: '6px 0',
+                                            border: '1px solid #cbd5e1',
+                                            zIndex: 1000,
+                                            marginTop: '6px',
+                                            display: 'flex',
+                                            flexDirection: 'column'
                                         }}>
-                                            {sessionComments.length}
-                                        </span>
+                                            {/* Comment item */}
+                                            <button
+                                                onClick={() => {
+                                                    setShowComments(true);
+                                                    setMenuOpen(false);
+                                                }}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '10px',
+                                                    padding: '8px 16px',
+                                                    width: '100%',
+                                                    border: 'none',
+                                                    background: 'none',
+                                                    textAlign: 'left',
+                                                    fontSize: '0.82rem',
+                                                    fontWeight: 600,
+                                                    color: '#334155',
+                                                    cursor: 'pointer',
+                                                    transition: 'background-color 0.15s'
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                            >
+                                                <MessageSquare size={14} color="#64748b" />
+                                                <span style={{ flex: 1 }}>Comments ({sessionComments.length})</span>
+                                            </button>
+
+                                            {/* Pause/Resume item */}
+                                            <button
+                                                onClick={() => {
+                                                    handlePauseToggle();
+                                                    setMenuOpen(false);
+                                                }}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '10px',
+                                                    padding: '8px 16px',
+                                                    width: '100%',
+                                                    border: 'none',
+                                                    background: 'none',
+                                                    textAlign: 'left',
+                                                    fontSize: '0.82rem',
+                                                    fontWeight: 600,
+                                                    color: '#334155',
+                                                    cursor: 'pointer',
+                                                    transition: 'background-color 0.15s'
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                            >
+                                                {isPaused ? <PlayIcon size={14} color="#10b981" /> : <Pause size={14} color="#f59e0b" />}
+                                                <span style={{ flex: 1 }}>{isPaused ? 'Resume App' : 'Pause App'}</span>
+                                            </button>
+
+                                            {/* Restart App item */}
+                                            <button
+                                                onClick={() => {
+                                                    handleRestart();
+                                                    setMenuOpen(false);
+                                                }}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '10px',
+                                                    padding: '8px 16px',
+                                                    width: '100%',
+                                                    border: 'none',
+                                                    background: 'none',
+                                                    textAlign: 'left',
+                                                    fontSize: '0.82rem',
+                                                    fontWeight: 600,
+                                                    color: '#334155',
+                                                    cursor: 'pointer',
+                                                    transition: 'background-color 0.15s'
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                            >
+                                                <RotateCcw size={14} color="#4f46e5" />
+                                                <span style={{ flex: 1 }}>Restart App</span>
+                                            </button>
+
+                                            {/* Change App item */}
+                                            <button
+                                                onClick={() => {
+                                                    handleChangeApp();
+                                                    setMenuOpen(false);
+                                                }}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '10px',
+                                                    padding: '8px 16px',
+                                                    width: '100%',
+                                                    border: 'none',
+                                                    background: 'none',
+                                                    textAlign: 'left',
+                                                    fontSize: '0.82rem',
+                                                    fontWeight: 600,
+                                                    color: '#334155',
+                                                    cursor: 'pointer',
+                                                    transition: 'background-color 0.15s'
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                            >
+                                                <RefreshCw size={14} color="#0891b2" />
+                                                <span style={{ flex: 1 }}>Change App</span>
+                                            </button>
+
+                                            {/* Camera Capture item */}
+                                            <button
+                                                onClick={() => {
+                                                    setShowCameraModal(true);
+                                                    setMenuOpen(false);
+                                                }}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '10px',
+                                                    padding: '8px 16px',
+                                                    width: '100%',
+                                                    border: 'none',
+                                                    background: 'none',
+                                                    textAlign: 'left',
+                                                    fontSize: '0.82rem',
+                                                    fontWeight: 600,
+                                                    color: '#334155',
+                                                    cursor: 'pointer',
+                                                    transition: 'background-color 0.15s'
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                            >
+                                                <Camera size={14} color="#0d9488" />
+                                                <span style={{ flex: 1 }}>Camera Capture</span>
+                                            </button>
+
+                                            {/* Sign Session item */}
+                                            <button
+                                                onClick={() => {
+                                                    setShowSignatureModal(true);
+                                                    setMenuOpen(false);
+                                                }}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '10px',
+                                                    padding: '8px 16px',
+                                                    width: '100%',
+                                                    border: 'none',
+                                                    background: 'none',
+                                                    textAlign: 'left',
+                                                    fontSize: '0.82rem',
+                                                    fontWeight: 600,
+                                                    color: '#334155',
+                                                    cursor: 'pointer',
+                                                    transition: 'background-color 0.15s'
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                            >
+                                                <PenTool size={14} color="#ea580c" />
+                                                <span style={{ flex: 1 }}>Sign Session</span>
+                                            </button>
+
+                                            <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '4px 0' }} />
+
+                                            {/* Debug Panel toggle (if in dev mode) */}
+                                            {devMode && (
+                                                <button
+                                                    onClick={() => {
+                                                        setShowDebugPanel(!showDebugPanel);
+                                                        setMenuOpen(false);
+                                                    }}
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '10px',
+                                                        padding: '8px 16px',
+                                                        width: '100%',
+                                                        border: 'none',
+                                                        background: 'none',
+                                                        textAlign: 'left',
+                                                        fontSize: '0.82rem',
+                                                        fontWeight: 600,
+                                                        color: '#334155',
+                                                        cursor: 'pointer',
+                                                        transition: 'background-color 0.15s'
+                                                    }}
+                                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                                >
+                                                    <Bug size={14} color="#d97706" />
+                                                    <span style={{ flex: 1 }}>{showDebugPanel ? 'Hide Debugger' : 'Show Debugger'}</span>
+                                                </button>
+                                            )}
+
+                                            {/* Tech Details toggle */}
+                                            <button
+                                                onClick={() => {
+                                                    setShowTechDetails(!showTechDetails);
+                                                    setMenuOpen(false);
+                                                }}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '10px',
+                                                    padding: '8px 16px',
+                                                    width: '100%',
+                                                    border: 'none',
+                                                    background: 'none',
+                                                    textAlign: 'left',
+                                                    fontSize: '0.82rem',
+                                                    fontWeight: 600,
+                                                    color: '#334155',
+                                                    cursor: 'pointer',
+                                                    transition: 'background-color 0.15s'
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                            >
+                                                <Info size={14} color="#2563eb" />
+                                                <span style={{ flex: 1 }}>Technical Details</span>
+                                            </button>
+                                        </div>
                                     )}
-                                </button>
-                                <button
-                                    onClick={handlePauseToggle}
-                                    title={isPaused ? 'Resume App' : 'Pause App'}
-                                    style={{ 
-                                        width: '32px',
-                                        height: '32px',
-                                        borderRadius: '6px', 
-                                        border: 'none', 
-                                        backgroundColor: isPaused ? '#10b981' : '#f59e0b', 
-                                        color: 'white', 
-                                        cursor: 'pointer', 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        justifyContent: 'center',
-                                        transition: 'all 0.2s'
-                                    }}
-                                    onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.15)'}
-                                    onMouseLeave={e => e.currentTarget.style.filter = 'none'}
-                                >
-                                    {isPaused ? <PlayIcon size={16} /> : <Pause size={16} />}
-                                </button>
-                                <button
-                                    onClick={handleRestart}
-                                    title="Restart App"
-                                    style={{ 
-                                        width: '32px',
-                                        height: '32px',
-                                        borderRadius: '6px', 
-                                        border: 'none', 
-                                        backgroundColor: 'transparent', 
-                                        color: 'white', 
-                                        cursor: 'pointer', 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        justifyContent: 'center',
-                                        transition: 'all 0.2s'
-                                    }}
-                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
-                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
-                                >
-                                    <RotateCcw size={16} />
-                                </button>
-                                <button
-                                    onClick={handleChangeApp}
-                                    title="Change App"
-                                    style={{ 
-                                        width: '32px',
-                                        height: '32px',
-                                        borderRadius: '6px', 
-                                        border: 'none', 
-                                        backgroundColor: 'transparent', 
-                                        color: 'white', 
-                                        cursor: 'pointer', 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        justifyContent: 'center',
-                                        transition: 'all 0.2s'
-                                    }}
-                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
-                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
-                                >
-                                    <RefreshCw size={16} />
-                                </button>
-                                <button
-                                    onClick={() => setShowCameraModal(true)}
-                                    title="Camera Capture"
-                                    style={{ 
-                                        width: '32px',
-                                        height: '32px',
-                                        borderRadius: '6px', 
-                                        border: 'none', 
-                                        backgroundColor: 'transparent', 
-                                        color: 'white', 
-                                        cursor: 'pointer', 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        justifyContent: 'center',
-                                        transition: 'all 0.2s'
-                                    }}
-                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
-                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
-                                >
-                                    <Camera size={16} />
-                                </button>
-                                <button
-                                    onClick={() => setShowSignatureModal(true)}
-                                    title="Sign Session"
-                                    style={{ 
-                                        width: '32px',
-                                        height: '32px',
-                                        borderRadius: '6px', 
-                                        border: 'none', 
-                                        backgroundColor: 'transparent', 
-                                        color: 'white', 
-                                        cursor: 'pointer', 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        justifyContent: 'center',
-                                        transition: 'all 0.2s'
-                                    }}
-                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
-                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
-                                >
-                                    <PenTool size={16} />
-                                </button>
+                                </div>
                             </div>
-                        )}
-
-                        {/* Right Side: Lang, Prod/Dev, Debug, Info, Kiosk */}
-                        <div style={{ display: 'flex', gap: '6px', flexShrink: 0, alignItems: 'center' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '6px', gap: '2px' }}>
-                                <Globe size={11} color="white" />
-                                <select 
-                                    value={currentLanguage} 
-                                    onChange={(e) => changeLanguage(e.target.value)}
-                                    style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '0.72rem', fontWeight: 700, outline: 'none', cursor: 'pointer' }}
-                                >
-                                    <option value="en" style={{ color: 'black' }}>EN</option>
-                                    <option value="id" style={{ color: 'black' }}>ID</option>
-                                    <option value="ja" style={{ color: 'black' }}>JA</option>
-                                </select>
+                        </>
+                    ) : (
+                        /* No active app - show simple Row 1 layout only */
+                        <div style={{
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'space-between',
+                            padding: '0 16px', 
+                            height: '48px',
+                            backgroundColor: themeColor || '#1e293b',
+                            color: 'white',
+                            borderBottom: `1px solid ${themeColor || '#1e293b'}`,
+                            flexShrink: 0
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                {companyLogo && (
+                                    <img src={companyLogo} alt="Logo" style={{ height: '18px', objectFit: 'contain' }} />
+                                )}
+                                <span style={{ fontSize: '0.9rem', fontWeight: 800 }}>Select an app to begin</span>
                             </div>
-
-                            <button
-                                onClick={() => setDevMode(!devMode)}
-                                title="Toggle Developer Mode (Skip DB writes)"
-                                style={{ 
-                                    padding: '5px 8px', border: `1px solid rgba(255,255,255,0.2)`, borderRadius: '6px', 
-                                    backgroundColor: devMode ? 'rgba(255,255,255,0.2)' : 'transparent', color: 'white', 
-                                    cursor: 'pointer', display: 'flex', gap: '4px', alignItems: 'center', fontWeight: 700, fontSize: '0.72rem',
-                                    transition: 'all 0.2s'
-                                }}
-                                onMouseEnter={e => { if(!devMode) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
-                                onMouseLeave={e => { if(!devMode) e.currentTarget.style.backgroundColor = 'transparent'; }}
-                            >
-                                <Code size={11} /> {devMode ? 'Dev Mode' : 'Prod Mode'}
-                            </button>
-
-                            {devMode && (
+                            
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '6px', gap: '2px' }}>
+                                    <Globe size={11} color="white" />
+                                    <select 
+                                        value={currentLanguage} 
+                                        onChange={(e) => changeLanguage(e.target.value)}
+                                        style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '0.72rem', fontWeight: 700, outline: 'none', cursor: 'pointer' }}
+                                    >
+                                        <option value="en" style={{ color: 'black' }}>EN</option>
+                                        <option value="id" style={{ color: 'black' }}>ID</option>
+                                        <option value="ja" style={{ color: 'black' }}>JA</option>
+                                    </select>
+                                </div>
+                                
                                 <button
-                                    onClick={() => setShowDebugPanel(!showDebugPanel)}
-                                    title="Toggle Debug Inspector"
+                                    onClick={() => setDevMode(!devMode)}
                                     style={{ 
                                         padding: '5px 8px', border: `1px solid rgba(255,255,255,0.2)`, borderRadius: '6px', 
-                                        backgroundColor: showDebugPanel ? 'rgba(255,255,255,0.2)' : 'transparent', color: 'white', 
-                                        cursor: 'pointer', display: 'flex', gap: '4px', alignItems: 'center', fontWeight: 700, fontSize: '0.72rem',
-                                        transition: 'all 0.2s'
+                                        backgroundColor: devMode ? 'rgba(255,255,255,0.2)' : 'transparent', color: 'white', 
+                                        cursor: 'pointer', display: 'flex', gap: '4px', alignItems: 'center', fontWeight: 700, fontSize: '0.72rem'
                                     }}
-                                    onMouseEnter={e => { if(!showDebugPanel) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
-                                    onMouseLeave={e => { if(!showDebugPanel) e.currentTarget.style.backgroundColor = 'transparent'; }}
                                 >
-                                    <Bug size={11} /> Debug
+                                    <Code size={11} /> {devMode ? 'Dev Mode' : 'Prod Mode'}
                                 </button>
-                            )}
-                            
-                            {activeApp && (
+
                                 <button
-                                    onClick={() => setShowTechDetails(!showTechDetails)}
-                                    title="Technical Details"
+                                    onClick={toggleFullscreen}
                                     style={{ 
-                                        padding: '5px', 
-                                        border: '1px solid rgba(255,255,255,0.2)', 
-                                        borderRadius: '6px', 
-                                        backgroundColor: showTechDetails ? 'rgba(255,255,255,0.2)' : 'transparent', 
-                                        color: 'white', 
-                                        cursor: 'pointer', 
-                                        display: 'flex',
-                                        transition: 'all 0.2s'
+                                        padding: '5px 8px', border: `1px solid rgba(255,255,255,0.2)`, borderRadius: '6px', 
+                                        backgroundColor: isFullscreen ? 'rgba(0,0,0,0.3)' : 'transparent', color: 'white', 
+                                        cursor: 'pointer', display: 'flex', gap: '4px', alignItems: 'center', fontWeight: 700, fontSize: '0.72rem'
                                     }}
-                                    onMouseEnter={e => { if(!showTechDetails) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
-                                    onMouseLeave={e => { if(!showTechDetails) e.currentTarget.style.backgroundColor = 'transparent'; }}
                                 >
-                                    <Info size={12} />
+                                    {isFullscreen ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
+                                    Kiosk
                                 </button>
-                            )}
-                            <button
-                                onClick={toggleFullscreen}
-                                title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen / Kiosk Mode'}
-                                style={{ 
-                                    padding: '5px 8px', 
-                                    border: '1px solid rgba(255,255,255,0.2)', 
-                                    borderRadius: '6px', 
-                                    backgroundColor: isFullscreen ? 'rgba(0,0,0,0.3)' : 'transparent', 
-                                    color: 'white', 
-                                    cursor: 'pointer', 
-                                    display: 'flex', 
-                                    gap: '4px', 
-                                    alignItems: 'center', 
-                                    fontWeight: 700, 
-                                    fontSize: '0.72rem',
-                                    transition: 'all 0.2s'
-                                }}
-                                onMouseEnter={e => { if(!isFullscreen) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
-                                onMouseLeave={e => { if(!isFullscreen) e.currentTarget.style.backgroundColor = 'transparent'; }}
-                            >
-                                {isFullscreen ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
-                                {isFullscreen ? 'Exit' : 'Kiosk'}
-                            </button>
-                            <button
-                                onClick={() => {
-                                    if (window.confirm("Are you sure you want to log out?")) {
-                                        logout();
-                                        window.location.reload();
-                                    }
-                                }}
-                                title="Logout"
-                                style={{ 
-                                    padding: '5px 8px', 
-                                    border: '1px solid rgba(239,68,68,0.4)', 
-                                    borderRadius: '6px', 
-                                    backgroundColor: 'rgba(239,68,68,0.15)', 
-                                    color: '#fca5a5', 
-                                    cursor: 'pointer', 
-                                    display: 'flex', 
-                                    gap: '4px', 
-                                    alignItems: 'center', 
-                                    fontWeight: 700, 
-                                    fontSize: '0.72rem',
-                                    transition: 'all 0.2s'
-                                }}
-                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.35)'; }}
-                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.15)'; }}
-                            >
-                                <LogOut size={11} />
-                                Logout
-                            </button>
+                                
+                                <button
+                                    onClick={() => {
+                                        if (window.confirm("Are you sure you want to log out?")) {
+                                            logout();
+                                            window.location.reload();
+                                        }
+                                    }}
+                                    style={{ 
+                                        padding: '5px 8px', border: `1px solid rgba(239,68,68,0.4)`, borderRadius: '6px', 
+                                        backgroundColor: 'rgba(239,68,68,0.15)', color: '#fca5a5', cursor: 'pointer', 
+                                        display: 'flex', gap: '4px', alignItems: 'center', fontWeight: 700, fontSize: '0.72rem'
+                                    }}
+                                >
+                                    <LogOut size={11} /> Logout
+                                </button>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* Tech Details Dropdown */}
                     {showTechDetails && activeApp && (

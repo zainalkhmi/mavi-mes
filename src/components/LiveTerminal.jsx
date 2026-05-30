@@ -28,6 +28,7 @@ import {
   LayoutGrid,
   Loader2,
   Pause,
+  User,
   Hash,
   Package,
   Zap,
@@ -962,6 +963,7 @@ const LiveTerminal = () => {
   const [activeAndon, setActiveAndon] = useState(null); // { startTime, category, detail }
   const [andonCategory, setAndonCategory] = useState('');
   const [andonDetail, setAndonDetail] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const [appVariables, setAppVariables] = useState([]);
   const [globalLogic, setGlobalLogic] = useState(null);
@@ -970,6 +972,9 @@ const LiveTerminal = () => {
   // --- DERIVED STATE ---
   const steps = selectedApp ? (selectedApp.config?.steps || []) : (selectedManual?.content?.steps || []);
   const activeStep = steps[currentStepIndex];
+  const stepLabel = steps.length > 0
+    ? `Step ${currentStepIndex + 1} of ${steps.length}${activeStep?.title ? ` — ${activeStep.title}` : ''}`
+    : null;
   const baseComponents = selectedApp?.config?.baseComponents || [];
   const stepComponents = activeStep?.components || [];
   const appComponents = [...baseComponents, ...stepComponents];
@@ -5373,7 +5378,15 @@ const LiveTerminal = () => {
       case 'PDF': return (
         <div style={{ backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc', border: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, borderRadius: '8px', overflow: 'hidden' }}>
           <div style={{ padding: '10px 15px', borderBottom: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`, display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 600, fontSize: '0.9rem', color: selectedApp?.config?.appThemeMode === 'DARK' ? '#f8fafc' : '#0f172a' }}><FileText size={18} color="#ef4444" />{safeRender(comp.props.title)}</div>
-          {comp.props.url ? <iframe src={comp.props.url} style={{ width: '100%', height: '300px', border: 'none' }} title={comp.props.title} /> : <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>No PDF URL configured</div>}
+          {comp.props.url ? (
+            <iframe
+              src={comp.props.url.includes('#') ? (comp.props.url.includes('toolbar=') ? comp.props.url : `${comp.props.url}&toolbar=0`) : `${comp.props.url}#toolbar=0`}
+              style={{ width: '100%', height: '300px', border: 'none' }}
+              title={comp.props.title}
+            />
+          ) : (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>No PDF URL configured</div>
+          )}
         </div>
       );
       case 'BUTTON':
@@ -7904,7 +7917,15 @@ const LiveTerminal = () => {
         return (
           <div style={{ backgroundColor: isDark ? '#0f172a' : '#f8fafc', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '8px', overflow: 'hidden' }}>
             <div style={{ padding: '10px 15px', borderBottom: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 600, fontSize: '0.9rem', color: isDark ? '#f8fafc' : '#0f172a' }}>📄 {comp.props.title || 'Document'}</div>
-            {comp.props.url ? <iframe src={comp.props.url} style={{ width: '100%', height: '300px', border: 'none' }} title={comp.props.title} /> : <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>No document URL configured</div>}
+            {comp.props.url ? (
+              <iframe
+                src={comp.props.url.includes('#') ? (comp.props.url.includes('toolbar=') ? comp.props.url : `${comp.props.url}&toolbar=0`) : `${comp.props.url}#toolbar=0`}
+                style={{ width: '100%', height: '300px', border: 'none' }}
+                title={comp.props.title}
+              />
+            ) : (
+              <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>No document URL configured</div>
+            )}
           </div>
         );
       // ── GRID ──
@@ -8687,134 +8708,66 @@ const LiveTerminal = () => {
       fontFamily: "'Inter', sans-serif"
     }}>
       {/* MAVI HEADER */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '0 20px',
-        height: '64px',
-        backgroundColor: activeAndon ? '#dc2626' : '#001e3c',
-        color: 'white',
-        transition: 'background-color 0.3s ease'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          {selectedApp && window.self === window.top && (
-            <button
-              onClick={() => {
-                setSelectedApp(null);
-                setSelectedManual(null);
-                window.history.pushState(null, '', '/#/terminal');
-              }}
-              style={{
-                background: 'rgba(255,255,255,0.1)',
-                border: 'none',
-                color: 'white',
-                cursor: 'pointer',
-                padding: '6px',
-                borderRadius: '6px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'background-color 0.2s'
-              }}
-              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'}
-              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
-              title="Back to Selection"
-            >
-              <ArrowLeft size={18} />
-            </button>
-          )}
-          <div style={{ fontWeight: 900, fontSize: '1.2rem', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Zap size={20} fill="white" /> MAVI-M
-          </div>
-          <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
-          <div style={{ fontSize: '1.1rem', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {selectedApp ? selectedApp.name : selectedManual.title}
-            {selectedApp && !selectedApp.is_published && (
-              <span style={{
-                fontSize: '0.65rem',
-                backgroundColor: '#ef4444',
-                color: 'white',
-                padding: '2px 8px',
-                borderRadius: '4px',
-                fontWeight: 900,
-                letterSpacing: '0.5px'
-              }}>DRAFT</span>
-            )}
-            {selectedApp && selectedApp.is_published && (
-              <span style={{
-                fontSize: '0.65rem',
-                backgroundColor: '#22c55e',
-                color: 'white',
-                padding: '2px 8px',
-                borderRadius: '4px',
-                fontWeight: 900,
-                letterSpacing: '0.5px'
-              }}>V{selectedApp.version}</span>
-            )}
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
-          {/* Connectivity Badge */}
+      {window.self === window.top && (
+        <div className="mavi-header" style={{ display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+          {/* Row 1: Dark Header */}
           <div style={{
-            display: 'flex', alignItems: 'center', gap: '6px',
-            padding: '4px 12px', borderRadius: '20px',
-            backgroundColor: isOnline ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)',
-            color: 'white',
-            fontSize: '0.7rem', fontWeight: 800,
-            border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 16px',
+            height: '36px',
+            backgroundColor: activeAndon ? '#dc2626' : '#090d16',
+            color: '#94a3b8',
+            borderBottom: '1px solid #1e293b',
+            fontSize: '0.75rem',
+            fontWeight: 600,
+            transition: 'background-color 0.3s ease'
           }}>
-            <Wifi size={12} /> {isOnline ? 'ONLINE' : 'OFFLINE MODE'}
-          </div>
-          {activeAndon ? (
-            <button
-              onClick={handleResolveAndon}
-              style={{ padding: '8px 20px', backgroundColor: 'white', color: '#ef4444', border: 'none', borderRadius: '4px', fontWeight: 900, fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}
-            >
-              <CheckCircle2 size={18} /> RESOLVE ANDON
-            </button>
-          ) : (
-            [
-              {
-                icon: <MessageSquare size={20} />,
-                label: 'Chat',
-                onClick: () => setShowChat(!showChat)
-              },
-              {
-                icon: <HelpCircle size={20} />,
-                label: 'Help',
-                onClick: () => alert('Help documentation not yet configured for this workstation.')
-              },
-              {
-                icon: <AlertCircle size={20} />,
-                label: 'Andon',
-                onClick: () => setShowAndonModal(true)
-              }
-            ].map(item => (
-              <div
-                key={item.label}
-                onClick={item.onClick}
-                title={item.label}
-                onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
-                onMouseLeave={(e) => e.currentTarget.style.opacity = 0.8}
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', cursor: 'pointer', opacity: 0.8, transition: 'opacity 0.2s' }}
-              >
-                {item.icon}
-                <span style={{ fontSize: '0.65rem' }}>{item.label}</span>
+            {/* Left side: Operator and Station Info */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'white', fontWeight: 900 }}>
+                <Zap size={14} fill="white" /> MAVI-M
               </div>
-            ))
-          )}
-          <div style={{ width: '1px', height: '32px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#00d1ff' }} />
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>Operator</div>
-                <div style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>{appContext.user} • {appContext.station}</div>
+              <div style={{ width: '1px', height: '12px', backgroundColor: '#1e293b' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+                <User size={12} color="#3b82f6" />
+                <span>USER: <strong style={{ color: 'white' }}>{appContext.user || '-'}</strong></span>
+              </div>
+              <div style={{ width: '1px', height: '12px', backgroundColor: '#1e293b' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+                <MapPin size={12} color="#10b981" />
+                <span>STATION: <strong style={{ color: 'white' }}>{appContext.station || '-'}</strong></span>
               </div>
             </div>
-            {window.self === window.top && (
+
+            {/* Right side: Global settings */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              {/* Network Connectivity Badge */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '4px',
+                padding: '2px 8px', borderRadius: '20px',
+                backgroundColor: isOnline ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                color: 'white',
+                fontSize: '0.65rem', fontWeight: 800,
+                border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`
+              }}>
+                <Wifi size={10} /> {isOnline ? 'ONLINE' : 'OFFLINE'}
+              </div>
+
+              {/* Language Selection */}
+              <div
+                style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                onClick={() => setShowOperatorMenu(true)}
+                title="Change Language / Operator Settings"
+              >
+                <Globe size={12} color="#cbd5e1" />
+                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#cbd5e1' }}>{currentLanguage}</span>
+              </div>
+
+              <div style={{ width: '1px', height: '12px', backgroundColor: '#1e293b' }} />
+
+              {/* Logout button */}
               <button
                 onClick={() => {
                   if (window.confirm("Are you sure you want to log out?")) {
@@ -8826,26 +8779,269 @@ const LiveTerminal = () => {
                   background: 'rgba(239, 68, 68, 0.2)',
                   border: '1px solid rgba(239, 68, 68, 0.4)',
                   color: '#fca5a5',
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  fontSize: '0.75rem',
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  fontSize: '0.7rem',
                   fontWeight: 700,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px',
+                  gap: '4px',
                   transition: 'all 0.2s'
                 }}
-                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.35)'}
-                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)'}
               >
-                <LogOut size={12} />
+                <LogOut size={10} />
                 Logout
               </button>
-            )}
+            </div>
+          </div>
+
+          {/* Row 2: Slate Title Bar */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '0 16px',
+            height: '52px',
+            backgroundColor: activeAndon ? '#b91c1c' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : '#001e3c'),
+            color: 'white',
+            borderBottom: activeAndon ? '1px solid #b91c1c' : '1px solid rgba(255,255,255,0.1)',
+            position: 'relative'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+              <span style={{ fontSize: '1.15rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {selectedApp ? selectedApp.name : (selectedManual ? selectedManual.title : 'Live Terminal')}
+              </span>
+              {selectedApp && (
+                <>
+                  <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
+                  <span style={{ fontSize: '0.75rem', color: '#cbd5e1', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                    {!selectedApp.is_published ? (
+                      <span style={{ backgroundColor: '#ef4444', color: 'white', padding: '1px 6px', borderRadius: '4px', fontWeight: 800, fontSize: '0.65rem' }}>DRAFT</span>
+                    ) : (
+                      <span style={{ backgroundColor: '#22c55e', color: 'white', padding: '1px 6px', borderRadius: '4px', fontWeight: 800, fontSize: '0.65rem' }}>V{selectedApp.version}</span>
+                    )}
+                  </span>
+                </>
+              )}
+              {(selectedApp || selectedManual) && (
+                <>
+                  <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
+                  <span style={{ fontSize: '0.75rem', color: '#cbd5e1', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                    Duration: <strong style={{ color: 'white', fontFamily: 'monospace' }}>{formatTime(timer)}</strong>
+                  </span>
+                </>
+              )}
+              {stepLabel && (
+                <>
+                  <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
+                  <span style={{
+                    fontSize: '0.72rem', fontWeight: 700,
+                    color: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : '#001e3c',
+                    backgroundColor: 'white',
+                    borderRadius: '4px', padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap',
+                    overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '300px'
+                  }}>
+                    <ChevronRight size={12} /> {stepLabel}
+                  </span>
+                </>
+              )}
+            </div>
+
+            {/* Right side: Consolidated Actions Dropdown Menu */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setMenuOpen(!menuOpen)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  backgroundColor: menuOpen ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)',
+                  color: 'white',
+                  fontWeight: 700,
+                  fontSize: '0.78rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s'
+                }}
+              >
+                <Menu size={14} />
+                Menu
+                <ChevronDown size={12} style={{ transform: menuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+              </button>
+
+              {menuOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  width: '240px',
+                  backgroundColor: 'white',
+                  color: '#1e293b',
+                  borderRadius: '8px',
+                  boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.15)',
+                  padding: '6px 0',
+                  border: '1px solid #cbd5e1',
+                  zIndex: 1000,
+                  marginTop: '6px',
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}>
+                  {/* Back to Selection */}
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setSelectedApp(null);
+                      setSelectedManual(null);
+                      window.history.pushState(null, '', '/#/terminal');
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '8px 16px',
+                      width: '100%',
+                      border: 'none',
+                      background: 'none',
+                      textAlign: 'left',
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      color: '#334155',
+                      cursor: 'pointer',
+                      transition: 'background-color 0.15s'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <ArrowLeft size={14} color="#64748b" />
+                    <span style={{ flex: 1 }}>Back to Selection</span>
+                  </button>
+
+                  {/* Toggle Chat */}
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setShowChat(!showChat);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '8px 16px',
+                      width: '100%',
+                      border: 'none',
+                      background: 'none',
+                      textAlign: 'left',
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      color: '#334155',
+                      cursor: 'pointer',
+                      transition: 'background-color 0.15s'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <MessageSquare size={14} color="#0284c7" />
+                    <span style={{ flex: 1 }}>Toggle Chat</span>
+                  </button>
+
+                  {/* Report Defect */}
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setShowDefectModal(true);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '8px 16px',
+                      width: '100%',
+                      border: 'none',
+                      background: 'none',
+                      textAlign: 'left',
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      color: '#334155',
+                      cursor: 'pointer',
+                      transition: 'background-color 0.15s'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <XCircle size={14} color="#ef4444" />
+                    <span style={{ flex: 1 }}>Report Defect</span>
+                  </button>
+
+                  {/* Andon Status */}
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      if (activeAndon) {
+                        handleResolveAndon();
+                      } else {
+                        setShowAndonModal(true);
+                      }
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '8px 16px',
+                      width: '100%',
+                      border: 'none',
+                      background: 'none',
+                      textAlign: 'left',
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      color: activeAndon ? '#ef4444' : '#334155',
+                      cursor: 'pointer',
+                      transition: 'background-color 0.15s'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <AlertCircle size={14} color={activeAndon ? '#ef4444' : '#eab308'} />
+                    <span style={{ flex: 1 }}>{activeAndon ? 'Resolve Andon' : 'Pull Andon'}</span>
+                  </button>
+
+                  <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '4px 0' }} />
+
+                  {/* Station Diagnostics */}
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setShowDiagnostics(true);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '8px 16px',
+                      width: '100%',
+                      border: 'none',
+                      background: 'none',
+                      textAlign: 'left',
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      color: '#334155',
+                      cursor: 'pointer',
+                      transition: 'background-color 0.15s'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <HardDrive size={14} color="#6366f1" />
+                    <span style={{ flex: 1 }}>Station Diagnostics</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* MAIN CONTENT AREA */}
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>

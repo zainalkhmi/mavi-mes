@@ -12867,7 +12867,11 @@ const AppBuilder = () => {
                         </div>
                         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
                             {comp.props.url ? (
-                                <iframe src={comp.props.url} style={{ width: '100%', height: '100%', border: 'none' }} title="PDF Content"></iframe>
+                                <iframe
+                                    src={comp.props.url.includes('#') ? (comp.props.url.includes('toolbar=') ? comp.props.url : `${comp.props.url}&toolbar=0`) : `${comp.props.url}#toolbar=0`}
+                                    style={{ width: '100%', height: '100%', border: 'none' }}
+                                    title="PDF Content"
+                                />
                             ) : (
                                 <div style={{ textAlign: 'center' }}>
                                     <FileText size={40} color="#cbd5e1" style={{ marginBottom: '10px' }} />
