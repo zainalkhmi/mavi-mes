@@ -14,6 +14,27 @@
  *   await obd2Service.disconnect();
  */
 
+let tauriInvoke = null;
+let tauriListen = null;
+let tauriUnlisten = null;
+
+async function getTauriApi() {
+    if (window.__TAURI_INTERNALS__) {
+        if (!tauriInvoke) {
+            try {
+                const core = await import('@tauri-apps/api/core');
+                const eventApi = await import('@tauri-apps/api/event');
+                tauriInvoke = core.invoke;
+                tauriListen = eventApi.listen;
+            } catch (e) {
+                console.warn('Failed to load Tauri APIs:', e);
+            }
+        }
+        return { invoke: tauriInvoke, listen: tauriListen };
+    }
+    return { invoke: null, listen: null };
+}
+
 // ─── ELM327 BLE UUIDs ────────────────────────────────────────────────────────
 const BLE_UUID = {
     FFE0_SVC:  '0000ffe0-0000-1000-8000-00805f9b34fb',
@@ -231,6 +252,12 @@ class OBD2Service {
                 });
             } else if (this.transport === 'WIFI' && this._wsPort && this._wsPort.readyState === 1) {
                 this._wsPort.send(cmd + '\r');
+            } else if (this.transport === 'WIFI_TAURI' && tauriInvoke) {
+                tauriInvoke('tcp_send', { data: cmd + '\r' }).catch(err => {
+                    clearTimeout(this._pendingTimer);
+                    this._pendingRes = null;
+                    reject(new Error(err));
+                });
             } else {
                 clearTimeout(this._pendingTimer);
                 this._pendingRes = null;
@@ -385,11 +412,51 @@ class OBD2Service {
     // ── WiFi Connect ───────────────────────────────────────────────────────────
     async connectWiFi(ipAddress = '192.168.0.10', port = 35000) {
         this._setStatus('connecting');
+        
+        // Native TCP via Tauri
+        const { invoke, listen } = await getTauriApi();
+        if (invoke && listen) {
+            try {
+                await invoke('tcp_connect', { ip: ipAddress, port });
+                
+                // Cleanup previous listener if any
+                if (tauriUnlisten) {
+                    tauriUnlisten();
+                    tauriUnlisten = null;
+                }
+
+                // Listen for incoming data
+                const unlistenData = await listen('tcp-data', (event) => {
+                    if (event.payload) {
+                        this._handleChunk(event.payload);
+                    }
+                });
+                
+                const unlistenDisconnect = await listen('tcp-disconnect', () => {
+                    if (this.transport === 'WIFI_TAURI') {
+                        this.connected = false;
+                        this._setStatus('disconnected');
+                    }
+                });
+
+                tauriUnlisten = () => {
+                    unlistenData();
+                    unlistenDisconnect();
+                };
+
+                this.transport = 'WIFI_TAURI';
+                await this._initELM327();
+                this.connected = true;
+                this._setStatus('connected');
+                return true;
+            } catch (err) {
+                this._setStatus('error');
+                throw new Error(err.message || String(err));
+            }
+        }
+        
         try {
-            // Note: Browsers cannot open raw TCP sockets directly.
-            // This implementation uses WebSockets. For native WiFi OBD2 dongles,
-            // you may need a local TCP-to-WebSocket proxy or run in an environment
-            // that polyfills WebSockets to raw TCP (like a native app wrapper).
+            // Fallback for Web Browser using WebSocket proxy
             const wsUrl = `ws://${ipAddress}:${port}`;
             this._wsPort = new WebSocket(wsUrl);
 
@@ -672,6 +739,13 @@ class OBD2Service {
         if (this._wsPort) {
             try { this._wsPort.close(); } catch {}
             this._wsPort = null;
+        }
+        if (this.transport === 'WIFI_TAURI' && tauriInvoke) {
+            try { await tauriInvoke('tcp_disconnect'); } catch {}
+            if (tauriUnlisten) {
+                tauriUnlisten();
+                tauriUnlisten = null;
+            }
         }
         this._btDevice  = null;
         this.connected  = false;

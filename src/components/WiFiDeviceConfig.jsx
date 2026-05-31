@@ -118,6 +118,25 @@ const SIMULATED_WIFI_DEVICES = [
       on: false,
       power: 0
     }
+  },
+  {
+    id: 'obd2_elm327_wifi',
+    ip: '192.168.0.10',
+    mac: '11:22:33:44:55:66',
+    hostname: 'wifi_obdii',
+    platform: 'OBD2',
+    brand: 'ELM327',
+    model: 'WiFi OBD2',
+    type: 'SENSOR',
+    icon: '🚗',
+    rssi: -40,
+    online: true,
+    capabilities: ['rpm', 'speed', 'coolant_temp', 'battery_voltage', 'dtc_count'],
+    telemetry: {
+      rpm: 850,
+      speed: 0,
+      temperature: 85
+    }
   }
 ];
 

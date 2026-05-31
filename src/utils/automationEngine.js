@@ -538,25 +538,76 @@ class AutomationEngine {
           source: 'AutomationEngine'
         });
 
-      case 'HTTP_REQUEST':
-      case 'CONNECTOR_FUNCTION':
+      case 'HTTP_REQUEST': {
         const url = this.resolveValue(action.urlPath, eventData) || action.url;
-        console.log(`[AutomationEngine] Calling HTTP Connector: ${url}`);
+        console.log(`[AutomationEngine] HTTP Request: ${url}`);
         return fetch(url, {
           method: action.method || 'GET',
           headers: action.headers || { 'Content-Type': 'application/json' },
           body: action.method !== 'GET' ? JSON.stringify(action.data || {}) : null
         }).then(res => res.json())
           .then(data => {
-            console.log(`[AutomationEngine] Connector success:`, data);
-            // After connector finishes, we could potentially trigger a follow-up
+            console.log(`[AutomationEngine] HTTP success:`, data);
             this.trigger('CONNECTOR_TRIGGER', { url, data, status: 'success' });
             return data;
           }).catch(err => {
-            console.error(`[AutomationEngine] Connector failed:`, err);
+            console.error(`[AutomationEngine] HTTP failed:`, err);
             this.trigger('CONNECTOR_TRIGGER', { url, error: err.message, status: 'error' });
             throw err;
           });
+      }
+
+      case 'CONNECTOR_FUNCTION':
+      case 'CALL_CONNECTOR': {
+        // Use connectorHub — resolves connector config, calls SAP/Odoo/FrePPLe/HTTP
+        const connectorId = this.resolveValue(action.connectorIdPath, eventData) || action.connectorId;
+        const functionName = this.resolveValue(action.functionNamePath, eventData) || action.functionName;
+
+        if (!connectorId || !functionName) {
+          throw new Error(`CALL_CONNECTOR: connectorId and functionName are required.`);
+        }
+
+        // Resolve input mapping: { paramName: 'path.in.eventData' }
+        const resolvedInputs = {};
+        if (action.inputMapping) {
+          Object.entries(action.inputMapping).forEach(([param, valuePath]) => {
+            resolvedInputs[param] = typeof valuePath === 'string'
+              ? (this.resolveValue(valuePath, eventData) ?? valuePath)
+              : valuePath;
+          });
+        }
+
+        console.log(`[AutomationEngine] CALL_CONNECTOR: ${connectorId}.${functionName}`, resolvedInputs);
+
+        return import('./connectorHub').then(async ({ executeConnector }) => {
+          try {
+            const result = await executeConnector(connectorId, functionName, resolvedInputs);
+            console.log(`[AutomationEngine] Connector result:`, result);
+
+            // Apply output mapping: { 'app.variable': 'result.path' }
+            if (action.outputMapping) {
+              Object.entries(action.outputMapping).forEach(([targetPath, sourcePath]) => {
+                const val = sourcePath === '$' ? result : this.resolveValue(sourcePath, result);
+                // Write back into eventData so downstream actions can use it
+                const parts = targetPath.split('.');
+                let obj = eventData;
+                for (let i = 0; i < parts.length - 1; i++) {
+                  if (!obj[parts[i]]) obj[parts[i]] = {};
+                  obj = obj[parts[i]];
+                }
+                obj[parts[parts.length - 1]] = val;
+              });
+            }
+
+            this.trigger('CONNECTOR_TRIGGER', { connectorId, functionName, data: result, status: 'success' });
+            return result;
+          } catch (err) {
+            console.error(`[AutomationEngine] Connector call failed:`, err.message);
+            this.trigger('CONNECTOR_TRIGGER', { connectorId, functionName, error: err.message, status: 'error' });
+            throw err;
+          }
+        });
+      }
 
       case 'SEND_NOTIFICATION':
         const recipient = this.resolveValue(action.recipientPath, eventData) || action.recipient;
