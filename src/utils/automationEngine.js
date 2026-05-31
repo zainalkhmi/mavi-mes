@@ -205,7 +205,7 @@ class AutomationEngine {
         if (eventType === 'WEBHOOK' && eventData.id === t.id) return true;
 
         // Machine/Device check
-        if (eventType === 'MACHINE_TRIGGER' || eventType === 'DEVICE') {
+        if (eventType === 'MACHINE_TRIGGER' || eventType === 'DEVICE' || eventType === 'OBD2_TRIGGER') {
           const config = t.config || t;
           if (config.topic && eventData.topic !== config.topic) return false;
           if (config.pid && eventData.pid !== config.pid) return false;
@@ -450,8 +450,8 @@ class AutomationEngine {
     const context = { ...this.SYSTEM_VARIABLES, ...eventData, SYS_TIME: new Date().toLocaleTimeString() };
     const { field, operator, value } = condition;
 
-    // Resolve value from eventData if it's a dynamic path (e.g., "record.quantity")
-    const actualValue = this.resolveValue(field, context);
+    // Resolve value from eventData: default to context.value if field is empty (specifically for OBD2_TRIGGER)
+    const actualValue = field ? this.resolveValue(field, context) : context.value;
     const targetValue = value;
 
     console.log(`[AutomationEngine] Evaluating: ${actualValue} ${operator} ${targetValue}`);

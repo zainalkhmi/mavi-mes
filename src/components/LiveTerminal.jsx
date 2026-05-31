@@ -99,6 +99,7 @@ import {
 } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
 import obd2Service from '../utils/obd2Service';
+import automationEngine from '../utils/automationEngine';
 import WebcamComp from 'react-webcam';
 import Tesseract from 'tesseract.js';
 import { listManualSummaries, getManualById, uploadManualImage } from '../utils/supabaseManualDB';
@@ -980,6 +981,22 @@ const LiveTerminal = () => {
   const stepComponents = useMemo(() => activeStep?.components || [], [activeStep]);
   const appComponents = useMemo(() => [...baseComponents, ...stepComponents], [baseComponents, stepComponents]);
 
+  const selectedAppRef = useRef(selectedApp);
+  const currentStepIndexRef = useRef(currentStepIndex);
+  const appComponentsRef = useRef(appComponents);
+
+  useEffect(() => {
+    selectedAppRef.current = selectedApp;
+  }, [selectedApp]);
+
+  useEffect(() => {
+    currentStepIndexRef.current = currentStepIndex;
+  }, [currentStepIndex]);
+
+  useEffect(() => {
+    appComponentsRef.current = appComponents;
+  }, [appComponents]);
+
   const [canvasWrapper, setCanvasWrapper] = useState(null);
   const [containerWidth, setContainerWidth] = useState(1280);
   const [containerHeight, setContainerHeight] = useState(800);
@@ -1073,10 +1090,44 @@ const LiveTerminal = () => {
     const unsubStatus = obd2Service.subscribeStatus(s => setObd2Status(s));
     const unsubData = obd2Service.onPIDData('*', (data) => {
       if (data && data.pid) {
+        const upperPid = data.pid.toUpperCase();
         setObd2Values(prev => ({
           ...prev,
-          [data.pid.toUpperCase()]: data
+          [upperPid]: data
         }));
+
+        // 1. Trigger background automation rules listening for OBD2_TRIGGER
+        automationEngine.trigger('OBD2_TRIGGER', {
+          pid: upperPid,
+          value: data.value,
+          unit: data.unit
+        });
+
+        // 2. Fire widget triggers for components matching this PID on the current step
+        const curApp = selectedAppRef.current;
+        const curStepIdx = currentStepIndexRef.current;
+        const curComps = appComponentsRef.current;
+
+        if (curApp && curApp.config && curApp.config.steps && curComps) {
+          const activeStep = curApp.config.steps[curStepIdx];
+          const activeStepId = activeStep?.id;
+
+          curComps.forEach(comp => {
+            // Only fire if widget is in the active step or is base/global
+            const isCurrentStep = !comp.step_id || comp.step_id === activeStepId;
+            if (!isCurrentStep) return;
+
+            const defaultPid = OBD2_DEFAULT_PIDS[comp.type];
+            const compPid = comp.props?.pid || defaultPid;
+            if (compPid && compPid.toUpperCase() === upperPid) {
+              fireWidgetTriggers(comp, 'ON_CHANGE', {
+                value: data.value,
+                unit: data.unit,
+                pid: data.pid
+              });
+            }
+          });
+        }
       }
     });
     return () => {
