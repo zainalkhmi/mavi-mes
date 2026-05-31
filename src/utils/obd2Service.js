@@ -72,7 +72,7 @@ export const PID_DECODERS = {
 };
 
 // Derived / calculated PIDs (not standard OBD, computed from real PIDs)
-const DERIVED_PIDS = new Set(['BOOST_EST', 'TORQUE_EST', 'HP_EST', 'KNOCK', 'FREEZE_FRAME', 'DTC']);
+const DERIVED_PIDS = new Set(['BOOST_EST', 'TORQUE_EST', 'HP_EST', 'KNOCK', 'FREEZE_FRAME', 'DTC', 'VIN']);
 
 // ─── Response Parser ──────────────────────────────────────────────────────────
 /**
@@ -174,6 +174,9 @@ class OBD2Service {
         this._statusListeners = new Set();
         this._dataListeners   = new Map(); // pid -> Set<fn>
         this._liveTimers      = new Map(); // compId -> intervalId
+        
+        // Data smoothing
+        this._smoothedValues  = {};
     }
 
     // ── Status Management ──────────────────────────────────────────────────────
@@ -223,7 +226,7 @@ class OBD2Service {
     }
 
     _sendRaw(cmd, timeoutMs = 3000) {
-        return new Promise((resolve, reject) => {
+        const execute = () => new Promise((resolve, reject) => {
             if (this._pendingRes) {
                 return reject(new Error('Device busy'));
             }
@@ -264,6 +267,17 @@ class OBD2Service {
                 reject(new Error('Not connected'));
             }
         });
+
+        if (!this._requestQueue) this._requestQueue = Promise.resolve();
+        
+        const next = this._requestQueue.then(
+            () => execute(),
+            () => execute()
+        );
+        
+        this._requestQueue = next.catch(() => {});
+        
+        return next;
     }
 
 
@@ -536,6 +550,24 @@ class OBD2Service {
             }
         }
 
+        // Special handling for VIN queries
+        if (normalizedPid === 'VIN') {
+            try {
+                const vinInfo = await this.readVIN();
+                const result = { 
+                    value: vinInfo ? vinInfo.vin : 'Unknown', 
+                    unit: '', 
+                    label: 'Vehicle Identification Number', 
+                    extra: vinInfo 
+                };
+                this._emitPIDData('VIN', { ...result, timestamp: Date.now() });
+                return result;
+            } catch (err) {
+                console.warn(`[OBD2] queryPID(VIN) error:`, err.message);
+                return null;
+            }
+        }
+
         if (this.simulated) {
             let value = 0;
             let unit = '';
@@ -613,10 +645,43 @@ class OBD2Service {
         if (DERIVED_PIDS.has(normalizedPid)) return null; 
 
         try {
-            const raw = await this._sendRaw(pid, 3500);
+            // Optimization: tell ELM327 to return exactly 1 frame for Mode 01 real-time params.
+            // This bypasses the internal timeout, making polling lightning fast.
+            let cmd = pid;
+            if (pid.length === 4 && pid.startsWith('01') && pid !== '0100' && pid !== '0120' && pid !== '0140' && pid !== '0160') {
+                cmd = pid + '1';
+            }
+            const raw = await this._sendRaw(cmd, 3500);
             if (pid === '010C') console.log(`[OBD2 DEBUG] PID: ${pid}, Raw: "${raw}"`);
             const result = parseOBDResponse(raw, pid);
             if (result) {
+                // Apply Exponential Moving Average (EMA) for smoother number transitions
+                if (typeof result.value === 'number') {
+                    const isInt = Number.isInteger(result.value);
+                    const alpha = 0.08; // Much smoother / heavier filtering
+                    
+                    if (this._smoothedValues[pid] === undefined) {
+                        this._smoothedValues[pid] = result.value;
+                    } else {
+                        // Snap if there is a massive sudden change to avoid dragging
+                        if (Math.abs(result.value - this._smoothedValues[pid]) > Math.max(250, result.value * 0.35)) {
+                            this._smoothedValues[pid] = result.value;
+                        } else {
+                            this._smoothedValues[pid] = (alpha * result.value) + ((1 - alpha) * this._smoothedValues[pid]);
+                        }
+                    }
+                    
+                    // Format back to readable precision
+                    if (pid === '010C') {
+                        // Engine RPM: Round to nearest 10 to stop digital text flickering
+                        result.value = Math.round(this._smoothedValues[pid] / 10) * 10;
+                    } else if (isInt) {
+                        result.value = Math.round(this._smoothedValues[pid]);
+                    } else {
+                        result.value = Number(this._smoothedValues[pid].toFixed(2));
+                    }
+                }
+                
                 this._emitPIDData(pid, { ...result, timestamp: Date.now() });
             }
             return result;
@@ -628,6 +693,106 @@ class OBD2Service {
 
 
     // ── DTC Methods ────────────────────────────────────────────────────────────
+    /**
+     * Read Vehicle Identification Number (Mode 09 PID 02).
+     */
+    async readVIN() {
+        if (!this.connected) throw new Error('OBD2: Not connected');
+        if (this.simulated) {
+            return { vin: 'JHM1234567890ABCD', brand: 'Honda', country: 'Japan' };
+        }
+        
+        try {
+            const raw = await this._sendRaw('0902', 8000);
+            const clean = raw.replace(/[\r\n\s]/g, '').toUpperCase();
+            if (clean.includes('NODATA') || clean.includes('ERROR')) return null;
+
+            let asciiStr = '';
+            for (let i = 0; i + 1 < clean.length; i += 2) {
+                const code = parseInt(clean.substring(i, i + 2), 16);
+                if (code >= 32 && code <= 126) {
+                    asciiStr += String.fromCharCode(code);
+                }
+            }
+
+            const vinMatch = asciiStr.match(/[A-HJ-NPR-Z0-9]{17}/);
+            if (!vinMatch) {
+                return { vin: 'Unknown', brand: 'Unknown', country: 'Unknown', raw: asciiStr };
+            }
+            
+            const vin = vinMatch[0];
+            const wmiInfo = this.decodeWMI(vin.substring(0, 3));
+            return { vin, ...wmiInfo };
+        } catch (e) {
+            console.warn('[OBD2] Error reading VIN:', e.message);
+            return null;
+        }
+    }
+
+    decodeWMI(wmi) {
+        const wmiMap = {
+            'JHM': { brand: 'Honda', country: 'Japan' },
+            'JHL': { brand: 'Honda', country: 'Japan' },
+            'JTD': { brand: 'Toyota', country: 'Japan' },
+            'JT1': { brand: 'Toyota', country: 'Japan' },
+            'JT2': { brand: 'Toyota', country: 'Japan' },
+            'JT3': { brand: 'Toyota', country: 'Japan' },
+            'JT4': { brand: 'Toyota', country: 'Japan' },
+            'JT5': { brand: 'Toyota', country: 'Japan' },
+            'JT6': { brand: 'Toyota', country: 'Japan' },
+            'JT8': { brand: 'Toyota', country: 'Japan' },
+            'JTN': { brand: 'Toyota', country: 'Japan' },
+            'WBA': { brand: 'BMW', country: 'Germany' },
+            'WBS': { brand: 'BMW M', country: 'Germany' },
+            'WBY': { brand: 'BMW i', country: 'Germany' },
+            'WDB': { brand: 'Mercedes-Benz', country: 'Germany' },
+            'WDC': { brand: 'Mercedes-Benz', country: 'Germany' },
+            'WDD': { brand: 'Mercedes-Benz', country: 'Germany' },
+            'TRU': { brand: 'Audi', country: 'Hungary' },
+            'WAU': { brand: 'Audi', country: 'Germany' },
+            'WP0': { brand: 'Porsche', country: 'Germany' },
+            'VWV': { brand: 'Volkswagen', country: 'Germany' },
+            'WVW': { brand: 'Volkswagen', country: 'Germany' },
+            '1G1': { brand: 'Chevrolet', country: 'USA' },
+            '1G': { brand: 'General Motors', country: 'USA' },
+            '1F': { brand: 'Ford', country: 'USA' },
+            '1C': { brand: 'Chrysler', country: 'USA' },
+            '2T': { brand: 'Toyota', country: 'Canada' },
+            '2H': { brand: 'Honda', country: 'Canada' },
+            '3H': { brand: 'Honda', country: 'Mexico' },
+            '3VW': { brand: 'Volkswagen', country: 'Mexico' },
+            'KN': { brand: 'Kia', country: 'South Korea' },
+            'KM': { brand: 'Hyundai', country: 'South Korea' },
+            'SAJ': { brand: 'Jaguar', country: 'UK' },
+            'SAL': { brand: 'Land Rover', country: 'UK' },
+            'SCC': { brand: 'Lotus', country: 'UK' },
+            'SHS': { brand: 'Honda', country: 'UK' },
+            'SJN': { brand: 'Nissan', country: 'UK' },
+            'TMA': { brand: 'Hyundai', country: 'Czech Republic' },
+            'TMB': { brand: 'Skoda', country: 'Czech Republic' },
+            'VF1': { brand: 'Renault', country: 'France' },
+            'VF3': { brand: 'Peugeot', country: 'France' },
+            'VF7': { brand: 'Citroen', country: 'France' },
+            'VR1': { brand: 'DS Automobiles', country: 'France' },
+            'ZAR': { brand: 'Alfa Romeo', country: 'Italy' },
+            'ZAM': { brand: 'Maserati', country: 'Italy' },
+            'ZAP': { brand: 'Piaggio', country: 'Italy' },
+            'ZDF': { brand: 'Ferrari', country: 'Italy' },
+            'ZFF': { brand: 'Ferrari', country: 'Italy' },
+            'MHF': { brand: 'Toyota', country: 'Indonesia' },
+            'MHK': { brand: 'Honda', country: 'Indonesia' },
+            'MMB': { brand: 'Mitsubishi', country: 'Thailand' },
+            'MMC': { brand: 'Mitsubishi', country: 'Thailand' },
+            'MRO': { brand: 'Toyota', country: 'Thailand' },
+            'MRH': { brand: 'Honda', country: 'Thailand' },
+            'RL4': { brand: 'Ford', country: 'Vietnam' }
+        };
+        if (wmiMap[wmi]) return wmiMap[wmi];
+        const wmi2 = wmi.substring(0, 2);
+        if (wmiMap[wmi2]) return wmiMap[wmi2];
+        return { brand: 'Unknown Brand', country: 'Unknown' };
+    }
+
     /**
      * Read Diagnostic Trouble Codes (Mode 03).
      * @returns {string[]} e.g. ['P0300', 'P0420']

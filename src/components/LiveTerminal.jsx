@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import QRCode from 'react-qr-code';
+import { Wallet } from 'lucide-react';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -970,14 +971,14 @@ const LiveTerminal = () => {
   const [blocklyRuntimeError, setBlocklyRuntimeError] = useState(null);
 
   // --- DERIVED STATE ---
-  const steps = selectedApp ? (selectedApp.config?.steps || []) : (selectedManual?.content?.steps || []);
+  const steps = useMemo(() => selectedApp ? (selectedApp.config?.steps || []) : (selectedManual?.content?.steps || []), [selectedApp, selectedManual]);
   const activeStep = steps[currentStepIndex];
   const stepLabel = steps.length > 0
     ? `Step ${currentStepIndex + 1} of ${steps.length}${activeStep?.title ? ` — ${activeStep.title}` : ''}`
     : null;
-  const baseComponents = selectedApp?.config?.baseComponents || [];
-  const stepComponents = activeStep?.components || [];
-  const appComponents = [...baseComponents, ...stepComponents];
+  const baseComponents = useMemo(() => selectedApp?.config?.baseComponents || [], [selectedApp]);
+  const stepComponents = useMemo(() => activeStep?.components || [], [activeStep]);
+  const appComponents = useMemo(() => [...baseComponents, ...stepComponents], [baseComponents, stepComponents]);
 
   const [canvasWrapper, setCanvasWrapper] = useState(null);
   const [containerWidth, setContainerWidth] = useState(1280);
@@ -1107,22 +1108,33 @@ const LiveTerminal = () => {
 
       const obd2Comps = appComponents.filter(c => c.type.startsWith('OBD2_'));
       if (obd2Comps.length > 0) {
-        // Poll sequentially to prevent hardware collisions
-        for (const comp of obd2Comps) {
+        // Aggregate unique PIDs to avoid redundant queries
+        const pids = [...new Set(obd2Comps.map(c => c.props.pid || OBD2_DEFAULT_PIDS[c.type]).filter(Boolean))];
+        const fastPids = pids.filter(p => p === '010C' || p === '010D'); // RPM, Speed
+        const slowPids = pids.filter(p => p !== '010C' && p !== '010D' && p !== 'VIN'); // Round-robin the rest
+
+        // 1. Poll critical fast PIDs every loop for real-time needle movement
+        for (const pid of fastPids) {
           if (!active) break;
-          const pid = comp.props.pid || OBD2_DEFAULT_PIDS[comp.type];
-          if (pid) {
-            try {
-              await obd2Service.queryPID(pid);
-              // Tiny delay between sensors for stability
-              await new Promise(r => setTimeout(r, 150));
-            } catch (err) {
-              console.warn('OBD2 Poll Error:', err);
-            }
+          try {
+            await obd2Service.queryPID(pid);
+          } catch (err) {
+            console.warn('OBD2 Poll Error:', err);
           }
         }
+
+        // 2. Poll ONE slow PID per loop (Round-Robin) to prevent loop lag
+        if (slowPids.length > 0 && active) {
+          if (!window._maviObd2SlowIndex || window._maviObd2SlowIndex >= slowPids.length) {
+              window._maviObd2SlowIndex = 0;
+          }
+          try {
+            await obd2Service.queryPID(slowPids[window._maviObd2SlowIndex]);
+          } catch (err) {}
+          window._maviObd2SlowIndex++;
+        }
       }
-      if (active) setTimeout(poll, 1000);
+      if (active) setTimeout(poll, 15); // Ultra-fast loop
     };
 
     poll();
@@ -4659,6 +4671,40 @@ const LiveTerminal = () => {
             )}
           </div>
         );
+      case 'PAYMENT_GATEWAY': {
+        const amount = Number(resolvedProps.amount) || 0;
+        return (
+          <div style={{
+            width: '100%',
+            height: '100%',
+            backgroundColor: 'var(--bg-panel)',
+            borderRadius: '12px',
+            border: '1px solid var(--border-primary)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px',
+            gap: '16px',
+            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+          }}>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                {resolvedProps.title || 'Scan to Pay'}
+            </div>
+            
+            <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <QRCode value={`QRIS_SIMULATION_${comp.id}_${amount}`} size={180} level="H" />
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>{resolvedProps.provider || 'Midtrans'} - {resolvedProps.method || 'QRIS'}</span>
+                <span style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    Rp {amount.toLocaleString('id-ID')}
+                </span>
+            </div>
+          </div>
+        );
+      }
       case 'TEXT':
       case 'LABEL':
       case 'HEADING':

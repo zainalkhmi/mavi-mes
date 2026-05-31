@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import QRCode from 'react-qr-code';
+import { Wallet } from 'lucide-react';
 import {
     Blocks,
     Plus,
@@ -1507,6 +1508,24 @@ const COMPONENT_TYPES = {
     OBD2_MIL_STATUS: { id: 'OBD2_MIL_STATUS', label: 'Check Engine (MIL)', icon: AlertTriangle, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: '0101', value: 'OFF', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
     OBD2_FREEZE_FRAME: { id: 'OBD2_FREEZE_FRAME', label: 'Freeze Frame', icon: FileText, defaultSize: { w: 260, h: 120 }, defaultProps: { pid: 'FREEZE_FRAME', value: '{}', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
     OBD2_CLEAR_DTC: { id: 'OBD2_CLEAR_DTC', label: 'Clear DTC', icon: Trash2, defaultSize: { w: 180, h: 50 }, defaultProps: { action: 'CLEAR_DTC', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    PAYMENT_GATEWAY: {
+        id: 'PAYMENT_GATEWAY',
+        label: 'Payment / QRIS',
+        icon: Wallet,
+        defaultSize: { w: 320, h: 420 },
+        defaultProps: {
+            title: 'Scan to Pay',
+            amount: 50000,
+            amountVariable: '',
+            provider: 'Midtrans',
+            method: 'QRIS',
+            orderIdVariable: '',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
 
     // Additional & Chromeless Types (Defensive definitions to prevent crashes)
     IOT_CONNECTOR: { id: 'IOT_CONNECTOR', label: 'IoT Connector', icon: Cpu, defaultProps: { triggers: [], visibilityCondition: null, rotation: 0 } },
@@ -1618,7 +1637,7 @@ const CATEGORIZED_COMPONENTS = {
         types: [
             'ANALYTIC', 'VIDEO', 'DOCUMENT', 'AI_CHAT', 'CAD_VIEWER', 'WEBPAGE',
             'GRID', 'MACHINE_ATTRIBUTE', 'MACHINE_STATUS', 'MACHINE_TIMELINE',
-            'BARCODE', 'STEP_TIME'
+            'BARCODE', 'STEP_TIME', 'PAYMENT_GATEWAY'
         ]
     },
     MEASUREMENT: {
@@ -10062,6 +10081,38 @@ const AppBuilder = () => {
                         </div>
                     </div>
                 );
+            case 'PAYMENT_GATEWAY':
+                return (
+                    <div style={{
+                        width: '100%',
+                        height: '100%',
+                        backgroundColor: 'var(--bg-panel)',
+                        borderRadius: '12px',
+                        border: '1px solid var(--border-primary)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '24px',
+                        gap: '16px',
+                        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                    }}>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                            {comp.props.title || 'Scan to Pay'}
+                        </div>
+                        
+                        <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                            <QRCode value="MOCK_QR_CODE_DATA" size={180} level="H" />
+                        </div>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>{comp.props.provider || 'Midtrans'} - {comp.props.method || 'QRIS'}</span>
+                            <span style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                Rp {(comp.props.amount || 0).toLocaleString('id-ID')}
+                            </span>
+                        </div>
+                    </div>
+                );
             case 'TEXT':
             case 'LABEL':
             case 'HEADING':
@@ -17756,6 +17807,64 @@ const AppBuilder = () => {
                                                                     }}
                                                                 >{deg}°</button>
                                                             ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {selectedComp.type === 'PAYMENT_GATEWAY' && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '16px' }}>
+                                                        <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Payment Settings</label>
+                                                            
+                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>Provider</label>
+                                                                <select 
+                                                                    className="editor-input" 
+                                                                    value={selectedComp.props.provider || 'Midtrans'}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { provider: e.target.value })}
+                                                                    style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid var(--border-secondary)' }}
+                                                                >
+                                                                    <option value="Midtrans">Midtrans</option>
+                                                                    <option value="Xendit">Xendit</option>
+                                                                </select>
+                                                            </div>
+                                                            
+                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>Method</label>
+                                                                <select 
+                                                                    className="editor-input" 
+                                                                    value={selectedComp.props.method || 'QRIS'}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { method: e.target.value })}
+                                                                    style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid var(--border-secondary)' }}
+                                                                >
+                                                                    <option value="QRIS">QRIS</option>
+                                                                    <option value="E-Wallet">E-Wallet</option>
+                                                                    <option value="Virtual Account">Virtual Account</option>
+                                                                </select>
+                                                            </div>
+                                                            
+                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>Account API Key</label>
+                                                                <input 
+                                                                    type="text" 
+                                                                    className="editor-input" 
+                                                                    placeholder="ex: SB-Mid-server-..."
+                                                                    value={selectedComp.props.accountKey || ''}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { accountKey: e.target.value })}
+                                                                    style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid var(--border-secondary)' }}
+                                                                />
+                                                            </div>
+                                                            
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>Amount (Fixed)</label>
+                                                                <input 
+                                                                    type="number" 
+                                                                    className="editor-input" 
+                                                                    value={selectedComp.props.amount || 0}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { amount: Number(e.target.value) })}
+                                                                    style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid var(--border-secondary)' }}
+                                                                />
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 )}
