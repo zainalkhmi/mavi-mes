@@ -8,7 +8,7 @@ import {
   Type, BarChart3, Table, ToggleLeft, Camera, Hash,
   Square, Circle, Gauge, Bell, SlidersHorizontal,
   Stethoscope, History, Eye, EyeOff, Link, Database, ClipboardList,
-  Check, Edit3
+  Check, Edit3, Mic, Download, Maximize2, Minimize2
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { getPrimaryAiConnector } from '../utils/database';
@@ -264,7 +264,10 @@ const TypingDots = () => (
         animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite`,
       }} />
     ))}
-    <style>{`@keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }`}</style>
+    <style>{`
+      @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
+      @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+    `}</style>
   </div>
 );
 
@@ -289,6 +292,7 @@ const BuilderCopilot = ({
   onRedo,
   canUndo,
   canRedo,
+  hasSnapshot,
   selectedWidget,
   onOpenCopilot,
 }) => {
@@ -332,6 +336,17 @@ const BuilderCopilot = ({
   // UPGRADE 3: Rolling memory
   const [sessionSummary, setSessionSummary] = useState('');
   const [isDiagnosing, setIsDiagnosing] = useState(false); // UPGRADE 8
+
+  // Enterprise additions: Dry-run checked commands, Listening state, Speech supported
+  const [checkedCommands, setCheckedCommands] = useState({});
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeechSupported, setIsSpeechSupported] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const recognitionRef = useRef(null);
+
+  useEffect(() => {
+    setIsSpeechSupported(typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition));
+  }, []);
 
   // Auto-announce newly selected widget in chat
   useEffect(() => {
@@ -386,7 +401,8 @@ const BuilderCopilot = ({
     try {
       const toSave = messages.slice(-50).map(m => ({
         role: m.role, content: m.content,
-        timestamp: m.timestamp, isError: m.isError || false
+        timestamp: m.timestamp, isError: m.isError || false,
+        isApproved: m.isApproved || false
       }));
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
     } catch (e) { /* storage full */ }
@@ -551,7 +567,151 @@ Apa yang bisa kamu bantu untuk widget ini?`;
     }
   };
 
+  // Enterprise Feature: Industrial Voice Control (Speech-to-Text)
+  const toggleListening = () => {
+    if (isListening) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      setIsListening(false);
+    } else {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) return;
+      
+      const rec = new SpeechRecognition();
+      rec.lang = 'id-ID';
+      rec.continuous = false;
+      rec.interimResults = false;
+      rec.maxAlternatives = 1;
+
+      rec.onstart = () => {
+        setIsListening(true);
+      };
+
+      rec.onerror = (e) => {
+        console.error('Speech recognition error:', e);
+        setIsListening(false);
+      };
+
+      rec.onend = () => {
+        setIsListening(false);
+      };
+
+      rec.onresult = (e) => {
+        const resultText = e.results[0][0].transcript;
+        setInput(prev => prev ? `${prev} ${resultText}` : resultText);
+      };
+
+      recognitionRef.current = rec;
+      rec.start();
+    }
+  };
+
+  // Enterprise Feature: Export Audit Trail Log
+  const handleExportAuditTrail = () => {
+    let content = `==================================================\n`;
+    content += `       MAVI BUILDER COPILOT - AUDIT TRAIL LOG      \n`;
+    content += `==================================================\n`;
+    content += `Export Date  : ${new Date().toLocaleString('id-ID')}\n`;
+    content += `App Name     : ${context?.appName || 'Unnamed App'}\n`;
+    content += `Total Messages: ${messages.length}\n`;
+    content += `Applied Cmds : ${commandLog.length}\n`;
+    content += `--------------------------------------------------\n\n`;
+
+    content += `[CHAT HISTORY]\n`;
+    messages.forEach((msg, idx) => {
+      const cleanMsg = msg.content
+        .replace(/<builder_cmds>[\s\S]*?<\/builder_cmds>/gi, '')
+        .replace(/<ai_plan>[\s\S]*?<\/ai_plan>/gi, '')
+        .trim();
+      const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleString('id-ID') : 'Unknown Time';
+      content += `[${timeStr}] ${msg.role.toUpperCase()}:\n${cleanMsg}\n`;
+      content += `-`.repeat(50) + `\n`;
+    });
+
+    content += `\n[APPLIED COMMANDS LOG]\n`;
+    if (commandLog.length === 0) {
+      content += `No commands applied in this session.\n`;
+    } else {
+      commandLog.forEach((log, idx) => {
+        content += `${idx + 1}. [${log.timestamp}] [${log.type}] ${log.label}\n`;
+      });
+    }
+    content += `\n==================================================\n`;
+    content += `END OF LOG\n`;
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `mavi_copilot_audit_trail_${new Date().toISOString().slice(0, 10)}.txt`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Enterprise Feature: Rollback to pre-Copilot state
+  const handleRollback = async () => {
+    if (!hasSnapshot) return;
+    try {
+      await onApplyCommand({ type: 'ROLLBACK_SNAPSHOT', payload: {} });
+      setMessages(prev => {
+        let lastApprovedIdx = -1;
+        for (let i = prev.length - 1; i >= 0; i--) {
+          if (prev[i].role === 'assistant' && prev[i].isApproved) {
+            lastApprovedIdx = i;
+            break;
+          }
+        }
+
+        if (lastApprovedIdx !== -1) {
+          const updated = [...prev];
+          const targetMsg = updated[lastApprovedIdx];
+          updated[lastApprovedIdx] = { ...targetMsg, isApproved: false };
+
+          // Clear commandStatus for commands inside this message
+          const msgId = targetMsg.timestamp instanceof Date ? targetMsg.timestamp.getTime() : new Date(targetMsg.timestamp).getTime();
+          setCommandStatus(prevStatus => {
+            const newStatus = { ...prevStatus };
+            Object.keys(newStatus).forEach(key => {
+              if (key.startsWith(`${msgId}_`)) {
+                delete newStatus[key];
+              }
+            });
+            return newStatus;
+          });
+
+          updated.push({
+            role: 'assistant',
+            content: '⏪ **Rollback berhasil!** Aplikasi telah dikembalikan ke kondisi sebelum Copilot menjalankan perintah terakhir. Snapshot telah dihapus, dan rencana implementasi di atas telah dikembalikan ke status **Review Plan** untuk ditinjau ulang.',
+            timestamp: new Date()
+          });
+          return updated;
+        }
+
+        return [...prev, {
+          role: 'assistant',
+          content: '⏪ **Rollback berhasil!** Aplikasi telah dikembalikan ke kondisi sebelum Copilot menjalankan perintah terakhir. Snapshot telah dihapus.',
+          timestamp: new Date()
+        }];
+      });
+    } catch (err) {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `❌ Rollback gagal: ${err.message}`,
+        timestamp: new Date(),
+        isError: true
+      }]);
+    }
+  };
+
   const handleApprovePlan = async (msgIdx, msg) => {
+    // 0. Auto-create snapshot before executing any plan
+    try {
+      await onApplyCommand({ type: 'CREATE_SNAPSHOT', payload: {} });
+    } catch (e) { console.warn('[Copilot] Snapshot creation failed:', e); }
+
     // 1. Mark as approved in state
     setMessages(prev => prev.map((m, i) => i === msgIdx ? { ...m, isApproved: true } : m));
 
@@ -566,8 +726,12 @@ Apa yang bisa kamu bantu untuk widget ini?`;
 
     const msgId = msg.timestamp instanceof Date ? msg.timestamp.getTime() : new Date(msg.timestamp).getTime();
 
-    // 3. Execute all safe commands
+    // 3. Execute all checked and safe commands
     for (let i = 0; i < safePack.safeCommands.length; i++) {
+      const uniqueKey = `${msgIdx}_${i}`;
+      const isChecked = checkedCommands[uniqueKey] !== false; // default to true
+      if (!isChecked) continue; // skip unchecked commands
+
       const cmd = safePack.safeCommands[i];
       const cmdKey = `${msgId}_${i}`;
       if (commandStatus[cmdKey] === 'success') continue;
@@ -615,19 +779,21 @@ Apa yang bisa kamu bantu untuk widget ini?`;
   return (
     <div style={{
       position: 'fixed',
-      top: '64px',
-      right: '16px',
-      bottom: '16px',
-      width: '460px',
+      top: isFullScreen ? '0' : '64px',
+      right: isFullScreen ? '0' : '16px',
+      bottom: isFullScreen ? '0' : '16px',
+      left: isFullScreen ? '0' : 'auto',
+      width: isFullScreen ? '100%' : '460px',
       backgroundColor: '#ffffff',
-      borderRadius: '20px',
+      borderRadius: isFullScreen ? '0' : '20px',
       display: 'flex',
       flexDirection: 'column',
-      boxShadow: '0 32px 64px -12px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.05)',
-      border: '1px solid rgba(255,255,255,0.15)',
+      boxShadow: isFullScreen ? 'none' : '0 32px 64px -12px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.05)',
+      border: isFullScreen ? 'none' : '1px solid rgba(255,255,255,0.15)',
       zIndex: 1000,
       overflow: 'hidden',
       fontFamily: '"Inter", system-ui, -apple-system, sans-serif',
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
     }}>
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
@@ -708,6 +874,76 @@ Apa yang bisa kamu bantu untuk widget ini?`;
               {appIssues.length}
             </button>
           )}
+
+          {/* Rollback to Pre-Copilot State */}
+          {hasSnapshot && (
+            <button
+              onClick={handleRollback}
+              title="⏪ Rollback ke kondisi sebelum Copilot — kembalikan semua perubahan"
+              style={{
+                background: 'rgba(245,158,11,0.2)',
+                border: '1px solid rgba(245,158,11,0.5)',
+                color: '#fbbf24',
+                cursor: 'pointer',
+                padding: '7px 10px',
+                borderRadius: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                transition: 'all 0.15s',
+                animation: 'pulse-red 2s infinite'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(245,158,11,0.35)'; e.currentTarget.style.color = '#fde68a'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(245,158,11,0.2)'; e.currentTarget.style.color = '#fbbf24'; }}
+            >
+              <History size={13} />
+              Rollback
+            </button>
+          )}
+
+          {/* Export Audit Trail */}
+          <button
+            onClick={handleExportAuditTrail}
+            title="Export Audit Trail (Download Chat & Command Log)"
+            style={{
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              color: '#94a3b8',
+              cursor: 'pointer',
+              padding: '8px',
+              borderRadius: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              transition: 'all 0.15s'
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.2)'; e.currentTarget.style.color = '#93c5fd'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#94a3b8'; }}
+          >
+            <Download size={14} />
+          </button>
+
+          {/* Fullscreen toggle */}
+          <button
+            onClick={() => setIsFullScreen(v => !v)}
+            title={isFullScreen ? 'Kecilkan Copilot' : 'Perbesar Copilot (Full Screen)'}
+            style={{
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              color: '#94a3b8',
+              cursor: 'pointer',
+              padding: '8px',
+              borderRadius: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              transition: 'all 0.15s'
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = '#e2e8f0'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#94a3b8'; }}
+          >
+            {isFullScreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+          </button>
 
           {/* Clear chat */}
           <button
@@ -911,17 +1147,48 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                     {/* If NOT approved: show plan and confirm buttons */}
                     {!msg.isApproved ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        {/* Proposed changes list (read-only) */}
+                        {/* Proposed changes list (Checklist dry-run) */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', background: '#f8fafc', padding: '10px 12px', borderRadius: '10px', border: '1px dashed #cbd5e1' }}>
-                          <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            Daftar Perubahan yang Direncanakan:
+                          <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>
+                            Daftar Perubahan yang Direncanakan (Pilih untuk dijalankan):
                           </div>
-                          {safePack.safeCommands.map((cmd, cIdx) => (
-                            <div key={cIdx} style={{ fontSize: '0.75rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <span style={{ color: '#94a3b8' }}>•</span>
-                              <span>{getCommandPreview(cmd)}</span>
-                            </div>
-                          ))}
+                          {safePack.safeCommands.map((cmd, cIdx) => {
+                            const uniqueKey = `${idx}_${cIdx}`;
+                            const isChecked = checkedCommands[uniqueKey] !== false; // default to true
+                            return (
+                              <label
+                                key={cIdx}
+                                style={{
+                                  fontSize: '0.75rem',
+                                  color: isChecked ? '#1e293b' : '#94a3b8',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  cursor: 'pointer',
+                                  padding: '4px 6px',
+                                  borderRadius: '6px',
+                                  backgroundColor: isChecked ? 'rgba(99,102,241,0.04)' : 'transparent',
+                                  transition: 'all 0.15s'
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => setCheckedCommands(prev => ({ ...prev, [uniqueKey]: !isChecked }))}
+                                  style={{
+                                    width: '14px',
+                                    height: '14px',
+                                    accentColor: '#6366f1',
+                                    cursor: 'pointer',
+                                    borderRadius: '4px'
+                                  }}
+                                />
+                                <span style={{ textDecoration: isChecked ? 'none' : 'line-through' }}>
+                                  {getCommandPreview(cmd)}
+                                </span>
+                              </label>
+                            );
+                          })}
                         </div>
 
                         {/* Confirmation Buttons */}
@@ -1254,6 +1521,35 @@ Apa yang bisa kamu bantu untuk widget ini?`;
           />
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', flexShrink: 0 }}>
             <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept="image/*" />
+            
+            {/* Speech to Text button */}
+            {isSpeechSupported && (
+              <button
+                onClick={toggleListening}
+                title={isListening ? "Mendengarkan... Klik untuk berhenti" : "Voice Control (Speech-to-Text)"}
+                style={{
+                  backgroundColor: isListening ? '#ef4444' : 'transparent',
+                  color: isListening ? '#fff' : '#94a3b8',
+                  border: 'none', width: '36px', height: '36px', borderRadius: '10px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', transition: 'all 0.15s',
+                  position: 'relative',
+                  animation: isListening ? 'pulse-red 1.5s infinite' : 'none'
+                }}
+                onMouseEnter={e => { if (!isListening) { e.currentTarget.style.backgroundColor = '#f1f5f9'; e.currentTarget.style.color = '#475569'; }}}
+                onMouseLeave={e => { if (!isListening) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#94a3b8'; }}}
+              >
+                <Mic size={16} />
+                {isListening && (
+                  <span style={{
+                    position: 'absolute', top: '2px', right: '2px',
+                    width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ef4444',
+                    border: '1.5px solid #fff'
+                  }} />
+                )}
+              </button>
+            )}
+
             <button
               onClick={() => fileInputRef.current.click()}
               title="Upload gambar/mockup"

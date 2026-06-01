@@ -414,6 +414,12 @@ MachineStatus/StatusWidget → MACHINE_STATUS | Timeline → MACHINE_TIMELINE
 SignaturePad → SIGNATURE_PAD
 
 ════════════════════════════════════════════════
+🔌 FITUR PENDUKUNG INTEGRASI AI & PERANGKAT KERAS
+════════════════════════════════════════════════
+▸ AI Chat Widget Generik (AI_CHAT): Menyediakan asisten AI serbaguna yang dapat dipasang di layar mana saja oleh pembuat aplikasi dengan custom system prompt dan model pilihan (seperti gpt-4, gemini, dll.).
+▸ IoT & Hardware Integration: Didukung oleh jembatan data terintegrasi ke sensor fisik seperti pembaca serial USB / Bluetooth (Caliper/Micrometer/Scale) dan modul scanner OBD2 kendaraan untuk memproses data aktual lapangan secara otomatis.
+
+════════════════════════════════════════════════
 🎨 ENTERPRISE DESIGN RULES
 ════════════════════════════════════════════════
 Colors: primary=#3b82f6, success=#10b981, warning=#f59e0b, danger=#ef4444, dark=#0f172a, light=#f8fafc
@@ -489,7 +495,7 @@ QUALITY_PASS_FAIL: {label:"Quality Check"}
 CAMERA_CAPTURE: {label:"Take Photo"}
 SIGNATURE: {signatureMode:"DRAW", signatureMeaning:"Approved by", required:true, signeeType:"Operator"}
 SIGNATURE_PAD: {backgroundColor:"#ffffff", pencolor:"#1e293b", thickness:2, required:true}
-VISION_MEASUREMENT: {label:"Measurement", unit:"mm", precision:2, min:0, max:100, targetVariable:""}
+VISION_MEASUREMENT: {label:"Measurement", unit:"mm", precision:3, min:0, max:100, targetVariable:""}
 CUSTOM_WIDGET: {title:"Custom", htmlTemplate:"<div></div>", cssTemplate:"", jsTemplate:""}
 MAP: {center:"-6.2,106.8", zoomLevel:14, mapType:"Roads", enablePan:true, showUser:false}
 OBD2_SCANNER: {label:"OBD2 Scanner", transport:"BLUETOOTH", protocol:"AUTO"}

@@ -957,7 +957,7 @@ const COMPONENT_TYPES = {
         defaultProps: {
             label: 'Caliper Reading',
             unit: 'mm',
-            precision: 2,
+            precision: 3,
             required: false,
             targetVariable: '',
             min: null,
@@ -1245,7 +1245,7 @@ const COMPONENT_TYPES = {
             connectionType: 'SERIAL',
             baudRate: 9600,
             unit: 'mm',
-            precision: 2,
+            precision: 3,
             min: 0,
             max: 100,
             visible: true,
@@ -1264,7 +1264,7 @@ const COMPONENT_TYPES = {
             connectionType: 'SERIAL',
             baudRate: 9600,
             unit: 'mm',
-            precision: 2,
+            precision: 3,
             min: 0,
             max: 25,
             visible: true,
@@ -1283,7 +1283,7 @@ const COMPONENT_TYPES = {
             connectionType: 'SERIAL',
             baudRate: 9600,
             unit: 'mm',
-            precision: 2,
+            precision: 3,
             min: 5,
             max: 30,
             visible: true,
@@ -1302,7 +1302,7 @@ const COMPONENT_TYPES = {
             connectionType: 'SERIAL',
             baudRate: 9600,
             unit: 'mm',
-            precision: 2,
+            precision: 3,
             min: 0,
             max: 300,
             visible: true,
@@ -1321,7 +1321,7 @@ const COMPONENT_TYPES = {
             connectionType: 'SERIAL',
             baudRate: 9600,
             unit: 'mm',
-            precision: 2,
+            precision: 3,
             min: 0,
             max: 150,
             visible: true,
@@ -1907,7 +1907,7 @@ const MeasurementWidget = ({ comp, viewMode, onWidgetInteraction, setPreviewForm
                     {renderToolIllustration()}
                 </div>
                 <div style={{ fontSize: '2.2rem', fontWeight: 900, color: 'var(--text-primary)', zIndex: 1, fontVariantNumeric: 'tabular-nums' }}>
-                    {liveValue.toFixed(comp.props.precision || 2)}
+                    {liveValue.toFixed(comp.props.precision ?? 2)}
                     <span style={{ fontSize: '0.9rem', marginLeft: '4px', fontWeight: 500, color: 'var(--text-tertiary)' }}>{comp.props.unit || 'mm'}</span>
                 </div>
                 <div style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase', marginTop: '4px' }}>
@@ -2244,6 +2244,9 @@ const AppBuilder = () => {
     // --- History / Undo Stack ---
     const [builderStack, setBuilderStack] = useState({ undo: [], redo: [] });
 
+    // --- Pre-Copilot Session Snapshot ---
+    const [preCopilotSnapshot, setPreCopilotSnapshot] = useState(null);
+
     const saveToHistory = () => {
         const state = {
             baseComponents: JSON.parse(JSON.stringify(baseComponents)),
@@ -2458,9 +2461,34 @@ const AppBuilder = () => {
 
     const handleAiCommand = async (command) => {
         try {
+            const { type, payload, widgetId } = command;
+
+            if (type === 'CREATE_SNAPSHOT') {
+                const snapshot = {
+                    baseComponents: JSON.parse(JSON.stringify(baseComponents)),
+                    steps: JSON.parse(JSON.stringify(steps)),
+                    appTriggers: JSON.parse(JSON.stringify(appTriggers)),
+                    appVariables: JSON.parse(JSON.stringify(appVariables)),
+                    appName: appName
+                };
+                setPreCopilotSnapshot(snapshot);
+                return;
+            }
+
+            if (type === 'ROLLBACK_SNAPSHOT') {
+                if (!preCopilotSnapshot) return;
+                saveToHistory();
+                setBaseComponents(preCopilotSnapshot.baseComponents);
+                setSteps(preCopilotSnapshot.steps);
+                setAppTriggers(preCopilotSnapshot.appTriggers);
+                setAppVariables(preCopilotSnapshot.appVariables);
+                setAppName(preCopilotSnapshot.appName);
+                setPreCopilotSnapshot(null); // Clear snapshot after rolling back
+                return;
+            }
+
             clearGhostWidgets();
             saveToHistory();
-            const { type, payload, widgetId } = command;
             console.log('[Copilot] Executing Command:', type, payload);
 
             // --- AI Type Normalization Helper ---
@@ -20084,8 +20112,8 @@ const AppBuilder = () => {
                                                                     type="number"
                                                                     min="0"
                                                                     max="4"
-                                                                    value={selectedComp.props.precision || 2}
-                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { precision: parseInt(e.target.value) || 0 })}
+                                                                    value={selectedComp.props.precision ?? 2}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { precision: parseInt(e.target.value) ?? 0 })}
                                                                     style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
                                                                 />
                                                             </div>
@@ -26398,6 +26426,7 @@ const AppBuilder = () => {
                 onRedo={redo}
                 canUndo={builderStack.undo.length > 0}
                 canRedo={builderStack.redo.length > 0}
+                hasSnapshot={!!preCopilotSnapshot}
                 selectedWidget={selectedCompId ? (currentStep?.components || []).find(c => c.id === selectedCompId) || null : null}
                 onOpenCopilot={() => setIsCopilotOpen(true)}
                 context={{
