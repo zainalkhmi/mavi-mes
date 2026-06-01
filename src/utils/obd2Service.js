@@ -128,18 +128,46 @@ const DTC_PREFIX_MAP = {
     'C':'U0','D':'U1','E':'U2','F':'U3',
 };
 
-function parseDTCResponse(raw) {
+function parseDTCResponse(raw, isCAN = false) {
     const clean = raw.replace(/[\r\n\s]/g, '').toUpperCase();
     if (clean.includes('NODATA') || !clean.includes('43')) return [];
     const start = clean.indexOf('43');
-    const data  = clean.substring(start + 2);
-    const dtcs  = [];
-    for (let i = 0; i + 3 < data.length; i += 4) {
-        const b1 = data.substring(i,     i + 2);
-        const b2 = data.substring(i + 2, i + 4);
-        if (b1 === '00' && b2 === '00') continue;
-        const prefix = DTC_PREFIX_MAP[b1[0]] || 'P0';
-        dtcs.push(`${prefix}${b1[1]}${b2}`);
+    let data  = clean.substring(start + 2);
+
+    let hasCountByte = isCAN;
+    if (!hasCountByte && data.length >= 2) {
+        const potentialCount = parseInt(data.substring(0, 2), 16);
+        if (potentialCount > 0 && potentialCount <= 0x0F) {
+            const remainingLen = data.length - 2;
+            if (remainingLen >= potentialCount * 4) {
+                const paddingChars = data.substring(2 + potentialCount * 4);
+                const isAllZeros = /^0*$/.test(paddingChars);
+                if (isAllZeros) {
+                    hasCountByte = true;
+                }
+            }
+        }
+    }
+
+    const dtcs = [];
+    if (hasCountByte && data.length >= 2) {
+        const count = parseInt(data.substring(0, 2), 16);
+        const dtcData = data.substring(2);
+        for (let i = 0; i < count && (i * 4 + 3 < dtcData.length); i++) {
+            const b1 = dtcData.substring(i * 4,     i * 4 + 2);
+            const b2 = dtcData.substring(i * 4 + 2, i * 4 + 4);
+            if (b1 === '00' && b2 === '00') continue;
+            const prefix = DTC_PREFIX_MAP[b1[0]] || 'P0';
+            dtcs.push(`${prefix}${b1[1]}${b2}`);
+        }
+    } else {
+        for (let i = 0; i + 3 < data.length; i += 4) {
+            const b1 = data.substring(i,     i + 2);
+            const b2 = data.substring(i + 2, i + 4);
+            if (b1 === '00' && b2 === '00') continue;
+            const prefix = DTC_PREFIX_MAP[b1[0]] || 'P0';
+            dtcs.push(`${prefix}${b1[1]}${b2}`);
+        }
     }
     return dtcs;
 }
@@ -177,6 +205,9 @@ class OBD2Service {
         
         // Data smoothing
         this._smoothedValues  = {};
+
+        // Active protocol cache (CAN vs non-CAN)
+        this._isCAN = null;
     }
 
     // ── Status Management ──────────────────────────────────────────────────────
@@ -188,6 +219,9 @@ class OBD2Service {
 
     _setStatus(s) {
         this.status = s;
+        if (s === 'connecting') {
+            this._isCAN = null;
+        }
         this._statusListeners.forEach(fn => fn(s));
     }
 
@@ -797,13 +831,53 @@ class OBD2Service {
      * Read Diagnostic Trouble Codes (Mode 03).
      * @returns {string[]} e.g. ['P0300', 'P0420']
      */
+    async isProtocolCAN() {
+        if (this.simulated) return false;
+        try {
+            const raw = await this._sendRaw('ATDPN', 2000);
+            if (raw) {
+                const clean = raw.replace(/[\r\n\s]/g, '').toUpperCase();
+                if (clean.length > 0) {
+                    const lastChar = clean.slice(-1);
+                    if (['6', '7', '8', '9', 'A', 'B', 'C'].includes(lastChar)) {
+                        return true;
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('[OBD2] ATDPN failed, trying ATDP...', e.message);
+        }
+        
+        try {
+            const raw = await this._sendRaw('ATDP', 2000);
+            if (raw) {
+                const clean = raw.replace(/[\r\n\s]/g, '').toUpperCase();
+                if (clean.includes('CAN')) {
+                    return true;
+                }
+            }
+        } catch (e) {
+            console.warn('[OBD2] ATDP failed:', e.message);
+        }
+        return false;
+    }
+
+    /**
+     * Read Diagnostic Trouble Codes (Mode 03).
+     * @returns {string[]} e.g. ['P0300', 'P0420']
+     */
     async readDTC() {
         if (!this.connected) throw new Error('OBD2: Not connected');
         if (this.simulated) {
             return this._simulatedDTCs;
         }
+
+        if (this._isCAN === null || this._isCAN === undefined) {
+            this._isCAN = await this.isProtocolCAN();
+        }
+
         const raw = await this._sendRaw('03', 6000);
-        return parseDTCResponse(raw);
+        return parseDTCResponse(raw, this._isCAN);
     }
 
     /**
@@ -915,6 +989,7 @@ class OBD2Service {
         this._btDevice  = null;
         this.connected  = false;
         this.transport  = null;
+        this._isCAN     = null;
         this._setStatus('disconnected');
     }
 
