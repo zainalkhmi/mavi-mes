@@ -7617,6 +7617,70 @@ const LiveTerminal = () => {
           </div>
         );
       }
+      case 'OBD2_WARNING': {
+        const rawSpeed = obd2Values['010D']?.value;
+        const speed = typeof rawSpeed === 'number' ? rawSpeed : (parseFloat(rawSpeed) || 0);
+
+        const rawTemp = obd2Values['0105']?.value;
+        const temp = typeof rawTemp === 'number' ? rawTemp : (parseFloat(rawTemp) || 0);
+
+        const rawVolt = obd2Values['0142']?.value;
+        const volt = typeof rawVolt === 'number' ? rawVolt : (parseFloat(rawVolt) || 0);
+
+        const dtcVal = obd2Values['DTC']?.value || '[]';
+        let dtcCount = 0;
+        try {
+          const dtcArray = typeof dtcVal === 'string' ? JSON.parse(dtcVal) : dtcVal;
+          if (Array.isArray(dtcArray)) dtcCount = dtcArray.length;
+        } catch (e) {
+          dtcCount = 0;
+        }
+
+        const speedLimit = comp.props.speedLimit ?? 100;
+        const maxTemp = comp.props.maxTemp ?? 98;
+        const minVoltage = comp.props.minVoltage ?? 11.5;
+
+        const activeWarnings = [];
+        if (speed > speedLimit) activeWarnings.push(`Kecepatan: ${speed} > ${speedLimit} km/h`);
+        if (temp > maxTemp) activeWarnings.push(`Suhu: ${temp} > ${maxTemp}°C`);
+        if (volt > 0 && volt < minVoltage) activeWarnings.push(`Aki: ${volt} < ${minVoltage} V`);
+        if (dtcCount > 0) activeWarnings.push(`Check Engine aktif`);
+
+        const hasWarning = activeWarnings.length > 0;
+        const isDark = selectedApp?.config?.appThemeMode === 'DARK';
+
+        return (
+          <div
+            className={hasWarning ? 'animate-warning-blink' : ''}
+            style={{
+              width: '100%',
+              height: '100%',
+              borderRadius: '10px',
+              border: hasWarning ? '1.5px solid #f87171' : `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+              backgroundColor: hasWarning ? 'rgba(239, 68, 68, 0.05)' : (isDark ? '#1e293b' : 'white'),
+              padding: '12px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              boxSizing: 'border-box'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <AlertTriangle size={16} color={hasWarning ? '#ef4444' : '#64748b'} />
+              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: hasWarning ? '#ef4444' : (isDark ? '#94a3b8' : '#64748b') }}>
+                {hasWarning ? 'Peringatan Mesin!' : 'Status Mesin Normal'}
+              </span>
+            </div>
+            <div style={{ fontSize: '0.7rem', color: isDark ? '#cbd5e1' : '#475569', maxHeight: '60px', overflowY: 'auto' }}>
+              {hasWarning ? (
+                activeWarnings.map((w, idx) => <div key={idx}>⚠️ {w}</div>)
+              ) : (
+                'Seluruh sistem kendaraan terpantau aman.'
+              )}
+            </div>
+          </div>
+        );
+      }
       case 'OBD2_RPM':
       case 'OBD2_SPEED':
       case 'OBD2_COOLANT_TEMP':

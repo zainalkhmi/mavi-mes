@@ -342,6 +342,12 @@ function OBD2ControlPanel({ device }) {
   const [liveData, setLiveData] = useState({ rpm: 0, speed: 0, coolantTemp: 0, batteryVoltage: 0, dtcs: [] });
   const [isConnecting, setIsConnecting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [warningSettings, setWarningSettings] = useState({
+    speedLimit: 100,
+    maxTemp: 98,
+    minVoltage: 11.5,
+  });
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     const unsubStatus = obd2Service.subscribeStatus(s => {
@@ -411,11 +417,146 @@ function OBD2ControlPanel({ device }) {
     }
   };
 
+  // Active Warnings calculations
+  const activeWarnings = [];
+  const isOverSpeed = liveData.speed > warningSettings.speedLimit;
+  const isOverHeat = liveData.coolantTemp > warningSettings.maxTemp;
+  const isLowVolt = liveData.batteryVoltage > 0 && liveData.batteryVoltage < warningSettings.minVoltage;
+  const isCheckEngine = liveData.dtcs.length > 0;
+
+  if (isOverSpeed) {
+    activeWarnings.push(`Kecepatan tinggi: ${liveData.speed} km/h > Batas ${warningSettings.speedLimit} km/h`);
+  }
+  if (isOverHeat) {
+    activeWarnings.push(`Overheating: ${liveData.coolantTemp}°C > Batas ${warningSettings.maxTemp}°C`);
+  }
+  if (isLowVolt) {
+    activeWarnings.push(`Tegangan aki rendah: ${liveData.batteryVoltage} V < Batas ${warningSettings.minVoltage} V`);
+  }
+  if (isCheckEngine) {
+    activeWarnings.push(`Check Engine menyala: Terdeteksi ${liveData.dtcs.length} DTC`);
+  }
+  const hasWarning = activeWarnings.length > 0;
+
   return (
     <div style={{ marginTop: '20px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
-      <h4 style={{ margin: '0 0 12px', fontWeight: 800, fontSize: '0.9rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
-        <Gauge size={16} color="#06b6d4" /> OBD2 ELM327 WiFi Controller
+      <h4 style={{ margin: '0 0 12px', fontWeight: 800, fontSize: '0.9rem', color: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Gauge size={16} color="#06b6d4" /> OBD2 ELM327 WiFi Controller
+        </div>
+        {status === 'connected' && (
+          <button 
+            onClick={() => setShowSettings(!showSettings)} 
+            style={{ 
+              border: 'none', 
+              background: '#f1f5f9', 
+              color: '#475569', 
+              borderRadius: '6px', 
+              padding: '4px 8px', 
+              fontSize: '0.72rem', 
+              fontWeight: 700, 
+              cursor: 'pointer', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '4px' 
+            }}
+          >
+            <Settings2 size={12} /> {showSettings ? 'Tutup Aturan' : 'Atur Alarm'}
+          </button>
+        )}
       </h4>
+
+      {/* Warning Settings Panel */}
+      {status === 'connected' && showSettings && (
+        <div style={{
+          backgroundColor: '#f8fafc',
+          borderRadius: '10px',
+          border: '1px solid #e2e8f0',
+          padding: '12px 14px',
+          marginBottom: '14px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px'
+        }}>
+          <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
+            ⚙️ Konfigurasi Alarm Peringatan
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', fontWeight: 700, color: '#64748b', marginBottom: '2px' }}>
+                <span>Batas Kecepatan</span>
+                <span style={{ color: '#0f172a' }}>{warningSettings.speedLimit} km/h</span>
+              </div>
+              <input 
+                type="range" 
+                min="30" 
+                max="200" 
+                step="5"
+                value={warningSettings.speedLimit} 
+                onChange={e => setWarningSettings(prev => ({ ...prev, speedLimit: Number(e.target.value) }))}
+                style={{ width: '100%', cursor: 'pointer', accentColor: '#ef4444' }}
+              />
+            </div>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', fontWeight: 700, color: '#64748b', marginBottom: '2px' }}>
+                <span>Max Temp Pendingin</span>
+                <span style={{ color: '#0f172a' }}>{warningSettings.maxTemp}°C</span>
+              </div>
+              <input 
+                type="range" 
+                min="70" 
+                max="120" 
+                step="1"
+                value={warningSettings.maxTemp} 
+                onChange={e => setWarningSettings(prev => ({ ...prev, maxTemp: Number(e.target.value) }))}
+                style={{ width: '100%', cursor: 'pointer', accentColor: '#ef4444' }}
+              />
+            </div>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', fontWeight: 700, color: '#64748b', marginBottom: '2px' }}>
+                <span>Aki Minimum</span>
+                <span style={{ color: '#0f172a' }}>{warningSettings.minVoltage} V</span>
+              </div>
+              <input 
+                type="range" 
+                min="10.0" 
+                max="13.0" 
+                step="0.1"
+                value={warningSettings.minVoltage} 
+                onChange={e => setWarningSettings(prev => ({ ...prev, minVoltage: Number(e.target.value) }))}
+                style={{ width: '100%', cursor: 'pointer', accentColor: '#ef4444' }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Flashing Warning Indicator Widget */}
+      {status === 'connected' && hasWarning && (
+        <div style={{
+          padding: '12px 14px',
+          background: 'linear-gradient(135deg, #f87171 0%, #dc2626 100%)',
+          borderRadius: '10px',
+          color: 'white',
+          fontWeight: 700,
+          boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)',
+          animation: 'warning-blink 1.2s infinite ease-in-out',
+          marginBottom: '14px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '6px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', textTransform: 'uppercase' }}>
+            <AlertTriangle size={16} />
+            <span>⚠️ PERINGATAN KONDISI MESIN!</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', fontSize: '0.72rem', paddingLeft: '24px', fontWeight: 600 }}>
+            {activeWarnings.map((w, idx) => (
+              <div key={idx}>• {w}</div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {status !== 'connected' ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -465,32 +606,70 @@ function OBD2ControlPanel({ device }) {
 
           {/* Live Gauges */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-            <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+            <div style={{ 
+              padding: '10px', 
+              backgroundColor: '#f8fafc', 
+              borderRadius: '8px', 
+              border: '1px solid #e2e8f0', 
+              textAlign: 'center',
+              transition: 'all 0.3s'
+            }}>
               <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>RPM</div>
               <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a', margin: '4px 0' }}>{liveData.rpm}</div>
               <div style={{ fontSize: '0.62rem', color: '#94a3b8' }}>Engine Speed</div>
             </div>
-            <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Speed</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a', margin: '4px 0' }}>{liveData.speed} <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>km/h</span></div>
-              <div style={{ fontSize: '0.62rem', color: '#94a3b8' }}>Vehicle Speed</div>
+            <div style={{ 
+              padding: '10px', 
+              backgroundColor: isOverSpeed ? '#fff5f5' : '#f8fafc', 
+              borderRadius: '8px', 
+              border: isOverSpeed ? '1.5px solid #f87171' : '1px solid #e2e8f0', 
+              boxShadow: isOverSpeed ? '0 0 10px rgba(239, 68, 68, 0.15)' : 'none',
+              textAlign: 'center',
+              transition: 'all 0.3s'
+            }}>
+              <div style={{ fontSize: '0.65rem', color: isOverSpeed ? '#dc2626' : '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Speed</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 900, color: isOverSpeed ? '#dc2626' : '#0f172a', margin: '4px 0' }}>{liveData.speed} <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>km/h</span></div>
+              <div style={{ fontSize: '0.62rem', color: isOverSpeed ? '#f87171' : '#94a3b8' }}>Vehicle Speed</div>
             </div>
-            <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Coolant Temp</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#e24a8a', margin: '4px 0' }}>{liveData.coolantTemp}°C</div>
-              <div style={{ fontSize: '0.62rem', color: '#94a3b8' }}>Engine Coolant</div>
+            <div style={{ 
+              padding: '10px', 
+              backgroundColor: isOverHeat ? '#fff5f5' : '#f8fafc', 
+              borderRadius: '8px', 
+              border: isOverHeat ? '1.5px solid #f87171' : '1px solid #e2e8f0', 
+              boxShadow: isOverHeat ? '0 0 10px rgba(239, 68, 68, 0.15)' : 'none',
+              textAlign: 'center',
+              transition: 'all 0.3s'
+            }}>
+              <div style={{ fontSize: '0.65rem', color: isOverHeat ? '#dc2626' : '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Coolant Temp</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 900, color: isOverHeat ? '#dc2626' : '#e24a8a', margin: '4px 0' }}>{liveData.coolantTemp}°C</div>
+              <div style={{ fontSize: '0.62rem', color: isOverHeat ? '#f87171' : '#94a3b8' }}>Engine Coolant</div>
             </div>
-            <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Voltage</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#10b981', margin: '4px 0' }}>{liveData.batteryVoltage} V</div>
-              <div style={{ fontSize: '0.62rem', color: '#94a3b8' }}>Battery Voltage</div>
+            <div style={{ 
+              padding: '10px', 
+              backgroundColor: isLowVolt ? '#fff5f5' : '#f8fafc', 
+              borderRadius: '8px', 
+              border: isLowVolt ? '1.5px solid #f87171' : '1px solid #e2e8f0', 
+              boxShadow: isLowVolt ? '0 0 10px rgba(239, 68, 68, 0.15)' : 'none',
+              textAlign: 'center',
+              transition: 'all 0.3s'
+            }}>
+              <div style={{ fontSize: '0.65rem', color: isLowVolt ? '#dc2626' : '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Voltage</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 900, color: isLowVolt ? '#dc2626' : '#10b981', margin: '4px 0' }}>{liveData.batteryVoltage} V</div>
+              <div style={{ fontSize: '0.62rem', color: isLowVolt ? '#f87171' : '#94a3b8' }}>Battery Voltage</div>
             </div>
           </div>
 
           {/* DTC / Troubleshooting */}
-          <div style={{ padding: '12px', backgroundColor: '#fff7ed', borderRadius: '8px', border: '1px solid #ffedd5' }}>
+          <div style={{ 
+            padding: '12px', 
+            backgroundColor: isCheckEngine ? '#fff5f5' : '#fff7ed', 
+            borderRadius: '8px', 
+            border: isCheckEngine ? '1.5px solid #f87171' : '1px solid #ffedd5',
+            boxShadow: isCheckEngine ? '0 0 10px rgba(239, 68, 68, 0.15)' : 'none',
+            transition: 'all 0.3s'
+          }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#c2410c' }}>Trouble Codes ({liveData.dtcs.length})</span>
+              <span style={{ fontSize: '0.72rem', fontWeight: 800, color: isCheckEngine ? '#dc2626' : '#c2410c' }}>Trouble Codes ({liveData.dtcs.length})</span>
               {liveData.dtcs.length > 0 && (
                 <button onClick={handleClearDTC} style={{ padding: '3px 8px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer' }}>
                   Clear DTC
@@ -1002,6 +1181,10 @@ export default function IoTHubManager() {
 
       <style>{`
         @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+        @keyframes warning-blink { 
+          0%, 100% { opacity: 1; filter: drop-shadow(0 0 2px rgba(239,68,68,0.4)); } 
+          50% { opacity: 0.85; filter: drop-shadow(0 0 8px rgba(239,68,68,0.75)); } 
+        }
         @keyframes radar-pulse { 0% { transform:scale(0.3); opacity:0.8; } 100% { transform:scale(1); opacity:0; } }
         @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
       `}</style>

@@ -1508,6 +1508,7 @@ const COMPONENT_TYPES = {
     OBD2_MIL_STATUS: { id: 'OBD2_MIL_STATUS', label: 'Check Engine (MIL)', icon: AlertTriangle, defaultSize: { w: 220, h: 110 }, defaultProps: { pid: '0101', value: 'OFF', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
     OBD2_FREEZE_FRAME: { id: 'OBD2_FREEZE_FRAME', label: 'Freeze Frame', icon: FileText, defaultSize: { w: 260, h: 120 }, defaultProps: { pid: 'FREEZE_FRAME', value: '{}', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
     OBD2_CLEAR_DTC: { id: 'OBD2_CLEAR_DTC', label: 'Clear DTC', icon: Trash2, defaultSize: { w: 180, h: 50 }, defaultProps: { action: 'CLEAR_DTC', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    OBD2_WARNING: { id: 'OBD2_WARNING', label: 'Engine Warnings', icon: AlertTriangle, defaultSize: { w: 260, h: 120 }, defaultProps: { label: 'Engine Warnings', speedLimit: 100, maxTemp: 98, minVoltage: 11.5, visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
     PAYMENT_GATEWAY: {
         id: 'PAYMENT_GATEWAY',
         label: 'Payment / QRIS',
@@ -1626,7 +1627,7 @@ const CATEGORIZED_COMPONENTS = {
             'OBD2_MAF', 'OBD2_IAT', 'OBD2_FUEL_LEVEL', 'OBD2_FUEL_PRESSURE', 'OBD2_STFT', 'OBD2_LTFT',
             'OBD2_AFR', 'OBD2_O2_SENSOR', 'OBD2_IGNITION_TIMING', 'OBD2_KNOCK', 'OBD2_TORQUE_EST', 'OBD2_HP_EST',
             'OBD2_OIL_TEMP', 'OBD2_MAP', 'OBD2_BARO', 'OBD2_BOOST', 'OBD2_BATTERY_VOLTAGE', 'OBD2_DTC',
-            'OBD2_MIL_STATUS', 'OBD2_FREEZE_FRAME', 'OBD2_CLEAR_DTC'
+            'OBD2_MIL_STATUS', 'OBD2_FREEZE_FRAME', 'OBD2_CLEAR_DTC', 'OBD2_WARNING'
         ]
     },
     // 8. Embedded Widgets
@@ -1655,7 +1656,7 @@ const CATEGORIZED_COMPONENTS = {
             'OBD2_FUEL_LEVEL', 'OBD2_FUEL_PRESSURE', 'OBD2_STFT', 'OBD2_LTFT', 'OBD2_AFR', 'OBD2_O2_SENSOR',
             'OBD2_IGNITION_TIMING', 'OBD2_KNOCK', 'OBD2_TORQUE_EST', 'OBD2_HP_EST',
             'OBD2_OIL_TEMP', 'OBD2_MAP', 'OBD2_BARO', 'OBD2_BOOST',
-            'OBD2_BATTERY_VOLTAGE', 'OBD2_DTC', 'OBD2_MIL_STATUS', 'OBD2_FREEZE_FRAME', 'OBD2_CLEAR_DTC'
+            'OBD2_BATTERY_VOLTAGE', 'OBD2_DTC', 'OBD2_MIL_STATUS', 'OBD2_FREEZE_FRAME', 'OBD2_CLEAR_DTC', 'OBD2_WARNING'
         ]
     }
 };
@@ -12792,6 +12793,53 @@ const AppBuilder = () => {
                     </div>
                 );
             }
+            case 'OBD2_WARNING': {
+                const speed = previewFormValues['OBD2_SPEED'] ?? 0;
+                const temp = previewFormValues['OBD2_COOLANT_TEMP'] ?? 0;
+                const volt = previewFormValues['OBD2_BATTERY_VOLTAGE'] ?? 0;
+                const dtcCount = (previewFormValues['OBD2_DTC'] ? JSON.parse(previewFormValues['OBD2_DTC']).length : 0);
+
+                const speedLimit = comp.props.speedLimit ?? 100;
+                const maxTemp = comp.props.maxTemp ?? 98;
+                const minVoltage = comp.props.minVoltage ?? 11.5;
+
+                const activeWarnings = [];
+                if (speed > speedLimit) activeWarnings.push(`Kecepatan: ${speed} > ${speedLimit} km/h`);
+                if (temp > maxTemp) activeWarnings.push(`Suhu: ${temp} > ${maxTemp}°C`);
+                if (volt > 0 && volt < minVoltage) activeWarnings.push(`Aki: ${volt} < ${minVoltage} V`);
+                if (dtcCount > 0) activeWarnings.push(`Check Engine aktif`);
+
+                const hasWarning = activeWarnings.length > 0;
+
+                return (
+                    <div style={{
+                        width: '100%',
+                        height: '100%',
+                        borderRadius: '10px',
+                        border: hasWarning ? '1.5px solid #f87171' : '1px solid var(--border-primary)',
+                        backgroundColor: hasWarning ? 'rgba(239, 68, 68, 0.05)' : 'var(--bg-panel)',
+                        padding: '12px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        animation: hasWarning ? 'warning-blink 1.2s infinite ease-in-out' : 'none'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <AlertTriangle size={16} color={hasWarning ? '#ef4444' : '#64748b'} />
+                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: hasWarning ? '#ef4444' : 'var(--text-secondary)' }}>
+                                {hasWarning ? 'Peringatan Mesin!' : 'Status Mesin Normal'}
+                            </span>
+                        </div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', maxHeight: '60px', overflowY: 'auto' }}>
+                            {hasWarning ? (
+                                activeWarnings.map((w, idx) => <div key={idx}>• {w}</div>)
+                            ) : (
+                                'Seluruh sistem kendaraan terpantau aman.'
+                            )}
+                        </div>
+                    </div>
+                );
+            }
             case 'OBD2_RPM':
             case 'OBD2_SPEED':
             case 'OBD2_COOLANT_TEMP':
@@ -22114,9 +22162,42 @@ const AppBuilder = () => {
                                                                 )}
                                                             </>
                                                         )}
+                                                        {/* Specific to Warnings */}
+                                                        {selectedComp.type === 'OBD2_WARNING' && (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Batas Kecepatan (km/h)</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={selectedComp.props.speedLimit ?? 100}
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { speedLimit: Number(e.target.value) })}
+                                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                                                                    />
+                                                                </div>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Max Temperatur pendingin (°C)</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={selectedComp.props.maxTemp ?? 98}
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { maxTemp: Number(e.target.value) })}
+                                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                                                                    />
+                                                                </div>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Aki Minimum (V)</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        step="0.1"
+                                                                        value={selectedComp.props.minVoltage ?? 11.5}
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { minVoltage: Number(e.target.value) })}
+                                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        )}
 
                                                         {/* Specific to Data widgets (RPM, Speed, etc) */}
-                                                        {!['OBD2_SCANNER', 'OBD2_CLEAR_DTC'].includes(selectedComp.type) && (
+                                                        {!['OBD2_SCANNER', 'OBD2_CLEAR_DTC', 'OBD2_WARNING'].includes(selectedComp.type) && (
                                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                                                                 <div className="prop-group">
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>OBD2 PID</label>
