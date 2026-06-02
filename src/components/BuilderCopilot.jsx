@@ -148,8 +148,8 @@ const getSmartActions = (widget, context) => {
 
 // ─── Selected Widget Context Panel ─────────────────────────────────────────────
 const WidgetContextPanel = ({ widget, onPrompt, onSendToChat, context }) => {
-  if (!widget) return null;
   const [showProps, setShowProps] = useState(false);
+  if (!widget) return null;
 
   const meta = getWidgetMeta(widget.type);
   const IconComponent = meta.icon;
@@ -765,6 +765,7 @@ Apa yang bisa kamu bantu untuk widget ini?`;
     { label: '📦 Inventory', prompt: 'Buatkan app inventory management dengan barcode scanner, tabel stok, dan form input' },
     { label: '🔧 Maintenance', prompt: 'Buatkan app work order maintenance dengan form permintaan, checklist, dan tanda tangan approval' },
     { label: '⚙️ SCADA', prompt: 'Buatkan SCADA monitoring dengan machine status, gauge, dial gauge, dan machine timeline' },
+    { label: '📖 Panduan App', prompt: 'Buatkan panduan penggunaan lengkap untuk app ini — jelaskan semua screen, alur kerja, trigger, tabel, fungsi, dan cara mengisi data' },
   ];
   const editChips = [
     { label: '✏️ Ganti Warna', prompt: 'Ganti warna background widget [nama widget] menjadi [warna]' },

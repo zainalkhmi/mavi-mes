@@ -2178,6 +2178,7 @@ const AppBuilder = () => {
     const [appTables, setAppTables] = useState([]);
     const [recordPlaceholders, setRecordPlaceholders] = useState([]);
     const [recordPlaceholderData, setRecordPlaceholderData] = useState({});
+    const [helpGuide, setHelpGuide] = useState('');
 
     // Refs to track the latest state synchronously during batch Copilot command execution
     const currentStepIdRef = useRef(currentStepId);
@@ -2761,8 +2762,14 @@ const AppBuilder = () => {
                     break;
                 }
                 case 'SET_APP_NAME':
-                    setAppName(payload);
+                    setAppName(typeof payload === 'string' ? payload : (payload?.name || payload));
                     break;
+
+                case 'UPDATE_HELP_GUIDE': {
+                    const guideMarkdown = payload?.markdown || payload?.content || payload || '';
+                    setHelpGuide(String(guideMarkdown));
+                    break;
+                }
                 case 'ADD_STEP': {
                     const stepComponents = (payload.components || []).map(c => {
                         let resolvedType = normalizeType(c.type);
@@ -8677,6 +8684,7 @@ const AppBuilder = () => {
                     appTables: overrides.appTables || appTables,
                     recordPlaceholders: overrides.recordPlaceholders || recordPlaceholders,
                     globalLogic: overrides.globalLogic || globalLogic,
+                    helpGuide: overrides.helpGuide || helpGuide,
                     materialId,
                     productImage,
                     iotConfig,
@@ -9069,6 +9077,7 @@ const AppBuilder = () => {
         setAppTables(app.config.appTables || []);
         setRecordPlaceholders(app.config.recordPlaceholders || []);
         setGlobalLogic(app.config.globalLogic || { xml: null, code: '' });
+        setHelpGuide(app.config.helpGuide || '');
         setRecordPlaceholderData({});
         setMaterialId(app.config.materialId || '');
         setProductImage(app.config.productImage || '');
@@ -26451,7 +26460,9 @@ const AppBuilder = () => {
                     steps: steps || [],
                     recordPlaceholders: recordPlaceholders || [],
                     functions: appFunctions || [],
-                    automations: (appTriggers || []).filter(t => t._isAutomation)
+                    automations: (appTriggers || []).filter(t => t._isAutomation),
+                    helpGuide: helpGuide || '',
+                    appName: appName || ''
                 }}
             />
 

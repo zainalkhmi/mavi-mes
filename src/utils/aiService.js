@@ -655,6 +655,47 @@ Example for a data entry form:
 13. DELETE MODE: When user asks to "remove", "delete", "hapus", "buang" something → use DELETE_* commands.
 14. EDIT ONLY WHAT'S ASKED: On UPDATE commands, only include the specific props/fields user wants changed.
 15. DATA COMMANDS: Never output table columns (like UUID, RECORD, TEXT) directly as top-level objects in the "commands" array. Columns MUST always be nested inside the columns array of a CREATE_TABLE command payload: {type:"CREATE_TABLE", payload:{name:"tableName", columns:[{name:"colName", type:"text"}]}}.
+16. HELP GUIDE: When user asks to generate, update, or create a "panduan", "help", "user guide", "panduan penggunaan", "cara pakai", "dokumentasi" — ALWAYS output UPDATE_HELP_GUIDE command. This creates a comprehensive Markdown guide that operators will see as a full-screen splash BEFORE starting the app.
+
+════════════════════════════════════════════════
+📖 HELP GUIDE COMMAND
+════════════════════════════════════════════════
+{type:"UPDATE_HELP_GUIDE", payload:{markdown:"..."}}
+
+Help Guide Markdown MUST include these sections:
+# [App Name] — Panduan Penggunaan
+
+## 📱 Tentang Aplikasi
+[Brief description of what the app does and who uses it]
+
+## 🖥️ Daftar Screen
+[List each screen, its purpose, and what the user does on it]
+
+## 🔄 Alur Kerja (Flow)
+[Step-by-step flow: Screen 1 → action → Screen 2 → ...]
+
+## ⚡ Trigger & Otomasi
+[List all important triggers: which button does what, what happens on screen change]
+
+## 🗄️ Tabel & Data
+[List each table, its columns, what data is stored, and which form fills it]
+
+## 🔗 Koneksi Antar Tabel
+[Explain how tables relate to each other via placeholders or shared fields]
+
+## 🤖 Fungsi & Logic
+[Explain each function: its name, what it computes, when it runs]
+
+## 🤖 Automasi
+[List automations: trigger condition → action that fires]
+
+## 📝 Cara Mengisi Data
+[Step-by-step instructions for operators: exactly what to fill in, where to click]
+
+## ⚠️ Catatan Penting
+[Any validation rules, required fields, edge cases, common errors]
+
+IMPORTANT: Base the guide on ACTUAL context (tables, screens, widgets, functions, automations from CURRENT CONTEXT). Do NOT invent data that doesn't exist. Write in Bahasa Indonesia unless user requests English.
 
 CURRENT CONTEXT:
 - Active Screen: ${context.currentStepName || 'Screen 1'} (ID: ${context.currentStepId || ''})
@@ -677,6 +718,7 @@ CURRENT CONTEXT:
 - Functions: ${JSON.stringify((context.functions || []).map(f => ({ id: f.id, name: f.name, description: f.description || '', codeSnippet: String(f.logic?.code || '').slice(0, 200) })))}
 - Automations: ${JSON.stringify((context.automations || []).map(a => ({ id: a.id, name: a.name, trigger: a.trigger, conditions: a.conditions, actions: a.actions })))}
 - ⭐ CURRENTLY SELECTED WIDGET: ${context.selectedWidget ? JSON.stringify({ id: context.selectedWidget.id, type: context.selectedWidget.type, name: context.selectedWidget.displayName || context.selectedWidget.props?.label || context.selectedWidget.type, existingTriggers: (context.selectedWidget.props?.triggers || []).map(t => ({ id: t.id, name: t.name, event: t.event })) }) : 'none (no widget selected)'}
+- 📖 EXISTING HELP GUIDE: ${context.helpGuide ? `(guide exists, ${context.helpGuide.length} chars — update it)` : '(no guide yet — create from scratch)'}
 
 IMPORTANT: When the user says "add trigger", "add function", "tambahkan trigger", "tambahkan function" WITHOUT specifying a widget name, ALWAYS target the CURRENTLY SELECTED WIDGET above. Use its exact "name" as the widgetId in CREATE_TRIGGER commands.
 

@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
     Search, Play, Square, RefreshCw, ExternalLink, User, MapPin,
     Rocket, Clock3, Package, Maximize2, Minimize2, Star,
     AlertTriangle, RotateCcw, X, ChevronRight, Pause, MessageSquare, Info, Code, Play as PlayIcon,
     Wifi, Cpu, HardDrive, CheckCircle2, XCircle, AlertCircle, Signal, Bug,
     Languages, Camera, PenTool, Globe, Plus, FilePlus, Settings2, Sparkles, CheckCircle2 as CheckIcon,
-    LogOut, Menu, ChevronDown
+    LogOut, Menu, ChevronDown, BookOpen, ChevronLeft
 } from 'lucide-react';
 import { getAllFrontlineApps, getProductionQueue, logPlayerSession, saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { getStations, getEdgeDevices, createTable, getTables } from '../utils/database';
@@ -645,6 +645,165 @@ function NewAppModal({ onConfirm, onCancel }) {
     );
 }
 
+// ─── AppHelpGuideScreen ──────────────────────────────────────────────────────
+
+function renderMarkdown(md = '') {
+    const lines = md.split('\n');
+    const elements = [];
+    let key = 0;
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const applyInline = (text) => {
+            // bold **text**
+            const parts = text.split(/(\*\*[^*]+\*\*)/g);
+            return parts.map((p, j) =>
+                p.startsWith('**') && p.endsWith('**')
+                    ? <strong key={j} style={{ color: '#f8fafc' }}>{p.slice(2, -2)}</strong>
+                    : p
+            );
+        };
+        if (line.startsWith('# ')) {
+            elements.push(<h1 key={key++} style={{ fontSize: '1.5rem', fontWeight: 900, color: '#f8fafc', margin: '0 0 8px', letterSpacing: '-0.02em', lineHeight: 1.2 }}>{applyInline(line.slice(2))}</h1>);
+        } else if (line.startsWith('## ')) {
+            elements.push(<h2 key={key++} style={{ fontSize: '1rem', fontWeight: 800, color: '#a5b4fc', margin: '24px 0 8px', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid rgba(165,180,252,0.15)', paddingBottom: '6px' }}>{applyInline(line.slice(3))}</h2>);
+        } else if (line.startsWith('### ')) {
+            elements.push(<h3 key={key++} style={{ fontSize: '0.9rem', fontWeight: 700, color: '#93c5fd', margin: '12px 0 4px' }}>{applyInline(line.slice(4))}</h3>);
+        } else if (line.startsWith('- ') || line.startsWith('* ')) {
+            elements.push(
+                <div key={key++} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', margin: '4px 0', fontSize: '0.88rem', color: '#cbd5e1', lineHeight: 1.55 }}>
+                    <span style={{ color: '#6366f1', fontWeight: 900, flexShrink: 0, marginTop: '2px' }}>▸</span>
+                    <span>{applyInline(line.slice(2))}</span>
+                </div>
+            );
+        } else if (line.match(/^\d+\.\s/)) {
+            const num = line.match(/^(\d+)\.\s/)[1];
+            elements.push(
+                <div key={key++} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', margin: '4px 0', fontSize: '0.88rem', color: '#cbd5e1', lineHeight: 1.55 }}>
+                    <span style={{ minWidth: '22px', height: '22px', borderRadius: '50%', background: 'rgba(99,102,241,0.3)', border: '1px solid rgba(99,102,241,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 800, color: '#a5b4fc', flexShrink: 0 }}>{num}</span>
+                    <span style={{ marginTop: '2px' }}>{applyInline(line.replace(/^\d+\.\s/, ''))}</span>
+                </div>
+            );
+        } else if (line.startsWith('---') || line.startsWith('===')) {
+            elements.push(<hr key={key++} style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.08)', margin: '16px 0' }} />);
+        } else if (line.trim() === '') {
+            elements.push(<div key={key++} style={{ height: '6px' }} />);
+        } else {
+            elements.push(<p key={key++} style={{ fontSize: '0.88rem', color: '#94a3b8', lineHeight: 1.65, margin: '4px 0' }}>{applyInline(line)}</p>);
+        }
+    }
+    return elements;
+}
+
+function AppHelpGuideScreen({ app, helpGuide, onStart, onSkip }) {
+    return (
+        <div style={{
+            position: 'absolute', inset: 0, zIndex: 50,
+            display: 'flex', flexDirection: 'column',
+            background: 'linear-gradient(135deg, #0a0f1e 0%, #0f172a 40%, #1a0a2e 100%)',
+            overflow: 'hidden',
+            fontFamily: '"Inter", system-ui, sans-serif'
+        }}>
+            {/* Animated background orbs */}
+            <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+                <div style={{ position: 'absolute', top: '-80px', left: '-80px', width: '400px', height: '400px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%)', filter: 'blur(40px)' }} />
+                <div style={{ position: 'absolute', bottom: '-60px', right: '-60px', width: '350px', height: '350px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%)', filter: 'blur(40px)' }} />
+                <div style={{ position: 'absolute', top: '40%', left: '50%', transform: 'translate(-50%,-50%)', width: '600px', height: '300px', background: 'radial-gradient(ellipse, rgba(139,92,246,0.06) 0%, transparent 70%)', filter: 'blur(60px)' }} />
+            </div>
+
+            {/* Header */}
+            <div style={{
+                flexShrink: 0, padding: '20px 32px 16px',
+                borderBottom: '1px solid rgba(255,255,255,0.06)',
+                background: 'rgba(0,0,0,0.3)',
+                backdropFilter: 'blur(10px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                position: 'relative', zIndex: 1
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div style={{
+                        width: '44px', height: '44px', borderRadius: '12px',
+                        background: 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(59,130,246,0.3))',
+                        border: '1px solid rgba(99,102,241,0.4)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow: '0 0 20px rgba(99,102,241,0.3)'
+                    }}>
+                        <BookOpen size={20} color="#a5b4fc" />
+                    </div>
+                    <div>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Panduan Penggunaan</div>
+                        <div style={{ fontSize: '1rem', fontWeight: 800, color: '#f8fafc', letterSpacing: '-0.01em' }}>{app?.name}</div>
+                    </div>
+                </div>
+                <button
+                    onClick={onSkip}
+                    title="Lewati panduan"
+                    style={{
+                        background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px', padding: '8px 14px', color: '#94a3b8',
+                        cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600,
+                        display: 'flex', alignItems: 'center', gap: '6px',
+                        transition: 'all 0.15s'
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; e.currentTarget.style.color = '#f1f5f9'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; e.currentTarget.style.color = '#94a3b8'; }}
+                >
+                    <ChevronLeft size={14} /> Lewati
+                </button>
+            </div>
+
+            {/* Scrollable content */}
+            <div style={{
+                flex: 1, overflowY: 'auto', padding: '28px 32px',
+                position: 'relative', zIndex: 1,
+                scrollbarWidth: 'thin',
+                scrollbarColor: 'rgba(99,102,241,0.3) transparent'
+            }}>
+                <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+                    {renderMarkdown(helpGuide)}
+                </div>
+            </div>
+
+            {/* Footer CTA */}
+            <div style={{
+                flexShrink: 0, padding: '20px 32px',
+                borderTop: '1px solid rgba(255,255,255,0.06)',
+                background: 'rgba(0,0,0,0.4)',
+                backdropFilter: 'blur(10px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                gap: '16px', position: 'relative', zIndex: 1
+            }}>
+                <div style={{ fontSize: '0.8rem', color: '#64748b', textAlign: 'center' }}>
+                    Baca panduan di atas sebelum memulai aplikasi
+                </div>
+                <button
+                    onClick={onStart}
+                    id="help-guide-start-btn"
+                    style={{
+                        padding: '12px 32px',
+                        borderRadius: '12px',
+                        border: 'none',
+                        background: 'linear-gradient(135deg, #6366f1 0%, #3b82f6 100%)',
+                        color: 'white',
+                        fontWeight: 800,
+                        fontSize: '0.95rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        boxShadow: '0 4px 20px rgba(99,102,241,0.4), 0 0 40px rgba(99,102,241,0.15)',
+                        transition: 'all 0.2s',
+                        letterSpacing: '-0.01em'
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 30px rgba(99,102,241,0.5), 0 0 60px rgba(99,102,241,0.2)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(99,102,241,0.4), 0 0 40px rgba(99,102,241,0.15)'; }}
+                >
+                    <Play size={16} /> Mulai Aplikasi
+                </button>
+            </div>
+        </div>
+    );
+}
+
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 const AppPlayer = () => {
@@ -722,6 +881,9 @@ const AppPlayer = () => {
     // Iframe error
     const [iframeError, setIframeError] = useState(false);
     const iframeLoadTimer = useRef(null);
+
+    // Help Guide
+    const [showHelpGuide, setShowHelpGuide] = useState(false);
 
     const activeApp = useMemo(() => apps.find((a) => a.id === activeAppId) || null, [apps, activeAppId]);
     const activeStationName = useMemo(() => stations.find(s => s.id === stationIdFilter)?.name || stationIdFilter, [stations, stationIdFilter]);
@@ -918,9 +1080,16 @@ const AppPlayer = () => {
         setIsPaused(false);
         setSessionComments([]);
 
-        // Arm iframe error timeout (5 s)
+        // Show help guide splash if app has one
+        const launchingApp = apps.find(a => a.id === pendingApp.id);
+        const guide = launchingApp?.config?.helpGuide || '';
+        setShowHelpGuide(!!guide.trim());
+
+        // Arm iframe error timeout (5 s) — only start counting after guide dismissed
         clearTimeout(iframeLoadTimer.current);
-        iframeLoadTimer.current = setTimeout(() => setIframeError(true), 8000);
+        if (!guide.trim()) {
+            iframeLoadTimer.current = setTimeout(() => setIframeError(true), 8000);
+        }
 
         setPendingApp(null);
     };
@@ -1604,6 +1773,27 @@ const AppPlayer = () => {
                                                 <span style={{ flex: 1 }}>Sign Session</span>
                                             </button>
 
+                                            {/* Panduan Aplikasi - hanya tampil jika app punya help guide */}
+                                            {activeApp?.config?.helpGuide && (
+                                                <button
+                                                    onClick={() => { setShowHelpGuide(true); setMenuOpen(false); }}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '12px',
+                                                        padding: '9px 16px', width: '100%', border: 'none',
+                                                        background: 'none', textAlign: 'left', fontSize: '0.82rem',
+                                                        fontWeight: 600, color: 'rgba(255,255,255,0.75)',
+                                                        cursor: 'pointer', transition: 'all 0.15s'
+                                                    }}
+                                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
+                                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
+                                                >
+                                                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                        <BookOpen size={13} color="#a5b4fc" />
+                                                    </div>
+                                                    <span style={{ flex: 1 }}>Panduan Aplikasi</span>
+                                                </button>
+                                            )}
+
                                             <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.07)', margin: '6px 0' }} />
 
                                             {/* Debug Panel toggle (if in dev mode) */}
@@ -1837,6 +2027,23 @@ const AppPlayer = () => {
                                         Select an app from the sidebar and click <strong>Launch</strong> to start a production session.
                                     </p>
                                 </div>
+                            </div>
+                        ) : showHelpGuide && activeApp?.config?.helpGuide ? (
+                            <div style={{ position: 'relative', height: '100%', overflow: 'hidden' }}>
+                                <AppHelpGuideScreen
+                                    app={activeApp}
+                                    helpGuide={activeApp.config.helpGuide}
+                                    onStart={() => {
+                                        setShowHelpGuide(false);
+                                        clearTimeout(iframeLoadTimer.current);
+                                        iframeLoadTimer.current = setTimeout(() => setIframeError(true), 8000);
+                                    }}
+                                    onSkip={() => {
+                                        setShowHelpGuide(false);
+                                        clearTimeout(iframeLoadTimer.current);
+                                        iframeLoadTimer.current = setTimeout(() => setIframeError(true), 8000);
+                                    }}
+                                />
                             </div>
                         ) : iframeError ? (
                             <div style={{ height: '100%', display: 'grid', placeItems: 'center', padding: '24px' }}>
