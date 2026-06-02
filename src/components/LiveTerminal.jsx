@@ -3843,6 +3843,13 @@ const LiveTerminal = () => {
             } catch (err) {
               console.error(`[Connector] Execution failed:`, err);
             }
+          } else if (action.type === 'PUBLISH_MQTT' || action.type === 'WRITE_PLC_TAG') {
+            const { topic, value, valueType } = action.payload || {};
+            const resolvedValue = await resolveSourceValue(valueType || 'STATIC', value, '', eventPayload);
+            if (topic) {
+              iotConnector.publish(topic, String(resolvedValue));
+              console.log(`[PLC HMI] Published ${resolvedValue} to ${topic}`);
+            }
           } else if (action.type === 'APP_REFRESH' || action.type === 'CLEAR_ALL_INPUTS') {
             console.log(`[${action.type}] Manually triggering data refresh...`);
             resetInputs(); // Clear all manual entries and force remount
@@ -5747,6 +5754,13 @@ const LiveTerminal = () => {
                 if (isFilePicker) {
                   document.getElementById(`picker-${comp.id}`)?.click();
                 }
+                if (comp.props.mqttPublishTopic) {
+                  const payload = comp.props.mqttPublishPayload !== undefined 
+                    ? String(comp.props.mqttPublishPayload) 
+                    : '1';
+                  iotConnector.publish(comp.props.mqttPublishTopic, payload);
+                  console.log(`[PLC HMI Button] Published ${payload} to ${comp.props.mqttPublishTopic}`);
+                }
                 handleButtonAction(comp.props, comp);
               }}
               style={{
@@ -6135,6 +6149,54 @@ const LiveTerminal = () => {
             </div>
             <div style={{ height: '14px', backgroundColor: '#e2e8f0', borderRadius: '7px', overflow: 'hidden' }}><div style={{ width: `${pg}%`, height: '100%', backgroundColor: comp.props.color || '#3b82f6', transition: 'width 0.3s', borderRadius: '7px' }} /></div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: '#94a3b8', marginTop: '4px' }}><span>{safeRender(comp.props.min)}</span><span>{safeRender(comp.props.max)}</span></div>
+          </div>
+        );
+      }
+      case 'SLIDER': {
+        const sMin = Number(comp.props.minValue ?? comp.props.min ?? 0);
+        const sMax = Number(comp.props.maxValue ?? comp.props.max ?? 100);
+        const sVal = sliderValues[comp.id] != null 
+          ? sliderValues[comp.id] 
+          : (resolvedProps.value != null ? Number(resolvedProps.value) : (comp.props.defaultValue ?? 30));
+        const sSteps = comp.props.numberOfSteps || 100;
+        const sStep = (sMax - sMin) / sSteps;
+        const sEnabled = comp.props.enabled !== false;
+
+        return (
+          <div style={{ width: '100%', opacity: sEnabled ? 1 : 0.5, display: 'flex', flexDirection: 'column' }}>
+            {comp.props.label && (
+              <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', marginBottom: '8px', fontWeight: 600 }}>
+                {safeRender(comp.props.label)}: <span style={{ color: comp.props.colorLeft || '#2563eb', fontWeight: 'bold' }}>{sVal}</span>
+              </div>
+            )}
+            <input
+              type="range"
+              min={sMin}
+              max={sMax}
+              step={sStep}
+              value={sVal}
+              disabled={!sEnabled}
+              onChange={(e) => {
+                const newVal = Number(e.target.value);
+                setSliderValues(prev => ({ ...prev, [comp.id]: newVal }));
+                syncVariable(newVal);
+                if (comp.props.mqttPublishTopic) {
+                  iotConnector.publish(comp.props.mqttPublishTopic, String(newVal));
+                  console.log(`[PLC HMI Slider] Published ${newVal} to ${comp.props.mqttPublishTopic}`);
+                }
+                fireWidgetTriggers(comp, 'ON_CHANGE');
+                fireWidgetTriggers(comp, 'PositionChanged', { thumbPosition: newVal });
+              }}
+              style={{
+                width: '100%',
+                cursor: sEnabled ? 'pointer' : 'default',
+                accentColor: comp.props.colorLeft || '#2563eb'
+              }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: '#94a3b8', marginTop: '4px' }}>
+              <span>{sMin}</span>
+              <span>{sMax}</span>
+            </div>
           </div>
         );
       }

@@ -39,6 +39,7 @@ import { createQualityInspectionSuiteTemplate } from '../utils/qualityInspection
 import { createFrontlineQmsTemplate } from '../utils/frontlineQmsTemplate';
 import { createMaterialReviewBoardTemplate } from '../utils/materialReviewBoardTemplate';
 import { createSmartHomeTemplate } from '../utils/smartHomeTemplate';
+import { createPlcHmiTerminalTemplate } from '../utils/plcHmiTerminalTemplate';
 import { createWorkInstructionsTemplate } from '../utils/workInstructionsTemplate';
 import { createProductDrawingInspectionTemplate } from '../utils/productDrawingInspectionTemplate';
 import { createHydraulicCylinderInspectionTemplate } from '../utils/hydraulicCylinderInspectionTemplate';
@@ -1462,6 +1463,34 @@ const AppStore = () => {
                 mechanism: 'Binds UI components to MQTT topics for real-time publishing and updates.',
                 steps: [
                     { name: 'SmartHome Panel', description: 'Consolidated dashboard for all active smart home and security IoT devices.' }
+                ]
+            }
+        },
+        {
+            id: 'plc-hmi-terminal',
+            name: 'PLC HMI Control Terminal',
+            category: 'SmartHome / IoT',
+            description: 'Interactive HMI dashboard for PLC monitoring and control, featuring gauges, speed setpoint slider, motor controls, and signal telemetry.',
+            longDescription: 'A premium industrial HMI dashboard template designed for real-time PLC interaction. Includes dual analog gauges (level, pressure), speed setpoint control slider, start/stop action triggers, and telemetry status widgets.',
+            icon: <Cpu size={28} color="#0284c7" />,
+            bg: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+            accent: '#0284c7',
+            rating: 4.8,
+            installs: 'New',
+            features: ['Analog Gauge Readouts', 'Speed Setpoint Control', 'Industrial Signal Status'],
+            guide: {
+                operation: '1. Monitor fluid levels and system pressure in real-time\n2. Adjust conveyor speed setpoint via control slider\n3. Tap Start Motor to run systems\n4. Tap Stop Motor or Reset Alarm to handle system warnings',
+                widgets: ['Analog Gauges', 'Setpoint Slider', 'Action Buttons', 'Variable Display Text'],
+                components: ['Main HMI Dashboard', 'Motor Controls Panel', 'Telemetry Status Grid'],
+                tables: [],
+                triggers: [
+                    { event: 'ON_CLICK_START', function: 'Sets Motor_Status variable to RUNNING and broadcasts notification.' },
+                    { event: 'ON_CLICK_STOP', function: 'Sets Motor_Status variable to STOPPED and broadcasts warning.' },
+                    { event: 'ON_CLICK_RESET', function: 'Clears system alarm message.' }
+                ],
+                mechanism: 'Binds UI components to interactive variables simulating PLC inputs and outputs.',
+                steps: [
+                    { name: 'HMI Dashboard', description: 'Consolidated dashboard for monitoring and managing active PLC components.' }
                 ]
             }
         }
@@ -3787,6 +3816,8 @@ const AppStore = () => {
                 }
             } else if (templateId === 'smarthome-iot') {
                 templateApp = createSmartHomeTemplate();
+            } else if (templateId === 'plc-hmi-terminal') {
+                templateApp = createPlcHmiTerminalTemplate();
             } else {
                 toast.error('Template not found', { id: loadingToast });
                 return;
