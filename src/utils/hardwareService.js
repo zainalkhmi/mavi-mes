@@ -140,6 +140,23 @@ class HardwareService {
         this._updateStatus('disconnected');
     }
 
+    async writeSerial(data) {
+        if (!this.serialPort || !this.serialPort.writable) {
+            console.warn('Serial port not connected or not writable');
+            return false;
+        }
+        try {
+            const encoder = new TextEncoder();
+            const writer = this.serialPort.writable.getWriter();
+            await writer.write(encoder.encode(data));
+            writer.releaseLock();
+            return true;
+        } catch (err) {
+            console.error('Serial Write Error:', err);
+            return false;
+        }
+    }
+
     // --- Mock for Demo/Development ---
     simulateData() {
         const val = (Math.random() * 100).toFixed(2);

@@ -790,6 +790,259 @@ const CADViewer3D = ({ appVariables, setAppVariables }) => {
   );
 };
 
+const ArduinoWidget = ({ comp, syncVariable, fireWidgetTriggers, isDark }) => {
+    const [status, setStatus] = useState(comp.props.status || 'disconnected');
+    const [liveValue, setLiveValue] = useState(0);
+    const [graphData, setGraphData] = useState([]);
+
+    useEffect(() => {
+        const unsubStatus = hardwareService.subscribeStatus((s) => {
+            setStatus(s);
+        });
+
+        let telemetryUnsub = () => {};
+        if (comp.type === 'ARDUINO_PIN_MONITOR' || comp.type === 'ARDUINO_GRAPH') {
+            telemetryUnsub = hardwareService.onData((val) => {
+                setLiveValue(val);
+                syncVariable(val);
+                
+                if (comp.type === 'ARDUINO_GRAPH') {
+                    setGraphData(prev => {
+                        const next = [...prev, val];
+                        if (next.length > (comp.props.maxSamples || 50)) {
+                            next.shift();
+                        }
+                        return next;
+                    });
+                }
+                fireWidgetTriggers(comp, 'ValueReceived', { value: val });
+            });
+        }
+
+        return () => {
+            unsubStatus();
+            telemetryUnsub();
+        };
+    }, [comp]);
+
+    const handleConnect = async () => {
+        if (status === 'connected') {
+            await hardwareService.disconnect();
+        } else {
+            await hardwareService.connectSerial(comp.props.baudRate || 9600);
+        }
+    };
+
+    const handleControlChange = async (val) => {
+        setLiveValue(val);
+        const prefix = comp.props.controlType === 'SLIDER' ? 'p' : 'd';
+        const cmd = `${prefix}${comp.props.pin || '13'}:${val}\n`;
+        await hardwareService.writeSerial(cmd);
+        fireWidgetTriggers(comp, 'PinChanged', { pin: comp.props.pin, value: val });
+    };
+
+    const tealColor = '#00979D';
+
+    if (comp.type === 'ARDUINO_BOARD') {
+        const connected = status === 'connected';
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: '#0f172a', borderRadius: '12px', border: `2px solid ${connected ? '#10b981' : '#334155'}`,
+                padding: '12px', display: 'flex', flexDirection: 'column', color: '#f8fafc', fontFamily: 'monospace', boxSizing: 'border-box'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Cpu size={18} color={tealColor} />
+                        <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>{comp.props.label || 'Arduino Uno'}</span>
+                    </div>
+                    <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', backgroundColor: connected ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)', color: connected ? '#10b981' : '#ef4444', fontWeight: 'bold' }}>
+                        {connected ? 'CONNECTED' : 'DISCONNECTED'}
+                    </span>
+                </div>
+                <div style={{ flex: 1, position: 'relative', border: '1px solid #1e293b', borderRadius: '8px', backgroundColor: '#020617', overflow: 'hidden', padding: '8px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.6rem', color: '#475569' }}>
+                        <span>{"[AREF] [GND] [13] [12] [~11] [~10] [~9] [8]"}</span>
+                        <span>{"[7] [~6] [~5] [4] [~3] [2] [TX>1] [RX<0]"}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 0' }}>
+                        <div style={{ width: '20px', height: '14px', backgroundColor: '#64748b', borderRadius: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{ width: '12px', height: '8px', backgroundColor: '#334155' }} />
+                        </div>
+                        <div style={{ width: '120px', height: '24px', backgroundColor: '#1e293b', borderRadius: '4px', border: '1px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.55rem', fontWeight: 'bold' }}>
+                            ATMEGA328P-PU
+                        </div>
+                        <div style={{ width: '16px', height: '20px', backgroundColor: '#1e293b', borderRadius: '2px' }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.6rem', color: '#475569' }}>
+                        <span>{"[5V] [GND] [RST] [3.3V]"}</span>
+                        <span>{"[A0] [A1] [A2] [A3] [A4] [A5]"}</span>
+                    </div>
+                </div>
+                <button
+                    onClick={handleConnect}
+                    style={{
+                        marginTop: '8px', padding: '6px 12px', borderRadius: '6px', border: 'none',
+                        backgroundColor: connected ? '#ef4444' : tealColor, color: 'white',
+                        fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s'
+                    }}
+                >
+                    {connected ? 'Disconnect' : 'Connect Serial'}
+                </button>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_PIN_MONITOR') {
+        const valStr = comp.props.pinMode === 'DIGITAL_INPUT' ? (liveValue > 0 ? 'HIGH' : 'LOW') : liveValue;
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                borderRadius: '10px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', justifyContent: 'space-between'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: isDark ? '#94a3b8' : '#64748b' }}>{comp.props.label || 'Pin Monitor'}</span>
+                    <span style={{ fontSize: '0.6rem', backgroundColor: 'rgba(0,151,157,0.1)', color: tealColor, padding: '1px 5px', borderRadius: '4px', fontWeight: 'bold' }}>
+                        PIN {comp.props.pin || 'A0'}
+                    </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', margin: '4px 0' }}>
+                    <span style={{ fontSize: '1.75rem', fontWeight: 900, color: isDark ? '#f8fafc' : '#0f172a', fontFamily: 'monospace' }}>
+                        {valStr}
+                    </span>
+                    <span style={{ fontSize: '0.8rem', color: isDark ? '#64748b' : '#94a3b8' }}>{comp.props.unit}</span>
+                </div>
+                <div style={{ fontSize: '0.55rem', color: isDark ? '#475569' : '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {comp.props.pinMode || 'ANALOG_INPUT'} {comp.props.targetVariable ? `→ @${comp.props.targetVariable}` : ''}
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_CONTROLLER') {
+        const isToggle = comp.props.controlType === 'TOGGLE' || !comp.props.controlType;
+        const isSlider = comp.props.controlType === 'SLIDER';
+        const isButton = comp.props.controlType === 'BUTTON';
+
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                borderRadius: '10px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', justifyContent: 'space-between'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: isDark ? '#94a3b8' : '#64748b' }}>{comp.props.label || 'Pin Controller'}</span>
+                    <span style={{ fontSize: '0.6rem', backgroundColor: 'rgba(0,151,157,0.1)', color: tealColor, padding: '1px 5px', borderRadius: '4px', fontWeight: 'bold' }}>
+                        PIN {comp.props.pin || '13'}
+                    </span>
+                </div>
+                
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {isToggle && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <input
+                                type="checkbox"
+                                checked={liveValue > 0}
+                                onChange={(e) => handleControlChange(e.target.checked ? 1 : 0)}
+                                style={{ width: '40px', height: '20px', cursor: 'pointer' }}
+                            />
+                            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: isDark ? '#f8fafc' : '#0f172a' }}>
+                                {liveValue > 0 ? 'HIGH' : 'LOW'}
+                            </span>
+                        </div>
+                    )}
+
+                    {isButton && (
+                        <button
+                            onMouseDown={() => handleControlChange(1)}
+                            onMouseUp={() => handleControlChange(0)}
+                            onTouchStart={() => handleControlChange(1)}
+                            onTouchEnd={() => handleControlChange(0)}
+                            style={{
+                                padding: '8px 16px', backgroundColor: tealColor, color: 'white', border: 'none',
+                                borderRadius: '6px', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer'
+                            }}
+                        >
+                            HOLD FOR HIGH
+                        </button>
+                    )}
+
+                    {isSlider && (
+                        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <input
+                                type="range"
+                                min={comp.props.min || 0}
+                                max={comp.props.max || 255}
+                                value={liveValue}
+                                onChange={(e) => handleControlChange(parseInt(e.target.value))}
+                                style={{ width: '100%', accentColor: tealColor }}
+                            />
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: isDark ? '#64748b' : '#94a3b8' }}>
+                                <span>Min: {comp.props.min || 0}</span>
+                                <span style={{ fontWeight: 'bold', color: tealColor }}>Val: {liveValue}</span>
+                                <span>Max: {comp.props.max || 255}</span>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_GRAPH') {
+        const samples = graphData;
+        const maxVal = Math.max(...samples, 1023);
+        const minVal = 0;
+        
+        const width = 360, height = 110;
+        let pointsStr = '';
+        if (samples.length > 1) {
+            const stepX = width / (samples.length - 1);
+            pointsStr = samples.map((v, i) => {
+                const x = i * stepX;
+                const y = height - ((v - minVal) / (maxVal - minVal)) * height;
+                return `${x},${y}`;
+            }).join(' ');
+        }
+
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Activity size={16} color={comp.props.color || tealColor} />
+                        <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: isDark ? '#94a3b8' : '#64748b' }}>{comp.props.label || 'Real-time Graph'}</span>
+                    </div>
+                    <span style={{ fontSize: '0.6rem', backgroundColor: 'rgba(0,151,157,0.1)', color: tealColor, padding: '1px 5px', borderRadius: '4px', fontWeight: 'bold' }}>
+                        PIN {comp.props.pin || 'A0'}
+                    </span>
+                </div>
+                <div style={{ flex: 1, position: 'relative', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '6px', backgroundColor: isDark ? '#020617' : '#f8fafc', overflow: 'hidden' }}>
+                    {samples.length > 1 ? (
+                        <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: '100%', display: 'block' }}>
+                            <line x1="0" y1={height * 0.25} x2={width} y2={height * 0.25} stroke={isDark ? '#1e293b' : '#e2e8f0'} strokeWidth="1" strokeDasharray="4" />
+                            <line x1="0" y1={height * 0.5} x2={width} y2={height * 0.5} stroke={isDark ? '#1e293b' : '#e2e8f0'} strokeWidth="1" strokeDasharray="4" />
+                            <line x1="0" y1={height * 0.75} x2={width} y2={height * 0.75} stroke={isDark ? '#1e293b' : '#e2e8f0'} strokeWidth="1" strokeDasharray="4" />
+                            <polyline
+                                fill="none"
+                                stroke={comp.props.color || tealColor}
+                                strokeWidth="2"
+                                points={pointsStr}
+                            />
+                        </svg>
+                    ) : (
+                        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isDark ? '#475569' : '#94a3b8', fontSize: '0.75rem' }}>
+                            Awaiting serial data...
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    return null;
+};
+
 const MeasurementWidget = ({ comp, syncVariable, fireWidgetTriggers, isDark }) => {
     const [liveValue, setLiveValue] = useState(0);
     const [status, setStatus] = useState('disconnected');
@@ -8524,6 +8777,18 @@ const LiveTerminal = () => {
       case 'WEIGHING_SCALE':
         return (
           <MeasurementWidget
+            comp={comp}
+            syncVariable={syncVariable}
+            fireWidgetTriggers={fireWidgetTriggers}
+            isDark={isDark}
+          />
+        );
+      case 'ARDUINO_BOARD':
+      case 'ARDUINO_PIN_MONITOR':
+      case 'ARDUINO_CONTROLLER':
+      case 'ARDUINO_GRAPH':
+        return (
+          <ArduinoWidget
             comp={comp}
             syncVariable={syncVariable}
             fireWidgetTriggers={fireWidgetTriggers}

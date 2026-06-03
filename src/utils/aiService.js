@@ -389,7 +389,8 @@ const WIDGET_CATALOG = {
     OBD2: ['OBD2_SCANNER','OBD2_RPM','OBD2_SPEED','OBD2_COOLANT_TEMP','OBD2_THROTTLE','OBD2_ENGINE_LOAD','OBD2_FUEL_LEVEL','OBD2_BATTERY_VOLTAGE','OBD2_DTC','OBD2_WARNING'],
     DRAWING: ['CANVAS','BALL','IMAGE_SPRITE'],
     SYSTEM: ['TIMER','IOT_DEVICE','IOT_CONNECTOR','DATABASE_CONNECTOR','API_CONNECTOR','LOGIC_NODE','EVENT_TRIGGER','CAMERA_SCANNER'],
-    SMARTHOME: ['SMARTHOME_DEVICE','TUYA_PRODUCT']
+    SMARTHOME: ['SMARTHOME_DEVICE','TUYA_PRODUCT'],
+    ARDUINO: ['ARDUINO_BOARD','ARDUINO_PIN_MONITOR','ARDUINO_CONTROLLER','ARDUINO_GRAPH']
 };
 
 const getBuilderSystemPrompt = (context) => {
@@ -412,6 +413,10 @@ Progress/ProgressBar → GAUGE | Scanner/QRScanner → BARCODE_SCANNER
 Camera/Photo → CAMERA_CAPTURE | WebView/IFrame → EMBED_WEB
 MachineStatus/StatusWidget → MACHINE_STATUS | Timeline → MACHINE_TIMELINE
 SignaturePad → SIGNATURE_PAD
+ArduinoBoard/Arduino/ESP32 → ARDUINO_BOARD
+PinMonitor/ArduinoPin/PinInput → ARDUINO_PIN_MONITOR
+PinController/RelaySwitch/PinOutput → ARDUINO_CONTROLLER
+ArduinoGraph/RealtimePlotter/PinGraph → ARDUINO_GRAPH
 
 ════════════════════════════════════════════════
 🔌 FITUR PENDUKUNG INTEGRASI AI & PERANGKAT KERAS
@@ -442,6 +447,8 @@ Grid: multiples of 4. Standard sizes:
   TABLE_AGGREGATION(w=200,h=80) | RECORD_DISPLAY(w=440,h=240)
   AI_CHAT(w=440,h=400) | MAP(w=960,h=360) | STEP_TIME(w=200,h=60)
   SMARTHOME_DEVICE(w=220,h=140) | TUYA_PRODUCT(w=320,h=420)
+  ARDUINO_BOARD(w=320,h=180) | ARDUINO_PIN_MONITOR(w=220,h=120)
+  ARDUINO_CONTROLLER(w=220,h=120) | ARDUINO_GRAPH(w=400,h=220)
 
 Columns:
   Full-width: x=20, w=960
@@ -501,6 +508,10 @@ MAP: {center:"-6.2,106.8", zoomLevel:14, mapType:"Roads", enablePan:true, showUs
 OBD2_SCANNER: {label:"OBD2 Scanner", transport:"BLUETOOTH", protocol:"AUTO"}
 SMARTHOME_DEVICE: {deviceName:"Smart Switch", deviceBrand:"TUYA|BARDI|SONOFF", deviceType:"SWITCH|BULB|THERMOSTAT|AIR_CON", on:false, brightness:100, temperature:24}
 TUYA_PRODUCT: {deviceName:"Tuya Smart Light", productCase:"LIGHTING|CAMERA|THERMOSTAT|AIR_PURIFIER|ROBOT_VACUUM|LOCK|PLUG|SENSOR", on:false, brightness:80, colorTemp:50, colorHex:"#ff5f00", temperature:24, targetTemperature:22, fanSpeed:"AUTO|LOW|MEDIUM|HIGH", mode:"AUTO|COOL|HEAT|DRY", batteryLevel:85, aqiValue:12, filterLife:92, locked:true, usbOn:false, powerConsumption:12.5, totalEnergy:4.8}
+ARDUINO_BOARD: {label, boardType:"UNO|MEGA|NANO|ESP32", connectionType:"SERIAL|MQTT|WIFI", baudRate:9600}
+ARDUINO_PIN_MONITOR: {label, pin:"A0|D13", pinMode:"ANALOG_INPUT|DIGITAL_INPUT", targetVariable}
+ARDUINO_CONTROLLER: {label, pin:"13", controlType:"TOGGLE|BUTTON|SLIDER", min:0, max:255}
+ARDUINO_GRAPH: {label, pin:"A0", maxSamples:50, color:"#00979d"}
 
 ════════════════════════════════════════════════
 🔧 COMMANDS — BUILD (Create new elements)
@@ -655,7 +666,7 @@ Example for a data entry form:
 13. DELETE MODE: When user asks to "remove", "delete", "hapus", "buang" something → use DELETE_* commands.
 14. EDIT ONLY WHAT'S ASKED: On UPDATE commands, only include the specific props/fields user wants changed.
 15. DATA COMMANDS: Never output table columns (like UUID, RECORD, TEXT) directly as top-level objects in the "commands" array. Columns MUST always be nested inside the columns array of a CREATE_TABLE command payload: {type:"CREATE_TABLE", payload:{name:"tableName", columns:[{name:"colName", type:"text"}]}}.
-16. HELP GUIDE: When user asks to generate, update, or create a "panduan", "help", "user guide", "panduan penggunaan", "cara pakai", "dokumentasi" — ALWAYS output UPDATE_HELP_GUIDE command. This creates a comprehensive Markdown guide that operators will see as a full-screen splash BEFORE starting the app.
+16. HELP GUIDE: When user asks to generate, update, or create a "panduan", "help", "user guide", "panduan penggunaan", "cara pakai", "dokumentasi" — ALWAYS output UPDATE_HELP_GUIDE command. This creates a comprehensive Markdown guide that operators will see as a full-screen splash BEFORE starting the app. If the app does not exist yet or is empty, draft a guide that outlines the proposed structure, screens, tables, triggers, and workflow of the planned app to help map out the design.
 
 ════════════════════════════════════════════════
 📖 HELP GUIDE COMMAND
@@ -695,7 +706,7 @@ Help Guide Markdown MUST include these sections:
 ## ⚠️ Catatan Penting
 [Any validation rules, required fields, edge cases, common errors]
 
-IMPORTANT: Base the guide on ACTUAL context (tables, screens, widgets, functions, automations from CURRENT CONTEXT). Do NOT invent data that doesn't exist. Write in Bahasa Indonesia unless user requests English.
+IMPORTANT: Base the guide on ACTUAL context if the app is already partially or fully built. If the user is planning a new app, asks to create a guide for a proposed app, or if the canvas/context is empty, draft a comprehensive guide that outlines the proposed screens, variables, tables, functions, and workflow of the planned app to help map out the design first. Do NOT refuse to create the guide if the canvas is empty or has no widgets. Write in Bahasa Indonesia unless user requests English.
 
 CURRENT CONTEXT:
 - Active Screen: ${context.currentStepName || 'Screen 1'} (ID: ${context.currentStepId || ''})

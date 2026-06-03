@@ -1406,6 +1406,76 @@ const COMPONENT_TYPES = {
             rotation: 0
         }
     },
+    ARDUINO_BOARD: {
+        id: 'ARDUINO_BOARD',
+        label: 'Arduino Board',
+        icon: Cpu,
+        defaultSize: { w: 320, h: 180 },
+        defaultProps: {
+            label: 'Arduino Uno',
+            boardType: 'UNO',
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            port: '',
+            status: 'disconnected',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_PIN_MONITOR: {
+        id: 'ARDUINO_PIN_MONITOR',
+        label: 'Arduino Pin Monitor',
+        icon: Activity,
+        defaultSize: { w: 220, h: 120 },
+        defaultProps: {
+            label: 'Analog Pin A0',
+            pin: 'A0',
+            pinMode: 'ANALOG_INPUT',
+            precision: 0,
+            unit: '',
+            targetVariable: '',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_CONTROLLER: {
+        id: 'ARDUINO_CONTROLLER',
+        label: 'Arduino Pin Controller',
+        icon: ToggleLeft,
+        defaultSize: { w: 220, h: 120 },
+        defaultProps: {
+            label: 'Digital Output D13',
+            pin: '13',
+            controlType: 'TOGGLE',
+            min: 0,
+            max: 255,
+            visible: true,
+            enabled: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_GRAPH: {
+        id: 'ARDUINO_GRAPH',
+        label: 'Arduino Real-time Graph',
+        icon: BarChart3,
+        defaultSize: { w: 400, h: 220 },
+        defaultProps: {
+            label: 'Sensor Plotter',
+            pin: 'A0',
+            maxSamples: 50,
+            color: '#00979d',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
     MULTI_SELECT: {
         id: 'MULTI_SELECT',
         label: 'MultiSelect Dropdown',
@@ -1658,6 +1728,12 @@ const CATEGORIZED_COMPONENTS = {
             'OBD2_OIL_TEMP', 'OBD2_MAP', 'OBD2_BARO', 'OBD2_BOOST',
             'OBD2_BATTERY_VOLTAGE', 'OBD2_DTC', 'OBD2_MIL_STATUS', 'OBD2_FREEZE_FRAME', 'OBD2_CLEAR_DTC', 'OBD2_WARNING'
         ]
+    },
+    ARDUINO: {
+        label: 'Arduino IoT',
+        icon: Cpu,
+        color: '#00979D',
+        types: ['ARDUINO_BOARD', 'ARDUINO_PIN_MONITOR', 'ARDUINO_CONTROLLER', 'ARDUINO_GRAPH']
     }
 };
 
@@ -1676,16 +1752,19 @@ const CHROMELESS_COMPONENT_TYPES = [
 ];
 const DEVICE_TRIGGER_COMPONENT_TYPES = [
     'BARCODE', 'CAMERA_SCANNER', 'VISION_DETECTOR', 'VISION_MEASUREMENT', 'CAMERA', 'CAMCORDER', 'FILE_UPLOAD', 'MEDIA_RECORDER',
-    'IOT_DEVICE', 'MACHINE_STATUS', 'ACCELEROMETER', 'LOCATION_SENSOR', 'BARCODE_SCANNER_NON_VISIBLE', 'CLOCK', 'OBD2_SCANNER'
+    'IOT_DEVICE', 'MACHINE_STATUS', 'ACCELEROMETER', 'LOCATION_SENSOR', 'BARCODE_SCANNER_NON_VISIBLE', 'CLOCK', 'OBD2_SCANNER',
+    'ARDUINO_BOARD', 'ARDUINO_PIN_MONITOR', 'ARDUINO_CONTROLLER'
 ];
 const FORM_BINDABLE_COMPONENT_TYPES = [
     'TEXT_INPUT', 'TEXT_AREA', 'DROPDOWN', 'RADIO_GROUP', 'MULTI_SELECT', 'NUMBER_INPUT', 'DATE_PICKER',
     'DATETIME_PICKER', 'BOOLEAN_TOGGLE', 'BARCODE', 'CAMERA_SCANNER', 'VISION_DETECTOR', 'VISION_MEASUREMENT', 'MENU',
-    'SLIDER', 'CHECKBOX', 'LIST_PICKER', 'LIST_VIEW', 'PASSWORD_TEXT', 'SPEECH_RECOGNIZER', 'SMARTHOME_DEVICE', 'TUYA_PRODUCT'
+    'SLIDER', 'CHECKBOX', 'LIST_PICKER', 'LIST_VIEW', 'PASSWORD_TEXT', 'SPEECH_RECOGNIZER', 'SMARTHOME_DEVICE', 'TUYA_PRODUCT',
+    'ARDUINO_PIN_MONITOR'
 ];
 const INPUT_WIDGET_TYPES_WITH_DATASOURCE = [
     'TEXT_INPUT', 'TEXT_AREA', 'NUMBER_INPUT', 'DATE_PICKER', 'DATETIME_PICKER', 'BOOLEAN_TOGGLE',
-    'DROPDOWN', 'MULTI_SELECT', 'CHECKBOX', 'PASSWORD_TEXT', 'LIST_PICKER', 'LIST_VIEW', 'SPEECH_RECOGNIZER', 'SMARTHOME_DEVICE', 'TUYA_PRODUCT'
+    'DROPDOWN', 'MULTI_SELECT', 'CHECKBOX', 'PASSWORD_TEXT', 'LIST_PICKER', 'LIST_VIEW', 'SPEECH_RECOGNIZER', 'SMARTHOME_DEVICE', 'TUYA_PRODUCT',
+    'ARDUINO_PIN_MONITOR'
 ];
 const FORM_STEP_TYPES = ['Form Step', 'Signature Form'];
 
@@ -1732,6 +1811,270 @@ const ICON_BUTTON_VARIANTS = {
     green: { bg: '#16a34a', hover: '#15803d', text: '#ffffff', border: '#16a34a' },
     gray: { bg: '#f1f5f9', hover: '#e2e8f0', text: '#374151', border: '#cbd5e1' },
     outline: { bg: 'transparent', hover: '#f1f5f9', text: '#374151', border: '#cbd5e1' },
+};
+
+const ArduinoWidget = ({ comp, viewMode, onWidgetInteraction, setPreviewFormValues, updateComponentProps, language = 'en', isDark = false }) => {
+    const [status, setStatus] = React.useState(comp.props.status || 'disconnected');
+    const [liveValue, setLiveValue] = React.useState(0);
+    const [graphData, setGraphData] = React.useState([]);
+
+    React.useEffect(() => {
+        if (viewMode !== 'PREVIEW') return;
+        
+        const unsubStatus = hardwareService.subscribeStatus((s) => {
+            setStatus(s);
+        });
+
+        let telemetryUnsub = () => {};
+        if (comp.type === 'ARDUINO_PIN_MONITOR' || comp.type === 'ARDUINO_GRAPH') {
+            telemetryUnsub = hardwareService.onData((val) => {
+                setLiveValue(val);
+                if (comp.props.targetVariable) {
+                    setPreviewFormValues(prev => ({ ...prev, [comp.id]: val }));
+                }
+                
+                if (comp.type === 'ARDUINO_GRAPH') {
+                    setGraphData(prev => {
+                        const next = [...prev, val];
+                        if (next.length > (comp.props.maxSamples || 50)) {
+                            next.shift();
+                        }
+                        return next;
+                    });
+                }
+                onWidgetInteraction(comp, 'ValueReceived', { value: val });
+            });
+        }
+
+        return () => {
+            unsubStatus();
+            telemetryUnsub();
+        };
+    }, [viewMode, comp]);
+
+    const handleConnect = async () => {
+        if (viewMode !== 'PREVIEW') return;
+        if (status === 'connected') {
+            await hardwareService.disconnect();
+        } else {
+            await hardwareService.connectSerial(comp.props.baudRate || 9600);
+        }
+    };
+
+    const handleControlChange = async (val) => {
+        if (viewMode !== 'PREVIEW') return;
+        setLiveValue(val);
+        const prefix = comp.props.controlType === 'SLIDER' ? 'p' : 'd';
+        const cmd = `${prefix}${comp.props.pin || '13'}:${val}\n`;
+        await hardwareService.writeSerial(cmd);
+        onWidgetInteraction(comp, 'PinChanged', { pin: comp.props.pin, value: val });
+    };
+
+    const tealColor = '#00979D';
+
+    if (comp.type === 'ARDUINO_BOARD') {
+        const connected = status === 'connected';
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: '#0f172a', borderRadius: '12px', border: `2px solid ${connected ? '#10b981' : '#334155'}`,
+                padding: '12px', display: 'flex', flexDirection: 'column', color: '#f8fafc', fontFamily: 'monospace', boxSizing: 'border-box'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Cpu size={18} color={tealColor} />
+                        <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>{comp.props.label || 'Arduino Uno'}</span>
+                    </div>
+                    <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', backgroundColor: connected ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)', color: connected ? '#10b981' : '#ef4444', fontWeight: 'bold' }}>
+                        {connected ? 'CONNECTED' : 'DISCONNECTED'}
+                    </span>
+                </div>
+                <div style={{ flex: 1, position: 'relative', border: '1px solid #1e293b', borderRadius: '8px', backgroundColor: '#020617', overflow: 'hidden', padding: '8px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.6rem', color: '#475569' }}>
+                        <span>{"[AREF] [GND] [13] [12] [~11] [~10] [~9] [8]"}</span>
+                        <span>{"[7] [~6] [~5] [4] [~3] [2] [TX>1] [RX<0]"}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 0' }}>
+                        <div style={{ width: '20px', height: '14px', backgroundColor: '#64748b', borderRadius: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{ width: '12px', height: '8px', backgroundColor: '#334155' }} />
+                        </div>
+                        <div style={{ width: '120px', height: '24px', backgroundColor: '#1e293b', borderRadius: '4px', border: '1px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.55rem', fontWeight: 'bold' }}>
+                            ATMEGA328P-PU
+                        </div>
+                        <div style={{ width: '16px', height: '20px', backgroundColor: '#1e293b', borderRadius: '2px' }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.6rem', color: '#475569' }}>
+                        <span>{"[5V] [GND] [RST] [3.3V]"}</span>
+                        <span>{"[A0] [A1] [A2] [A3] [A4] [A5]"}</span>
+                    </div>
+                </div>
+                {viewMode === 'PREVIEW' && (
+                    <button
+                        onClick={handleConnect}
+                        style={{
+                            marginTop: '8px', padding: '6px 12px', borderRadius: '6px', border: 'none',
+                            backgroundColor: connected ? '#ef4444' : tealColor, color: 'white',
+                            fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s'
+                        }}
+                    >
+                        {connected ? 'Disconnect' : 'Connect Serial'}
+                    </button>
+                )}
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_PIN_MONITOR') {
+        const valStr = comp.props.pinMode === 'DIGITAL_INPUT' ? (liveValue > 0 ? 'HIGH' : 'LOW') : liveValue;
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-secondary)',
+                borderRadius: '10px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', justifyContent: 'space-between'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-secondary)' }}>{comp.props.label || 'Pin Monitor'}</span>
+                    <span style={{ fontSize: '0.6rem', backgroundColor: 'rgba(0,151,157,0.1)', color: tealColor, padding: '1px 5px', borderRadius: '4px', fontWeight: 'bold' }}>
+                        PIN {comp.props.pin || 'A0'}
+                    </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', margin: '4px 0' }}>
+                    <span style={{ fontSize: '1.75rem', fontWeight: 900, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
+                        {viewMode === 'PREVIEW' ? valStr : (comp.props.pinMode === 'DIGITAL_INPUT' ? 'LOW' : '512')}
+                    </span>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>{comp.props.unit}</span>
+                </div>
+                <div style={{ fontSize: '0.55rem', color: 'var(--text-quaternary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {comp.props.pinMode || 'ANALOG_INPUT'} {comp.props.targetVariable ? `→ @${comp.props.targetVariable}` : ''}
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_CONTROLLER') {
+        const isToggle = comp.props.controlType === 'TOGGLE' || !comp.props.controlType;
+        const isSlider = comp.props.controlType === 'SLIDER';
+        const isButton = comp.props.controlType === 'BUTTON';
+
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-secondary)',
+                borderRadius: '10px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', justifyContent: 'space-between'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-secondary)' }}>{comp.props.label || 'Pin Controller'}</span>
+                    <span style={{ fontSize: '0.6rem', backgroundColor: 'rgba(0,151,157,0.1)', color: tealColor, padding: '1px 5px', borderRadius: '4px', fontWeight: 'bold' }}>
+                        PIN {comp.props.pin || '13'}
+                    </span>
+                </div>
+                
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {isToggle && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <input
+                                type="checkbox"
+                                checked={viewMode === 'PREVIEW' ? liveValue > 0 : false}
+                                disabled={viewMode !== 'PREVIEW'}
+                                onChange={(e) => handleControlChange(e.target.checked ? 1 : 0)}
+                                style={{ width: '40px', height: '20px', cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default' }}
+                            />
+                            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                                {viewMode === 'PREVIEW' ? (liveValue > 0 ? 'HIGH' : 'LOW') : 'LOW'}
+                            </span>
+                        </div>
+                    )}
+
+                    {isButton && (
+                        <button
+                            onMouseDown={() => handleControlChange(1)}
+                            onMouseUp={() => handleControlChange(0)}
+                            onTouchStart={() => handleControlChange(1)}
+                            onTouchEnd={() => handleControlChange(0)}
+                            disabled={viewMode !== 'PREVIEW'}
+                            style={{
+                                padding: '8px 16px', backgroundColor: tealColor, color: 'white', border: 'none',
+                                borderRadius: '6px', fontSize: '0.8rem', fontWeight: 'bold', cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default'
+                            }}
+                        >
+                            HOLD FOR HIGH
+                        </button>
+                    )}
+
+                    {isSlider && (
+                        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <input
+                                type="range"
+                                min={comp.props.min || 0}
+                                max={comp.props.max || 255}
+                                value={viewMode === 'PREVIEW' ? liveValue : 0}
+                                disabled={viewMode !== 'PREVIEW'}
+                                onChange={(e) => handleControlChange(parseInt(e.target.value))}
+                                style={{ width: '100%', accentColor: tealColor }}
+                            />
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                                <span>Min: {comp.props.min || 0}</span>
+                                <span style={{ fontWeight: 'bold', color: tealColor }}>Val: {viewMode === 'PREVIEW' ? liveValue : 0}</span>
+                                <span>Max: {comp.props.max || 255}</span>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_GRAPH') {
+        const samples = viewMode === 'PREVIEW' ? graphData : [100, 200, 150, 300, 250, 400, 350, 500, 450, 600, 550, 700];
+        const maxVal = Math.max(...samples, 1023);
+        const minVal = 0;
+        
+        const width = 360, height = 110;
+        let pointsStr = '';
+        if (samples.length > 1) {
+            const stepX = width / (samples.length - 1);
+            pointsStr = samples.map((v, i) => {
+                const x = i * stepX;
+                const y = height - ((v - minVal) / (maxVal - minVal)) * height;
+                return `${x},${y}`;
+            }).join(' ');
+        }
+
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-secondary)',
+                borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Activity size={16} color={comp.props.color || tealColor} />
+                        <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-secondary)' }}>{comp.props.label || 'Real-time Graph'}</span>
+                    </div>
+                    <span style={{ fontSize: '0.6rem', backgroundColor: 'rgba(0,151,157,0.1)', color: tealColor, padding: '1px 5px', borderRadius: '4px', fontWeight: 'bold' }}>
+                        PIN {comp.props.pin || 'A0'}
+                    </span>
+                </div>
+                <div style={{ flex: 1, position: 'relative', border: '1px solid var(--border-secondary)', borderRadius: '6px', backgroundColor: isDark ? '#020617' : '#f8fafc', overflow: 'hidden' }}>
+                    {samples.length > 1 ? (
+                        <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: '100%', display: 'block' }}>
+                            <line x1="0" y1={height * 0.25} x2={width} y2={height * 0.25} stroke={isDark ? '#1e293b' : '#e2e8f0'} strokeWidth="1" strokeDasharray="4" />
+                            <line x1="0" y1={height * 0.5} x2={width} y2={height * 0.5} stroke={isDark ? '#1e293b' : '#e2e8f0'} strokeWidth="1" strokeDasharray="4" />
+                            <line x1="0" y1={height * 0.75} x2={width} y2={height * 0.75} stroke={isDark ? '#1e293b' : '#e2e8f0'} strokeWidth="1" strokeDasharray="4" />
+                            <polyline
+                                fill="none"
+                                stroke={comp.props.color || tealColor}
+                                strokeWidth="2"
+                                points={pointsStr}
+                            />
+                        </svg>
+                    ) : (
+                        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-quaternary)', fontSize: '0.75rem' }}>
+                            Awaiting serial data...
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    return null;
 };
 
 const MeasurementWidget = ({ comp, viewMode, onWidgetInteraction, setPreviewFormValues, updateComponentProps, language = 'en' }) => {
@@ -12722,6 +13065,21 @@ const AppBuilder = () => {
                         language={typeof language !== 'undefined' ? language : 'en'}
                     />
                 );
+            case 'ARDUINO_BOARD':
+            case 'ARDUINO_PIN_MONITOR':
+            case 'ARDUINO_CONTROLLER':
+            case 'ARDUINO_GRAPH':
+                return (
+                    <ArduinoWidget
+                        comp={comp}
+                        viewMode={viewMode}
+                        onWidgetInteraction={onWidgetInteraction}
+                        setPreviewFormValues={setPreviewFormValues}
+                        updateComponentProps={updateComponentProps}
+                        language={typeof language !== 'undefined' ? language : 'en'}
+                        isDark={false}
+                    />
+                );
             case 'IOT_DEVICE':
                 return (
                     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '15px', backgroundColor: 'var(--bg-secondary)', border: '1px dashed var(--border-secondary)', borderRadius: '6px' }}>
@@ -20146,6 +20504,230 @@ const AppBuilder = () => {
                                                                     style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
                                                                 />
                                                             </div>
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {selectedComp.type === 'ARDUINO_BOARD' && (
+                                                    <>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label>
+                                                            <input
+                                                                value={selectedComp.props.label || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            />
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BOARD TYPE</label>
+                                                            <select
+                                                                value={selectedComp.props.boardType || 'UNO'}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { boardType: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                            >
+                                                                <option value="UNO">Arduino Uno</option>
+                                                                <option value="MEGA">Arduino Mega</option>
+                                                                <option value="NANO">Arduino Nano</option>
+                                                                <option value="ESP32">ESP32 (Arduino-Compatible)</option>
+                                                            </select>
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CONNECTION TYPE</label>
+                                                            <select
+                                                                value={selectedComp.props.connectionType || 'SERIAL'}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { connectionType: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                            >
+                                                                <option value="SERIAL">USB Serial</option>
+                                                                <option value="MQTT">MQTT Broker</option>
+                                                                <option value="WIFI">WiFi Webhook / HTTP</option>
+                                                            </select>
+                                                        </div>
+                                                        {selectedComp.props.connectionType === 'SERIAL' && (
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BAUD RATE</label>
+                                                                <select
+                                                                    value={selectedComp.props.baudRate || 9600}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { baudRate: parseInt(e.target.value) || 9600 })}
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                                >
+                                                                    <option value="9600">9600</option>
+                                                                    <option value="19200">19200</option>
+                                                                    <option value="38400">38400</option>
+                                                                    <option value="57600">57600</option>
+                                                                    <option value="115200">115200</option>
+                                                                </select>
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                )}
+
+                                                {selectedComp.type === 'ARDUINO_PIN_MONITOR' && (
+                                                    <>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label>
+                                                            <input
+                                                                value={selectedComp.props.label || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            />
+                                                        </div>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PIN</label>
+                                                                <input
+                                                                    value={selectedComp.props.pin || 'A0'}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { pin: e.target.value })}
+                                                                    placeholder="e.g. A0, D2"
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                />
+                                                            </div>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PIN MODE</label>
+                                                                <select
+                                                                    value={selectedComp.props.pinMode || 'ANALOG_INPUT'}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { pinMode: e.target.value })}
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                                >
+                                                                    <option value="ANALOG_INPUT">Analog Input (0-1023)</option>
+                                                                    <option value="DIGITAL_INPUT">Digital Input (HIGH/LOW)</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>UNIT</label>
+                                                                <input
+                                                                    value={selectedComp.props.unit || ''}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { unit: e.target.value })}
+                                                                    placeholder="e.g. °C, V, mm"
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                />
+                                                            </div>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PRECISION</label>
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max="4"
+                                                                    value={selectedComp.props.precision ?? 0}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { precision: parseInt(e.target.value) || 0 })}
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>TARGET VARIABLE</label>
+                                                            <select
+                                                                value={selectedComp.props.targetVariable || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                            >
+                                                                <option value="">None (Display Only)</option>
+                                                                {appVariables.map(v => (
+                                                                    <option key={v.name} value={v.name}>{v.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {selectedComp.type === 'ARDUINO_CONTROLLER' && (
+                                                    <>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label>
+                                                            <input
+                                                                value={selectedComp.props.label || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            />
+                                                        </div>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PIN</label>
+                                                                <input
+                                                                    value={selectedComp.props.pin || '13'}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { pin: e.target.value })}
+                                                                    placeholder="e.g. 13, 9"
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                />
+                                                            </div>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CONTROL TYPE</label>
+                                                                <select
+                                                                    value={selectedComp.props.controlType || 'TOGGLE'}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { controlType: e.target.value })}
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                                >
+                                                                    <option value="TOGGLE">Toggle Switch (HIGH/LOW)</option>
+                                                                    <option value="BUTTON">Push Button (Momentary)</option>
+                                                                    <option value="SLIDER">Slider (PWM / Analog Out)</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                        {selectedComp.props.controlType === 'SLIDER' && (
+                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MIN VALUE</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={selectedComp.props.min ?? 0}
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { min: parseInt(e.target.value) ?? 0 })}
+                                                                        style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                    />
+                                                                </div>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MAX VALUE</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={selectedComp.props.max ?? 255}
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { max: parseInt(e.target.value) ?? 255 })}
+                                                                        style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                )}
+
+                                                {selectedComp.type === 'ARDUINO_GRAPH' && (
+                                                    <>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label>
+                                                            <input
+                                                                value={selectedComp.props.label || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            />
+                                                        </div>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PIN</label>
+                                                                <input
+                                                                    value={selectedComp.props.pin || 'A0'}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { pin: e.target.value })}
+                                                                    placeholder="e.g. A0"
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                />
+                                                            </div>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MAX SAMPLES</label>
+                                                                <input
+                                                                    type="number"
+                                                                    value={selectedComp.props.maxSamples || 50}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { maxSamples: parseInt(e.target.value) || 50 })}
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LINE COLOR</label>
+                                                            <input
+                                                                type="color"
+                                                                value={selectedComp.props.color || '#00979d'}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { color: e.target.value })}
+                                                                style={{ width: '100%', height: '40px', padding: '2px', border: '1px solid var(--border-primary)', borderRadius: '4px', cursor: 'pointer' }}
+                                                            />
                                                         </div>
                                                     </>
                                                 )}
