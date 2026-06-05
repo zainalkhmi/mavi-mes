@@ -1,11 +1,18 @@
+use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpStream;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use tauri::{AppHandle, Emitter, State};
+use tokio_modbus::client::Context as ModbusContext;
+use tokio_modbus::prelude::*;
 
 struct TcpState {
     stream: Mutex<Option<TcpStream>>,
+}
+
+struct ModbusState {
+    connections: Mutex<HashMap<String, Arc<tokio::sync::Mutex<ModbusContext>>>>,
 }
 
 #[tauri::command]
@@ -70,13 +77,143 @@ fn tcp_disconnect(state: State<'_, TcpState>) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+async fn modbus_connect(
+    state: State<'_, ModbusState>,
+    id: String,
+    ip: String,
+    port: u16,
+    unit_id: u8,
+) -> Result<(), String> {
+    use std::net::SocketAddr;
+    
+    let addr_str = format!("{}:{}", ip, port);
+    let socket_addr: SocketAddr = addr_str
+        .parse()
+        .map_err(|e| format!("Invalid IP address or port: {}", e))?;
+        
+    let slave = Slave(unit_id);
+    
+    let ctx = tokio_modbus::client::tcp::connect_slave(socket_addr, slave)
+        .await
+        .map_err(|e| format!("Failed to connect to Modbus TCP device: {}", e))?;
+        
+    let shared_ctx = Arc::new(tokio::sync::Mutex::new(ctx));
+    
+    let mut conns = state.connections.lock().unwrap();
+    conns.insert(id, shared_ctx);
+    
+    Ok(())
+}
+
+#[tauri::command]
+async fn modbus_disconnect(
+    state: State<'_, ModbusState>,
+    id: String,
+) -> Result<(), String> {
+    let mut conns = state.connections.lock().unwrap();
+    if conns.remove(&id).is_some() {
+        Ok(())
+    } else {
+        Err("Connection not found".to_string())
+    }
+}
+
+#[tauri::command]
+async fn modbus_read(
+    state: State<'_, ModbusState>,
+    id: String,
+    reg_type: String,
+    address: u16,
+    quantity: u16,
+) -> Result<Vec<u16>, String> {
+    let conn = {
+        let conns = state.connections.lock().unwrap();
+        conns.get(&id).cloned().ok_or_else(|| "Not connected".to_string())?
+    };
+    
+    let mut ctx = conn.lock().await;
+    
+    match reg_type.as_str() {
+        "COIL" => {
+            let data = ctx.read_coils(address, quantity)
+                .await
+                .map_err(|e| format!("Modbus Read Coils error: {}", e))?;
+            Ok(data.into_iter().map(|b| if b { 1 } else { 0 }).collect())
+        }
+        "DISCRETE_INPUT" => {
+            let data = ctx.read_discrete_inputs(address, quantity)
+                .await
+                .map_err(|e| format!("Modbus Read Discrete Inputs error: {}", e))?;
+            Ok(data.into_iter().map(|b| if b { 1 } else { 0 }).collect())
+        }
+        "INPUT_REGISTER" => {
+            let data = ctx.read_input_registers(address, quantity)
+                .await
+                .map_err(|e| format!("Modbus Read Input Registers error: {}", e))?;
+            Ok(data)
+        }
+        "HOLDING_REGISTER" => {
+            let data = ctx.read_holding_registers(address, quantity)
+                .await
+                .map_err(|e| format!("Modbus Read Holding Registers error: {}", e))?;
+            Ok(data)
+        }
+        _ => Err(format!("Unknown register type: {}", reg_type)),
+    }
+}
+
+#[tauri::command]
+async fn modbus_write(
+    state: State<'_, ModbusState>,
+    id: String,
+    reg_type: String,
+    address: u16,
+    value: u16,
+) -> Result<(), String> {
+    let conn = {
+        let conns = state.connections.lock().unwrap();
+        conns.get(&id).cloned().ok_or_else(|| "Not connected".to_string())?
+    };
+    
+    let mut ctx = conn.lock().await;
+    
+    match reg_type.as_str() {
+        "COIL" => {
+            let bool_val = value != 0;
+            ctx.write_single_coil(address, bool_val)
+                .await
+                .map_err(|e| format!("Modbus Write Coil error: {}", e))?;
+            Ok(())
+        }
+        "HOLDING_REGISTER" => {
+            ctx.write_single_register(address, value)
+                .await
+                .map_err(|e| format!("Modbus Write Holding Register error: {}", e))?;
+            Ok(())
+        }
+        _ => Err(format!("Register type {} is not writable", reg_type)),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(TcpState {
             stream: Mutex::new(None),
         })
-        .invoke_handler(tauri::generate_handler![tcp_connect, tcp_send, tcp_disconnect])
+        .manage(ModbusState {
+            connections: Mutex::new(HashMap::new()),
+        })
+        .invoke_handler(tauri::generate_handler![
+            tcp_connect, 
+            tcp_send, 
+            tcp_disconnect,
+            modbus_connect,
+            modbus_disconnect,
+            modbus_read,
+            modbus_write
+        ])
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(

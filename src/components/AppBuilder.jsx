@@ -169,7 +169,12 @@ import {
     Ruler,
     Disc,
     Minus,
-    Power
+    Power,
+    Terminal,
+    Palette,
+    CreditCard,
+    Tv,
+    Gamepad2
 } from 'lucide-react';
 
 // --- Device Presets for Builder/Preview Canvas ---
@@ -1435,7 +1440,15 @@ const COMPONENT_TYPES = {
             pinMode: 'ANALOG_INPUT',
             precision: 0,
             unit: '',
+            multiplier: 1,
+            offset: 0,
             targetVariable: '',
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttSubscribeTopic: 'arduino/read/A0',
+            wifiIpAddress: '192.168.1.100',
+            wifiPollingInterval: 1000,
             visible: true,
             triggers: [],
             visibilityCondition: null,
@@ -1453,6 +1466,11 @@ const COMPONENT_TYPES = {
             controlType: 'TOGGLE',
             min: 0,
             max: 255,
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttPublishTopic: 'arduino/write/13',
+            wifiIpAddress: '192.168.1.100',
             visible: true,
             enabled: true,
             triggers: [],
@@ -1470,6 +1488,389 @@ const COMPONENT_TYPES = {
             pin: 'A0',
             maxSamples: 50,
             color: '#00979d',
+            multiplier: 1,
+            offset: 0,
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttSubscribeTopic: 'arduino/read/A0',
+            wifiIpAddress: '192.168.1.100',
+            wifiPollingInterval: 1000,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_CONSOLE: {
+        id: 'ARDUINO_CONSOLE',
+        label: 'Arduino Terminal Console',
+        icon: Terminal,
+        defaultSize: { w: 360, h: 240 },
+        defaultProps: {
+            label: 'Serial/MQTT Log',
+            maxLines: 100,
+            showTimestamp: true,
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttSubscribeTopic: 'arduino/read/#',
+            mqttPublishTopic: 'arduino/write/console',
+            wifiIpAddress: '192.168.1.100',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_GAUGE: {
+        id: 'ARDUINO_GAUGE',
+        label: 'Arduino Circular Gauge',
+        icon: Gauge,
+        defaultSize: { w: 220, h: 220 },
+        defaultProps: {
+            label: 'Suhu / Tekanan',
+            pin: 'A0',
+            min: 0,
+            max: 1023,
+            multiplier: 1,
+            offset: 0,
+            color: '#00979d',
+            unit: '°C',
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttSubscribeTopic: 'arduino/read/A0',
+            wifiIpAddress: '192.168.1.100',
+            wifiPollingInterval: 1000,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_COLOR_PICKER: {
+        id: 'ARDUINO_COLOR_PICKER',
+        label: 'Arduino RGB Color Picker',
+        icon: Palette,
+        defaultSize: { w: 240, h: 240 },
+        defaultProps: {
+            label: 'LED RGB Control',
+            pin: '6',
+            format: 'RGB',
+            color: '#ff0000',
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttPublishTopic: 'arduino/write/6',
+            wifiIpAddress: '192.168.1.100',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_MOTOR: {
+        id: 'ARDUINO_MOTOR',
+        label: 'Arduino Motor Controller',
+        icon: RotateCw,
+        defaultSize: { w: 260, h: 200 },
+        defaultProps: {
+            label: 'Servo/DC Motor',
+            pin: '9',
+            motorType: 'SERVO',
+            min: 0,
+            max: 180,
+            speed: 100,
+            stepSize: 10,
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttPublishTopic: 'arduino/write/9',
+            wifiIpAddress: '192.168.1.100',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_RFID: {
+        id: 'ARDUINO_RFID',
+        label: 'Arduino RFID Reader',
+        icon: CreditCard,
+        defaultSize: { w: 220, h: 180 },
+        defaultProps: {
+            label: 'RFID Reader',
+            pin: '10',
+            allowedCards: 'A1B2C3D4, E5F6G7H8',
+            lastCardId: '',
+            verified: null,
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttSubscribeTopic: 'arduino/rfid/scan',
+            wifiIpAddress: '192.168.1.100',
+            targetVariable: '',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_LCD: {
+        id: 'ARDUINO_LCD',
+        label: 'Arduino 1602 LCD Display',
+        icon: Tv,
+        defaultSize: { w: 320, h: 140 },
+        defaultProps: {
+            label: 'LCD Display 1602',
+            pin: 'I2C',
+            line1: 'Mavi IoT System',
+            line2: 'Status: Ready',
+            backlightColor: '#00979d',
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttSubscribeTopic: 'arduino/lcd/display',
+            wifiIpAddress: '192.168.1.100',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_JOYSTICK: {
+        id: 'ARDUINO_JOYSTICK',
+        label: 'Arduino XY Joystick',
+        icon: Gamepad2,
+        defaultSize: { w: 220, h: 220 },
+        defaultProps: {
+            label: 'XY Joystick',
+            pinX: 'A0',
+            pinY: 'A1',
+            pinSel: '2',
+            xVal: 512,
+            yVal: 512,
+            zVal: 0,
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttSubscribeTopic: 'arduino/joystick',
+            wifiIpAddress: '192.168.1.100',
+            wifiPollingInterval: 100,
+            targetVariable: '',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_KEYPAD: {
+        id: 'ARDUINO_KEYPAD',
+        label: 'Arduino 4x4 Keypad',
+        icon: Grid3X3,
+        defaultSize: { w: 240, h: 260 },
+        defaultProps: {
+            label: '4x4 Keypad',
+            lastKeyPressed: '',
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttSubscribeTopic: 'arduino/keypad/key',
+            wifiIpAddress: '192.168.1.100',
+            targetVariable: '',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_MATRIX: {
+        id: 'ARDUINO_MATRIX',
+        label: 'Arduino 8x8 Dot Matrix',
+        icon: Grid3X3,
+        defaultSize: { w: 260, h: 300 },
+        defaultProps: {
+            label: '8x8 Dot Matrix',
+            pin: '4',
+            matrixData: ['00000000', '00000000', '00000000', '00000000', '00000000', '00000000', '00000000', '00000000'],
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttPublishTopic: 'arduino/matrix/frame',
+            wifiIpAddress: '192.168.1.100',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_RTC: {
+        id: 'ARDUINO_RTC',
+        label: 'Arduino RTC Sync Clock',
+        icon: Clock,
+        defaultSize: { w: 240, h: 160 },
+        defaultProps: {
+            label: 'RTC Sync Clock',
+            pin: 'I2C',
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttSubscribeTopic: 'arduino/rtc/time',
+            wifiIpAddress: '192.168.1.100',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_RADAR: {
+        id: 'ARDUINO_RADAR',
+        label: 'Arduino Radar Sweep',
+        icon: Compass,
+        defaultSize: { w: 280, h: 300 },
+        defaultProps: {
+            label: 'Radar Sweep',
+            pin: 'A0',
+            maxDistance: 200,
+            angleSweep: 180,
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttSubscribeTopic: 'arduino/read/A0',
+            wifiIpAddress: '192.168.1.100',
+            wifiPollingInterval: 200,
+            targetVariable: '',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_TANK: {
+        id: 'ARDUINO_TANK',
+        label: 'SCADA Liquid Tank',
+        icon: Database,
+        defaultSize: { w: 200, h: 300 },
+        defaultProps: {
+            label: 'Liquid Tank',
+            pin: 'A0',
+            liquidColor: '#3b82f6',
+            capacity: 1000,
+            warningThreshold: 80,
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttSubscribeTopic: 'arduino/read/A0',
+            wifiIpAddress: '192.168.1.100',
+            wifiPollingInterval: 1000,
+            targetVariable: '',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_MODBUS: {
+        id: 'ARDUINO_MODBUS',
+        label: 'Modbus Register Map',
+        icon: Table,
+        defaultSize: { w: 320, h: 260 },
+        defaultProps: {
+            label: 'Modbus Viewer',
+            clientAddress: 1,
+            baudRate: 9600,
+            connectionType: 'SERIAL',
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttSubscribeTopic: 'modbus/registers/#',
+            wifiIpAddress: '192.168.1.100',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_STATUS_GRID: {
+        id: 'ARDUINO_STATUS_GRID',
+        label: 'Status Lights Grid',
+        icon: LayoutGrid,
+        defaultSize: { w: 300, h: 200 },
+        defaultProps: {
+            label: 'Relay Channels',
+            pins: 'D2,D3,D4,D5',
+            pinLabels: 'Relay 1,Relay 2,Motor Status,Limit Switch',
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttSubscribeTopic: 'arduino/read/#',
+            wifiIpAddress: '192.168.1.100',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_OSCILLOSCOPE: {
+        id: 'ARDUINO_OSCILLOSCOPE',
+        label: 'Mini Oscilloscope',
+        icon: Activity,
+        defaultSize: { w: 340, h: 220 },
+        defaultProps: {
+            label: 'Analog Oscilloscope',
+            pin: 'A0',
+            timebase: 50,
+            amplitude: 5,
+            connectionType: 'SERIAL',
+            baudRate: 115200,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttSubscribeTopic: 'arduino/read/A0',
+            wifiIpAddress: '192.168.1.100',
+            wifiPollingInterval: 100,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_THERMAL: {
+        id: 'ARDUINO_THERMAL',
+        label: 'Thermal Infra-Red Matrix',
+        icon: Sun,
+        defaultSize: { w: 260, h: 280 },
+        defaultProps: {
+            label: 'Thermal Camera AMG8833',
+            pin: 'I2C',
+            colorPalette: 'IRONBOW',
+            maxTemp: 80,
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttSubscribeTopic: 'arduino/thermal/frame',
+            wifiIpAddress: '192.168.1.100',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_THERMOMETER: {
+        id: 'ARDUINO_THERMOMETER',
+        label: 'Linear Thermometer Bar',
+        icon: Thermometer,
+        defaultSize: { w: 180, h: 280 },
+        defaultProps: {
+            label: 'Temperature Level',
+            pin: 'A0',
+            minVal: 0,
+            maxVal: 100,
+            unit: '°C',
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttSubscribeTopic: 'arduino/read/A0',
+            wifiIpAddress: '192.168.1.100',
+            wifiPollingInterval: 1000,
+            targetVariable: '',
             visible: true,
             triggers: [],
             visibilityCondition: null,
@@ -1733,7 +2134,12 @@ const CATEGORIZED_COMPONENTS = {
         label: 'Arduino IoT',
         icon: Cpu,
         color: '#00979D',
-        types: ['ARDUINO_BOARD', 'ARDUINO_PIN_MONITOR', 'ARDUINO_CONTROLLER', 'ARDUINO_GRAPH']
+        types: [
+            'ARDUINO_BOARD', 'ARDUINO_PIN_MONITOR', 'ARDUINO_CONTROLLER', 'ARDUINO_GRAPH',
+            'ARDUINO_CONSOLE', 'ARDUINO_GAUGE', 'ARDUINO_COLOR_PICKER', 'ARDUINO_MOTOR',
+            'ARDUINO_RFID', 'ARDUINO_LCD', 'ARDUINO_JOYSTICK', 'ARDUINO_KEYPAD', 'ARDUINO_MATRIX', 'ARDUINO_RTC',
+            'ARDUINO_RADAR', 'ARDUINO_TANK', 'ARDUINO_MODBUS', 'ARDUINO_STATUS_GRID', 'ARDUINO_OSCILLOSCOPE', 'ARDUINO_THERMAL', 'ARDUINO_THERMOMETER'
+        ]
     }
 };
 
@@ -1753,18 +2159,22 @@ const CHROMELESS_COMPONENT_TYPES = [
 const DEVICE_TRIGGER_COMPONENT_TYPES = [
     'BARCODE', 'CAMERA_SCANNER', 'VISION_DETECTOR', 'VISION_MEASUREMENT', 'CAMERA', 'CAMCORDER', 'FILE_UPLOAD', 'MEDIA_RECORDER',
     'IOT_DEVICE', 'MACHINE_STATUS', 'ACCELEROMETER', 'LOCATION_SENSOR', 'BARCODE_SCANNER_NON_VISIBLE', 'CLOCK', 'OBD2_SCANNER',
-    'ARDUINO_BOARD', 'ARDUINO_PIN_MONITOR', 'ARDUINO_CONTROLLER'
+    'ARDUINO_BOARD', 'ARDUINO_PIN_MONITOR', 'ARDUINO_CONTROLLER', 'ARDUINO_GRAPH', 'ARDUINO_GAUGE',
+    'ARDUINO_RFID', 'ARDUINO_LCD', 'ARDUINO_JOYSTICK', 'ARDUINO_KEYPAD', 'ARDUINO_MATRIX', 'ARDUINO_RTC',
+    'ARDUINO_RADAR', 'ARDUINO_TANK', 'ARDUINO_MODBUS', 'ARDUINO_STATUS_GRID', 'ARDUINO_OSCILLOSCOPE', 'ARDUINO_THERMAL', 'ARDUINO_THERMOMETER'
 ];
 const FORM_BINDABLE_COMPONENT_TYPES = [
     'TEXT_INPUT', 'TEXT_AREA', 'DROPDOWN', 'RADIO_GROUP', 'MULTI_SELECT', 'NUMBER_INPUT', 'DATE_PICKER',
     'DATETIME_PICKER', 'BOOLEAN_TOGGLE', 'BARCODE', 'CAMERA_SCANNER', 'VISION_DETECTOR', 'VISION_MEASUREMENT', 'MENU',
     'SLIDER', 'CHECKBOX', 'LIST_PICKER', 'LIST_VIEW', 'PASSWORD_TEXT', 'SPEECH_RECOGNIZER', 'SMARTHOME_DEVICE', 'TUYA_PRODUCT',
-    'ARDUINO_PIN_MONITOR'
+    'ARDUINO_PIN_MONITOR', 'ARDUINO_GAUGE', 'ARDUINO_RFID', 'ARDUINO_JOYSTICK', 'ARDUINO_KEYPAD', 'ARDUINO_RTC',
+    'ARDUINO_TANK', 'ARDUINO_THERMOMETER'
 ];
 const INPUT_WIDGET_TYPES_WITH_DATASOURCE = [
     'TEXT_INPUT', 'TEXT_AREA', 'NUMBER_INPUT', 'DATE_PICKER', 'DATETIME_PICKER', 'BOOLEAN_TOGGLE',
     'DROPDOWN', 'MULTI_SELECT', 'CHECKBOX', 'PASSWORD_TEXT', 'LIST_PICKER', 'LIST_VIEW', 'SPEECH_RECOGNIZER', 'SMARTHOME_DEVICE', 'TUYA_PRODUCT',
-    'ARDUINO_PIN_MONITOR'
+    'ARDUINO_PIN_MONITOR', 'ARDUINO_GAUGE', 'ARDUINO_RFID', 'ARDUINO_JOYSTICK', 'ARDUINO_KEYPAD', 'ARDUINO_RTC',
+    'ARDUINO_TANK', 'ARDUINO_THERMOMETER'
 ];
 const FORM_STEP_TYPES = ['Form Step', 'Signature Form'];
 
@@ -1813,10 +2223,261 @@ const ICON_BUTTON_VARIANTS = {
     outline: { bg: 'transparent', hover: '#f1f5f9', text: '#374151', border: '#cbd5e1' },
 };
 
+const getFirmwareCode = (connectionType, boardType, baudRate, mqttUrl, wifiIp) => {
+    const conn = connectionType || 'SERIAL';
+    const board = boardType || 'UNO';
+    const baud = baudRate || 9600;
+    const mqttHost = mqttUrl ? mqttUrl.replace('wss://', '').replace('ws://', '').split(':')[0] : 'broker.emqx.io';
+    
+    if (conn === 'MQTT') {
+        return `/*
+  Mavi Integration Sketch - MQTT Protocol
+  Device: ${board}
+  MQTT Broker: ${mqttHost}
+*/
+
+#if defined(ESP8266)
+#include <ESP8266WiFi.h>
+#elif defined(ESP32)
+#include <WiFi.h>
+#else
+#include <SPI.h>
+#include <Ethernet.h>
+#endif
+#include <PubSubClient.h>
+
+// WiFi Configuration
+const char* ssid = "YOUR_WIFI_SSID";
+const char* password = "YOUR_WIFI_PASSWORD";
+const char* mqtt_server = "${mqttHost}";
+const int mqtt_port = 1883;
+
+#if defined(ESP8266) || defined(ESP32)
+WiFiClient espClient;
+#else
+byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
+EthernetClient espClient;
+#endif
+PubSubClient client(espClient);
+
+void setup() {
+  Serial.begin(115200);
+  setup_wifi();
+  client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(callback);
+}
+
+void setup_wifi() {
+#if defined(ESP8266) || defined(ESP32)
+  delay(10);
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\\nWiFi connected");
+#else
+  if (Ethernet.begin(mac) == 0) {
+    Serial.println("Failed to configure Ethernet using DHCP");
+  }
+#endif
+}
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  String msg = "";
+  for (int i = 0; i < length; i++) {
+    msg += (char)payload[i];
+  }
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  Serial.println(msg);
+
+  // Parse custom control commands, e.g. "13:1"
+  int colonIdx = msg.indexOf(':');
+  if (colonIdx != -1) {
+    int targetPin = msg.substring(0, colonIdx).toInt();
+    int targetVal = msg.substring(colonIdx + 1).toInt();
+    pinMode(targetPin, OUTPUT);
+    digitalWrite(targetPin, targetVal);
+  }
+}
+
+void reconnect() {
+  while (!client.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    if (client.connect("MaviArduinoClient")) {
+      Serial.println("connected");
+      client.subscribe("arduino/write/#");
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      delay(5000);
+    }
+  }
+}
+
+void loop() {
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
+
+  static unsigned long lastMsg = 0;
+  unsigned long now = millis();
+  if (now - lastMsg > 1000) {
+    lastMsg = now;
+    int sensorVal = analogRead(A0);
+    String payload = String(sensorVal);
+    client.publish("arduino/read/A0", payload.c_str());
+  }
+}`;
+    }
+
+    if (conn === 'WIFI') {
+        return `/*
+  Mavi Integration Sketch - WiFi HTTP API Server
+  Device: ${board}
+  Expected IP Address: ${wifiIp || '192.168.1.100'}
+*/
+
+#if defined(ESP8266)
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+typedef ESP8266WebServer WebServer;
+#elif defined(ESP32)
+#include <WiFi.h>
+#include <WebServer.h>
+#endif
+
+const char* ssid = "YOUR_WIFI_SSID";
+const char* password = "YOUR_WIFI_PASSWORD";
+
+WebServer server(80);
+
+void setup() {
+  Serial.begin(115200);
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\\nConnected!");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
+
+  server.on("/read", HTTP_GET, []() {
+    String pin = server.arg("pin");
+    int val = 0;
+    if (pin.equalsIgnoreCase("A0")) {
+      val = analogRead(A0);
+    } else {
+      int pinNum = pin.toInt();
+      pinMode(pinNum, INPUT);
+      val = digitalRead(pinNum);
+    }
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(200, "text/plain", String(val));
+  });
+
+  server.on("/write", []() {
+    String pinStr = server.arg("pin");
+    String valStr = server.arg("val");
+    int pin = pinStr.toInt();
+    int val = valStr.toInt();
+    pinMode(pin, OUTPUT);
+    digitalWrite(pin, val);
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(200, "text/plain", "OK");
+  });
+
+  server.begin();
+  Serial.println("HTTP server started");
+}
+
+void loop() {
+  server.handleClient();
+}`;
+    }
+
+    return `/*
+  Mavi Integration Sketch - USB Serial Protocol
+  Device: ${board}
+  Baud Rate: ${baud}
+*/
+
+const int ANALOG_PIN = A0;
+const int OUT_PIN = 13;
+
+void setup() {
+  Serial.begin(${baud});
+  pinMode(OUT_PIN, OUTPUT);
+}
+
+void loop() {
+  int sensorVal = analogRead(ANALOG_PIN);
+  Serial.print("A0:");
+  Serial.println(sensorVal);
+  
+  if (Serial.available() > 0) {
+    String command = Serial.readStringUntil('\\n');
+    command.trim();
+    if (command.startsWith("d") || command.startsWith("p")) {
+      int colonIdx = command.indexOf(':');
+      if (colonIdx != -1) {
+        String pinStr = command.substring(1, colonIdx);
+        String valStr = command.substring(colonIdx + 1);
+        int targetPin = pinStr.toInt();
+        int targetVal = valStr.toInt();
+        if (command.startsWith("d")) {
+          digitalWrite(targetPin, targetVal);
+        } else if (command.startsWith("p")) {
+          analogWrite(targetPin, targetVal);
+        }
+      }
+    }
+  }
+  delay(200);
+}`;
+};
+
 const ArduinoWidget = ({ comp, viewMode, onWidgetInteraction, setPreviewFormValues, updateComponentProps, language = 'en', isDark = false }) => {
     const [status, setStatus] = React.useState(comp.props.status || 'disconnected');
     const [liveValue, setLiveValue] = React.useState(0);
     const [graphData, setGraphData] = React.useState([]);
+    const [showCodeModal, setShowCodeModal] = React.useState(false);
+    
+    // Phase 3 States
+    const [logs, setLogs] = React.useState([]);
+    const [cmdInput, setCmdInput] = React.useState('');
+    const consoleEndRef = React.useRef(null);
+
+    // 6 New Widgets States
+    const [lastCardId, setLastCardId] = React.useState('');
+    const [rfidStatus, setRfidStatus] = React.useState('Awaiting Card Scan...');
+    const [lcdText1, setLcdText1] = React.useState(comp.props.line1 || 'Hello World');
+    const [lcdText2, setLcdText2] = React.useState(comp.props.line2 || 'Mavi MES System');
+    const [joyX, setJoyX] = React.useState(512);
+    const [joyY, setJoyY] = React.useState(512);
+    const [joyZ, setJoyZ] = React.useState(1);
+    const [lastKeyPressed, setLastKeyPressed] = React.useState('');
+    const [matrixState, setMatrixState] = React.useState(() => Array(8).fill(0).map(() => Array(8).fill(false)));
+    const [currentTime, setCurrentTime] = React.useState(new Date().toLocaleTimeString());
+
+    // 7 New Pro Widget States
+    const [radarAngle, setRadarAngle] = React.useState(0);
+    const [radarDots, setRadarDots] = React.useState([]);
+    const [tankLevel, setTankLevel] = React.useState(0);
+    const [modbusRegs, setModbusRegs] = React.useState(Array(8).fill({ addr: 0, val: 0 }));
+    const [statusPins, setStatusPins] = React.useState({});
+    const [oscData, setOscData] = React.useState(Array(80).fill(128));
+    const [thermalGrid, setThermalGrid] = React.useState(Array(64).fill(20));
+    const [thermoValue, setThermoValue] = React.useState(0);
+    const radarAnimRef = React.useRef(null);
 
     React.useEffect(() => {
         if (viewMode !== 'PREVIEW') return;
@@ -1826,8 +2487,20 @@ const ArduinoWidget = ({ comp, viewMode, onWidgetInteraction, setPreviewFormValu
         });
 
         let telemetryUnsub = () => {};
-        if (comp.type === 'ARDUINO_PIN_MONITOR' || comp.type === 'ARDUINO_GRAPH') {
-            telemetryUnsub = hardwareService.onData((val) => {
+        if (comp.type === 'ARDUINO_PIN_MONITOR' || comp.type === 'ARDUINO_GRAPH' || comp.type === 'ARDUINO_GAUGE') {
+            const pin = comp.props.pin || 'A0';
+            
+            if (comp.props.connectionType === 'MQTT') {
+                hardwareService.subscribeMqttPin(pin, comp.props.mqttSubscribeTopic);
+            } else if (comp.props.connectionType === 'WIFI' && hardwareService.wifiIpAddress) {
+                hardwareService.startWifiPolling(hardwareService.wifiIpAddress, pin, comp.props.wifiPollingInterval || 1000);
+            }
+
+            telemetryUnsub = hardwareService.onPinData(pin, (rawVal) => {
+                const multiplier = comp.props.multiplier !== undefined ? parseFloat(comp.props.multiplier) : 1;
+                const offset = comp.props.offset !== undefined ? parseFloat(comp.props.offset) : 0;
+                const val = (rawVal * multiplier) + offset;
+
                 setLiveValue(val);
                 if (comp.props.targetVariable) {
                     setPreviewFormValues(prev => ({ ...prev, [comp.id]: val }));
@@ -1844,20 +2517,244 @@ const ArduinoWidget = ({ comp, viewMode, onWidgetInteraction, setPreviewFormValu
                 }
                 onWidgetInteraction(comp, 'ValueReceived', { value: val });
             });
+        } else if (comp.type === 'ARDUINO_RFID') {
+            const pin = comp.props.pin || '10';
+            telemetryUnsub = hardwareService.onPinData(pin, (rawVal) => {
+                const cardId = String(rawVal).trim().toUpperCase();
+                setLastCardId(cardId);
+                const allowed = (comp.props.allowedCards || '').split(',').map(s => s.trim().toUpperCase());
+                const isOk = allowed.includes(cardId);
+                setRfidStatus(isOk ? 'ACCESS GRANTED' : 'ACCESS DENIED');
+                if (comp.props.targetVariable) {
+                    setPreviewFormValues(prev => ({ ...prev, [comp.id]: cardId }));
+                }
+                onWidgetInteraction(comp, 'CardScanned', { cardId, verified: isOk });
+            });
+        } else if (comp.type === 'ARDUINO_JOYSTICK') {
+            const pinX = comp.props.pinX || 'A0';
+            const pinY = comp.props.pinY || 'A1';
+            const pinZ = comp.props.pinSel || '2';
+
+            const unsubX = hardwareService.onPinData(pinX, (val) => setJoyX(parseInt(val)));
+            const unsubY = hardwareService.onPinData(pinY, (val) => setJoyY(parseInt(val)));
+            const unsubZ = hardwareService.onPinData(pinZ, (val) => setJoyZ(parseInt(val)));
+            telemetryUnsub = () => {
+                unsubX();
+                unsubY();
+                unsubZ();
+            };
+        } else if (comp.type === 'ARDUINO_KEYPAD') {
+            telemetryUnsub = hardwareService.onPinData('KEYPAD', (rawVal) => {
+                const key = String(rawVal);
+                setLastKeyPressed(key);
+                if (comp.props.targetVariable) {
+                    setPreviewFormValues(prev => ({ ...prev, [comp.id]: key }));
+                }
+                onWidgetInteraction(comp, 'KeyClicked', { key });
+            });
+        } else if (comp.type === 'ARDUINO_LCD') {
+            const unsubLCD = hardwareService.onData((val, rawLine) => {
+                if (rawLine) {
+                    if (rawLine.startsWith('l1:')) {
+                        setLcdText1(rawLine.substring(3));
+                    } else if (rawLine.startsWith('l2:')) {
+                        setLcdText2(rawLine.substring(3));
+                    }
+                }
+            });
+            telemetryUnsub = unsubLCD;
+        } else if (comp.type === 'ARDUINO_RTC') {
+            const interval = setInterval(() => {
+                setCurrentTime(new Date().toLocaleTimeString());
+            }, 1000);
+            telemetryUnsub = () => clearInterval(interval);
+        } else if (comp.type === 'ARDUINO_RADAR') {
+            const pin = comp.props.pin || 'A0';
+            // Setup connection for real radar distance sensor (HC-SR04, RCWL, etc.)
+            if (comp.props.connectionType === 'MQTT') {
+                hardwareService.subscribeMqttPin(pin, comp.props.mqttSubscribeTopic);
+            } else if (comp.props.connectionType === 'WIFI' && hardwareService.wifiIpAddress) {
+                hardwareService.startWifiPolling(hardwareService.wifiIpAddress, pin, comp.props.wifiPollingInterval || 200);
+            }
+            // Real hardware: emit detected objects when distance data arrives on pin
+            const pinUnsub = hardwareService.onPinData(pin, (distCm) => {
+                const maxD = comp.props.maxDistance || 200;
+                const normalizedDist = Math.min(1, Math.max(0, parseFloat(distCm) / maxD));
+                setRadarDots(prev => {
+                    const next = [...prev, { angle: radarAngle, dist: normalizedDist }];
+                    return next.slice(-30);
+                });
+                if (comp.props.targetVariable) setPreviewFormValues(prev => ({ ...prev, [comp.id]: distCm }));
+                onWidgetInteraction(comp, 'ObjectDetected', { distanceCm: distCm, angle: radarAngle });
+            });
+            // Sweep animation always runs (servo-driven or simulated)
+            let angle = 0;
+            let dir = 1;
+            const sweepInterval = setInterval(() => {
+                angle += dir * 2;
+                if (angle >= (comp.props.angleSweep || 180)) { dir = -1; angle = comp.props.angleSweep || 180; }
+                if (angle <= 0) { dir = 1; angle = 0; }
+                setRadarAngle(angle);
+            }, 50);
+            radarAnimRef.current = sweepInterval;
+            telemetryUnsub = () => { clearInterval(sweepInterval); pinUnsub(); };
+        } else if (comp.type === 'ARDUINO_TANK') {
+            const pin = comp.props.pin || 'A0';
+            // Setup transport (MQTT, WiFi HTTP, or Serial)
+            if (comp.props.connectionType === 'MQTT') {
+                hardwareService.subscribeMqttPin(pin, comp.props.mqttSubscribeTopic);
+            } else if (comp.props.connectionType === 'WIFI' && hardwareService.wifiIpAddress) {
+                hardwareService.startWifiPolling(hardwareService.wifiIpAddress, pin, comp.props.wifiPollingInterval || 1000);
+            }
+            telemetryUnsub = hardwareService.onPinData(pin, (rawVal) => {
+                // rawVal can be 0-1023 (ADC) or a direct percentage (0-100)
+                const rawNum = parseFloat(rawVal);
+                const pct = rawNum > 100 ? Math.min(100, (rawNum / 1023) * 100) : Math.min(100, Math.max(0, rawNum));
+                setTankLevel(pct);
+                if (comp.props.targetVariable) setPreviewFormValues(prev => ({ ...prev, [comp.id]: pct }));
+                onWidgetInteraction(comp, 'LevelChanged', { level: pct });
+            });
+        } else if (comp.type === 'ARDUINO_STATUS_GRID') {
+            const pins = (comp.props.pins || 'D2,D3,D4,D5').split(',').map(p => p.trim());
+            // Subscribe each pin - works with Serial (D2:1\n), MQTT (topic/D2 → 1), or WiFi
+            if (comp.props.connectionType === 'MQTT') {
+                pins.forEach(pin => hardwareService.subscribeMqttPin(pin, `${(comp.props.mqttSubscribeTopic || 'arduino/read').replace('/#','')  }/${pin}`));
+            } else if (comp.props.connectionType === 'WIFI' && hardwareService.wifiIpAddress) {
+                pins.forEach(pin => hardwareService.startWifiPolling(hardwareService.wifiIpAddress, pin, 500));
+            }
+            const unsubs = pins.map(pin => hardwareService.onPinData(pin, (val) => {
+                setStatusPins(prev => ({ ...prev, [pin]: parseInt(val) > 0 }));
+            }));
+            telemetryUnsub = () => {
+                unsubs.forEach(fn => fn());
+                if (comp.props.connectionType === 'WIFI') {
+                    const pinArr = (comp.props.pins || 'D2,D3,D4,D5').split(',').map(p => p.trim());
+                    pinArr.forEach(p => hardwareService.stopWifiPolling(p));
+                }
+            };
+        } else if (comp.type === 'ARDUINO_OSCILLOSCOPE') {
+            const pin = comp.props.pin || 'A0';
+            // High-speed sampling: WiFi/MQTT preferred for fast ADC streaming
+            if (comp.props.connectionType === 'MQTT') {
+                hardwareService.subscribeMqttPin(pin, comp.props.mqttSubscribeTopic);
+            } else if (comp.props.connectionType === 'WIFI' && hardwareService.wifiIpAddress) {
+                hardwareService.startWifiPolling(hardwareService.wifiIpAddress, pin, comp.props.wifiPollingInterval || 100);
+            }
+            telemetryUnsub = hardwareService.onPinData(pin, (rawVal) => {
+                // Accept 0-1023 ADC or 0-255 normalized
+                const raw = parseFloat(rawVal);
+                const mapped = raw > 255 ? Math.min(255, Math.max(0, Math.round((raw / 1023) * 255))) : Math.min(255, Math.max(0, Math.round(raw)));
+                setOscData(prev => { const n = [...prev.slice(1), mapped]; return n; });
+                onWidgetInteraction(comp, 'SampleReceived', { value: rawVal });
+            });
+        } else if (comp.type === 'ARDUINO_THERMAL') {
+            // AMG8833 sends 64 comma-separated float values over Serial/MQTT
+            // Serial format: "THERMAL:20.1,21.5,22.3,..." (64 values)
+            // MQTT: topic arduino/thermal/frame, payload JSON array or CSV
+            if (comp.props.connectionType === 'MQTT') {
+                if (hardwareService.mqttClient && hardwareService.mqttClient.connected) {
+                    hardwareService.mqttClient.subscribe(comp.props.mqttSubscribeTopic || 'arduino/thermal/frame');
+                    hardwareService.mqttClient.on('message', (topic, message) => {
+                        if (topic === (comp.props.mqttSubscribeTopic || 'arduino/thermal/frame')) {
+                            try {
+                                const vals = JSON.parse(message.toString());
+                                if (Array.isArray(vals) && vals.length === 64) setThermalGrid(vals);
+                            } catch { /* ignore parse errors */ }
+                        }
+                    });
+                }
+            }
+            // Serial fallback + demo animation
+            const thermalDataUnsub = hardwareService.onData((val, rawLine) => {
+                if (rawLine && rawLine.startsWith('THERMAL:')) {
+                    const nums = rawLine.substring(8).split(',').map(Number).filter(n => !isNaN(n));
+                    if (nums.length === 64) setThermalGrid(nums);
+                }
+            });
+            // Always run simulation animation when no real data arrives
+            const simInterval = setInterval(() => {
+                setThermalGrid(prev => prev.map(v => Math.min(comp.props.maxTemp || 80, Math.max(15, v + (Math.random() - 0.49) * 1.5))));
+            }, 400);
+            telemetryUnsub = () => { thermalDataUnsub(); clearInterval(simInterval); };
+        } else if (comp.type === 'ARDUINO_THERMOMETER') {
+            const pin = comp.props.pin || 'A0';
+            if (comp.props.connectionType === 'MQTT') {
+                hardwareService.subscribeMqttPin(pin, comp.props.mqttSubscribeTopic);
+            } else if (comp.props.connectionType === 'WIFI' && hardwareService.wifiIpAddress) {
+                hardwareService.startWifiPolling(hardwareService.wifiIpAddress, pin, comp.props.wifiPollingInterval || 1000);
+            }
+            telemetryUnsub = hardwareService.onPinData(pin, (rawVal) => {
+                const mn = parseFloat(comp.props.minVal ?? 0);
+                const mx = parseFloat(comp.props.maxVal ?? 100);
+                const raw = parseFloat(rawVal);
+                // Accept raw ADC (0-1023) or direct temp value (in range)
+                const val = raw > mx ? mn + ((raw / 1023) * (mx - mn)) : Math.min(mx, Math.max(mn, raw));
+                setThermoValue(val);
+                if (comp.props.targetVariable) setPreviewFormValues(prev => ({ ...prev, [comp.id]: val }));
+                onWidgetInteraction(comp, 'TempChanged', { value: val });
+            });
+        }
+
+        let consoleUnsub = () => {};
+        if (comp.type === 'ARDUINO_CONSOLE') {
+            if (status !== 'connected') {
+                const interval = setInterval(() => {
+                    const simulatedValues = ["INFO: System initialized", "SENSOR A0: 450", "SENSOR A1: 120", "DEBUG: Keep-alive sent", "WARNING: High temp alert"];
+                    const randomLine = simulatedValues[Math.floor(Math.random() * simulatedValues.length)];
+                    setLogs(prev => {
+                        const timeStr = new Date().toLocaleTimeString();
+                        const next = [...prev, { type: 'rx', text: randomLine, time: timeStr }];
+                        if (next.length > (comp.props.maxLines || 100)) next.shift();
+                        return next;
+                    });
+                }, 4000);
+                consoleUnsub = () => clearInterval(interval);
+            } else {
+                consoleUnsub = hardwareService.onData((val, rawLine) => {
+                    setLogs(prev => {
+                        const timeStr = new Date().toLocaleTimeString();
+                        const next = [...prev, { type: 'rx', text: rawLine || String(val), time: timeStr }];
+                        if (next.length > (comp.props.maxLines || 100)) next.shift();
+                        return next;
+                    });
+                });
+            }
         }
 
         return () => {
             unsubStatus();
             telemetryUnsub();
+            consoleUnsub();
+            if (comp.type === 'ARDUINO_PIN_MONITOR' || comp.type === 'ARDUINO_GRAPH' || comp.type === 'ARDUINO_GAUGE') {
+                if (comp.props.connectionType === 'WIFI') {
+                    hardwareService.stopWifiPolling(comp.props.pin || 'A0');
+                }
+            }
         };
-    }, [viewMode, comp]);
+    }, [viewMode, comp, status]);
+
+    React.useEffect(() => {
+        if (consoleEndRef.current) {
+            consoleEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [logs]);
 
     const handleConnect = async () => {
         if (viewMode !== 'PREVIEW') return;
         if (status === 'connected') {
             await hardwareService.disconnect();
         } else {
-            await hardwareService.connectSerial(comp.props.baudRate || 9600);
+            if (comp.props.connectionType === 'MQTT') {
+                const options = {};
+                if (comp.props.mqttUsername) options.username = comp.props.mqttUsername;
+                if (comp.props.mqttPassword) options.password = comp.props.mqttPassword;
+                await hardwareService.connectMqtt(comp.props.mqttBrokerUrl || 'wss://broker.emqx.io:8084/mqtt', options);
+            } else if (comp.props.connectionType === 'WIFI') {
+                hardwareService.wifiIpAddress = comp.props.wifiIpAddress || '192.168.1.100';
+                hardwareService._updateStatus('connected');
+            } else {
+                await hardwareService.connectSerial(comp.props.baudRate || 9600);
+            }
         }
     };
 
@@ -1865,9 +2762,88 @@ const ArduinoWidget = ({ comp, viewMode, onWidgetInteraction, setPreviewFormValu
         if (viewMode !== 'PREVIEW') return;
         setLiveValue(val);
         const prefix = comp.props.controlType === 'SLIDER' ? 'p' : 'd';
-        const cmd = `${prefix}${comp.props.pin || '13'}:${val}\n`;
-        await hardwareService.writeSerial(cmd);
-        onWidgetInteraction(comp, 'PinChanged', { pin: comp.props.pin, value: val });
+        const pin = comp.props.pin || '13';
+        const cmd = `${prefix}${pin}:${val}\n`;
+
+        if (comp.props.connectionType === 'MQTT') {
+            const topic = comp.props.mqttPublishTopic || `arduino/write/${pin}`;
+            await hardwareService.publishMqtt(topic, { pin, value: val, cmd });
+        } else if (comp.props.connectionType === 'WIFI') {
+            const ip = hardwareService.wifiIpAddress || '192.168.1.100';
+            await hardwareService.writeWifi(ip, pin, val);
+        } else {
+            await hardwareService.writeSerial(cmd);
+        }
+        
+        onWidgetInteraction(comp, 'PinChanged', { pin, value: val });
+    };
+
+    const handleSendConsoleCmd = async () => {
+        if (!cmdInput.trim() || viewMode !== 'PREVIEW') return;
+        const text = cmdInput.trim();
+        const timeStr = new Date().toLocaleTimeString();
+        setLogs(prev => [...prev, { type: 'tx', text, time: timeStr }]);
+        setCmdInput('');
+
+        const cmd = `${text}\n`;
+        if (comp.props.connectionType === 'MQTT') {
+            const topic = comp.props.mqttPublishTopic || `arduino/write/console`;
+            await hardwareService.publishMqtt(topic, { cmd });
+        } else if (comp.props.connectionType === 'WIFI') {
+            const ip = hardwareService.wifiIpAddress || '192.168.1.100';
+            await hardwareService.writeWifi(ip, 'console', text);
+        } else {
+            await hardwareService.writeSerial(cmd);
+        }
+    };
+
+    const handleMotorControl = async (val, cmdType) => {
+        if (viewMode !== 'PREVIEW') return;
+        const pin = comp.props.pin || '9';
+        
+        let cmd = '';
+        if (cmdType === 'SERVO') {
+            cmd = `s${pin}:${val}\n`;
+        } else if (cmdType === 'STEPPER') {
+            cmd = `m${pin}:${val}\n`;
+        } else if (cmdType === 'DC') {
+            cmd = `d${pin}:${val}\n`;
+        }
+
+        if (comp.props.connectionType === 'MQTT') {
+            const topic = comp.props.mqttPublishTopic || `arduino/write/${pin}`;
+            await hardwareService.publishMqtt(topic, { pin, value: val, cmd });
+        } else if (comp.props.connectionType === 'WIFI') {
+            const ip = hardwareService.wifiIpAddress || '192.168.1.100';
+            await hardwareService.writeWifi(ip, pin, val);
+        } else {
+            await hardwareService.writeSerial(cmd);
+        }
+        onWidgetInteraction(comp, 'MotorTriggered', { pin, value: val, cmdType });
+    };
+
+    const handleColorChange = async (hexColor) => {
+        if (viewMode !== 'PREVIEW') return;
+        
+        const r = parseInt(hexColor.slice(1, 3), 16) || 0;
+        const g = parseInt(hexColor.slice(3, 5), 16) || 0;
+        const b = parseInt(hexColor.slice(5, 7), 16) || 0;
+        
+        const pin = comp.props.pin || '6';
+        const cmd = `c${pin}:${r},${g},${b}\n`;
+
+        if (comp.props.connectionType === 'MQTT') {
+            const topic = comp.props.mqttPublishTopic || `arduino/write/${pin}`;
+            await hardwareService.publishMqtt(topic, { pin, r, g, b, cmd });
+        } else if (comp.props.connectionType === 'WIFI') {
+            const ip = hardwareService.wifiIpAddress || '192.168.1.100';
+            await hardwareService.writeWifi(ip, `${pin}/r`, r);
+            await hardwareService.writeWifi(ip, `${pin}/g`, g);
+            await hardwareService.writeWifi(ip, `${pin}/b`, b);
+        } else {
+            await hardwareService.writeSerial(cmd);
+        }
+        onWidgetInteraction(comp, 'ColorChanged', { pin, hexColor, r, g, b });
     };
 
     const tealColor = '#00979D';
@@ -1907,24 +2883,94 @@ const ArduinoWidget = ({ comp, viewMode, onWidgetInteraction, setPreviewFormValu
                         <span>{"[A0] [A1] [A2] [A3] [A4] [A5]"}</span>
                     </div>
                 </div>
-                {viewMode === 'PREVIEW' && (
+                
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                    {viewMode === 'PREVIEW' && (
+                        <button
+                            onClick={handleConnect}
+                            style={{
+                                flex: 1, padding: '6px 12px', borderRadius: '6px', border: 'none',
+                                backgroundColor: connected ? '#ef4444' : tealColor, color: 'white',
+                                fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s'
+                            }}
+                        >
+                            {connected ? 'Disconnect' : `Connect ${comp.props.connectionType || 'Serial'}`}
+                        </button>
+                    )}
                     <button
-                        onClick={handleConnect}
+                        onClick={() => setShowCodeModal(true)}
                         style={{
-                            marginTop: '8px', padding: '6px 12px', borderRadius: '6px', border: 'none',
-                            backgroundColor: connected ? '#ef4444' : tealColor, color: 'white',
+                            flex: 1, padding: '6px 12px', borderRadius: '6px', border: `1px solid ${tealColor}`,
+                            backgroundColor: 'transparent', color: tealColor,
                             fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s'
                         }}
                     >
-                        {connected ? 'Disconnect' : 'Connect Serial'}
+                        View Firmware Code
                     </button>
+                </div>
+
+                {showCodeModal && (
+                    <div style={{
+                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                        backgroundColor: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', zIndex: 9999, padding: '24px'
+                    }}>
+                        <div style={{
+                            backgroundColor: '#1e293b', borderRadius: '12px', border: '1px solid #334155',
+                            width: '100%', maxWidth: '640px', maxHeight: '80vh', display: 'flex',
+                            flexDirection: 'column', color: '#f8fafc', overflow: 'hidden'
+                        }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', borderBottom: '1px solid #334155' }}>
+                                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <Cpu size={20} color={tealColor} />
+                                    Arduino/ESP32 Firmware Generator
+                                </h3>
+                                <button
+                                    onClick={() => setShowCodeModal(false)}
+                                    style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '16px', fontFamily: 'monospace', fontSize: '0.8rem', backgroundColor: '#020617', color: '#38bdf8' }}>
+                                <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+                                    {getFirmwareCode(comp.props.connectionType, comp.props.boardType, comp.props.baudRate, comp.props.mqttBrokerUrl, comp.props.wifiIpAddress)}
+                                </pre>
+                            </div>
+                            <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid #334155', backgroundColor: '#0f172a' }}>
+                                <button
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(getFirmwareCode(comp.props.connectionType, comp.props.boardType, comp.props.baudRate, comp.props.mqttBrokerUrl, comp.props.wifiIpAddress));
+                                        toast.success('Firmware sketch copied to clipboard!');
+                                    }}
+                                    style={{
+                                        padding: '6px 12px', borderRadius: '6px', border: 'none',
+                                        backgroundColor: tealColor, color: 'white', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer'
+                                    }}
+                                >
+                                    Copy Code
+                                </button>
+                                <button
+                                    onClick={() => setShowCodeModal(false)}
+                                    style={{
+                                        padding: '6px 12px', borderRadius: '6px', border: '1px solid #475569',
+                                        backgroundColor: 'transparent', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer'
+                                    }}
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 )}
             </div>
         );
     }
 
     if (comp.type === 'ARDUINO_PIN_MONITOR') {
-        const valStr = comp.props.pinMode === 'DIGITAL_INPUT' ? (liveValue > 0 ? 'HIGH' : 'LOW') : liveValue;
+        const valStr = comp.props.pinMode === 'DIGITAL_INPUT' 
+            ? (liveValue > 0 ? 'HIGH' : 'LOW') 
+            : (typeof liveValue === 'number' ? liveValue.toFixed(comp.props.precision ?? 0) : liveValue);
         return (
             <div style={{
                 width: '100%', height: '100%', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-secondary)',
@@ -2069,6 +3115,1023 @@ const ArduinoWidget = ({ comp, viewMode, onWidgetInteraction, setPreviewFormValu
                             Awaiting serial data...
                         </div>
                     )}
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_CONSOLE') {
+        const showTs = comp.props.showTimestamp !== false;
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: '#020617', border: '1px solid var(--border-secondary)',
+                borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Terminal size={14} color={tealColor} />
+                        {comp.props.label || 'Console Terminal'}
+                    </span>
+                    <span style={{ fontSize: '0.55rem', color: '#475569' }}>
+                        Buffer: {logs.length}/{comp.props.maxLines || 100}
+                    </span>
+                </div>
+                <div style={{
+                    flex: 1, overflowY: 'auto', backgroundColor: '#090d16', border: '1px solid #1e293b',
+                    borderRadius: '8px', padding: '8px', fontFamily: 'monospace', fontSize: '0.7rem',
+                    color: '#38bdf8', display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '8px'
+                }}>
+                    {logs.map((log, i) => (
+                        <div key={i} style={{ display: 'flex', gap: '6px', color: log.type === 'tx' ? '#10b981' : '#38bdf8' }}>
+                            {showTs && <span style={{ color: '#475569' }}>[{log.time}]</span>}
+                            <span>{log.type === 'tx' ? 'TX>' : 'RX<'}</span>
+                            <span style={{ wordBreak: 'break-all' }}>{log.text}</span>
+                        </div>
+                    ))}
+                    <div ref={consoleEndRef} />
+                </div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                    <input
+                        type="text"
+                        placeholder="Send command..."
+                        value={cmdInput}
+                        disabled={viewMode !== 'PREVIEW'}
+                        onChange={(e) => setCmdInput(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSendConsoleCmd()}
+                        style={{
+                            flex: 1, backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '6px',
+                            color: '#f8fafc', padding: '6px 8px', fontSize: '0.75rem', fontFamily: 'monospace'
+                        }}
+                    />
+                    <button
+                        onClick={handleSendConsoleCmd}
+                        disabled={viewMode !== 'PREVIEW'}
+                        style={{
+                            backgroundColor: tealColor, color: 'white', border: 'none', borderRadius: '6px',
+                            padding: '6px 12px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer'
+                        }}
+                    >
+                        Send
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_GAUGE') {
+        const val = viewMode === 'PREVIEW' ? liveValue : 45;
+        const minVal = comp.props.min !== undefined ? parseFloat(comp.props.min) : 0;
+        const maxVal = comp.props.max !== undefined ? parseFloat(comp.props.max) : 100;
+        const color = comp.props.color || tealColor;
+        const unit = comp.props.unit || '°C';
+        
+        const pct = Math.max(0, Math.min(1, (val - minVal) / (maxVal - minVal)));
+        const r = 40;
+        const c = 2 * Math.PI * r;
+        const arcLength = c * 0.75;
+        const dashOffset = arcLength * (1 - pct);
+
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-secondary)',
+                borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box',
+                alignItems: 'center', justifyContent: 'space-between'
+            }}>
+                <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-secondary)' }}>
+                    <span>{comp.props.label || 'Circular Gauge'}</span>
+                    <span style={{ fontSize: '0.6rem', backgroundColor: 'rgba(0,151,157,0.1)', color: tealColor, padding: '1px 5px', borderRadius: '4px' }}>
+                        PIN {comp.props.pin || 'A0'}
+                    </span>
+                </div>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', width: '100%' }}>
+                    <svg width="120" height="120" viewBox="0 0 100 100" style={{ transform: 'rotate(-45deg)', transformOrigin: '50% 50%' }}>
+                        <circle
+                            cx="50"
+                            cy="50"
+                            r={r}
+                            fill="transparent"
+                            stroke={isDark ? '#1e293b' : '#e2e8f0'}
+                            strokeWidth="8"
+                            strokeDasharray={`${arcLength} ${c}`}
+                            strokeLinecap="round"
+                        />
+                        <circle
+                            cx="50"
+                            cy="50"
+                            r={r}
+                            fill="transparent"
+                            stroke={color}
+                            strokeWidth="8"
+                            strokeDasharray={`${arcLength} ${c}`}
+                            strokeDashoffset={dashOffset}
+                            strokeLinecap="round"
+                            style={{ transition: 'stroke-dashoffset 0.35s ease' }}
+                        />
+                    </svg>
+                    <div style={{
+                        position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center',
+                        justifyContent: 'center', top: '50%', left: '50%', transform: 'translate(-50%, -50%)'
+                    }}>
+                        <span style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
+                            {typeof val === 'number' ? val.toFixed(0) : val}
+                        </span>
+                        <span style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)' }}>{unit}</span>
+                    </div>
+                </div>
+                <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', fontSize: '0.6rem', color: 'var(--text-tertiary)' }}>
+                    <span>Min: {minVal}</span>
+                    <span>Max: {maxVal}</span>
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_COLOR_PICKER') {
+        const activeColor = viewMode === 'PREVIEW' ? (comp.props.color || '#ff0000') : '#ff0000';
+        const presets = ['#ef4444', '#22c55e', '#3b82f6', '#eab308', '#ec4899', '#a855f7', '#06b6d4', '#ffffff', '#000000'];
+        
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-secondary)',
+                borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box',
+                justifyContent: 'space-between'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Palette size={14} color={tealColor} />
+                        {comp.props.label || 'RGB Color Picker'}
+                    </span>
+                    <span style={{ fontSize: '0.6rem', backgroundColor: 'rgba(0,151,157,0.1)', color: tealColor, padding: '1px 5px', borderRadius: '4px', fontWeight: 'bold' }}>
+                        PIN {comp.props.pin || '6'}
+                    </span>
+                </div>
+                
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flex: 1, justifyContent: 'center' }}>
+                    <div style={{
+                        width: '56px', height: '56px', borderRadius: '12px', backgroundColor: activeColor,
+                        border: '2px solid var(--border-secondary)', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
+                    }} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <input
+                            type="color"
+                            value={activeColor}
+                            disabled={viewMode !== 'PREVIEW'}
+                            onChange={(e) => {
+                                updateComponentProps(comp.id, { color: e.target.value });
+                                handleColorChange(e.target.value);
+                            }}
+                            style={{
+                                width: '70px', height: '32px', border: '1px solid var(--border-secondary)',
+                                borderRadius: '6px', cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default', padding: 0, backgroundColor: 'transparent'
+                            }}
+                        />
+                        <span style={{ fontSize: '0.65rem', fontFamily: 'monospace', color: 'var(--text-primary)', textAlign: 'center' }}>
+                            {activeColor.toUpperCase()}
+                        </span>
+                    </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(9, 1fr)', gap: '4px', marginTop: '6px' }}>
+                    {presets.map((color, i) => (
+                        <button
+                            key={i}
+                            disabled={viewMode !== 'PREVIEW'}
+                            onClick={() => {
+                                updateComponentProps(comp.id, { color });
+                                handleColorChange(color);
+                            }}
+                            style={{
+                                height: '18px', backgroundColor: color, border: activeColor === color ? '2px solid var(--text-primary)' : '1px solid var(--border-secondary)',
+                                borderRadius: '4px', cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default', padding: 0
+                            }}
+                        />
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_MOTOR') {
+        const motorType = comp.props.motorType || 'SERVO';
+        
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-secondary)',
+                borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box',
+                justifyContent: 'space-between'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <RotateCw size={14} color={tealColor} />
+                        {comp.props.label || 'Motor Controller'}
+                    </span>
+                    <span style={{ fontSize: '0.6rem', backgroundColor: 'rgba(0,151,157,0.1)', color: tealColor, padding: '1px 5px', borderRadius: '4px', fontWeight: 'bold' }}>
+                        PIN {comp.props.pin || '9'}
+                    </span>
+                </div>
+
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    {motorType === 'SERVO' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                                <span>Angle: {viewMode === 'PREVIEW' ? liveValue : 90}°</span>
+                                <span>Max: 180°</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="0"
+                                max="180"
+                                value={viewMode === 'PREVIEW' ? liveValue : 90}
+                                disabled={viewMode !== 'PREVIEW'}
+                                onChange={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    setLiveValue(val);
+                                    handleMotorControl(val, 'SERVO');
+                                }}
+                                style={{ width: '100%', accentColor: tealColor }}
+                            />
+                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                                {[0, 45, 90, 135, 180].map((angle) => (
+                                    <button
+                                        key={angle}
+                                        disabled={viewMode !== 'PREVIEW'}
+                                        onClick={() => {
+                                            setLiveValue(angle);
+                                            handleMotorControl(angle, 'SERVO');
+                                        }}
+                                        style={{
+                                            padding: '2px 6px', fontSize: '0.55rem', border: '1px solid var(--border-secondary)',
+                                            borderRadius: '4px', backgroundColor: 'transparent', color: 'var(--text-primary)', cursor: 'pointer'
+                                        }}
+                                    >
+                                        {angle}°
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {motorType === 'STEPPER' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                                <button
+                                    disabled={viewMode !== 'PREVIEW'}
+                                    onClick={() => handleMotorControl(-(comp.props.stepSize || 10), 'STEPPER')}
+                                    style={{
+                                        flex: 1, padding: '8px 12px', backgroundColor: '#e2e8f0', border: 'none', borderRadius: '6px',
+                                        color: '#0f172a', fontWeight: 'bold', fontSize: '0.7rem', cursor: 'pointer'
+                                    }}
+                                >
+                                    ◀ JOG -{comp.props.stepSize || 10}
+                                </button>
+                                <button
+                                    disabled={viewMode !== 'PREVIEW'}
+                                    onClick={() => handleMotorControl((comp.props.stepSize || 10), 'STEPPER')}
+                                    style={{
+                                        flex: 1, padding: '8px 12px', backgroundColor: tealColor, border: 'none', borderRadius: '6px',
+                                        color: 'white', fontWeight: 'bold', fontSize: '0.7rem', cursor: 'pointer'
+                                    }}
+                                >
+                                    JOG +{comp.props.stepSize || 10} ▶
+                                </button>
+                            </div>
+                            <span style={{ fontSize: '0.6rem', color: 'var(--text-tertiary)' }}>
+                                Step size configured in properties.
+                            </span>
+                        </div>
+                    )}
+
+                    {motorType === 'DC' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                                <span>Speed (PWM): {viewMode === 'PREVIEW' ? liveValue : 0}</span>
+                                <span>Max: 255</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="0"
+                                max="255"
+                                value={viewMode === 'PREVIEW' ? liveValue : 0}
+                                disabled={viewMode !== 'PREVIEW'}
+                                onChange={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    setLiveValue(val);
+                                    handleMotorControl(val, 'DC');
+                                }}
+                                style={{ width: '100%', accentColor: tealColor }}
+                            />
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                                <button
+                                    disabled={viewMode !== 'PREVIEW'}
+                                    onClick={() => {
+                                        setLiveValue(0);
+                                        handleMotorControl(0, 'DC');
+                                    }}
+                                    style={{
+                                        flex: 1, padding: '4px', fontSize: '0.65rem', backgroundColor: '#ef4444', color: 'white',
+                                        border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer'
+                                    }}
+                                >
+                                    STOP
+                                </button>
+                                <button
+                                    disabled={viewMode !== 'PREVIEW'}
+                                    onClick={() => {
+                                        setLiveValue(255);
+                                        handleMotorControl(255, 'DC');
+                                    }}
+                                    style={{
+                                        flex: 1, padding: '4px', fontSize: '0.65rem', backgroundColor: '#22c55e', color: 'white',
+                                        border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer'
+                                    }}
+                                >
+                                    MAX
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_RFID') {
+        const allowedList = (comp.props.allowedCards || '').split(',').map(s => s.trim().toUpperCase());
+        
+        const simulateScan = (cardId) => {
+            if (viewMode !== 'PREVIEW') return;
+            const pin = comp.props.pin || '10';
+            hardwareService._emitPinData(pin, cardId, `${pin}:${cardId}`);
+            toast.success(`Simulated scan of card: ${cardId}`);
+        };
+
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-secondary)',
+                borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box',
+                justifyContent: 'space-between'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Nfc size={16} color={tealColor} />
+                        {comp.props.label || 'RFID Scanner'}
+                    </span>
+                    <span style={{ fontSize: '0.6rem', backgroundColor: 'rgba(0,151,157,0.1)', color: tealColor, padding: '1px 5px', borderRadius: '4px', fontWeight: 'bold' }}>
+                        SDA PIN {comp.props.pin || '10'}
+                    </span>
+                </div>
+
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', margin: '8px 0' }}>
+                    <div style={{
+                        width: '50px', height: '50px', borderRadius: '50%',
+                        backgroundColor: rfidStatus === 'ACCESS GRANTED' ? 'rgba(16,185,129,0.15)' : rfidStatus === 'ACCESS DENIED' ? 'rgba(239,68,68,0.15)' : 'var(--bg-primary)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '8px',
+                        border: `2px solid ${rfidStatus === 'ACCESS GRANTED' ? '#10b981' : rfidStatus === 'ACCESS DENIED' ? '#ef4444' : 'var(--border-secondary)'}`
+                    }}>
+                        <CreditCard size={24} color={rfidStatus === 'ACCESS GRANTED' ? '#10b981' : rfidStatus === 'ACCESS DENIED' ? '#ef4444' : 'var(--text-secondary)'} />
+                    </div>
+                    <span style={{
+                        fontSize: '0.75rem', fontWeight: 'bold',
+                        color: rfidStatus === 'ACCESS GRANTED' ? '#10b981' : rfidStatus === 'ACCESS DENIED' ? '#ef4444' : 'var(--text-primary)'
+                    }}>
+                        {rfidStatus}
+                    </span>
+                    {lastCardId && (
+                        <span style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)', fontFamily: 'monospace', marginTop: '2px' }}>
+                            UID: {lastCardId}
+                        </span>
+                    )}
+                </div>
+
+                {viewMode === 'PREVIEW' && (
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                        <button
+                            onClick={() => simulateScan(allowedList[0] || 'A1B2C3D4')}
+                            style={{
+                                flex: 1, padding: '6px 4px', fontSize: '0.6rem', backgroundColor: 'rgba(16,185,129,0.15)',
+                                color: '#10b981', border: '1px solid #10b981', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer'
+                            }}
+                        >
+                            Simulate Valid
+                        </button>
+                        <button
+                            onClick={() => simulateScan('BAD99999')}
+                            style={{
+                                flex: 1, padding: '6px 4px', fontSize: '0.6rem', backgroundColor: 'rgba(239,68,68,0.15)',
+                                color: '#ef4444', border: '1px solid #ef4444', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer'
+                            }}
+                        >
+                            Simulate Invalid
+                        </button>
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_LCD') {
+        const backlightColor = comp.props.backlightColor || '#00979d';
+        
+        const handleSendLCD = () => {
+            if (viewMode !== 'PREVIEW') return;
+            // Send both lines
+            hardwareService.writeSerial(`LCD_L1:${lcdText1}\n`);
+            hardwareService.writeSerial(`LCD_L2:${lcdText2}\n`);
+            toast.success('LCD text updated and sent!');
+        };
+
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-secondary)',
+                borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box',
+                justifyContent: 'space-between'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Tv size={16} color={tealColor} />
+                        {comp.props.label || 'I2C LCD 16x2'}
+                    </span>
+                    <span style={{ fontSize: '0.6rem', backgroundColor: 'rgba(0,151,157,0.1)', color: tealColor, padding: '1px 5px', borderRadius: '4px', fontWeight: 'bold' }}>
+                        {comp.props.pin || 'I2C (SDA/SCL)'}
+                    </span>
+                </div>
+
+                <div style={{
+                    flex: 1, backgroundColor: '#020617', padding: '10px', borderRadius: '8px',
+                    border: `3px solid ${backlightColor}`, boxShadow: `inset 0 0 10px ${backlightColor}`,
+                    display: 'flex', flexDirection: 'column', justifyContent: 'center', fontFamily: 'monospace',
+                    color: backlightColor, textShadow: `0 0 3px ${backlightColor}`, letterSpacing: '1px', minHeight: '50px'
+                }}>
+                    <div style={{ fontSize: '0.8rem', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                        {lcdText1.padEnd(16, ' ')}
+                    </div>
+                    <div style={{ fontSize: '0.8rem', overflow: 'hidden', whiteSpace: 'nowrap', marginTop: '2px' }}>
+                        {lcdText2.padEnd(16, ' ')}
+                    </div>
+                </div>
+
+                {viewMode === 'PREVIEW' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '6px' }}>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                            <input
+                                type="text"
+                                maxLength={16}
+                                value={lcdText1}
+                                onChange={(e) => setLcdText1(e.target.value)}
+                                placeholder="Line 1"
+                                style={{ flex: 1, fontSize: '0.65rem', padding: '4px', border: '1px solid var(--border-secondary)', borderRadius: '4px', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                            />
+                            <input
+                                type="text"
+                                maxLength={16}
+                                value={lcdText2}
+                                onChange={(e) => setLcdText2(e.target.value)}
+                                placeholder="Line 2"
+                                style={{ flex: 1, fontSize: '0.65rem', padding: '4px', border: '1px solid var(--border-secondary)', borderRadius: '4px', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                            />
+                        </div>
+                        <button
+                            onClick={handleSendLCD}
+                            style={{
+                                width: '100%', padding: '4px 8px', fontSize: '0.65rem', backgroundColor: tealColor,
+                                color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer'
+                            }}
+                        >
+                            Update Display
+                        </button>
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_JOYSTICK') {
+        const handleDrag = (e) => {
+            if (viewMode !== 'PREVIEW') return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = Math.max(0, Math.min(1023, Math.round(((e.clientX - rect.left) / rect.width) * 1023)));
+            const y = Math.max(0, Math.min(1023, Math.round(((e.clientY - rect.top) / rect.height) * 1023)));
+            
+            setJoyX(x);
+            setJoyY(y);
+
+            const pinX = comp.props.pinX || 'A0';
+            const pinY = comp.props.pinY || 'A1';
+            hardwareService._emitPinData(pinX, x, `${pinX}:${x}`);
+            hardwareService._emitPinData(pinY, y, `${pinY}:${y}`);
+            
+            if (comp.props.targetVariable) {
+                setPreviewFormValues(prev => ({ ...prev, [comp.id]: `${x},${y}` }));
+            }
+            onWidgetInteraction(comp, 'CoordinatesChanged', { x, y });
+        };
+
+        const toggleButton = () => {
+            if (viewMode !== 'PREVIEW') return;
+            const nextZ = joyZ === 1 ? 0 : 1;
+            setJoyZ(nextZ);
+            const pinZ = comp.props.pinSel || '2';
+            hardwareService._emitPinData(pinZ, nextZ, `${pinZ}:${nextZ}`);
+            onWidgetInteraction(comp, 'ButtonStateChanged', { buttonPressed: nextZ === 0 });
+        };
+
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-secondary)',
+                borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box',
+                justifyContent: 'space-between'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Gamepad2 size={16} color={tealColor} />
+                        {comp.props.label || '2-Axis Joystick'}
+                    </span>
+                    <span style={{ fontSize: '0.55rem', backgroundColor: 'rgba(0,151,157,0.1)', color: tealColor, padding: '1px 5px', borderRadius: '4px', fontFamily: 'monospace' }}>
+                        X:{comp.props.pinX || 'A0'} Y:{comp.props.pinY || 'A1'} SW:{comp.props.pinSel || '2'}
+                    </span>
+                </div>
+
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-around', margin: '6px 0' }}>
+                    <div
+                        onMouseMove={(e) => e.buttons === 1 && handleDrag(e)}
+                        onMouseDown={handleDrag}
+                        style={{
+                            width: '64px', height: '64px', borderRadius: '50%', backgroundColor: 'var(--bg-primary)',
+                            border: '2px solid var(--border-primary)', position: 'relative', cursor: viewMode === 'PREVIEW' ? 'crosshair' : 'default'
+                        }}
+                    >
+                        <div style={{
+                            width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ef4444',
+                            position: 'absolute', top: `${(joyY / 1023) * 100}%`, left: `${(joyX / 1023) * 100}%`,
+                            transform: 'translate(-50%, -50%)', pointerEvents: 'none'
+                        }} />
+                    </div>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>X: {joyX}</span>
+                        <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>Y: {joyY}</span>
+                        <button
+                            onClick={toggleButton}
+                            disabled={viewMode !== 'PREVIEW'}
+                            style={{
+                                padding: '4px 6px', fontSize: '0.6rem',
+                                backgroundColor: joyZ === 0 ? '#10b981' : 'transparent',
+                                color: joyZ === 0 ? 'white' : 'var(--text-primary)',
+                                border: '1px solid var(--border-secondary)', borderRadius: '4px', cursor: 'pointer'
+                            }}
+                        >
+                            SW: {joyZ === 0 ? 'ACTIVE' : 'RELEASED'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_KEYPAD') {
+        const keys = [
+            ['1', '2', '3', 'A'],
+            ['4', '5', '6', 'B'],
+            ['7', '8', '9', 'C'],
+            ['*', '0', '#', 'D']
+        ];
+
+        const handleKeyPress = (key) => {
+            if (viewMode !== 'PREVIEW') return;
+            setLastKeyPressed(key);
+            hardwareService._emitPinData('KEYPAD', key, `KEYPAD:${key}`);
+            if (comp.props.targetVariable) {
+                setPreviewFormValues(prev => ({ ...prev, [comp.id]: key }));
+            }
+            onWidgetInteraction(comp, 'KeyClicked', { key });
+            toast.success(`Key Pressed: ${key}`);
+        };
+
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-secondary)',
+                borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box',
+                justifyContent: 'space-between'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-secondary)' }}>
+                        {comp.props.label || '4x4 Keypad'}
+                    </span>
+                    {lastKeyPressed && (
+                        <span style={{ fontSize: '0.65rem', color: tealColor, fontFamily: 'monospace', fontWeight: 'bold' }}>
+                            LAST: {lastKeyPressed}
+                        </span>
+                    )}
+                </div>
+
+                <div style={{
+                    display: 'grid', gridTemplateRows: 'repeat(4, 1fr)', gap: '4px', flex: 1
+                }}>
+                    {keys.map((row, rIdx) => (
+                        <div key={rIdx} style={{ display: 'flex', gap: '4px' }}>
+                            {row.map((k) => (
+                                <button
+                                    key={k}
+                                    disabled={viewMode !== 'PREVIEW'}
+                                    onClick={() => handleKeyPress(k)}
+                                    style={{
+                                        flex: 1, padding: '4px 0', border: '1px solid var(--border-secondary)',
+                                        borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold',
+                                        backgroundColor: lastKeyPressed === k ? 'rgba(0,151,157,0.2)' : 'var(--bg-primary)',
+                                        color: lastKeyPressed === k ? tealColor : 'var(--text-primary)',
+                                        cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default', transition: 'all 0.1s'
+                                    }}
+                                >
+                                    {k}
+                                </button>
+                            ))}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_MATRIX') {
+        const toggleLED = (r, c) => {
+            if (viewMode !== 'PREVIEW') return;
+            const next = matrixState.map((row, rIdx) =>
+                row.map((val, cIdx) => (rIdx === r && cIdx === c ? !val : val))
+            );
+            setMatrixState(next);
+            
+            // Format into hex array
+            const hexArray = next.map(row => {
+                let byte = 0;
+                row.forEach((led, idx) => {
+                    if (led) byte |= (1 << (7 - idx));
+                });
+                return '0x' + byte.toString(16).padStart(2, '0').toUpperCase();
+            });
+            
+            const payload = hexArray.join(',');
+            hardwareService.writeSerial(`MATRIX:${payload}\n`);
+            onWidgetInteraction(comp, 'MatrixChanged', { matrix: payload });
+        };
+
+        const clearMatrix = () => {
+            if (viewMode !== 'PREVIEW') return;
+            const empty = Array(8).fill(0).map(() => Array(8).fill(false));
+            setMatrixState(empty);
+            hardwareService.writeSerial(`MATRIX:0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00\n`);
+            onWidgetInteraction(comp, 'MatrixChanged', { matrix: '0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00' });
+        };
+
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-secondary)',
+                borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box',
+                justifyContent: 'space-between'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Grid3X3 size={16} color={tealColor} />
+                        {comp.props.label || '8x8 LED Matrix'}
+                    </span>
+                    <button
+                        onClick={clearMatrix}
+                        disabled={viewMode !== 'PREVIEW'}
+                        style={{
+                            fontSize: '0.55rem', border: 'none', backgroundColor: 'rgba(239,68,68,0.1)',
+                            color: '#ef4444', padding: '2px 6px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'
+                        }}
+                    >
+                        CLEAR
+                    </button>
+                </div>
+
+                <div style={{
+                    display: 'grid', gridTemplateRows: 'repeat(8, 1fr)', gap: '2px', flex: 1,
+                    backgroundColor: '#020617', padding: '6px', borderRadius: '6px', aspectRatio: '1/1',
+                    alignSelf: 'center', border: '1px solid var(--border-primary)'
+                }}>
+                    {matrixState.map((row, rIdx) => (
+                        <div key={rIdx} style={{ display: 'flex', gap: '2px' }}>
+                            {row.map((led, cIdx) => (
+                                <div
+                                    key={cIdx}
+                                    onClick={() => toggleLED(rIdx, cIdx)}
+                                    style={{
+                                        width: '12px', height: '12px', borderRadius: '2px',
+                                        backgroundColor: led ? '#ef4444' : '#1e293b',
+                                        boxShadow: led ? '0 0 6px #ef4444' : 'none',
+                                        cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default',
+                                        transition: 'all 0.15s'
+                                    }}
+                                />
+                            ))}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_RTC') {
+        const handleSyncTime = () => {
+            if (viewMode !== 'PREVIEW') return;
+            const epoch = Math.floor(Date.now() / 1000);
+            hardwareService.writeSerial(`RTC_SET:${epoch}\n`);
+            toast.success(`RTC Synced with Epoch: ${epoch}`);
+            onWidgetInteraction(comp, 'TimeSynced', { epoch });
+        };
+
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-secondary)',
+                borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box',
+                justifyContent: 'space-between'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Timer size={16} color={tealColor} />
+                        {comp.props.label || 'RTC DS3231 Clock'}
+                    </span>
+                    <span style={{ fontSize: '0.6rem', backgroundColor: 'rgba(0,151,157,0.1)', color: tealColor, padding: '1px 5px', borderRadius: '4px', fontWeight: 'bold' }}>
+                        I2C
+                    </span>
+                </div>
+
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', margin: '8px 0' }}>
+                    <span style={{ fontSize: '1.6rem', fontWeight: 900, color: 'var(--text-primary)', fontFamily: 'monospace', letterSpacing: '1px' }}>
+                        {currentTime}
+                    </span>
+                    <span style={{ fontSize: '0.6rem', color: 'var(--text-tertiary)', marginTop: '2px' }}>
+                        {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    </span>
+                </div>
+
+                {viewMode === 'PREVIEW' && (
+                    <button
+                        onClick={handleSyncTime}
+                        style={{
+                            width: '100%', padding: '6px', fontSize: '0.65rem', backgroundColor: tealColor,
+                            color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer'
+                        }}
+                    >
+                        Sync with System Time
+                    </button>
+                )}
+            </div>
+        );
+    }
+
+    // --- ARDUINO_RADAR ---
+    if (comp.type === 'ARDUINO_RADAR') {
+        const sweep = comp.props.angleSweep || 180;
+        const size = 220;
+        const cx = size / 2, cy = size / 2, r = size / 2 - 8;
+        const sweepRad = (radarAngle * Math.PI) / 180;
+        const sweepX = cx + r * Math.cos(Math.PI - sweepRad);
+        const sweepY = cy - r * Math.sin(sweepRad) * (sweep === 360 ? 1 : 1);
+        const toXY = (ang, dist) => ({
+            x: cx + r * dist * Math.cos(Math.PI - (ang * Math.PI) / 180),
+            y: cy - r * dist * Math.sin((ang * Math.PI) / 180)
+        });
+        const rings = [0.25, 0.5, 0.75, 1.0];
+        const spokeAngles = sweep === 360
+            ? [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330]
+            : [0, 30, 60, 90, 120, 150, 180];
+        return (
+            <div style={{ width: '100%', height: '100%', background: '#000e00', borderRadius: '12px', padding: '8px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#00ff41', fontFamily: 'monospace', marginBottom: '4px', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>⬡ {comp.props.label || 'Radar Sweep'}</span>
+                    <span style={{ color: '#4ade80', fontSize: '0.6rem' }}>MAX: {comp.props.maxDistance || 200}cm | SWEEP: {sweep}°</span>
+                </div>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width={size} height={size * (sweep === 360 ? 1 : 0.6)} viewBox={`0 0 ${size} ${sweep === 360 ? size : size * 0.55}`} style={{ overflow: 'visible' }}>
+                        {rings.map((f, i) => (
+                            <ellipse key={i} cx={cx} cy={cy} rx={r * f} ry={sweep === 360 ? r * f : r * f * 0.55}
+                                fill="none" stroke="#00ff4130" strokeWidth="1" />
+                        ))}
+                        {spokeAngles.map((a, i) => {
+                            const rad = (a * Math.PI) / 180;
+                            return <line key={i} x1={cx} y1={cy}
+                                x2={cx + r * Math.cos(Math.PI - rad)}
+                                y2={cy - r * 0.55 * Math.sin(rad)}
+                                stroke="#00ff4120" strokeWidth="1" />;
+                        })}
+                        <defs>
+                            <radialGradient id={`rg-${comp.id}`} cx="50%" cy="100%" r="100%">
+                                <stop offset="0%" stopColor="#00ff41" stopOpacity="0.4" />
+                                <stop offset="100%" stopColor="#00ff41" stopOpacity="0" />
+                            </radialGradient>
+                        </defs>
+                        <line x1={cx} y1={cy} x2={sweepX} y2={cy - (cy - sweepY) * 0.55}
+                            stroke="#00ff41" strokeWidth="2" opacity="0.9" />
+                        <circle cx={cx} cy={cy} r="3" fill="#00ff41" />
+                        {radarDots.map((d, i) => {
+                            const { x, y } = toXY(d.angle, d.dist);
+                            return <circle key={i} cx={x} cy={cy - (cy - y) * 0.55} r="3"
+                                fill="#00ff41" opacity={0.3 + (i / radarDots.length) * 0.7} />;
+                        })}
+                    </svg>
+                </div>
+            </div>
+        );
+    }
+
+    // --- ARDUINO_TANK ---
+    if (comp.type === 'ARDUINO_TANK') {
+        const pct = viewMode === 'PREVIEW' ? tankLevel : 45;
+        const warningPct = comp.props.warningThreshold || 80;
+        const liqColor = pct >= warningPct ? '#ef4444' : (comp.props.liquidColor || '#3b82f6');
+        const tankH = 180;
+        const fillH = (pct / 100) * tankH;
+        return (
+            <div style={{ width: '100%', height: '100%', background: 'var(--bg-panel)', borderRadius: '12px', padding: '12px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '8px', width: '100%', textAlign: 'left' }}>
+                    💧 {comp.props.label || 'Liquid Tank'}
+                </div>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>
+                    <svg width="80" height={tankH + 20} viewBox={`0 0 80 ${tankH + 20}`} style={{ overflow: 'visible' }}>
+                        <rect x="5" y="0" width="70" height={tankH} rx="8" fill="#1e293b" stroke="#334155" strokeWidth="2" />
+                        <rect x="5" y={tankH - fillH} width="70" height={fillH} rx="0"
+                            fill={liqColor} opacity="0.8"
+                            style={{ transition: 'height 0.6s ease, y 0.6s ease' }} />
+                        <rect x="5" y="0" width="70" height={tankH} rx="8" fill="none" stroke="#475569" strokeWidth="2" />
+                        {[0.25, 0.5, 0.75].map((f, i) => (
+                            <line key={i} x1="5" y1={tankH * (1 - f)} x2="15" y2={tankH * (1 - f)}
+                                stroke="#64748b" strokeWidth="1" />
+                        ))}
+                        <rect x="30" y={tankH} width="20" height="8" rx="3" fill="#475569" />
+                    </svg>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ fontSize: '2rem', fontWeight: 900, color: liqColor, fontFamily: 'monospace' }}>{pct.toFixed(1)}%</div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)' }}>Capacity: {comp.props.capacity || 1000}L</div>
+                        <div style={{ height: '6px', background: '#1e293b', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${pct}%`, background: liqColor, borderRadius: '3px', transition: 'width 0.6s ease' }} />
+                        </div>
+                        {pct >= warningPct && <div style={{ fontSize: '0.6rem', color: '#ef4444', fontWeight: 700 }}>⚠ HIGH LEVEL ALERT</div>}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // --- ARDUINO_MODBUS ---
+    if (comp.type === 'ARDUINO_MODBUS') {
+        const regs = viewMode === 'PREVIEW' ? modbusRegs : [
+            { addr: '40001', val: 1234 }, { addr: '40002', val: 5678 }, { addr: '40003', val: 910 },
+            { addr: '40004', val: 11 }, { addr: '40005', val: 0 }, { addr: '40006', val: 255 },
+            { addr: '40007', val: 128 }, { addr: '40008', val: 64 }
+        ];
+        return (
+            <div style={{ width: '100%', height: '100%', background: 'var(--bg-panel)', borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid var(--border-secondary)' }}>
+                <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-secondary)', background: 'var(--bg-tertiary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ color: '#f59e0b' }}>⬛</span> {comp.props.label || 'Modbus Viewer'}
+                    </span>
+                    <span style={{ fontSize: '0.6rem', color: '#f59e0b', background: 'rgba(245,158,11,0.1)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>RTU | Addr {comp.props.clientAddress || 1}</span>
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem', fontFamily: 'monospace' }}>
+                        <thead>
+                            <tr style={{ background: 'var(--bg-tertiary)' }}>
+                                <th style={{ padding: '4px 8px', textAlign: 'left', color: 'var(--text-tertiary)', fontWeight: 600, borderBottom: '1px solid var(--border-secondary)' }}>Register</th>
+                                <th style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-tertiary)', fontWeight: 600, borderBottom: '1px solid var(--border-secondary)' }}>DEC</th>
+                                <th style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-tertiary)', fontWeight: 600, borderBottom: '1px solid var(--border-secondary)' }}>HEX</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {regs.map((r, i) => (
+                                <tr key={i} style={{ borderBottom: '1px solid var(--border-secondary)', background: i % 2 === 0 ? 'transparent' : 'var(--bg-secondary)' }}>
+                                    <td style={{ padding: '4px 8px', color: '#f59e0b' }}>{r.addr || `4000${i + 1}`}</td>
+                                    <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-primary)', fontWeight: 700 }}>{r.val}</td>
+                                    <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-tertiary)' }}>{`0x${Number(r.val).toString(16).toUpperCase().padStart(4, '0')}`}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    }
+
+    // --- ARDUINO_STATUS_GRID ---
+    if (comp.type === 'ARDUINO_STATUS_GRID') {
+        const pins = (comp.props.pins || 'D2,D3,D4,D5').split(',').map(p => p.trim());
+        const labels = (comp.props.pinLabels || '').split(',').map(l => l.trim());
+        return (
+            <div style={{ width: '100%', height: '100%', background: 'var(--bg-panel)', borderRadius: '12px', padding: '12px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>🔦 {comp.props.label || 'Status Lights Grid'}</div>
+                <div style={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(${Math.min(4, pins.length)}, 1fr)`, gap: '8px', alignContent: 'start' }}>
+                    {pins.map((pin, i) => {
+                        const active = viewMode === 'PREVIEW' ? !!statusPins[pin] : i % 2 === 0;
+                        return (
+                            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', padding: '8px', background: 'var(--bg-secondary)', borderRadius: '8px', border: `1px solid ${active ? '#10b981' : 'var(--border-secondary)'}` }}>
+                                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: active ? '#10b981' : '#374151', boxShadow: active ? '0 0 10px #10b981' : 'none', transition: 'all 0.2s' }} />
+                                <div style={{ fontSize: '0.55rem', fontWeight: 700, color: active ? '#10b981' : 'var(--text-quaternary)', textAlign: 'center', maxWidth: '60px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {labels[i] || pin}
+                                </div>
+                                <div style={{ fontSize: '0.5rem', color: 'var(--text-quaternary)' }}>{active ? 'HIGH' : 'LOW'}</div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    }
+
+    // --- ARDUINO_OSCILLOSCOPE ---
+    if (comp.type === 'ARDUINO_OSCILLOSCOPE') {
+        const data = viewMode === 'PREVIEW' ? oscData : Array(80).fill(0).map((_, i) => 128 + Math.sin(i / 5) * 80);
+        const W = 280, H = 120;
+        const pts = data.map((v, i) => `${(i / (data.length - 1)) * W},${H - (v / 255) * H}`).join(' ');
+        const freqEst = (comp.props.timebase || 50);
+        return (
+            <div style={{ width: '100%', height: '100%', background: '#000a00', borderRadius: '12px', padding: '10px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#00ff88', fontFamily: 'monospace' }}>⚡ {comp.props.label || 'Oscilloscope'}</span>
+                    <span style={{ fontSize: '0.6rem', color: '#4ade80', fontFamily: 'monospace' }}>PIN {comp.props.pin || 'A0'} | {freqEst}ms/div</span>
+                </div>
+                <div style={{ flex: 1, border: '1px solid #00ff4430', borderRadius: '6px', background: '#00100a', padding: '4px', position: 'relative', overflow: 'hidden' }}>
+                    {[0.25, 0.5, 0.75].map((f, i) => <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: `${f * 100}%`, borderTop: '1px dashed #00ff4420' }} />)}
+                    {[0.2, 0.4, 0.6, 0.8].map((f, i) => <div key={i} style={{ position: 'absolute', top: 0, bottom: 0, left: `${f * 100}%`, borderLeft: '1px dashed #00ff4220' }} />)}
+                    <svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+                        <polyline points={pts} fill="none" stroke="#00ff88" strokeWidth="1.5" />
+                    </svg>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.55rem', color: '#4ade80', marginTop: '4px', fontFamily: 'monospace' }}>
+                    <span>CH1: {comp.props.amplitude || 5}V</span>
+                    <span>TRIG: AUTO</span>
+                    <span>SAMPLE: {data.length}pts</span>
+                </div>
+            </div>
+        );
+    }
+
+    // --- ARDUINO_THERMAL ---
+    if (comp.type === 'ARDUINO_THERMAL') {
+        const grid = viewMode === 'PREVIEW' ? thermalGrid : Array(64).fill(0).map((_, i) => 20 + Math.random() * 40);
+        const maxT = comp.props.maxTemp || 80;
+        const palette = comp.props.colorPalette || 'IRONBOW';
+        const getColor = (v) => {
+            const t = Math.min(1, Math.max(0, v / maxT));
+            if (palette === 'IRONBOW') {
+                const r = Math.min(255, Math.round(t < 0.5 ? t * 2 * 100 : 100 + (t - 0.5) * 2 * 155));
+                const g = Math.min(255, Math.round(t < 0.33 ? 0 : t < 0.66 ? (t - 0.33) * 3 * 200 : 200 + (t - 0.66) * 3 * 55));
+                const b = Math.min(255, Math.round(t < 0.5 ? 150 - t * 2 * 150 : 0));
+                return `rgb(${r},${g},${b})`;
+            }
+            const r2 = Math.round(t * 255);
+            return `rgb(${r2},${Math.round((1 - Math.abs(t - 0.5) * 2) * 255)},${255 - r2})`;
+        };
+        return (
+            <div style={{ width: '100%', height: '100%', background: '#0a0a0a', borderRadius: '12px', padding: '10px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#fbbf24', marginBottom: '6px', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>🌡 {comp.props.label || 'Thermal Camera'}</span>
+                    <span style={{ fontSize: '0.6rem', color: '#f97316' }}>AMG8833 | 8×8 px</span>
+                </div>
+                <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '2px' }}>
+                    {grid.map((v, i) => (
+                        <div key={i} title={`${v.toFixed(1)}°C`}
+                            style={{ borderRadius: '2px', background: getColor(v), aspectRatio: '1', transition: 'background 0.3s' }} />
+                    ))}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.55rem', color: '#64748b', marginTop: '6px' }}>
+                    <span>Min: {Math.min(...grid).toFixed(1)}°C</span>
+                    <span>Max: {Math.max(...grid).toFixed(1)}°C</span>
+                </div>
+            </div>
+        );
+    }
+
+    // --- ARDUINO_THERMOMETER ---
+    if (comp.type === 'ARDUINO_THERMOMETER') {
+        const mn = parseFloat(comp.props.minVal ?? 0);
+        const mx = parseFloat(comp.props.maxVal ?? 100);
+        const val = viewMode === 'PREVIEW' ? thermoValue : (mx - mn) * 0.4 + mn;
+        const pct = Math.min(1, Math.max(0, (val - mn) / (mx - mn)));
+        const barH = 160;
+        const fillH = pct * barH;
+        const tempColor = pct > 0.8 ? '#ef4444' : pct > 0.6 ? '#f59e0b' : '#3b82f6';
+        return (
+            <div style={{ width: '100%', height: '100%', background: 'var(--bg-panel)', borderRadius: '12px', padding: '12px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', width: '100%', textAlign: 'left' }}>🌡 {comp.props.label || 'Thermometer'}</div>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
+                    <svg width="40" height={barH + 30} viewBox={`0 0 40 ${barH + 30}`}>
+                        <rect x="14" y="0" width="12" height={barH} rx="6" fill="#1e293b" stroke="#475569" strokeWidth="1.5" />
+                        <rect x="14" y={barH - fillH} width="12" height={fillH} rx="6" fill={tempColor}
+                            style={{ transition: 'height 0.6s ease, y 0.6s ease' }} />
+                        <circle cx="20" cy={barH + 12} r="12" fill={tempColor} />
+                        {[0, 0.25, 0.5, 0.75, 1].map((f, i) => (
+                            <line key={i} x1="22" y1={barH * (1 - f)} x2="30" y2={barH * (1 - f)}
+                                stroke="#64748b" strokeWidth="1" />
+                        ))}
+                    </svg>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div style={{ fontSize: '2rem', fontWeight: 900, color: tempColor, fontFamily: 'monospace' }}>
+                            {val.toFixed(1)}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>{comp.props.unit || '°C'}</div>
+                        <div style={{ fontSize: '0.55rem', color: 'var(--text-quaternary)' }}>PIN: {comp.props.pin || 'A0'}</div>
+                        <div style={{ fontSize: '0.55rem', color: 'var(--text-quaternary)' }}>{mn}{comp.props.unit || '°C'} – {mx}{comp.props.unit || '°C'}</div>
+                    </div>
                 </div>
             </div>
         );
@@ -13069,6 +15132,23 @@ const AppBuilder = () => {
             case 'ARDUINO_PIN_MONITOR':
             case 'ARDUINO_CONTROLLER':
             case 'ARDUINO_GRAPH':
+            case 'ARDUINO_CONSOLE':
+            case 'ARDUINO_GAUGE':
+            case 'ARDUINO_COLOR_PICKER':
+            case 'ARDUINO_MOTOR':
+            case 'ARDUINO_RFID':
+            case 'ARDUINO_LCD':
+            case 'ARDUINO_JOYSTICK':
+            case 'ARDUINO_KEYPAD':
+            case 'ARDUINO_MATRIX':
+            case 'ARDUINO_RTC':
+            case 'ARDUINO_RADAR':
+            case 'ARDUINO_TANK':
+            case 'ARDUINO_MODBUS':
+            case 'ARDUINO_STATUS_GRID':
+            case 'ARDUINO_OSCILLOSCOPE':
+            case 'ARDUINO_THERMAL':
+            case 'ARDUINO_THERMOMETER':
                 return (
                     <ArduinoWidget
                         comp={comp}
@@ -20515,7 +22595,7 @@ const AppBuilder = () => {
                                                             <input
                                                                 value={selectedComp.props.label || ''}
                                                                 onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })}
-                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
                                                             />
                                                         </div>
                                                         <div className="prop-group">
@@ -20559,6 +22639,78 @@ const AppBuilder = () => {
                                                                 </select>
                                                             </div>
                                                         )}
+                                                        {selectedComp.props.connectionType === 'MQTT' && (
+                                                            <>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MQTT BROKER URL</label>
+                                                                    <input
+                                                                        value={selectedComp.props.mqttBrokerUrl || 'wss://broker.emqx.io:8084/mqtt'}
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { mqttBrokerUrl: e.target.value })}
+                                                                        style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                                        placeholder="wss://broker.emqx.io:8084/mqtt"
+                                                                    />
+                                                                </div>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MQTT USERNAME</label>
+                                                                    <input
+                                                                        value={selectedComp.props.mqttUsername || ''}
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { mqttUsername: e.target.value })}
+                                                                        style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                                        placeholder="Optional Username"
+                                                                    />
+                                                                </div>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MQTT PASSWORD</label>
+                                                                    <input
+                                                                        type="password"
+                                                                        value={selectedComp.props.mqttPassword || ''}
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { mqttPassword: e.target.value })}
+                                                                        style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                                        placeholder="Optional Password"
+                                                                    />
+                                                                </div>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MQTT PUB TOPIC</label>
+                                                                    <input
+                                                                        value={selectedComp.props.mqttPublishTopic || 'arduino/write'}
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { mqttPublishTopic: e.target.value })}
+                                                                        style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                                        placeholder="e.g. arduino/write"
+                                                                    />
+                                                                </div>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MQTT SUB TOPIC</label>
+                                                                    <input
+                                                                        value={selectedComp.props.mqttSubscribeTopic || 'arduino/read/#'}
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { mqttSubscribeTopic: e.target.value })}
+                                                                        style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                                        placeholder="e.g. arduino/read/#"
+                                                                    />
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                        {selectedComp.props.connectionType === 'WIFI' && (
+                                                            <>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>IP ADDRESS</label>
+                                                                    <input
+                                                                        value={selectedComp.props.wifiIpAddress || '192.168.1.100'}
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { wifiIpAddress: e.target.value })}
+                                                                        style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                                        placeholder="e.g. 192.168.1.100"
+                                                                    />
+                                                                </div>
+                                                                <div className="prop-group">
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>POLLING SPEED (MS)</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={selectedComp.props.wifiPollingInterval || 1000}
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { wifiPollingInterval: parseInt(e.target.value) || 1000 })}
+                                                                        style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                                    />
+                                                                </div>
+                                                            </>
+                                                        )}
                                                     </>
                                                 )}
 
@@ -20572,15 +22724,44 @@ const AppBuilder = () => {
                                                                 style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
                                                             />
                                                         </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CONNECTION TYPE</label>
+                                                            <select value={selectedComp.props.connectionType || 'SERIAL'} onChange={(e) => updateComponentProps(selectedComp.id, { connectionType: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
+                                                                <option value="SERIAL">USB Serial (Arduino/ESP32)</option>
+                                                                <option value="MQTT">MQTT Broker</option>
+                                                                <option value="WIFI">WiFi / HTTP Polling</option>
+                                                            </select>
+                                                        </div>
+                                                        {selectedComp.props.connectionType === 'SERIAL' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BAUD RATE</label><select value={selectedComp.props.baudRate || 9600} onChange={(e) => updateComponentProps(selectedComp.id, { baudRate: parseInt(e.target.value) })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}><option value="9600">9600</option><option value="19200">19200</option><option value="38400">38400</option><option value="57600">57600</option><option value="115200">115200</option></select></div>)}
+                                                        {selectedComp.props.connectionType === 'MQTT' && (<><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MQTT BROKER URL</label><input value={selectedComp.props.mqttBrokerUrl || 'wss://broker.emqx.io:8084/mqtt'} onChange={(e) => updateComponentProps(selectedComp.id, { mqttBrokerUrl: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SUBSCRIBE TOPIC</label><input value={selectedComp.props.mqttSubscribeTopic || 'arduino/read/A0'} onChange={(e) => updateComponentProps(selectedComp.id, { mqttSubscribeTopic: e.target.value })} placeholder="arduino/read/A0" style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>)}
+                                                        {selectedComp.props.connectionType === 'WIFI' && (<><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>DEVICE IP ADDRESS</label><input value={selectedComp.props.wifiIpAddress || '192.168.1.100'} onChange={(e) => updateComponentProps(selectedComp.id, { wifiIpAddress: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>POLLING INTERVAL (ms)</label><input type="number" value={selectedComp.props.wifiPollingInterval || 1000} onChange={(e) => updateComponentProps(selectedComp.id, { wifiPollingInterval: parseInt(e.target.value) || 1000 })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>)}
+                                                        <div style={{ padding: '8px 10px', background: 'rgba(0,151,157,0.08)', borderRadius: '6px', border: '1px solid rgba(0,151,157,0.2)', fontSize: '0.65rem', color: '#22d3ee', marginBottom: '6px' }}>
+                                                            <strong>Serial Format:</strong> <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>A0:512{'\n'}</code> &nbsp;|&nbsp; <strong>MQTT JSON:</strong> <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>{'{'}&quot;pin&quot;:&quot;A0&quot;,&quot;value&quot;:512{'}'}</code>
+                                                        </div>
                                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                                                             <div className="prop-group">
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PIN</label>
-                                                                <input
+                                                                <select
                                                                     value={selectedComp.props.pin || 'A0'}
                                                                     onChange={(e) => updateComponentProps(selectedComp.id, { pin: e.target.value })}
-                                                                    placeholder="e.g. A0, D2"
-                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
-                                                                />
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                                >
+                                                                    <optgroup label="Arduino Analog">
+                                                                        {['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7'].map(p => (
+                                                                            <option key={p} value={p}>{p}</option>
+                                                                        ))}
+                                                                    </optgroup>
+                                                                    <optgroup label="Arduino Digital">
+                                                                        {['D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13'].map(p => (
+                                                                            <option key={p} value={p.replace('D', '')}>{p}</option>
+                                                                        ))}
+                                                                    </optgroup>
+                                                                    <optgroup label="ESP32 GPIO">
+                                                                        {[0, 1, 2, 3, 4, 5, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33, 34, 35, 36, 39].map(num => (
+                                                                            <option key={`GPIO${num}`} value={String(num)}>{`GPIO ${num}`}</option>
+                                                                        ))}
+                                                                    </optgroup>
+                                                                </select>
                                                             </div>
                                                             <div className="prop-group">
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PIN MODE</label>
@@ -20629,6 +22810,28 @@ const AppBuilder = () => {
                                                                 ))}
                                                             </select>
                                                         </div>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CALIBRATION MULTIPLIER</label>
+                                                                <input
+                                                                    type="number"
+                                                                    step="any"
+                                                                    value={selectedComp.props.multiplier ?? 1}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { multiplier: parseFloat(e.target.value) ?? 1 })}
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                />
+                                                            </div>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CALIBRATION OFFSET</label>
+                                                                <input
+                                                                    type="number"
+                                                                    step="any"
+                                                                    value={selectedComp.props.offset ?? 0}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { offset: parseFloat(e.target.value) ?? 0 })}
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                />
+                                                            </div>
+                                                        </div>
                                                     </>
                                                 )}
 
@@ -20642,15 +22845,44 @@ const AppBuilder = () => {
                                                                 style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
                                                             />
                                                         </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CONNECTION TYPE</label>
+                                                            <select value={selectedComp.props.connectionType || 'SERIAL'} onChange={(e) => updateComponentProps(selectedComp.id, { connectionType: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
+                                                                <option value="SERIAL">USB Serial (Arduino/ESP32)</option>
+                                                                <option value="MQTT">MQTT Broker</option>
+                                                                <option value="WIFI">WiFi / HTTP ESP32</option>
+                                                            </select>
+                                                        </div>
+                                                        {selectedComp.props.connectionType === 'SERIAL' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BAUD RATE</label><select value={selectedComp.props.baudRate || 9600} onChange={(e) => updateComponentProps(selectedComp.id, { baudRate: parseInt(e.target.value) })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}><option value="9600">9600</option><option value="115200">115200</option></select></div>)}
+                                                        {selectedComp.props.connectionType === 'MQTT' && (<><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MQTT BROKER URL</label><input value={selectedComp.props.mqttBrokerUrl || ''} onChange={(e) => updateComponentProps(selectedComp.id, { mqttBrokerUrl: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PUBLISH TOPIC</label><input value={selectedComp.props.mqttPublishTopic || 'arduino/write/13'} onChange={(e) => updateComponentProps(selectedComp.id, { mqttPublishTopic: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>)}
+                                                        {selectedComp.props.connectionType === 'WIFI' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>DEVICE IP ADDRESS</label><input value={selectedComp.props.wifiIpAddress || '192.168.1.100'} onChange={(e) => updateComponentProps(selectedComp.id, { wifiIpAddress: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>)}
+                                                        <div style={{ padding: '8px 10px', background: 'rgba(16,185,129,0.08)', borderRadius: '6px', border: '1px solid rgba(16,185,129,0.2)', fontSize: '0.65rem', color: '#34d399', marginBottom: '6px' }}>
+                                                            <strong>Serial OUT:</strong> <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>d13:1{'\n'}</code> (digital HIGH) &nbsp;|&nbsp; <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>p9:128{'\n'}</code> (PWM) &nbsp;|&nbsp; <strong>MQTT:</strong> <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>{'{'}&quot;pin&quot;:&quot;13&quot;,&quot;value&quot;:1{'}'}</code>
+                                                        </div>
                                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                                                             <div className="prop-group">
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PIN</label>
-                                                                <input
+                                                                <select
                                                                     value={selectedComp.props.pin || '13'}
                                                                     onChange={(e) => updateComponentProps(selectedComp.id, { pin: e.target.value })}
-                                                                    placeholder="e.g. 13, 9"
-                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
-                                                                />
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                                >
+                                                                    <optgroup label="Arduino Analog">
+                                                                        {['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7'].map(p => (
+                                                                            <option key={p} value={p}>{p}</option>
+                                                                        ))}
+                                                                    </optgroup>
+                                                                    <optgroup label="Arduino Digital">
+                                                                        {['D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13'].map(p => (
+                                                                            <option key={p} value={p.replace('D', '')}>{p}</option>
+                                                                        ))}
+                                                                    </optgroup>
+                                                                    <optgroup label="ESP32 GPIO">
+                                                                        {[0, 1, 2, 3, 4, 5, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33, 34, 35, 36, 39].map(num => (
+                                                                            <option key={`GPIO${num}`} value={String(num)}>{`GPIO ${num}`}</option>
+                                                                        ))}
+                                                                    </optgroup>
+                                                                </select>
                                                             </div>
                                                             <div className="prop-group">
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CONTROL TYPE</label>
@@ -20700,15 +22932,41 @@ const AppBuilder = () => {
                                                                 style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
                                                             />
                                                         </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CONNECTION TYPE</label>
+                                                            <select value={selectedComp.props.connectionType || 'SERIAL'} onChange={(e) => updateComponentProps(selectedComp.id, { connectionType: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
+                                                                <option value="SERIAL">USB Serial (Arduino/ESP32)</option>
+                                                                <option value="MQTT">MQTT Broker</option>
+                                                                <option value="WIFI">WiFi / HTTP Polling</option>
+                                                            </select>
+                                                        </div>
+                                                        {selectedComp.props.connectionType === 'SERIAL' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BAUD RATE</label><select value={selectedComp.props.baudRate || 9600} onChange={(e) => updateComponentProps(selectedComp.id, { baudRate: parseInt(e.target.value) })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}><option value="9600">9600</option><option value="57600">57600</option><option value="115200">115200</option></select></div>)}
+                                                        {selectedComp.props.connectionType === 'MQTT' && (<><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MQTT BROKER URL</label><input value={selectedComp.props.mqttBrokerUrl || ''} onChange={(e) => updateComponentProps(selectedComp.id, { mqttBrokerUrl: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SUBSCRIBE TOPIC</label><input value={selectedComp.props.mqttSubscribeTopic || 'arduino/read/A0'} onChange={(e) => updateComponentProps(selectedComp.id, { mqttSubscribeTopic: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>)}
+                                                        {selectedComp.props.connectionType === 'WIFI' && (<><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>DEVICE IP</label><input value={selectedComp.props.wifiIpAddress || '192.168.1.100'} onChange={(e) => updateComponentProps(selectedComp.id, { wifiIpAddress: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>POLLING (ms)</label><input type="number" value={selectedComp.props.wifiPollingInterval || 1000} onChange={(e) => updateComponentProps(selectedComp.id, { wifiPollingInterval: parseInt(e.target.value) || 1000 })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>)}
                                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                                                             <div className="prop-group">
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PIN</label>
-                                                                <input
+                                                                <select
                                                                     value={selectedComp.props.pin || 'A0'}
                                                                     onChange={(e) => updateComponentProps(selectedComp.id, { pin: e.target.value })}
-                                                                    placeholder="e.g. A0"
-                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
-                                                                />
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                                >
+                                                                    <optgroup label="Arduino Analog">
+                                                                        {['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7'].map(p => (
+                                                                            <option key={p} value={p}>{p}</option>
+                                                                        ))}
+                                                                    </optgroup>
+                                                                    <optgroup label="Arduino Digital">
+                                                                        {['D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13'].map(p => (
+                                                                            <option key={p} value={p.replace('D', '')}>{p}</option>
+                                                                        ))}
+                                                                    </optgroup>
+                                                                    <optgroup label="ESP32 GPIO">
+                                                                        {[0, 1, 2, 3, 4, 5, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33, 34, 35, 36, 39].map(num => (
+                                                                            <option key={`GPIO${num}`} value={String(num)}>{`GPIO ${num}`}</option>
+                                                                        ))}
+                                                                    </optgroup>
+                                                                </select>
                                                             </div>
                                                             <div className="prop-group">
                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MAX SAMPLES</label>
@@ -20716,6 +22974,28 @@ const AppBuilder = () => {
                                                                     type="number"
                                                                     value={selectedComp.props.maxSamples || 50}
                                                                     onChange={(e) => updateComponentProps(selectedComp.id, { maxSamples: parseInt(e.target.value) || 50 })}
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CALIBRATION MULTIPLIER</label>
+                                                                <input
+                                                                    type="number"
+                                                                    step="any"
+                                                                    value={selectedComp.props.multiplier ?? 1}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { multiplier: parseFloat(e.target.value) ?? 1 })}
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                />
+                                                            </div>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CALIBRATION OFFSET</label>
+                                                                <input
+                                                                    type="number"
+                                                                    step="any"
+                                                                    value={selectedComp.props.offset ?? 0}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { offset: parseFloat(e.target.value) ?? 0 })}
                                                                     style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
                                                                 />
                                                             </div>
@@ -20728,6 +23008,757 @@ const AppBuilder = () => {
                                                                 onChange={(e) => updateComponentProps(selectedComp.id, { color: e.target.value })}
                                                                 style={{ width: '100%', height: '40px', padding: '2px', border: '1px solid var(--border-primary)', borderRadius: '4px', cursor: 'pointer' }}
                                                             />
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {selectedComp.type === 'ARDUINO_CONSOLE' && (
+                                                    <>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label>
+                                                            <input
+                                                                value={selectedComp.props.label || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            />
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CONNECTION TYPE</label>
+                                                            <select value={selectedComp.props.connectionType || 'SERIAL'} onChange={(e) => updateComponentProps(selectedComp.id, { connectionType: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
+                                                                <option value="SERIAL">USB Serial</option>
+                                                                <option value="MQTT">MQTT Broker (Pub+Sub)</option>
+                                                                <option value="WIFI">WiFi / HTTP</option>
+                                                            </select>
+                                                        </div>
+                                                        {selectedComp.props.connectionType === 'SERIAL' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BAUD RATE</label><select value={selectedComp.props.baudRate || 9600} onChange={(e) => updateComponentProps(selectedComp.id, { baudRate: parseInt(e.target.value) })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}><option value="9600">9600</option><option value="115200">115200</option></select></div>)}
+                                                        {selectedComp.props.connectionType === 'MQTT' && (<><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MQTT BROKER URL</label><input value={selectedComp.props.mqttBrokerUrl || ''} onChange={(e) => updateComponentProps(selectedComp.id, { mqttBrokerUrl: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SUB TOPIC (Receive)</label><input value={selectedComp.props.mqttSubscribeTopic || 'arduino/read/#'} onChange={(e) => updateComponentProps(selectedComp.id, { mqttSubscribeTopic: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PUB TOPIC (Send)</label><input value={selectedComp.props.mqttPublishTopic || 'arduino/write/console'} onChange={(e) => updateComponentProps(selectedComp.id, { mqttPublishTopic: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>)}
+                                                        {selectedComp.props.connectionType === 'WIFI' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>DEVICE IP</label><input value={selectedComp.props.wifiIpAddress || '192.168.1.100'} onChange={(e) => updateComponentProps(selectedComp.id, { wifiIpAddress: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>)}
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MAX BUFFER LINES</label>
+                                                                <input
+                                                                    type="number"
+                                                                    value={selectedComp.props.maxLines || 100}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { maxLines: parseInt(e.target.value) || 100 })}
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                />
+                                                            </div>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SHOW TIMESTAMPS</label>
+                                                                <select
+                                                                    value={selectedComp.props.showTimestamp !== false ? 'YES' : 'NO'}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { showTimestamp: e.target.value === 'YES' })}
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                                >
+                                                                    <option value="YES">Yes</option>
+                                                                    <option value="NO">No</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {selectedComp.type === 'ARDUINO_GAUGE' && (
+                                                    <>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label>
+                                                            <input
+                                                                value={selectedComp.props.label || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            />
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CONNECTION TYPE</label>
+                                                            <select value={selectedComp.props.connectionType || 'SERIAL'} onChange={(e) => updateComponentProps(selectedComp.id, { connectionType: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
+                                                                <option value="SERIAL">USB Serial</option>
+                                                                <option value="MQTT">MQTT Broker</option>
+                                                                <option value="WIFI">WiFi / HTTP Polling</option>
+                                                            </select>
+                                                        </div>
+                                                        {selectedComp.props.connectionType === 'SERIAL' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BAUD RATE</label><select value={selectedComp.props.baudRate || 9600} onChange={(e) => updateComponentProps(selectedComp.id, { baudRate: parseInt(e.target.value) })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}><option value="9600">9600</option><option value="115200">115200</option></select></div>)}
+                                                        {selectedComp.props.connectionType === 'MQTT' && (<><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MQTT BROKER URL</label><input value={selectedComp.props.mqttBrokerUrl || ''} onChange={(e) => updateComponentProps(selectedComp.id, { mqttBrokerUrl: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SUBSCRIBE TOPIC</label><input value={selectedComp.props.mqttSubscribeTopic || 'arduino/read/A0'} onChange={(e) => updateComponentProps(selectedComp.id, { mqttSubscribeTopic: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>)}
+                                                        {selectedComp.props.connectionType === 'WIFI' && (<><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>DEVICE IP</label><input value={selectedComp.props.wifiIpAddress || '192.168.1.100'} onChange={(e) => updateComponentProps(selectedComp.id, { wifiIpAddress: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>POLLING (ms)</label><input type="number" value={selectedComp.props.wifiPollingInterval || 1000} onChange={(e) => updateComponentProps(selectedComp.id, { wifiPollingInterval: parseInt(e.target.value) || 1000 })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>)}
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PIN</label>
+                                                                <select
+                                                                    value={selectedComp.props.pin || 'A0'}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { pin: e.target.value })}
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                                >
+                                                                    <optgroup label="Arduino Analog">
+                                                                        {['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7'].map(p => (
+                                                                            <option key={p} value={p}>{p}</option>
+                                                                        ))}
+                                                                    </optgroup>
+                                                                    <optgroup label="Arduino Digital">
+                                                                        {['D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13'].map(p => (
+                                                                            <option key={p} value={p.replace('D', '')}>{p}</option>
+                                                                        ))}
+                                                                    </optgroup>
+                                                                    <optgroup label="ESP32 GPIO">
+                                                                        {[0, 1, 2, 3, 4, 5, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33, 34, 35, 36, 39].map(num => (
+                                                                            <option key={`GPIO${num}`} value={String(num)}>{`GPIO ${num}`}</option>
+                                                                        ))}
+                                                                    </optgroup>
+                                                                </select>
+                                                            </div>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>UNIT</label>
+                                                                <input
+                                                                    value={selectedComp.props.unit || '°C'}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { unit: e.target.value })}
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MIN VALUE</label>
+                                                                <input
+                                                                    type="number"
+                                                                    value={selectedComp.props.min ?? 0}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { min: parseFloat(e.target.value) ?? 0 })}
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                />
+                                                            </div>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MAX VALUE</label>
+                                                                <input
+                                                                    type="number"
+                                                                    value={selectedComp.props.max ?? 100}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { max: parseFloat(e.target.value) ?? 100 })}
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>GAUGE COLOR</label>
+                                                                <input
+                                                                    type="color"
+                                                                    value={selectedComp.props.color || '#00979d'}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { color: e.target.value })}
+                                                                    style={{ width: '100%', height: '40px', padding: '2px', border: '1px solid var(--border-primary)', borderRadius: '4px', cursor: 'pointer' }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {selectedComp.type === 'ARDUINO_COLOR_PICKER' && (
+                                                    <>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label>
+                                                            <input
+                                                                value={selectedComp.props.label || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            />
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CONNECTION TYPE</label>
+                                                            <select value={selectedComp.props.connectionType || 'SERIAL'} onChange={(e) => updateComponentProps(selectedComp.id, { connectionType: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
+                                                                <option value="SERIAL">USB Serial (Arduino)</option>
+                                                                <option value="MQTT">MQTT Broker</option>
+                                                                <option value="WIFI">WiFi / HTTP ESP32</option>
+                                                            </select>
+                                                        </div>
+                                                        {selectedComp.props.connectionType === 'SERIAL' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BAUD RATE</label><select value={selectedComp.props.baudRate || 9600} onChange={(e) => updateComponentProps(selectedComp.id, { baudRate: parseInt(e.target.value) })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}><option value="9600">9600</option><option value="115200">115200</option></select></div>)}
+                                                        {selectedComp.props.connectionType === 'MQTT' && (<><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MQTT BROKER URL</label><input value={selectedComp.props.mqttBrokerUrl || ''} onChange={(e) => updateComponentProps(selectedComp.id, { mqttBrokerUrl: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PUBLISH TOPIC</label><input value={selectedComp.props.mqttPublishTopic || 'arduino/write/6'} onChange={(e) => updateComponentProps(selectedComp.id, { mqttPublishTopic: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>)}
+                                                        {selectedComp.props.connectionType === 'WIFI' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>DEVICE IP</label><input value={selectedComp.props.wifiIpAddress || '192.168.1.100'} onChange={(e) => updateComponentProps(selectedComp.id, { wifiIpAddress: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>)}
+                                                        <div style={{ padding: '8px 10px', background: 'rgba(168,85,247,0.08)', borderRadius: '6px', border: '1px solid rgba(168,85,247,0.2)', fontSize: '0.65rem', color: '#c084fc', marginBottom: '6px' }}>
+                                                            <strong>Serial OUT:</strong> <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>c6:255,0,128{'\n'}</code> (R,G,B) &nbsp;|&nbsp; <strong>MQTT JSON:</strong> <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>{'{'}&quot;r&quot;:255,&quot;g&quot;:0,&quot;b&quot;:128{'}'}</code>
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BASE RGB/PWM PIN</label>
+                                                            <select
+                                                                value={selectedComp.props.pin || '6'}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { pin: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                            >
+                                                                <optgroup label="Arduino Analog">
+                                                                    {['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7'].map(p => (
+                                                                        <option key={p} value={p}>{p}</option>
+                                                                    ))}
+                                                                </optgroup>
+                                                                <optgroup label="Arduino Digital">
+                                                                    {['D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13'].map(p => (
+                                                                        <option key={p} value={p.replace('D', '')}>{p}</option>
+                                                                    ))}
+                                                                </optgroup>
+                                                                <optgroup label="ESP32 GPIO">
+                                                                    {[0, 1, 2, 3, 4, 5, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33, 34, 35, 36, 39].map(num => (
+                                                                        <option key={`GPIO${num}`} value={String(num)}>{`GPIO ${num}`}</option>
+                                                                    ))}
+                                                                </optgroup>
+                                                            </select>
+                                                        </div>
+                                                     </>
+                                                 )}
+
+                                                 {selectedComp.type === 'ARDUINO_MOTOR' && (
+                                                     <>
+                                                         <div className="prop-group">
+                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label>
+                                                             <input
+                                                                 value={selectedComp.props.label || ''}
+                                                                 onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })}
+                                                                 style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                             />
+                                                         </div>
+                                                         <div className="prop-group">
+                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CONNECTION TYPE</label>
+                                                             <select value={selectedComp.props.connectionType || 'SERIAL'} onChange={(e) => updateComponentProps(selectedComp.id, { connectionType: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
+                                                                 <option value="SERIAL">USB Serial (Arduino)</option>
+                                                                 <option value="MQTT">MQTT Broker</option>
+                                                                 <option value="WIFI">WiFi / HTTP ESP32</option>
+                                                             </select>
+                                                         </div>
+                                                         {selectedComp.props.connectionType === 'SERIAL' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BAUD RATE</label><select value={selectedComp.props.baudRate || 9600} onChange={(e) => updateComponentProps(selectedComp.id, { baudRate: parseInt(e.target.value) })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}><option value="9600">9600</option><option value="115200">115200</option></select></div>)}
+                                                         {selectedComp.props.connectionType === 'MQTT' && (<><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MQTT BROKER URL</label><input value={selectedComp.props.mqttBrokerUrl || ''} onChange={(e) => updateComponentProps(selectedComp.id, { mqttBrokerUrl: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PUBLISH TOPIC</label><input value={selectedComp.props.mqttPublishTopic || 'arduino/write/9'} onChange={(e) => updateComponentProps(selectedComp.id, { mqttPublishTopic: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>)}
+                                                         {selectedComp.props.connectionType === 'WIFI' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>DEVICE IP</label><input value={selectedComp.props.wifiIpAddress || '192.168.1.100'} onChange={(e) => updateComponentProps(selectedComp.id, { wifiIpAddress: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>)}
+                                                         <div style={{ padding: '8px 10px', background: 'rgba(251,146,60,0.08)', borderRadius: '6px', border: '1px solid rgba(251,146,60,0.2)', fontSize: '0.65rem', color: '#fb923c', marginBottom: '6px' }}>
+                                                             <strong>Serial OUT (Servo):</strong> <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>s9:90{'\n'}</code> &nbsp;|&nbsp; <strong>DC:</strong> <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>d9:200{'\n'}</code> &nbsp;|&nbsp; <strong>Stepper:</strong> <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>m9:50{'\n'}</code>
+                                                         </div>
+                                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                             <div className="prop-group">
+                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PIN</label>
+                                                                 <select
+                                                                     value={selectedComp.props.pin || '9'}
+                                                                     onChange={(e) => updateComponentProps(selectedComp.id, { pin: e.target.value })}
+                                                                     style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                                 >
+                                                                     <optgroup label="Arduino Analog">
+                                                                         {['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7'].map(p => (
+                                                                             <option key={p} value={p}>{p}</option>
+                                                                         ))}
+                                                                     </optgroup>
+                                                                     <optgroup label="Arduino Digital">
+                                                                         {['D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13'].map(p => (
+                                                                             <option key={p} value={p.replace('D', '')}>{p}</option>
+                                                                         ))}
+                                                                     </optgroup>
+                                                                     <optgroup label="ESP32 GPIO">
+                                                                         {[0, 1, 2, 3, 4, 5, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33, 34, 35, 36, 39].map(num => (
+                                                                             <option key={`GPIO${num}`} value={String(num)}>{`GPIO ${num}`}</option>
+                                                                         ))}
+                                                                     </optgroup>
+                                                                 </select>
+                                                             </div>
+                                                             <div className="prop-group">
+                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MOTOR TYPE</label>
+                                                                 <select
+                                                                     value={selectedComp.props.motorType || 'SERVO'}
+                                                                     onChange={(e) => updateComponentProps(selectedComp.id, { motorType: e.target.value })}
+                                                                     style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                                 >
+                                                                     <option value="SERVO">Servo Motor (0-180°)</option>
+                                                                     <option value="STEPPER">Stepper Motor (Jog/Steps)</option>
+                                                                     <option value="DC">DC Motor (PWM Speed)</option>
+                                                                 </select>
+                                                             </div>
+                                                         </div>
+                                                         {selectedComp.props.motorType === 'STEPPER' && (
+                                                             <div className="prop-group">
+                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>JOG STEP SIZE</label>
+                                                                 <input
+                                                                     type="number"
+                                                                     value={selectedComp.props.stepSize || 10}
+                                                                     onChange={(e) => updateComponentProps(selectedComp.id, { stepSize: parseInt(e.target.value) || 10 })}
+                                                                     style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                                 />
+                                                             </div>
+                                                         )}
+                                                     </>
+                                                 )}
+
+                                                {selectedComp.type === 'ARDUINO_RFID' && (
+                                                    <>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label>
+                                                            <input
+                                                                value={selectedComp.props.label || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            />
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CONNECTION TYPE</label>
+                                                            <select value={selectedComp.props.connectionType || 'SERIAL'} onChange={(e) => updateComponentProps(selectedComp.id, { connectionType: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
+                                                                <option value="SERIAL">USB Serial (MFRC522)</option>
+                                                                <option value="MQTT">MQTT Broker (ESP32-RFID)</option>
+                                                                <option value="WIFI">WiFi / HTTP ESP32</option>
+                                                            </select>
+                                                        </div>
+                                                        {selectedComp.props.connectionType === 'SERIAL' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BAUD RATE</label><select value={selectedComp.props.baudRate || 9600} onChange={(e) => updateComponentProps(selectedComp.id, { baudRate: parseInt(e.target.value) })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}><option value="9600">9600</option><option value="115200">115200</option></select></div>)}
+                                                        {selectedComp.props.connectionType === 'MQTT' && (<><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MQTT BROKER URL</label><input value={selectedComp.props.mqttBrokerUrl || ''} onChange={(e) => updateComponentProps(selectedComp.id, { mqttBrokerUrl: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SUBSCRIBE TOPIC</label><input value={selectedComp.props.mqttSubscribeTopic || 'arduino/rfid/scan'} onChange={(e) => updateComponentProps(selectedComp.id, { mqttSubscribeTopic: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>)}
+                                                        {selectedComp.props.connectionType === 'WIFI' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>DEVICE IP</label><input value={selectedComp.props.wifiIpAddress || '192.168.1.100'} onChange={(e) => updateComponentProps(selectedComp.id, { wifiIpAddress: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>)}
+                                                        <div style={{ padding: '8px 10px', background: 'rgba(239,68,68,0.08)', borderRadius: '6px', border: '1px solid rgba(239,68,68,0.2)', fontSize: '0.65rem', color: '#f87171', marginBottom: '6px' }}>
+                                                            <strong>Serial:</strong> <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>10:A1B2C3D4{'\n'}</code> (pin:UID) &nbsp;|&nbsp; <strong>MQTT:</strong> <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>{'{'}&quot;pin&quot;:&quot;10&quot;,&quot;value&quot;:&quot;A1B2C3D4&quot;{'}'}</code>
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SS / SDA PIN</label>
+                                                            <select
+                                                                value={selectedComp.props.pin || '10'}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { pin: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                            >
+                                                                <optgroup label="Arduino Digital">
+                                                                    {['D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13'].map(p => (
+                                                                        <option key={p} value={p.replace('D', '')}>{p}</option>
+                                                                    ))}
+                                                                </optgroup>
+                                                                <optgroup label="ESP32 GPIO">
+                                                                    {[0, 1, 2, 3, 4, 5, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33, 34, 35, 36, 39].map(num => (
+                                                                        <option key={`GPIO${num}`} value={String(num)}>{`GPIO ${num}`}</option>
+                                                                    ))}
+                                                                </optgroup>
+                                                            </select>
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>WHITELIST CARD IDS (COMMA SEPARATED)</label>
+                                                            <input
+                                                                value={selectedComp.props.allowedCards || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { allowedCards: e.target.value })}
+                                                                placeholder="e.g. A1B2C3D4, E5F6G7H8"
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            />
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>TARGET VARIABLE</label>
+                                                            <input
+                                                                value={selectedComp.props.targetVariable || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
+                                                                placeholder="e.g. rfid_uid"
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            />
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {selectedComp.type === 'ARDUINO_LCD' && (
+                                                    <>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label>
+                                                            <input
+                                                                value={selectedComp.props.label || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            />
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CONNECTION TYPE</label>
+                                                            <select value={selectedComp.props.connectionType || 'SERIAL'} onChange={(e) => updateComponentProps(selectedComp.id, { connectionType: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
+                                                                <option value="SERIAL">USB Serial (I2C via Arduino)</option>
+                                                                <option value="MQTT">MQTT Broker</option>
+                                                                <option value="WIFI">WiFi / HTTP ESP32</option>
+                                                            </select>
+                                                        </div>
+                                                        {selectedComp.props.connectionType === 'SERIAL' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BAUD RATE</label><select value={selectedComp.props.baudRate || 9600} onChange={(e) => updateComponentProps(selectedComp.id, { baudRate: parseInt(e.target.value) })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}><option value="9600">9600</option><option value="115200">115200</option></select></div>)}
+                                                        {selectedComp.props.connectionType === 'MQTT' && (<><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MQTT BROKER URL</label><input value={selectedComp.props.mqttBrokerUrl || ''} onChange={(e) => updateComponentProps(selectedComp.id, { mqttBrokerUrl: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SUBSCRIBE TOPIC</label><input value={selectedComp.props.mqttSubscribeTopic || 'arduino/lcd/display'} onChange={(e) => updateComponentProps(selectedComp.id, { mqttSubscribeTopic: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>)}
+                                                        {selectedComp.props.connectionType === 'WIFI' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>DEVICE IP</label><input value={selectedComp.props.wifiIpAddress || '192.168.1.100'} onChange={(e) => updateComponentProps(selectedComp.id, { wifiIpAddress: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>)}
+                                                        <div style={{ padding: '8px 10px', background: 'rgba(0,151,157,0.08)', borderRadius: '6px', border: '1px solid rgba(0,151,157,0.2)', fontSize: '0.65rem', color: '#22d3ee', marginBottom: '6px' }}>
+                                                            <strong>LCD I2C 0x27 / 0x3F</strong> — <strong>Serial:</strong> <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>LCD:Line1|Line2{'\n'}</code> &nbsp;|&nbsp; <strong>MQTT JSON:</strong> <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>{'{'}&quot;l1&quot;:&quot;Hello&quot;,&quot;l2&quot;:&quot;World&quot;{'}'}</code>
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>INTERFACE PIN</label>
+                                                            <input
+                                                                value={selectedComp.props.pin || 'I2C'}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { pin: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            />
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>DEFAULT LINE 1</label>
+                                                            <input
+                                                                value={selectedComp.props.line1 || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { line1: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            />
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>DEFAULT LINE 2</label>
+                                                            <input
+                                                                value={selectedComp.props.line2 || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { line2: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            />
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BACKLIGHT COLOR</label>
+                                                            <input
+                                                                type="color"
+                                                                value={selectedComp.props.backlightColor || '#00979d'}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { backlightColor: e.target.value })}
+                                                                style={{ width: '100%', height: '38px', border: '1px solid var(--border-primary)', borderRadius: '4px', padding: 0, backgroundColor: 'transparent' }}
+                                                              />
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {selectedComp.type === 'ARDUINO_JOYSTICK' && (
+                                                    <>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label>
+                                                            <input
+                                                                value={selectedComp.props.label || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            />
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CONNECTION TYPE</label>
+                                                            <select value={selectedComp.props.connectionType || 'SERIAL'} onChange={(e) => updateComponentProps(selectedComp.id, { connectionType: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
+                                                                <option value="SERIAL">USB Serial (Arduino)</option>
+                                                                <option value="MQTT">MQTT Broker</option>
+                                                                <option value="WIFI">WiFi / HTTP Polling</option>
+                                                            </select>
+                                                        </div>
+                                                        {selectedComp.props.connectionType === 'SERIAL' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BAUD RATE</label><select value={selectedComp.props.baudRate || 9600} onChange={(e) => updateComponentProps(selectedComp.id, { baudRate: parseInt(e.target.value) })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}><option value="9600">9600</option><option value="115200">115200</option></select></div>)}
+                                                        {selectedComp.props.connectionType === 'MQTT' && (<><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MQTT BROKER URL</label><input value={selectedComp.props.mqttBrokerUrl || ''} onChange={(e) => updateComponentProps(selectedComp.id, { mqttBrokerUrl: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SUBSCRIBE TOPIC</label><input value={selectedComp.props.mqttSubscribeTopic || 'arduino/joystick'} onChange={(e) => updateComponentProps(selectedComp.id, { mqttSubscribeTopic: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>)}
+                                                        {selectedComp.props.connectionType === 'WIFI' && (<><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>DEVICE IP</label><input value={selectedComp.props.wifiIpAddress || '192.168.1.100'} onChange={(e) => updateComponentProps(selectedComp.id, { wifiIpAddress: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>POLLING (ms)</label><input type="number" value={selectedComp.props.wifiPollingInterval || 100} onChange={(e) => updateComponentProps(selectedComp.id, { wifiPollingInterval: parseInt(e.target.value) || 100 })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>)}
+                                                        <div style={{ padding: '8px 10px', background: 'rgba(99,102,241,0.08)', borderRadius: '6px', border: '1px solid rgba(99,102,241,0.2)', fontSize: '0.65rem', color: '#818cf8', marginBottom: '6px' }}>
+                                                            <strong>Serial Format:</strong> <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>A0:512
+A1:490
+2:0{'\n'}</code> (X/Y/SEL) &nbsp;|&nbsp; <strong>MQTT JSON:</strong> <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>{'{'}&quot;x&quot;:512,&quot;y&quot;:490,&quot;sw&quot;:0{'}'}</code>
+                                                        </div>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PIN X</label>
+                                                                <select
+                                                                    value={selectedComp.props.pinX || 'A0'}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { pinX: e.target.value })}
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                                >
+                                                                    <optgroup label="Arduino Analog">
+                                                                        {['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7'].map(p => (
+                                                                            <option key={p} value={p}>{p}</option>
+                                                                        ))}
+                                                                    </optgroup>
+                                                                </select>
+                                                            </div>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PIN Y</label>
+                                                                <select
+                                                                    value={selectedComp.props.pinY || 'A1'}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { pinY: e.target.value })}
+                                                                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                                >
+                                                                    <optgroup label="Arduino Analog">
+                                                                        {['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7'].map(p => (
+                                                                            <option key={p} value={p}>{p}</option>
+                                                                        ))}
+                                                                    </optgroup>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PIN SWITCH (Z)</label>
+                                                            <select
+                                                                value={selectedComp.props.pinSel || '2'}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { pinSel: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                            >
+                                                                <optgroup label="Arduino Digital">
+                                                                    {['D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13'].map(p => (
+                                                                        <option key={p} value={p.replace('D', '')}>{p}</option>
+                                                                    ))}
+                                                                </optgroup>
+                                                            </select>
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>TARGET VARIABLE</label>
+                                                            <input
+                                                                value={selectedComp.props.targetVariable || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
+                                                                placeholder="e.g. joystick_coord"
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            />
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {selectedComp.type === 'ARDUINO_KEYPAD' && (
+                                                    <>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label>
+                                                            <input
+                                                                value={selectedComp.props.label || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            />
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>TARGET VARIABLE</label>
+                                                            <input
+                                                                value={selectedComp.props.targetVariable || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
+                                                                placeholder="e.g. keypad_input"
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            />
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {selectedComp.type === 'ARDUINO_MATRIX' && (
+                                                    <>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label>
+                                                            <input
+                                                                value={selectedComp.props.label || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            />
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>DIN PIN</label>
+                                                            <select
+                                                                value={selectedComp.props.pin || '4'}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { pin: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                                                            >
+                                                                <optgroup label="Arduino Digital">
+                                                                    {['D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13'].map(p => (
+                                                                        <option key={p} value={p.replace('D', '')}>{p}</option>
+                                                                    ))}
+                                                                </optgroup>
+                                                            </select>
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {selectedComp.type === 'ARDUINO_RTC' && (
+                                                    <>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label>
+                                                            <input
+                                                                value={selectedComp.props.label || ''}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            />
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>INTERFACE PIN</label>
+                                                            <input
+                                                                value={selectedComp.props.pin || 'I2C'}
+                                                                onChange={(e) => updateComponentProps(selectedComp.id, { pin: e.target.value })}
+                                                                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}
+                                                            />
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {/* ─── ARDUINO RADAR SWEEP ─── */}
+                                                {selectedComp.type === 'ARDUINO_RADAR' && (
+                                                    <>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label>
+                                                            <input value={selectedComp.props.label || ''} onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} />
+                                                        </div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CONNECTION TYPE</label>
+                                                            <select value={selectedComp.props.connectionType || 'SERIAL'} onChange={(e) => updateComponentProps(selectedComp.id, { connectionType: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
+                                                                <option value="SERIAL">USB Serial (Arduino + Servo)</option>
+                                                                <option value="MQTT">MQTT Broker</option>
+                                                                <option value="WIFI">WiFi / HTTP Polling</option>
+                                                            </select>
+                                                        </div>
+                                                        {selectedComp.props.connectionType === 'SERIAL' && (
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BAUD RATE</label>
+                                                                <select value={selectedComp.props.baudRate || 9600} onChange={(e) => updateComponentProps(selectedComp.id, { baudRate: parseInt(e.target.value) })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
+                                                                    <option value="9600">9600</option>
+                                                                    <option value="115200">115200</option>
+                                                                </select>
+                                                            </div>
+                                                        )}
+                                                        {selectedComp.props.connectionType === 'MQTT' && (
+                                                            <>
+                                                                <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MQTT BROKER URL</label><input value={selectedComp.props.mqttBrokerUrl || 'wss://broker.emqx.io:8084/mqtt'} onChange={(e) => updateComponentProps(selectedComp.id, { mqttBrokerUrl: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                                <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SUBSCRIBE TOPIC</label><input value={selectedComp.props.mqttSubscribeTopic || 'arduino/read/A0'} onChange={(e) => updateComponentProps(selectedComp.id, { mqttSubscribeTopic: e.target.value })} placeholder="e.g. arduino/radar/distance" style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                            </>
+                                                        )}
+                                                        {selectedComp.props.connectionType === 'WIFI' && (
+                                                            <><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>DEVICE IP ADDRESS</label><input value={selectedComp.props.wifiIpAddress || '192.168.1.100'} onChange={(e) => updateComponentProps(selectedComp.id, { wifiIpAddress: e.target.value })} placeholder="192.168.1.100" style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>POLLING INTERVAL (ms)</label><input type="number" value={selectedComp.props.wifiPollingInterval || 200} onChange={(e) => updateComponentProps(selectedComp.id, { wifiPollingInterval: parseInt(e.target.value) || 200 })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>
+                                                        )}
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                            <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>DATA PIN</label><input value={selectedComp.props.pin || 'A0'} onChange={(e) => updateComponentProps(selectedComp.id, { pin: e.target.value })} placeholder="A0, echo, etc." style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                            <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MAX DISTANCE (cm)</label><input type="number" value={selectedComp.props.maxDistance || 200} onChange={(e) => updateComponentProps(selectedComp.id, { maxDistance: parseInt(e.target.value) || 200 })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                        </div>
+                                                        <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SWEEP ANGLE (°)</label><select value={selectedComp.props.angleSweep || 180} onChange={(e) => updateComponentProps(selectedComp.id, { angleSweep: parseInt(e.target.value) })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}><option value={180}>180° (Half)</option><option value={360}>360° (Full)</option></select></div>
+                                                        <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SAVE TO VARIABLE</label><input value={selectedComp.props.targetVariable || ''} onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })} placeholder="varName" style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                        <div style={{ padding: '10px', background: 'rgba(0,255,65,0.06)', borderRadius: '8px', border: '1px solid rgba(0,255,65,0.2)', fontSize: '0.65rem', color: '#4ade80', lineHeight: 1.5 }}>
+                                                            <strong>Firmware Protocol:</strong> Arduino kirim jarak dalam cm via Serial: <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>A0:{'{'}distCm{'}'}
+</code><br/>atau MQTT payload JSON: <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>{'{'}"pin":"A0","value":45{'}'}</code>
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {/* ─── SCADA LIQUID TANK ─── */}
+                                                {selectedComp.type === 'ARDUINO_TANK' && (
+                                                    <>
+                                                        <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label><input value={selectedComp.props.label || ''} onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CONNECTION TYPE</label>
+                                                            <select value={selectedComp.props.connectionType || 'SERIAL'} onChange={(e) => updateComponentProps(selectedComp.id, { connectionType: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
+                                                                <option value="SERIAL">USB Serial (Arduino)</option>
+                                                                <option value="MQTT">MQTT Broker</option>
+                                                                <option value="WIFI">WiFi / HTTP ESP32</option>
+                                                            </select>
+                                                        </div>
+                                                        {selectedComp.props.connectionType === 'SERIAL' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BAUD RATE</label><select value={selectedComp.props.baudRate || 9600} onChange={(e) => updateComponentProps(selectedComp.id, { baudRate: parseInt(e.target.value) })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}><option value="9600">9600</option><option value="115200">115200</option></select></div>)}
+                                                        {selectedComp.props.connectionType === 'MQTT' && (<><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MQTT BROKER URL</label><input value={selectedComp.props.mqttBrokerUrl || ''} onChange={(e) => updateComponentProps(selectedComp.id, { mqttBrokerUrl: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SUBSCRIBE TOPIC</label><input value={selectedComp.props.mqttSubscribeTopic || 'arduino/read/A0'} onChange={(e) => updateComponentProps(selectedComp.id, { mqttSubscribeTopic: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>)}
+                                                        {selectedComp.props.connectionType === 'WIFI' && (<><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>DEVICE IP ADDRESS</label><input value={selectedComp.props.wifiIpAddress || '192.168.1.100'} onChange={(e) => updateComponentProps(selectedComp.id, { wifiIpAddress: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>POLLING INTERVAL (ms)</label><input type="number" value={selectedComp.props.wifiPollingInterval || 1000} onChange={(e) => updateComponentProps(selectedComp.id, { wifiPollingInterval: parseInt(e.target.value) || 1000 })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>)}
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                            <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SENSOR PIN</label><input value={selectedComp.props.pin || 'A0'} onChange={(e) => updateComponentProps(selectedComp.id, { pin: e.target.value })} placeholder="A0" style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                            <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>KAPASITAS (L)</label><input type="number" value={selectedComp.props.capacity || 1000} onChange={(e) => updateComponentProps(selectedComp.id, { capacity: parseInt(e.target.value) || 1000 })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                        </div>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                            <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>WARNING THRESHOLD (%)</label><input type="number" min="0" max="100" value={selectedComp.props.warningThreshold || 80} onChange={(e) => updateComponentProps(selectedComp.id, { warningThreshold: parseInt(e.target.value) || 80 })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                            <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LIQUID COLOR</label><input type="color" value={selectedComp.props.liquidColor || '#3b82f6'} onChange={(e) => updateComponentProps(selectedComp.id, { liquidColor: e.target.value })} style={{ width: '100%', height: '42px', border: '1px solid var(--border-primary)', borderRadius: '4px', cursor: 'pointer', backgroundColor: 'transparent' }} /></div>
+                                                        </div>
+                                                        <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SAVE TO VARIABLE</label><input value={selectedComp.props.targetVariable || ''} onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })} placeholder="varName" style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                        <div style={{ padding: '10px', background: 'rgba(59,130,246,0.08)', borderRadius: '8px', border: '1px solid rgba(59,130,246,0.2)', fontSize: '0.65rem', color: '#60a5fa', lineHeight: 1.5 }}>
+                                                            <strong>Data Protocol:</strong> Serial: <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>A0:650
+</code> (ADC 0-1023) atau persen langsung <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>A0:63.5
+</code>
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {/* ─── MODBUS REGISTER MAP ─── */}
+                                                {selectedComp.type === 'ARDUINO_MODBUS' && (
+                                                    <>
+                                                        <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label><input value={selectedComp.props.label || ''} onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CONNECTION TYPE</label>
+                                                            <select value={selectedComp.props.connectionType || 'SERIAL'} onChange={(e) => updateComponentProps(selectedComp.id, { connectionType: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
+                                                                <option value="SERIAL">USB Serial / RS485</option>
+                                                                <option value="MQTT">MQTT Broker</option>
+                                                                <option value="WIFI">WiFi Modbus TCP</option>
+                                                            </select>
+                                                        </div>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                            <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SLAVE ADDRESS</label><input type="number" min="1" max="247" value={selectedComp.props.clientAddress || 1} onChange={(e) => updateComponentProps(selectedComp.id, { clientAddress: parseInt(e.target.value) || 1 })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                            <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BAUD RATE</label><select value={selectedComp.props.baudRate || 9600} onChange={(e) => updateComponentProps(selectedComp.id, { baudRate: parseInt(e.target.value) })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}><option value="9600">9600</option><option value="19200">19200</option><option value="38400">38400</option><option value="115200">115200</option></select></div>
+                                                        </div>
+                                                        {selectedComp.props.connectionType === 'MQTT' && (<><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MQTT BROKER URL</label><input value={selectedComp.props.mqttBrokerUrl || ''} onChange={(e) => updateComponentProps(selectedComp.id, { mqttBrokerUrl: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SUBSCRIBE TOPIC</label><input value={selectedComp.props.mqttSubscribeTopic || 'modbus/registers/#'} onChange={(e) => updateComponentProps(selectedComp.id, { mqttSubscribeTopic: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>)}
+                                                        {selectedComp.props.connectionType === 'WIFI' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>DEVICE IP (Modbus TCP)</label><input value={selectedComp.props.wifiIpAddress || '192.168.1.100'} onChange={(e) => updateComponentProps(selectedComp.id, { wifiIpAddress: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>)}
+                                                        <div style={{ padding: '10px', background: 'rgba(245,158,11,0.08)', borderRadius: '8px', border: '1px solid rgba(245,158,11,0.2)', fontSize: '0.65rem', color: '#fbbf24', lineHeight: 1.5 }}>
+                                                            <strong>Data Protocol (Serial):</strong> Format: <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>40001:1234
+40002:5678
+</code> — satu register per baris, key=alamat, value=nilai integer.
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {/* ─── STATUS LIGHTS GRID ─── */}
+                                                {selectedComp.type === 'ARDUINO_STATUS_GRID' && (
+                                                    <>
+                                                        <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label><input value={selectedComp.props.label || ''} onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CONNECTION TYPE</label>
+                                                            <select value={selectedComp.props.connectionType || 'SERIAL'} onChange={(e) => updateComponentProps(selectedComp.id, { connectionType: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
+                                                                <option value="SERIAL">USB Serial (Arduino)</option>
+                                                                <option value="MQTT">MQTT Broker</option>
+                                                                <option value="WIFI">WiFi / HTTP ESP32</option>
+                                                            </select>
+                                                        </div>
+                                                        {selectedComp.props.connectionType === 'SERIAL' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BAUD RATE</label><select value={selectedComp.props.baudRate || 9600} onChange={(e) => updateComponentProps(selectedComp.id, { baudRate: parseInt(e.target.value) })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}><option value="9600">9600</option><option value="115200">115200</option></select></div>)}
+                                                        {selectedComp.props.connectionType === 'MQTT' && (<><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MQTT BROKER URL</label><input value={selectedComp.props.mqttBrokerUrl || ''} onChange={(e) => updateComponentProps(selectedComp.id, { mqttBrokerUrl: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SUBSCRIBE TOPIC (Base)</label><input value={selectedComp.props.mqttSubscribeTopic || 'arduino/read/#'} onChange={(e) => updateComponentProps(selectedComp.id, { mqttSubscribeTopic: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>)}
+                                                        {selectedComp.props.connectionType === 'WIFI' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>DEVICE IP ADDRESS</label><input value={selectedComp.props.wifiIpAddress || '192.168.1.100'} onChange={(e) => updateComponentProps(selectedComp.id, { wifiIpAddress: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>)}
+                                                        <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>PINS (comma-separated)</label><input value={selectedComp.props.pins || 'D2,D3,D4,D5'} onChange={(e) => updateComponentProps(selectedComp.id, { pins: e.target.value })} placeholder="D2,D3,D4,D5" style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                        <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABELS (comma-separated)</label><input value={selectedComp.props.pinLabels || ''} onChange={(e) => updateComponentProps(selectedComp.id, { pinLabels: e.target.value })} placeholder="Relay 1,Relay 2,..." style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                        <div style={{ padding: '10px', background: 'rgba(16,185,129,0.08)', borderRadius: '8px', border: '1px solid rgba(16,185,129,0.2)', fontSize: '0.65rem', color: '#34d399', lineHeight: 1.5 }}>
+                                                            <strong>Data Protocol:</strong> Serial: <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>D2:1
+D3:0
+</code> — HIGH=1, LOW=0 per pin.
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {/* ─── MINI OSCILLOSCOPE ─── */}
+                                                {selectedComp.type === 'ARDUINO_OSCILLOSCOPE' && (
+                                                    <>
+                                                        <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label><input value={selectedComp.props.label || ''} onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CONNECTION TYPE</label>
+                                                            <select value={selectedComp.props.connectionType || 'SERIAL'} onChange={(e) => updateComponentProps(selectedComp.id, { connectionType: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
+                                                                <option value="SERIAL">USB Serial (115200 baud recommended)</option>
+                                                                <option value="MQTT">MQTT Broker</option>
+                                                                <option value="WIFI">WiFi / HTTP ESP32</option>
+                                                            </select>
+                                                        </div>
+                                                        {selectedComp.props.connectionType === 'SERIAL' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BAUD RATE</label><select value={selectedComp.props.baudRate || 115200} onChange={(e) => updateComponentProps(selectedComp.id, { baudRate: parseInt(e.target.value) })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}><option value="57600">57600</option><option value="115200">115200 (recommended)</option></select></div>)}
+                                                        {selectedComp.props.connectionType === 'MQTT' && (<><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MQTT BROKER URL</label><input value={selectedComp.props.mqttBrokerUrl || ''} onChange={(e) => updateComponentProps(selectedComp.id, { mqttBrokerUrl: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SUBSCRIBE TOPIC</label><input value={selectedComp.props.mqttSubscribeTopic || 'arduino/read/A0'} onChange={(e) => updateComponentProps(selectedComp.id, { mqttSubscribeTopic: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>)}
+                                                        {selectedComp.props.connectionType === 'WIFI' && (<><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>DEVICE IP ADDRESS</label><input value={selectedComp.props.wifiIpAddress || '192.168.1.100'} onChange={(e) => updateComponentProps(selectedComp.id, { wifiIpAddress: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>POLLING INTERVAL (ms)</label><input type="number" value={selectedComp.props.wifiPollingInterval || 100} onChange={(e) => updateComponentProps(selectedComp.id, { wifiPollingInterval: parseInt(e.target.value) || 100 })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>)}
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                            <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>ANALOG PIN</label><input value={selectedComp.props.pin || 'A0'} onChange={(e) => updateComponentProps(selectedComp.id, { pin: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                            <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>AMPLITUDE (V)</label><input type="number" value={selectedComp.props.amplitude || 5} onChange={(e) => updateComponentProps(selectedComp.id, { amplitude: parseFloat(e.target.value) || 5 })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                        </div>
+                                                        <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>TIMEBASE (ms/div)</label><input type="number" value={selectedComp.props.timebase || 50} onChange={(e) => updateComponentProps(selectedComp.id, { timebase: parseInt(e.target.value) || 50 })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                        <div style={{ padding: '10px', background: 'rgba(0,255,136,0.06)', borderRadius: '8px', border: '1px solid rgba(0,255,136,0.2)', fontSize: '0.65rem', color: '#4ade80', lineHeight: 1.5 }}>
+                                                            <strong>Firmware:</strong> <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>Serial.println("A0:" + String(analogRead(A0)));</code> — kirim setiap ~10ms untuk sampling cepat.
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {/* ─── THERMAL IR MATRIX ─── */}
+                                                {selectedComp.type === 'ARDUINO_THERMAL' && (
+                                                    <>
+                                                        <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label><input value={selectedComp.props.label || ''} onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CONNECTION TYPE</label>
+                                                            <select value={selectedComp.props.connectionType || 'SERIAL'} onChange={(e) => updateComponentProps(selectedComp.id, { connectionType: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
+                                                                <option value="SERIAL">USB Serial (I2C via Arduino)</option>
+                                                                <option value="MQTT">MQTT Broker (JSON array)</option>
+                                                                <option value="WIFI">WiFi / HTTP ESP32</option>
+                                                            </select>
+                                                        </div>
+                                                        {selectedComp.props.connectionType === 'SERIAL' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BAUD RATE</label><select value={selectedComp.props.baudRate || 9600} onChange={(e) => updateComponentProps(selectedComp.id, { baudRate: parseInt(e.target.value) })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}><option value="9600">9600</option><option value="115200">115200</option></select></div>)}
+                                                        {selectedComp.props.connectionType === 'MQTT' && (<><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MQTT BROKER URL</label><input value={selectedComp.props.mqttBrokerUrl || ''} onChange={(e) => updateComponentProps(selectedComp.id, { mqttBrokerUrl: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SUBSCRIBE TOPIC</label><input value={selectedComp.props.mqttSubscribeTopic || 'arduino/thermal/frame'} onChange={(e) => updateComponentProps(selectedComp.id, { mqttSubscribeTopic: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>)}
+                                                        {selectedComp.props.connectionType === 'WIFI' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>DEVICE IP ADDRESS</label><input value={selectedComp.props.wifiIpAddress || '192.168.1.100'} onChange={(e) => updateComponentProps(selectedComp.id, { wifiIpAddress: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>)}
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                            <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MAX TEMP (°C)</label><input type="number" value={selectedComp.props.maxTemp || 80} onChange={(e) => updateComponentProps(selectedComp.id, { maxTemp: parseInt(e.target.value) || 80 })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                            <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>COLOR PALETTE</label><select value={selectedComp.props.colorPalette || 'IRONBOW'} onChange={(e) => updateComponentProps(selectedComp.id, { colorPalette: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}><option value="IRONBOW">Ironbow (Thermal)</option><option value="RAINBOW">Rainbow</option></select></div>
+                                                        </div>
+                                                        <div style={{ padding: '10px', background: 'rgba(251,191,36,0.08)', borderRadius: '8px', border: '1px solid rgba(251,191,36,0.2)', fontSize: '0.65rem', color: '#fbbf24', lineHeight: 1.5 }}>
+                                                            <strong>Sensor:</strong> AMG8833 (I2C) → Arduino/ESP32<br/><strong>Serial Format:</strong> <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>THERMAL:20.1,21.5,22.3,...</code> (64 nilai float)<br/><strong>MQTT:</strong> payload JSON array 64 elemen.
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {/* ─── LINEAR THERMOMETER ─── */}
+                                                {selectedComp.type === 'ARDUINO_THERMOMETER' && (
+                                                    <>
+                                                        <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>LABEL</label><input value={selectedComp.props.label || ''} onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                        <div className="prop-group">
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CONNECTION TYPE</label>
+                                                            <select value={selectedComp.props.connectionType || 'SERIAL'} onChange={(e) => updateComponentProps(selectedComp.id, { connectionType: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
+                                                                <option value="SERIAL">USB Serial (Arduino/NTC/DS18B20)</option>
+                                                                <option value="MQTT">MQTT Broker</option>
+                                                                <option value="WIFI">WiFi / HTTP ESP32</option>
+                                                            </select>
+                                                        </div>
+                                                        {selectedComp.props.connectionType === 'SERIAL' && (<div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>BAUD RATE</label><select value={selectedComp.props.baudRate || 9600} onChange={(e) => updateComponentProps(selectedComp.id, { baudRate: parseInt(e.target.value) })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}><option value="9600">9600</option><option value="115200">115200</option></select></div>)}
+                                                        {selectedComp.props.connectionType === 'MQTT' && (<><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MQTT BROKER URL</label><input value={selectedComp.props.mqttBrokerUrl || ''} onChange={(e) => updateComponentProps(selectedComp.id, { mqttBrokerUrl: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SUBSCRIBE TOPIC</label><input value={selectedComp.props.mqttSubscribeTopic || 'arduino/read/A0'} onChange={(e) => updateComponentProps(selectedComp.id, { mqttSubscribeTopic: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>)}
+                                                        {selectedComp.props.connectionType === 'WIFI' && (<><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>DEVICE IP ADDRESS</label><input value={selectedComp.props.wifiIpAddress || '192.168.1.100'} onChange={(e) => updateComponentProps(selectedComp.id, { wifiIpAddress: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div><div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>POLLING INTERVAL (ms)</label><input type="number" value={selectedComp.props.wifiPollingInterval || 1000} onChange={(e) => updateComponentProps(selectedComp.id, { wifiPollingInterval: parseInt(e.target.value) || 1000 })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div></>)}
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                            <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SENSOR PIN</label><input value={selectedComp.props.pin || 'A0'} onChange={(e) => updateComponentProps(selectedComp.id, { pin: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                            <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>UNIT</label><input value={selectedComp.props.unit || '°C'} onChange={(e) => updateComponentProps(selectedComp.id, { unit: e.target.value })} placeholder="°C, °F, K" style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                        </div>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                            <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MIN VALUE</label><input type="number" value={selectedComp.props.minVal ?? 0} onChange={(e) => updateComponentProps(selectedComp.id, { minVal: parseFloat(e.target.value) || 0 })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                            <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MAX VALUE</label><input type="number" value={selectedComp.props.maxVal ?? 100} onChange={(e) => updateComponentProps(selectedComp.id, { maxVal: parseFloat(e.target.value) || 100 })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                        </div>
+                                                        <div className="prop-group"><label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>SAVE TO VARIABLE</label><input value={selectedComp.props.targetVariable || ''} onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })} placeholder="varName" style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }} /></div>
+                                                        <div style={{ padding: '10px', background: 'rgba(59,130,246,0.08)', borderRadius: '8px', border: '1px solid rgba(59,130,246,0.2)', fontSize: '0.65rem', color: '#60a5fa', lineHeight: 1.5 }}>
+                                                            <strong>Sensors:</strong> NTC, DS18B20, DHT22, LM35 via Arduino.<br/>
+                                                            <strong>Serial Format:</strong> <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>A0:36.5
+</code> (suhu langsung) atau ADC <code style={{background:'rgba(0,0,0,0.3)',padding:'1px 4px',borderRadius:'3px'}}>A0:512
+</code> (auto-scaled).
                                                         </div>
                                                     </>
                                                 )}

@@ -61,6 +61,22 @@ const TEMPLATES = {
   }
 };
 
+let tauriInvoke = null;
+async function getTauriApi() {
+  if (window.__TAURI_INTERNALS__) {
+    if (!tauriInvoke) {
+      try {
+        const core = await import('@tauri-apps/api/core');
+        tauriInvoke = core.invoke;
+      } catch (e) {
+        console.warn('Failed to load Tauri APIs:', e);
+      }
+    }
+    return { invoke: tauriInvoke };
+  }
+  return { invoke: null };
+}
+
 export default function PlcSettings() {
   const [activeTab, setActiveTab] = useState('overview');
 
@@ -112,12 +128,47 @@ export default function PlcSettings() {
     { ts: new Date(Date.now() - 1000).toLocaleTimeString(), type: 'READ', msg: '[OPC UA] Read ns=2;s=BoilerCore.Temperature: 184.2' }
   ]);
 
+  // Sync default scanner controller on load
+  const [scannerAddressRange, setScannerAddressRange] = useState('40001');
+  const [scannerData, setScannerData] = useState([]);
+  const [scannerControllerId, setScannerControllerId] = useState(controllers[0]?.id || '');
+  const [scannerWriteVal, setScannerWriteVal] = useState('');
+  const [scannerActiveReg, setScannerActiveReg] = useState(null);
+
   // Persistent settings save
   useEffect(() => {
     if (Array.isArray(controllers)) {
       localStorage.setItem('mavi_plc_controllers', JSON.stringify(controllers));
     }
   }, [controllers]);
+
+  // Connect to Modbus TCP PLCs on startup if they are set to 'connected'
+  useEffect(() => {
+    const initConnections = async () => {
+      const api = await getTauriApi();
+      if (!api.invoke) return;
+      
+      for (const ctrl of controllers) {
+        if (ctrl.type === 'MODBUS_TCP' && ctrl.status === 'connected') {
+          addLog('INFO', `Initializing startup connection for Modbus PLC: ${ctrl.name}...`);
+          try {
+            await api.invoke('modbus_connect', {
+              id: ctrl.id,
+              ip: ctrl.ip,
+              port: parseInt(ctrl.port) || 502,
+              unitId: parseInt(ctrl.unitId) || 1
+            });
+            addLog('SUCCESS', `Startup connection successful for: ${ctrl.name}`);
+          } catch (err) {
+            addLog('ERROR', `Startup connection failed for ${ctrl.name}: ${err}`);
+            // Set status to disconnected since we failed to connect on startup
+            setControllers(prev => (prev || []).map(c => c.id === ctrl.id ? { ...c, status: 'disconnected', latency: 0 } : c));
+          }
+        }
+      }
+    };
+    initConnections();
+  }, []); // Run once on mount
 
   useEffect(() => {
     if (Array.isArray(tags)) {
@@ -153,6 +204,11 @@ export default function PlcSettings() {
         const currentTag = nextTags[targetIdx];
         if (!currentTag) return prev;
         
+        // Skip simulated updates for real Modbus PLCs running in Tauri
+        const controller = (controllers || []).find(c => c.id === currentTag.controllerId);
+        const isRealModbus = controller?.type === 'MODBUS_TCP' && controller?.status === 'connected' && !!window.__TAURI_INTERNALS__;
+        if (isRealModbus) return prev;
+
         let newVal = currentTag.value;
         if (currentTag.dataType === 'BOOLEAN') {
           newVal = Math.random() > 0.9 ? (currentTag.value === 'true' || currentTag.value === '1' ? 'false' : 'true') : currentTag.value;
@@ -168,7 +224,6 @@ export default function PlcSettings() {
         nextTags[targetIdx] = { ...currentTag, value: newVal };
         
         // Log the read
-        const controller = (controllers || []).find(c => c.id === currentTag.controllerId);
         const protocol = controller?.type === 'OPC_UA' ? 'OPC UA' : 'Modbus';
         addLog('READ', `[${protocol}] Read ${currentTag.name} (${currentTag.address}): ${newVal}`);
         
@@ -185,6 +240,123 @@ export default function PlcSettings() {
     }, 3000);
     return () => clearInterval(interval);
   }, [simulationActive, controllers]);
+
+  // ─── REAL MODBUS BACKEND POLLING ──────────────────────────────────────────
+  useEffect(() => {
+    const apiPromise = getTauriApi();
+    let isMounted = true;
+    let activeIntervals = [];
+
+    const startPolling = async () => {
+      const api = await apiPromise;
+      if (!api.invoke) return;
+
+      // Clean up previous intervals
+      activeIntervals.forEach(clearInterval);
+      activeIntervals = [];
+
+      controllers.forEach(ctrl => {
+        if (ctrl.type === 'MODBUS_TCP' && ctrl.status === 'connected') {
+          const intervalId = setInterval(async () => {
+            if (!isMounted) return;
+
+            // 1. Poll registered tags for this controller
+            const ctrlTags = (tags || []).filter(t => t.controllerId === ctrl.id);
+            for (const tag of ctrlTags) {
+              let addr = parseInt(tag.address);
+              if (isNaN(addr)) continue;
+
+              let offset = addr;
+              if (tag.regType === 'COIL') offset = addr - 1;
+              else if (tag.regType === 'DISCRETE_INPUT') offset = addr - 10001;
+              else if (tag.regType === 'INPUT_REGISTER') offset = addr - 30001;
+              else if (tag.regType === 'HOLDING_REGISTER') offset = addr - 40001;
+              if (offset < 0) offset = 0;
+
+              try {
+                const res = await api.invoke('modbus_read', {
+                  id: ctrl.id,
+                  regType: tag.regType,
+                  address: offset,
+                  quantity: 1
+                });
+                if (Array.isArray(res) && res.length > 0 && isMounted) {
+                  const rawVal = res[0];
+                  let scaledVal = rawVal;
+                  
+                  if (tag.dataType === 'BOOLEAN') {
+                    scaledVal = rawVal !== 0 ? 'true' : 'false';
+                  } else if (tag.dataType === 'FLOAT') {
+                    scaledVal = (rawVal * (tag.multiplier || 1)).toFixed(2);
+                  } else {
+                    scaledVal = String(Math.round(rawVal * (tag.multiplier || 1)));
+                  }
+
+                  setTags(prev => (prev || []).map(t => t.id === tag.id ? { ...t, value: String(scaledVal) } : t));
+                  addLog('READ', `[Modbus Real] Read ${tag.name} (${tag.address}): ${scaledVal}`);
+                }
+              } catch (err) {
+                console.error(`Error polling tag ${tag.name}:`, err);
+                addLog('ERROR', `Error polling tag ${tag.name}: ${err}`);
+              }
+            }
+
+            // 2. Poll scanner grid (if scanner active & selected ctrl is this one)
+            if (activeTab === 'scanner' && scannerControllerId === ctrl.id) {
+              const baseAddr = parseInt(scannerAddressRange) || 40001;
+              const isCoil = baseAddr < 10000;
+              const isDiscIn = baseAddr >= 10000 && baseAddr < 30000;
+              const isInputReg = baseAddr >= 30000 && baseAddr < 40000;
+              const isHolding = baseAddr >= 40000;
+
+              let regType = 'HOLDING_REGISTER';
+              let baseOffset = baseAddr - 40001;
+              if (isCoil) { regType = 'COIL'; baseOffset = baseAddr - 1; }
+              else if (isDiscIn) { regType = 'DISCRETE_INPUT'; baseOffset = baseAddr - 10001; }
+              else if (isInputReg) { regType = 'INPUT_REGISTER'; baseOffset = baseAddr - 30001; }
+              if (baseOffset < 0) baseOffset = 0;
+
+              try {
+                const res = await api.invoke('modbus_read', {
+                  id: ctrl.id,
+                  regType,
+                  address: baseOffset,
+                  quantity: 20
+                });
+
+                if (Array.isArray(res) && res.length > 0 && isMounted) {
+                  setScannerData(prev => {
+                    return (prev || []).map((reg, idx) => {
+                      const val = res[idx] !== undefined ? res[idx] : reg.decimal;
+                      return {
+                        ...reg,
+                        decimal: val,
+                        hex: '0x' + val.toString(16).toUpperCase().padStart(4, '0'),
+                        binary: val.toString(2).padStart(16, '0').match(/.{4}/g).join(' ')
+                      };
+                    });
+                  });
+                }
+              } catch (err) {
+                console.error('Error scanning Modbus registers:', err);
+                addLog('ERROR', `Error scanning Modbus registers: ${err}`);
+              }
+            }
+
+          }, ctrl.pollingInterval || 2000);
+
+          activeIntervals.push(intervalId);
+        }
+      });
+    };
+
+    startPolling();
+
+    return () => {
+      isMounted = false;
+      activeIntervals.forEach(clearInterval);
+    };
+  }, [controllers, tags, activeTab, scannerControllerId, scannerAddressRange]);
 
   // ─── FORM MODAL STATES ─────────────────────────────────────────────────────
   const [isCtrlModalOpen, setIsCtrlModalOpen] = useState(false);
@@ -242,15 +414,51 @@ export default function PlcSettings() {
     }
   };
 
-  const toggleControllerStatus = (id, currentStatus) => {
+  const toggleControllerStatus = async (id, currentStatus) => {
+    const controller = controllers.find(c => c.id === id);
+    if (!controller) return;
+
     const nextStatus = currentStatus === 'connected' ? 'disconnected' : 'connected';
+    
+    // Connect/Disconnect Modbus in Backend if Tauri is available and type is MODBUS_TCP
+    const api = await getTauriApi();
+    if (api.invoke && controller.type === 'MODBUS_TCP') {
+      if (nextStatus === 'connected') {
+        const loadingToast = toast.loading(`Connecting to Modbus PLC ${controller.name} (${controller.ip}:${controller.port})...`);
+        try {
+          await api.invoke('modbus_connect', {
+            id: controller.id,
+            ip: controller.ip,
+            port: parseInt(controller.port) || 502,
+            unitId: parseInt(controller.unitId) || 1
+          });
+          toast.dismiss(loadingToast);
+          toast.success(`Connected to Modbus PLC: ${controller.name}`);
+        } catch (err) {
+          toast.dismiss(loadingToast);
+          toast.error(`Modbus connection failed: ${err}`);
+          addLog('ERROR', `Failed to connect to ${controller.name}: ${err}`);
+          return; // Do not update status to connected
+        }
+      } else {
+        try {
+          await api.invoke('modbus_disconnect', { id: controller.id });
+          toast.success(`Disconnected from Modbus PLC: ${controller.name}`);
+        } catch (err) {
+          console.warn('Disconnect error:', err);
+        }
+      }
+    }
+
     setControllers(prev => prev.map(c => c.id === id ? {
       ...c,
       status: nextStatus,
-      latency: nextStatus === 'connected' ? 40 : 0
+      latency: nextStatus === 'connected' ? 30 : 0
     } : c));
     addLog(nextStatus === 'connected' ? 'SUCCESS' : 'WARNING', `Controller status changed: ${nextStatus.toUpperCase()}`);
-    toast.success(`Controller status: ${nextStatus}`);
+    if (!api.invoke || controller.type !== 'MODBUS_TCP') {
+      toast.success(`Controller status: ${nextStatus}`);
+    }
   };
 
   // ─── TAG OPERATIONS ──────────────────────────────────────────────────────────
@@ -315,30 +523,70 @@ export default function PlcSettings() {
   };
 
   // Test tag read/write trigger
-  const handleTestTag = (tag) => {
+  const handleTestTag = async (tag) => {
     const controller = controllers.find(c => c.id === tag.controllerId);
     if (!controller || controller.status !== 'connected') {
       toast.error(`Koneksi PLC '${controller?.name || 'Unknown'}' terputus.`);
       return;
     }
-    toast.promise(
-      new Promise((resolve) => setTimeout(resolve, 800)),
-      {
-        loading: `Membaca tag '${tag.name}' dari register ${tag.address}...`,
-        success: `Sukses! Nilai: ${tag.value} (Latency: ${controller.latency}ms)`,
-        error: 'Gagal membaca tag.'
+
+    const api = await getTauriApi();
+    if (api.invoke && controller.type === 'MODBUS_TCP') {
+      let addr = parseInt(tag.address);
+      if (isNaN(addr)) {
+        toast.error('Alamat register tidak valid.');
+        return;
       }
-    );
+
+      let offset = addr;
+      if (tag.regType === 'COIL') offset = addr - 1;
+      else if (tag.regType === 'DISCRETE_INPUT') offset = addr - 10001;
+      else if (tag.regType === 'INPUT_REGISTER') offset = addr - 30001;
+      else if (tag.regType === 'HOLDING_REGISTER') offset = addr - 40001;
+      if (offset < 0) offset = 0;
+
+      toast.promise(
+        (async () => {
+          const res = await api.invoke('modbus_read', {
+            id: controller.id,
+            regType: tag.regType,
+            address: offset,
+            quantity: 1
+          });
+          if (Array.isArray(res) && res.length > 0) {
+            const rawVal = res[0];
+            let scaledVal = rawVal;
+            if (tag.dataType === 'BOOLEAN') {
+              scaledVal = rawVal !== 0 ? 'true' : 'false';
+            } else if (tag.dataType === 'FLOAT') {
+              scaledVal = (rawVal * (tag.multiplier || 1)).toFixed(2);
+            } else {
+              scaledVal = String(Math.round(rawVal * (tag.multiplier || 1)));
+            }
+            setTags(prev => (prev || []).map(t => t.id === tag.id ? { ...t, value: String(scaledVal) } : t));
+            return `Nilai: ${scaledVal}`;
+          }
+          throw new Error('No data received');
+        })(),
+        {
+          loading: `Membaca tag '${tag.name}' dari register ${tag.address} (Modbus Real)...`,
+          success: (valText) => `Sukses! ${valText}`,
+          error: (err) => `Gagal membaca tag: ${err.message || err}`
+        }
+      );
+    } else {
+      // Simulation test
+      toast.promise(
+        new Promise((resolve) => setTimeout(resolve, 800)),
+        {
+          loading: `Membaca tag '${tag.name}' dari register ${tag.address}...`,
+          success: `Sukses! Nilai: ${tag.value} (Latency: ${controller.latency}ms)`,
+          error: 'Gagal membaca tag.'
+        }
+      );
+    }
   };
 
-  // ─── SCANNER GRID STATE ────────────────────────────────────────────────────
-  const [scannerAddressRange, setScannerAddressRange] = useState('40001');
-  const [scannerData, setScannerData] = useState([]);
-  const [scannerControllerId, setScannerControllerId] = useState(controllers[0]?.id || '');
-  const [scannerWriteVal, setScannerWriteVal] = useState('');
-  const [scannerActiveReg, setScannerActiveReg] = useState(null);
-
-  // Sync default scanner controller on load
   useEffect(() => {
     if (!scannerControllerId && (controllers || []).length > 0) {
       setScannerControllerId(controllers[0].id);
@@ -353,44 +601,88 @@ export default function PlcSettings() {
     const isInputReg = baseAddr >= 30000 && baseAddr < 40000;
     const isHolding = baseAddr >= 40000;
 
-    const data = [];
-    for (let i = 0; i < 20; i++) {
-      const addr = baseAddr + i;
-      // Get mapped tag if any
-      const matchingTag = (tags || []).find(t => 
-        t.controllerId === scannerControllerId && 
-        (parseInt(t.address) === addr || t.address === String(addr))
-      );
+    const activeCtrl = controllers.find(c => c.id === scannerControllerId);
+    const isRealModbus = activeCtrl?.type === 'MODBUS_TCP' && activeCtrl?.status === 'connected' && !!window.__TAURI_INTERNALS__;
 
-      // Generate random simulated value if not mapped
-      let val = 0;
-      if (matchingTag) {
-        val = parseFloat(matchingTag.value) || 0;
-      } else {
-        const timeFactor = Date.now() / 10000;
-        if (isCoil || isDiscIn) {
-          val = Math.sin(timeFactor + i) > 0 ? 1 : 0;
-        } else if (isInputReg) {
-          val = Math.floor(150 + Math.sin(timeFactor + i) * 30 + Math.random() * 5);
-        } else {
-          // Holding
-          val = Math.floor(60 + Math.cos(timeFactor + i) * 10);
+    if (isRealModbus) {
+      setScannerData(prev => {
+        const startsWithSameAddr = (prev || []).length === 20 && prev[0].address === baseAddr;
+        if (startsWithSameAddr) {
+          return prev.map(reg => {
+            const matchingTag = (tags || []).find(t => 
+              t.controllerId === scannerControllerId && 
+              (parseInt(t.address) === reg.address || t.address === String(reg.address))
+            );
+            if (matchingTag) {
+              const val = parseFloat(matchingTag.value) || 0;
+              return {
+                ...reg,
+                decimal: val,
+                hex: '0x' + val.toString(16).toUpperCase().padStart(4, '0'),
+                binary: val.toString(2).padStart(16, '0').match(/.{4}/g).join(' '),
+                tag: matchingTag.name
+              };
+            }
+            return reg;
+          });
         }
-      }
 
-      data.push({
-        address: addr,
-        hex: '0x' + val.toString(16).toUpperCase().padStart(4, '0'),
-        decimal: val,
-        binary: val.toString(2).padStart(16, '0').match(/.{4}/g).join(' '),
-        tag: matchingTag ? matchingTag.name : null,
-        writable: isCoil || isHolding
+        const data = [];
+        for (let i = 0; i < 20; i++) {
+          const addr = baseAddr + i;
+          const matchingTag = (tags || []).find(t => 
+            t.controllerId === scannerControllerId && 
+            (parseInt(t.address) === addr || t.address === String(addr))
+          );
+          const val = matchingTag ? parseFloat(matchingTag.value) || 0 : 0;
+          data.push({
+            address: addr,
+            hex: '0x' + val.toString(16).toUpperCase().padStart(4, '0'),
+            decimal: val,
+            binary: val.toString(2).padStart(16, '0').match(/.{4}/g).join(' '),
+            tag: matchingTag ? matchingTag.name : null,
+            writable: isCoil || isHolding
+          });
+        }
+        return data;
       });
+    } else {
+      const data = [];
+      for (let i = 0; i < 20; i++) {
+        const addr = baseAddr + i;
+        const matchingTag = (tags || []).find(t => 
+          t.controllerId === scannerControllerId && 
+          (parseInt(t.address) === addr || t.address === String(addr))
+        );
+
+        let val = 0;
+        if (matchingTag) {
+          val = parseFloat(matchingTag.value) || 0;
+        } else {
+          const timeFactor = Date.now() / 10000;
+          if (isCoil || isDiscIn) {
+            val = Math.sin(timeFactor + i) > 0 ? 1 : 0;
+          } else if (isInputReg) {
+            val = Math.floor(150 + Math.sin(timeFactor + i) * 30 + Math.random() * 5);
+          } else {
+            val = Math.floor(60 + Math.cos(timeFactor + i) * 10);
+          }
+        }
+
+        data.push({
+          address: addr,
+          hex: '0x' + val.toString(16).toUpperCase().padStart(4, '0'),
+          decimal: val,
+          binary: val.toString(2).padStart(16, '0').match(/.{4}/g).join(' '),
+          tag: matchingTag ? matchingTag.name : null,
+          writable: isCoil || isHolding
+        });
+      }
+      setScannerData(data);
     }
-    setScannerData(data);
   }, [scannerAddressRange, tags, scannerControllerId, simulationActive]);
 
-  const handleWriteRegister = () => {
+  const handleWriteRegister = async () => {
     if (scannerWriteVal === '') return;
     const parsed = parseFloat(scannerWriteVal);
     if (isNaN(parsed)) {
@@ -398,19 +690,75 @@ export default function PlcSettings() {
       return;
     }
 
-    // If tag exists, update its value
     const baseAddr = scannerActiveReg.address;
-    const matchingTag = tags.find(t => 
-      t.controllerId === scannerControllerId && 
-      (parseInt(t.address) === baseAddr || t.address === String(baseAddr))
-    );
+    const isCoil = baseAddr < 10000;
+    const isHolding = baseAddr >= 40000;
 
-    if (matchingTag) {
-      setTags(prev => prev.map(t => t.id === matchingTag.id ? { ...t, value: String(parsed) } : t));
+    let regType = 'HOLDING_REGISTER';
+    let offset = baseAddr - 40001;
+    if (isCoil) { regType = 'COIL'; offset = baseAddr - 1; }
+    if (offset < 0) offset = 0;
+
+    const activeCtrl = controllers.find(c => c.id === scannerControllerId);
+    const api = await getTauriApi();
+
+    if (api.invoke && activeCtrl && activeCtrl.status === 'connected' && activeCtrl.type === 'MODBUS_TCP') {
+      const loadingToast = toast.loading(`Menulis nilai ${parsed} ke Register ${baseAddr}...`);
+      try {
+        await api.invoke('modbus_write', {
+          id: scannerControllerId,
+          regType,
+          address: offset,
+          value: Math.round(parsed)
+        });
+        
+        // Update tags and scannerData in frontend immediately
+        const matchingTag = tags.find(t => 
+          t.controllerId === scannerControllerId && 
+          (parseInt(t.address) === baseAddr || t.address === String(baseAddr))
+        );
+
+        if (matchingTag) {
+          setTags(prev => (prev || []).map(t => t.id === matchingTag.id ? { ...t, value: String(parsed) } : t));
+        }
+
+        setScannerData(prev => (prev || []).map(reg => reg.address === baseAddr ? {
+          ...reg,
+          decimal: parsed,
+          hex: '0x' + Math.round(parsed).toString(16).toUpperCase().padStart(4, '0'),
+          binary: Math.round(parsed).toString(2).padStart(16, '0').match(/.{4}/g).join(' ')
+        } : reg));
+
+        toast.dismiss(loadingToast);
+        addLog('WRITE', `[Modbus Real] Write Register ${baseAddr} -> SUCCESS (Value: ${parsed})`);
+        toast.success(`Berhasil menulis ${parsed} ke Register ${baseAddr}`);
+      } catch (err) {
+        toast.dismiss(loadingToast);
+        toast.error(`Gagal menulis: ${err}`);
+        addLog('ERROR', `Failed to write Register ${baseAddr}: ${err}`);
+      }
+    } else {
+      // Mock write
+      const matchingTag = tags.find(t => 
+        t.controllerId === scannerControllerId && 
+        (parseInt(t.address) === baseAddr || t.address === String(baseAddr))
+      );
+
+      if (matchingTag) {
+        setTags(prev => (prev || []).map(t => t.id === matchingTag.id ? { ...t, value: String(parsed) } : t));
+      }
+
+      setScannerData(prev => (prev || []).map(reg => reg.address === baseAddr ? {
+        ...reg,
+        decimal: parsed,
+        hex: '0x' + Math.round(parsed).toString(16).toUpperCase().padStart(4, '0'),
+        binary: Math.round(parsed).toString(2).padStart(16, '0').match(/.{4}/g).join(' ')
+      } : reg));
+
+      addLog('WRITE', `[Modbus Simulation] Write Register ${baseAddr} -> SUCCESS (Value: ${parsed})`);
+      toast.success(`Berhasil menulis ${parsed} ke Register ${baseAddr}`);
     }
 
-    addLog('WRITE', `[Modbus] Write Register ${baseAddr} -> SUCCESS (Value: ${parsed})`);
-    toast.success(`Berhasil menulis ${parsed} ke Register ${baseAddr}`);
     setScannerActiveReg(null);
     setScannerWriteVal('');
   };
@@ -546,7 +894,7 @@ export default function PlcSettings() {
                 <div style={{ fontSize: '1.75rem', fontWeight: 900, marginTop: '8px', color: '#ffffff' }}>
                   {controllers.length}
                 </div>
-                <div style={{ fontSize: '#10b981', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '6px', fontSize: '0.72rem', color: '#10b981', fontWeight: 600 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '6px', fontSize: '0.72rem', color: '#10b981', fontWeight: 600 }}>
                   <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#10b981' }} />
                   {controllers.filter(c => c.status === 'connected').length} Connected Online
                 </div>

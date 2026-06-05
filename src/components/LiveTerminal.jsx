@@ -95,7 +95,18 @@ import {
   Unlock,
   Volume2,
   BatteryCharging,
-  Power
+  Power,
+  Terminal,
+  Palette,
+  RotateCw,
+  CreditCard,
+  Tv,
+  Gamepad2,
+  Grid3X3,
+  Nfc,
+  Timer,
+  Compass,
+  Sun
 } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
 import obd2Service from '../utils/obd2Service';
@@ -790,10 +801,265 @@ const CADViewer3D = ({ appVariables, setAppVariables }) => {
   );
 };
 
+const getFirmwareCode = (connectionType, boardType, baudRate, mqttUrl, wifiIp) => {
+    const conn = connectionType || 'SERIAL';
+    const board = boardType || 'UNO';
+    const baud = baudRate || 9600;
+    const mqttHost = mqttUrl ? mqttUrl.replace('wss://', '').replace('ws://', '').split(':')[0] : 'broker.emqx.io';
+    
+    if (conn === 'MQTT') {
+        return `/*
+  Mavi Integration Sketch - MQTT Protocol
+  Device: ${board}
+  MQTT Broker: ${mqttHost}
+*/
+
+#if defined(ESP8266)
+#include <ESP8266WiFi.h>
+#elif defined(ESP32)
+#include <WiFi.h>
+#else
+#include <SPI.h>
+#include <Ethernet.h>
+#endif
+#include <PubSubClient.h>
+
+// WiFi Configuration
+const char* ssid = "YOUR_WIFI_SSID";
+const char* password = "YOUR_WIFI_PASSWORD";
+const char* mqtt_server = "${mqttHost}";
+const int mqtt_port = 1883;
+
+#if defined(ESP8266) || defined(ESP32)
+WiFiClient espClient;
+#else
+byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
+EthernetClient espClient;
+#endif
+PubSubClient client(espClient);
+
+void setup() {
+  Serial.begin(115200);
+  setup_wifi();
+  client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(callback);
+}
+
+void setup_wifi() {
+#if defined(ESP8266) || defined(ESP32)
+  delay(10);
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\\nWiFi connected");
+#else
+  if (Ethernet.begin(mac) == 0) {
+    Serial.println("Failed to configure Ethernet using DHCP");
+  }
+#endif
+}
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  String msg = "";
+  for (int i = 0; i < length; i++) {
+    msg += (char)payload[i];
+  }
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  Serial.println(msg);
+
+  // Parse custom control commands, e.g. "13:1"
+  int colonIdx = msg.indexOf(':');
+  if (colonIdx != -1) {
+    int targetPin = msg.substring(0, colonIdx).toInt();
+    int targetVal = msg.substring(colonIdx + 1).toInt();
+    pinMode(targetPin, OUTPUT);
+    digitalWrite(targetPin, targetVal);
+  }
+}
+
+void reconnect() {
+  while (!client.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    if (client.connect("MaviArduinoClient")) {
+      Serial.println("connected");
+      client.subscribe("arduino/write/#");
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      delay(5000);
+    }
+  }
+}
+
+void loop() {
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
+
+  static unsigned long lastMsg = 0;
+  unsigned long now = millis();
+  if (now - lastMsg > 1000) {
+    lastMsg = now;
+    int sensorVal = analogRead(A0);
+    String payload = String(sensorVal);
+    client.publish("arduino/read/A0", payload.c_str());
+  }
+}`;
+    }
+
+    if (conn === 'WIFI') {
+        return `/*
+  Mavi Integration Sketch - WiFi HTTP API Server
+  Device: ${board}
+  Expected IP Address: ${wifiIp || '192.168.1.100'}
+*/
+
+#if defined(ESP8266)
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+typedef ESP8266WebServer WebServer;
+#elif defined(ESP32)
+#include <WiFi.h>
+#include <WebServer.h>
+#endif
+
+const char* ssid = "YOUR_WIFI_SSID";
+const char* password = "YOUR_WIFI_PASSWORD";
+
+WebServer server(80);
+
+void setup() {
+  Serial.begin(115200);
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\\nConnected!");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
+
+  server.on("/read", HTTP_GET, []() {
+    String pin = server.arg("pin");
+    int val = 0;
+    if (pin.equalsIgnoreCase("A0")) {
+      val = analogRead(A0);
+    } else {
+      int pinNum = pin.toInt();
+      pinMode(pinNum, INPUT);
+      val = digitalRead(pinNum);
+    }
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(200, "text/plain", String(val));
+  });
+
+  server.on("/write", []() {
+    String pinStr = server.arg("pin");
+    String valStr = server.arg("val");
+    int pin = pinStr.toInt();
+    int val = valStr.toInt();
+    pinMode(pin, OUTPUT);
+    digitalWrite(pin, val);
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(200, "text/plain", "OK");
+  });
+
+  server.begin();
+  Serial.println("HTTP server started");
+}
+
+void loop() {
+  server.handleClient();
+}`;
+    }
+
+    return `/*
+  Mavi Integration Sketch - USB Serial Protocol
+  Device: ${board}
+  Baud Rate: ${baud}
+*/
+
+const int ANALOG_PIN = A0;
+const int OUT_PIN = 13;
+
+void setup() {
+  Serial.begin(${baud});
+  pinMode(OUT_PIN, OUTPUT);
+}
+
+void loop() {
+  int sensorVal = analogRead(ANALOG_PIN);
+  Serial.print("A0:");
+  Serial.println(sensorVal);
+  
+  if (Serial.available() > 0) {
+    String command = Serial.readStringUntil('\\n');
+    command.trim();
+    if (command.startsWith("d") || command.startsWith("p")) {
+      int colonIdx = command.indexOf(':');
+      if (colonIdx != -1) {
+        String pinStr = command.substring(1, colonIdx);
+        String valStr = command.substring(colonIdx + 1);
+        int targetPin = pinStr.toInt();
+        int targetVal = valStr.toInt();
+        if (command.startsWith("d")) {
+          digitalWrite(targetPin, targetVal);
+        } else if (command.startsWith("p")) {
+          analogWrite(targetPin, targetVal);
+        }
+      }
+    }
+  }
+  delay(200);
+}`;
+};
+
 const ArduinoWidget = ({ comp, syncVariable, fireWidgetTriggers, isDark }) => {
     const [status, setStatus] = useState(comp.props.status || 'disconnected');
     const [liveValue, setLiveValue] = useState(0);
     const [graphData, setGraphData] = useState([]);
+    const [showCodeModal, setShowCodeModal] = useState(false);
+    const [logs, setLogs] = useState([]);
+    const [cmdInput, setCmdInput] = useState('');
+    const consoleEndRef = useRef(null);
+
+    // 6 New Widgets States
+    const [lastCardId, setLastCardId] = useState('');
+    const [rfidStatus, setRfidStatus] = useState('Awaiting Card Scan...');
+    const [lcdText1, setLcdText1] = useState(comp.props.line1 || 'Hello World');
+    const [lcdText2, setLcdText2] = useState(comp.props.line2 || 'Mavi MES System');
+    const [joyX, setJoyX] = useState(512);
+    const [joyY, setJoyY] = useState(512);
+    const [joyZ, setJoyZ] = useState(1);
+    const [lastKeyPressed, setLastKeyPressed] = useState('');
+    const [matrixState, setMatrixState] = useState(() => Array(8).fill(0).map(() => Array(8).fill(false)));
+    const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString());
+
+    // 7 New Pro Widget States
+    const [radarAngle, setRadarAngle] = useState(0);
+    const [radarDots, setRadarDots] = useState([]);
+    const [tankLevel, setTankLevel] = useState(0);
+    const [modbusRegs, setModbusRegs] = useState(Array(8).fill({ addr: 0, val: 0 }));
+    const [statusPins, setStatusPins] = useState({});
+    const [oscData, setOscData] = useState(Array(80).fill(128));
+    const [thermalGrid, setThermalGrid] = useState(Array(64).fill(20));
+    const [thermoValue, setThermoValue] = useState(0);
+    const radarAnimRef = useRef(null);
+
+    useEffect(() => {
+        if (consoleEndRef.current) {
+            consoleEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [logs]);
 
     useEffect(() => {
         const unsubStatus = hardwareService.subscribeStatus((s) => {
@@ -801,8 +1067,22 @@ const ArduinoWidget = ({ comp, syncVariable, fireWidgetTriggers, isDark }) => {
         });
 
         let telemetryUnsub = () => {};
-        if (comp.type === 'ARDUINO_PIN_MONITOR' || comp.type === 'ARDUINO_GRAPH') {
-            telemetryUnsub = hardwareService.onData((val) => {
+        const isTelemetryWidget = comp.type === 'ARDUINO_PIN_MONITOR' || comp.type === 'ARDUINO_GRAPH' || comp.type === 'ARDUINO_GAUGE';
+        
+        if (isTelemetryWidget) {
+            const pin = comp.props.pin || 'A0';
+            
+            if (comp.props.connectionType === 'MQTT') {
+                hardwareService.subscribeMqttPin(pin, comp.props.mqttSubscribeTopic);
+            } else if (comp.props.connectionType === 'WIFI' && hardwareService.wifiIpAddress) {
+                hardwareService.startWifiPolling(hardwareService.wifiIpAddress, pin, comp.props.wifiPollingInterval || 1000);
+            }
+
+            telemetryUnsub = hardwareService.onPinData(pin, (rawVal) => {
+                const multiplier = comp.props.multiplier !== undefined ? parseFloat(comp.props.multiplier) : 1;
+                const offset = comp.props.offset !== undefined ? parseFloat(comp.props.offset) : 0;
+                const val = (rawVal * multiplier) + offset;
+
                 setLiveValue(val);
                 syncVariable(val);
                 
@@ -817,11 +1097,244 @@ const ArduinoWidget = ({ comp, syncVariable, fireWidgetTriggers, isDark }) => {
                 }
                 fireWidgetTriggers(comp, 'ValueReceived', { value: val });
             });
+        } else if (comp.type === 'ARDUINO_RFID') {
+            const pin = comp.props.pin || '10';
+            telemetryUnsub = hardwareService.onPinData(pin, (rawVal) => {
+                const cardId = String(rawVal).trim().toUpperCase();
+                setLastCardId(cardId);
+                const allowed = (comp.props.allowedCards || '').split(',').map(s => s.trim().toUpperCase());
+                const isOk = allowed.includes(cardId);
+                setRfidStatus(isOk ? 'ACCESS GRANTED' : 'ACCESS DENIED');
+                syncVariable(cardId);
+                fireWidgetTriggers(comp, 'CardScanned', { cardId, verified: isOk });
+            });
+        } else if (comp.type === 'ARDUINO_JOYSTICK') {
+            const pinX = comp.props.pinX || 'A0';
+            const pinY = comp.props.pinY || 'A1';
+            const pinZ = comp.props.pinSel || '2';
+
+            const unsubX = hardwareService.onPinData(pinX, (val) => setJoyX(parseInt(val)));
+            const unsubY = hardwareService.onPinData(pinY, (val) => setJoyY(parseInt(val)));
+            const unsubZ = hardwareService.onPinData(pinZ, (val) => setJoyZ(parseInt(val)));
+            telemetryUnsub = () => {
+                unsubX();
+                unsubY();
+                unsubZ();
+            };
+        } else if (comp.type === 'ARDUINO_KEYPAD') {
+            telemetryUnsub = hardwareService.onPinData('KEYPAD', (rawVal) => {
+                const key = String(rawVal);
+                setLastKeyPressed(key);
+                syncVariable(key);
+                fireWidgetTriggers(comp, 'KeyClicked', { key });
+            });
+        } else if (comp.type === 'ARDUINO_LCD') {
+            const unsubLCD = hardwareService.onData((val, rawLine) => {
+                if (rawLine) {
+                    if (rawLine.startsWith('l1:')) {
+                        setLcdText1(rawLine.substring(3));
+                    } else if (rawLine.startsWith('l2:')) {
+                        setLcdText2(rawLine.substring(3));
+                    }
+                }
+            });
+            telemetryUnsub = unsubLCD;
+        } else if (comp.type === 'ARDUINO_RTC') {
+            const interval = setInterval(() => {
+                setCurrentTime(new Date().toLocaleTimeString());
+            }, 1000);
+            telemetryUnsub = () => clearInterval(interval);
+        } else if (comp.type === 'ARDUINO_RADAR') {
+            const pin = comp.props.pin || 'A0';
+            if (comp.props.connectionType === 'MQTT') {
+                hardwareService.subscribeMqttPin(pin, comp.props.mqttSubscribeTopic);
+            } else if (comp.props.connectionType === 'WIFI' && hardwareService.wifiIpAddress) {
+                hardwareService.startWifiPolling(hardwareService.wifiIpAddress, pin, comp.props.wifiPollingInterval || 200);
+            }
+            const pinUnsub = hardwareService.onPinData(pin, (distCm) => {
+                const maxD = comp.props.maxDistance || 200;
+                const normalizedDist = Math.min(1, Math.max(0, parseFloat(distCm) / maxD));
+                setRadarDots(prev => {
+                    const next = [...prev, { angle: radarAngle, dist: normalizedDist }];
+                    return next.slice(-30);
+                });
+                syncVariable(distCm);
+                fireWidgetTriggers(comp, 'ObjectDetected', { distanceCm: distCm, angle: radarAngle });
+            });
+            let angle = 0;
+            let dir = 1;
+            const sweepInterval = setInterval(() => {
+                angle += dir * 2;
+                if (angle >= (comp.props.angleSweep || 180)) { dir = -1; angle = comp.props.angleSweep || 180; }
+                if (angle <= 0) { dir = 1; angle = 0; }
+                setRadarAngle(angle);
+            }, 50);
+            radarAnimRef.current = sweepInterval;
+            telemetryUnsub = () => { clearInterval(sweepInterval); pinUnsub(); };
+        } else if (comp.type === 'ARDUINO_TANK') {
+            const pin = comp.props.pin || 'A0';
+            if (comp.props.connectionType === 'MQTT') {
+                hardwareService.subscribeMqttPin(pin, comp.props.mqttSubscribeTopic);
+            } else if (comp.props.connectionType === 'WIFI' && hardwareService.wifiIpAddress) {
+                hardwareService.startWifiPolling(hardwareService.wifiIpAddress, pin, comp.props.wifiPollingInterval || 1000);
+            }
+            telemetryUnsub = hardwareService.onPinData(pin, (rawVal) => {
+                const rawNum = parseFloat(rawVal);
+                const pct = rawNum > 100 ? Math.min(100, (rawNum / 1023) * 100) : Math.min(100, Math.max(0, rawNum));
+                setTankLevel(pct);
+                syncVariable(pct);
+                fireWidgetTriggers(comp, 'LevelChanged', { level: pct });
+            });
+        } else if (comp.type === 'ARDUINO_MODBUS') {
+            if (comp.props.connectionType === 'MQTT') {
+                if (hardwareService.mqttClient && hardwareService.mqttClient.connected) {
+                    hardwareService.mqttClient.subscribe(comp.props.mqttSubscribeTopic || 'modbus/registers/#');
+                    hardwareService.mqttClient.on('message', (topic, message) => {
+                        if (topic.startsWith('modbus/registers/')) {
+                            const addr = topic.replace('modbus/registers/', '');
+                            const val = parseInt(message.toString());
+                            setModbusRegs(prev => {
+                                const next = [...prev];
+                                const idx = next.findIndex(r => r.addr === addr);
+                                if (idx > -1) next[idx] = { addr, val };
+                                else next.push({ addr, val });
+                                return next.slice(-8);
+                            });
+                        }
+                    });
+                }
+            }
+            const modbusUnsub = hardwareService.onData((val, rawLine) => {
+                if (rawLine && rawLine.includes(':')) {
+                    const parts = rawLine.split(':');
+                    const addr = parts[0].trim();
+                    const value = parseInt(parts[1].trim());
+                    if (!isNaN(value)) {
+                        setModbusRegs(prev => {
+                            const next = [...prev];
+                            const idx = next.findIndex(r => r.addr === addr);
+                            if (idx > -1) next[idx] = { addr, val: value };
+                            else next.push({ addr, val: value });
+                            return next.slice(-8);
+                        });
+                    }
+                }
+            });
+            const timer = setInterval(() => {
+                setModbusRegs(prev => prev.map((r, i) => ({
+                    addr: r.addr || `4000${i+1}`,
+                    val: Math.max(0, Math.min(65535, (r.val || 100) + Math.round((Math.random() - 0.5) * 10)))
+                })));
+            }, 2000);
+            telemetryUnsub = () => { modbusUnsub(); clearInterval(timer); };
+        } else if (comp.type === 'ARDUINO_STATUS_GRID') {
+            const pins = (comp.props.pins || 'D2,D3,D4,D5').split(',').map(p => p.trim());
+            if (comp.props.connectionType === 'MQTT') {
+                pins.forEach(pin => hardwareService.subscribeMqttPin(pin, `${(comp.props.mqttSubscribeTopic || 'arduino/read').replace('/#','')}/${pin}`));
+            } else if (comp.props.connectionType === 'WIFI' && hardwareService.wifiIpAddress) {
+                pins.forEach(pin => hardwareService.startWifiPolling(hardwareService.wifiIpAddress, pin, 500));
+            }
+            const unsubs = pins.map(pin => hardwareService.onPinData(pin, (val) => {
+                setStatusPins(prev => ({ ...prev, [pin]: parseInt(val) > 0 }));
+            }));
+            telemetryUnsub = () => {
+                unsubs.forEach(fn => fn());
+                if (comp.props.connectionType === 'WIFI') {
+                    const pinArr = (comp.props.pins || 'D2,D3,D4,D5').split(',').map(p => p.trim());
+                    pinArr.forEach(p => hardwareService.stopWifiPolling(p));
+                }
+            };
+        } else if (comp.type === 'ARDUINO_OSCILLOSCOPE') {
+            const pin = comp.props.pin || 'A0';
+            if (comp.props.connectionType === 'MQTT') {
+                hardwareService.subscribeMqttPin(pin, comp.props.mqttSubscribeTopic);
+            } else if (comp.props.connectionType === 'WIFI' && hardwareService.wifiIpAddress) {
+                hardwareService.startWifiPolling(hardwareService.wifiIpAddress, pin, comp.props.wifiPollingInterval || 100);
+            }
+            telemetryUnsub = hardwareService.onPinData(pin, (rawVal) => {
+                const raw = parseFloat(rawVal);
+                const mapped = raw > 255 ? Math.min(255, Math.max(0, Math.round((raw / 1023) * 255))) : Math.min(255, Math.max(0, Math.round(raw)));
+                setOscData(prev => { const n = [...prev.slice(1), mapped]; return n; });
+                fireWidgetTriggers(comp, 'SampleReceived', { value: rawVal });
+            });
+            const simInterval = setInterval(() => {
+                setOscData(prev => {
+                    const time = Date.now() / 200;
+                    const sine = Math.round(128 + 60 * Math.sin(time) + (Math.random() - 0.5) * 10);
+                    return [...prev.slice(1), sine];
+                });
+            }, 50);
+            const origUnsub = telemetryUnsub;
+            telemetryUnsub = () => { origUnsub(); clearInterval(simInterval); };
+        } else if (comp.type === 'ARDUINO_THERMAL') {
+            if (comp.props.connectionType === 'MQTT') {
+                if (hardwareService.mqttClient && hardwareService.mqttClient.connected) {
+                    hardwareService.mqttClient.subscribe(comp.props.mqttSubscribeTopic || 'arduino/thermal/frame');
+                    hardwareService.mqttClient.on('message', (topic, message) => {
+                        if (topic === (comp.props.mqttSubscribeTopic || 'arduino/thermal/frame')) {
+                            try {
+                                const vals = JSON.parse(message.toString());
+                                if (Array.isArray(vals) && vals.length === 64) setThermalGrid(vals);
+                            } catch { /* ignore */ }
+                        }
+                    });
+                }
+            }
+            const thermalDataUnsub = hardwareService.onData((val, rawLine) => {
+                if (rawLine && rawLine.startsWith('THERMAL:')) {
+                    const nums = rawLine.substring(8).split(',').map(Number).filter(n => !isNaN(n));
+                    if (nums.length === 64) setThermalGrid(nums);
+                }
+            });
+            const simInterval = setInterval(() => {
+                setThermalGrid(prev => prev.map(v => Math.min(comp.props.maxTemp || 80, Math.max(15, v + (Math.random() - 0.49) * 1.5))));
+            }, 400);
+            telemetryUnsub = () => { thermalDataUnsub(); clearInterval(simInterval); };
+        } else if (comp.type === 'ARDUINO_THERMOMETER') {
+            const pin = comp.props.pin || 'A0';
+            if (comp.props.connectionType === 'MQTT') {
+                hardwareService.subscribeMqttPin(pin, comp.props.mqttSubscribeTopic);
+            } else if (comp.props.connectionType === 'WIFI' && hardwareService.wifiIpAddress) {
+                hardwareService.startWifiPolling(hardwareService.wifiIpAddress, pin, comp.props.wifiPollingInterval || 1000);
+            }
+            telemetryUnsub = hardwareService.onPinData(pin, (rawVal) => {
+                const mn = parseFloat(comp.props.minVal ?? 0);
+                const mx = parseFloat(comp.props.maxVal ?? 100);
+                const raw = parseFloat(rawVal);
+                const val = raw > mx ? mn + ((raw / 1023) * (mx - mn)) : Math.min(mx, Math.max(mn, raw));
+                setThermoValue(val);
+                syncVariable(val);
+                fireWidgetTriggers(comp, 'TempChanged', { value: val });
+            });
+        }
+
+        let consoleUnsub = () => {};
+        if (comp.type === 'ARDUINO_BOARD' || comp.type === 'ARDUINO_CONSOLE') {
+            consoleUnsub = hardwareService.onData((rawVal) => {
+                const text = String(rawVal).trim();
+                if (text) {
+                    const timeStr = new Date().toLocaleTimeString();
+                    setLogs(prev => {
+                        const next = [...prev, { type: 'rx', text, time: timeStr }];
+                        const maxL = comp.props.maxLines || 100;
+                        if (next.length > maxL) {
+                            next.shift();
+                        }
+                        return next;
+                    });
+                }
+            });
         }
 
         return () => {
             unsubStatus();
             telemetryUnsub();
+            consoleUnsub();
+            if (isTelemetryWidget) {
+                if (comp.props.connectionType === 'WIFI') {
+                    hardwareService.stopWifiPolling(comp.props.pin || 'A0');
+                }
+            }
         };
     }, [comp]);
 
@@ -829,16 +1342,102 @@ const ArduinoWidget = ({ comp, syncVariable, fireWidgetTriggers, isDark }) => {
         if (status === 'connected') {
             await hardwareService.disconnect();
         } else {
-            await hardwareService.connectSerial(comp.props.baudRate || 9600);
+            if (comp.props.connectionType === 'MQTT') {
+                const options = {};
+                if (comp.props.mqttUsername) options.username = comp.props.mqttUsername;
+                if (comp.props.mqttPassword) options.password = comp.props.mqttPassword;
+                await hardwareService.connectMqtt(comp.props.mqttBrokerUrl || 'wss://broker.emqx.io:8084/mqtt', options);
+            } else if (comp.props.connectionType === 'WIFI') {
+                hardwareService.wifiIpAddress = comp.props.wifiIpAddress || '192.168.1.100';
+                hardwareService._updateStatus('connected');
+            } else {
+                await hardwareService.connectSerial(comp.props.baudRate || 9600);
+            }
         }
     };
 
     const handleControlChange = async (val) => {
         setLiveValue(val);
         const prefix = comp.props.controlType === 'SLIDER' ? 'p' : 'd';
-        const cmd = `${prefix}${comp.props.pin || '13'}:${val}\n`;
-        await hardwareService.writeSerial(cmd);
-        fireWidgetTriggers(comp, 'PinChanged', { pin: comp.props.pin, value: val });
+        const pin = comp.props.pin || '13';
+        const cmd = `${prefix}${pin}:${val}\n`;
+
+        if (comp.props.connectionType === 'MQTT') {
+            const topic = comp.props.mqttPublishTopic || `arduino/write/${pin}`;
+            await hardwareService.publishMqtt(topic, { pin, value: val, cmd });
+        } else if (comp.props.connectionType === 'WIFI') {
+            const ip = hardwareService.wifiIpAddress || '192.168.1.100';
+            await hardwareService.writeWifi(ip, pin, val);
+        } else {
+            await hardwareService.writeSerial(cmd);
+        }
+        
+        fireWidgetTriggers(comp, 'PinChanged', { pin, value: val });
+    };
+
+    const handleSendConsoleCmd = async () => {
+        if (!cmdInput.trim()) return;
+        const text = cmdInput.trim();
+        const timeStr = new Date().toLocaleTimeString();
+        setLogs(prev => [...prev, { type: 'tx', text, time: timeStr }]);
+        setCmdInput('');
+
+        const cmd = `${text}\n`;
+        if (comp.props.connectionType === 'MQTT') {
+            const topic = comp.props.mqttPublishTopic || `arduino/write/console`;
+            await hardwareService.publishMqtt(topic, { cmd });
+        } else if (comp.props.connectionType === 'WIFI') {
+            const ip = hardwareService.wifiIpAddress || '192.168.1.100';
+            await hardwareService.writeWifi(ip, 'console', text);
+        } else {
+            await hardwareService.writeSerial(cmd);
+        }
+    };
+
+    const handleMotorControl = async (val, cmdType) => {
+        const pin = comp.props.pin || '9';
+        
+        let cmd = '';
+        if (cmdType === 'SERVO') {
+            cmd = `s${pin}:${val}\n`;
+        } else if (cmdType === 'STEPPER') {
+            cmd = `m${pin}:${val}\n`;
+        } else if (cmdType === 'DC') {
+            cmd = `d${pin}:${val}\n`;
+        }
+
+        if (comp.props.connectionType === 'MQTT') {
+            const topic = comp.props.mqttPublishTopic || `arduino/write/${pin}`;
+            await hardwareService.publishMqtt(topic, { pin, value: val, cmd });
+        } else if (comp.props.connectionType === 'WIFI') {
+            const ip = hardwareService.wifiIpAddress || '192.168.1.100';
+            await hardwareService.writeWifi(ip, pin, val);
+        } else {
+            await hardwareService.writeSerial(cmd);
+        }
+        fireWidgetTriggers(comp, 'MotorTriggered', { pin, value: val, cmdType });
+    };
+
+    const handleColorChange = async (hexColor) => {
+        const r = parseInt(hexColor.slice(1, 3), 16) || 0;
+        const g = parseInt(hexColor.slice(3, 5), 16) || 0;
+        const b = parseInt(hexColor.slice(5, 7), 16) || 0;
+        
+        const pin = comp.props.pin || '6';
+        const cmd = `c${pin}:${r},${g},${b}\n`;
+
+        if (comp.props.connectionType === 'MQTT') {
+            const topic = comp.props.mqttPublishTopic || `arduino/write/${pin}`;
+            await hardwareService.publishMqtt(topic, { pin, r, g, b, cmd });
+        } else if (comp.props.connectionType === 'WIFI') {
+            const ip = hardwareService.wifiIpAddress || '192.168.1.100';
+            await hardwareService.writeWifi(ip, `${pin}/r`, r);
+            await hardwareService.writeWifi(ip, `${pin}/g`, g);
+            await hardwareService.writeWifi(ip, `${pin}/b`, b);
+        } else {
+            await hardwareService.writeSerial(cmd);
+        }
+        fireWidgetTriggers(comp, 'ColorChanged', { pin, hexColor, r, g, b });
     };
 
     const tealColor = '#00979D';
@@ -878,22 +1477,92 @@ const ArduinoWidget = ({ comp, syncVariable, fireWidgetTriggers, isDark }) => {
                         <span>{"[A0] [A1] [A2] [A3] [A4] [A5]"}</span>
                     </div>
                 </div>
-                <button
-                    onClick={handleConnect}
-                    style={{
-                        marginTop: '8px', padding: '6px 12px', borderRadius: '6px', border: 'none',
-                        backgroundColor: connected ? '#ef4444' : tealColor, color: 'white',
-                        fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s'
-                    }}
-                >
-                    {connected ? 'Disconnect' : 'Connect Serial'}
-                </button>
+                
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                    <button
+                        onClick={handleConnect}
+                        style={{
+                            flex: 1, padding: '6px 12px', borderRadius: '6px', border: 'none',
+                            backgroundColor: connected ? '#ef4444' : tealColor, color: 'white',
+                            fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s'
+                        }}
+                    >
+                        {connected ? 'Disconnect' : `Connect ${comp.props.connectionType || 'Serial'}`}
+                    </button>
+                    <button
+                        onClick={() => setShowCodeModal(true)}
+                        style={{
+                            flex: 1, padding: '6px 12px', borderRadius: '6px', border: `1px solid ${tealColor}`,
+                            backgroundColor: 'transparent', color: tealColor,
+                            fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s'
+                        }}
+                    >
+                        View Firmware Code
+                    </button>
+                </div>
+
+                {showCodeModal && (
+                    <div style={{
+                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                        backgroundColor: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', zIndex: 9999, padding: '24px'
+                    }}>
+                        <div style={{
+                            backgroundColor: '#1e293b', borderRadius: '12px', border: '1px solid #334155',
+                            width: '100%', maxWidth: '640px', maxHeight: '80vh', display: 'flex',
+                            flexDirection: 'column', color: '#f8fafc', overflow: 'hidden'
+                        }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', borderBottom: '1px solid #334155' }}>
+                                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <Cpu size={20} color={tealColor} />
+                                    Arduino/ESP32 Firmware Generator
+                                </h3>
+                                <button
+                                    onClick={() => setShowCodeModal(false)}
+                                    style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '16px', fontFamily: 'monospace', fontSize: '0.8rem', backgroundColor: '#020617', color: '#38bdf8' }}>
+                                <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+                                    {getFirmwareCode(comp.props.connectionType, comp.props.boardType, comp.props.baudRate, comp.props.mqttBrokerUrl, comp.props.wifiIpAddress)}
+                                </pre>
+                            </div>
+                            <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid #334155', backgroundColor: '#0f172a' }}>
+                                <button
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(getFirmwareCode(comp.props.connectionType, comp.props.boardType, comp.props.baudRate, comp.props.mqttBrokerUrl, comp.props.wifiIpAddress));
+                                        toast.success('Firmware sketch copied to clipboard!');
+                                    }}
+                                    style={{
+                                        padding: '6px 12px', borderRadius: '6px', border: 'none',
+                                        backgroundColor: tealColor, color: 'white', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer'
+                                    }}
+                                >
+                                    Copy Code
+                                </button>
+                                <button
+                                    onClick={() => setShowCodeModal(false)}
+                                    style={{
+                                        padding: '6px 12px', borderRadius: '6px', border: '1px solid #475569',
+                                        backgroundColor: 'transparent', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer'
+                                    }}
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }
 
     if (comp.type === 'ARDUINO_PIN_MONITOR') {
-        const valStr = comp.props.pinMode === 'DIGITAL_INPUT' ? (liveValue > 0 ? 'HIGH' : 'LOW') : liveValue;
+        const valStr = comp.props.pinMode === 'DIGITAL_INPUT' 
+            ? (liveValue > 0 ? 'HIGH' : 'LOW') 
+            : (typeof liveValue === 'number' ? liveValue.toFixed(comp.props.precision ?? 0) : liveValue);
         return (
             <div style={{
                 width: '100%', height: '100%', backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
@@ -1035,6 +1704,977 @@ const ArduinoWidget = ({ comp, syncVariable, fireWidgetTriggers, isDark }) => {
                             Awaiting serial data...
                         </div>
                     )}
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_CONSOLE') {
+        const showTs = comp.props.showTimestamp !== false;
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: '#020617', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Terminal size={14} color={tealColor} />
+                        {comp.props.label || 'Console Terminal'}
+                    </span>
+                    <span style={{ fontSize: '0.55rem', color: '#475569' }}>
+                        Buffer: {logs.length}/{comp.props.maxLines || 100}
+                    </span>
+                </div>
+                <div style={{
+                    flex: 1, overflowY: 'auto', backgroundColor: '#090d16', border: '1px solid #1e293b',
+                    borderRadius: '8px', padding: '8px', fontFamily: 'monospace', fontSize: '0.7rem',
+                    color: '#38bdf8', display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '8px'
+                }}>
+                    {logs.map((log, i) => (
+                        <div key={i} style={{ display: 'flex', gap: '6px', color: log.type === 'tx' ? '#10b981' : '#38bdf8' }}>
+                            {showTs && <span style={{ color: '#475569' }}>[{log.time}]</span>}
+                            <span>{log.type === 'tx' ? 'TX>' : 'RX<'}</span>
+                            <span style={{ wordBreak: 'break-all' }}>{log.text}</span>
+                        </div>
+                    ))}
+                    <div ref={consoleEndRef} />
+                </div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                    <input
+                        type="text"
+                        placeholder="Send command..."
+                        value={cmdInput}
+                        onChange={(e) => setCmdInput(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSendConsoleCmd()}
+                        style={{
+                            flex: 1, backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '6px',
+                            color: '#f8fafc', padding: '6px 8px', fontSize: '0.75rem', fontFamily: 'monospace'
+                        }}
+                    />
+                    <button
+                        onClick={handleSendConsoleCmd}
+                        style={{
+                            backgroundColor: tealColor, color: 'white', border: 'none', borderRadius: '6px',
+                            padding: '6px 12px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer'
+                        }}
+                    >
+                        Send
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_GAUGE') {
+        const val = liveValue;
+        const minVal = comp.props.min !== undefined ? parseFloat(comp.props.min) : 0;
+        const maxVal = comp.props.max !== undefined ? parseFloat(comp.props.max) : 100;
+        const color = comp.props.color || tealColor;
+        const unit = comp.props.unit || '°C';
+        
+        const pct = Math.max(0, Math.min(1, (val - minVal) / (maxVal - minVal)));
+        const r = 40;
+        const c = 2 * Math.PI * r;
+        const arcLength = c * 0.75;
+        const dashOffset = arcLength * (1 - pct);
+
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box',
+                alignItems: 'center', justifyContent: 'space-between'
+            }}>
+                <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', fontSize: '0.7rem', fontWeight: 'bold', color: isDark ? '#94a3b8' : '#64748b' }}>
+                    <span>{comp.props.label || 'Circular Gauge'}</span>
+                    <span style={{ fontSize: '0.6rem', backgroundColor: 'rgba(0,151,157,0.1)', color: tealColor, padding: '1px 5px', borderRadius: '4px' }}>
+                        PIN {comp.props.pin || 'A0'}
+                    </span>
+                </div>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', width: '100%' }}>
+                    <svg width="120" height="120" viewBox="0 0 100 100" style={{ transform: 'rotate(-45deg)', transformOrigin: '50% 50%' }}>
+                        <circle
+                            cx="50"
+                            cy="50"
+                            r={r}
+                            fill="transparent"
+                            stroke={isDark ? '#1e293b' : '#e2e8f0'}
+                            strokeWidth="8"
+                            strokeDasharray={`${arcLength} ${c}`}
+                            strokeLinecap="round"
+                        />
+                        <circle
+                            cx="50"
+                            cy="50"
+                            r={r}
+                            fill="transparent"
+                            stroke={color}
+                            strokeWidth="8"
+                            strokeDasharray={`${arcLength} ${c}`}
+                            strokeDashoffset={dashOffset}
+                            strokeLinecap="round"
+                            style={{ transition: 'stroke-dashoffset 0.35s ease' }}
+                        />
+                    </svg>
+                    <div style={{
+                        position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center',
+                        justifyContent: 'center', top: '50%', left: '50%', transform: 'translate(-50%, -50%)'
+                    }}>
+                        <span style={{ fontSize: '1.4rem', fontWeight: 900, color: isDark ? '#f8fafc' : '#0f172a', fontFamily: 'monospace' }}>
+                            {typeof val === 'number' ? val.toFixed(0) : val}
+                        </span>
+                        <span style={{ fontSize: '0.65rem', color: isDark ? '#64748b' : '#94a3b8' }}>{unit}</span>
+                    </div>
+                </div>
+                <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', fontSize: '0.6rem', color: isDark ? '#64748b' : '#94a3b8' }}>
+                    <span>Min: {minVal}</span>
+                    <span>Max: {maxVal}</span>
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_COLOR_PICKER') {
+        const activeColor = comp.props.color || '#ff0000';
+        const presets = ['#ef4444', '#22c55e', '#3b82f6', '#eab308', '#ec4899', '#a855f7', '#06b6d4', '#ffffff', '#000000'];
+        
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box',
+                justifyContent: 'space-between'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: isDark ? '#94a3b8' : '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Palette size={14} color={tealColor} />
+                        {comp.props.label || 'RGB Color Picker'}
+                    </span>
+                    <span style={{ fontSize: '0.6rem', backgroundColor: 'rgba(0,151,157,0.1)', color: tealColor, padding: '1px 5px', borderRadius: '4px', fontWeight: 'bold' }}>
+                        PIN {comp.props.pin || '6'}
+                    </span>
+                </div>
+                
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flex: 1, justifyContent: 'center' }}>
+                    <div style={{
+                        width: '56px', height: '56px', borderRadius: '12px', backgroundColor: activeColor,
+                        border: `2px solid ${isDark ? '#334155' : '#e2e8f0'}`, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
+                    }} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <input
+                            type="color"
+                            value={activeColor}
+                            onChange={(e) => {
+                                handleColorChange(e.target.value);
+                            }}
+                            style={{
+                                width: '70px', height: '32px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                                borderRadius: '6px', cursor: 'pointer', padding: 0, backgroundColor: 'transparent'
+                            }}
+                        />
+                        <span style={{ fontSize: '0.65rem', fontFamily: 'monospace', color: isDark ? '#f8fafc' : '#0f172a', textAlign: 'center' }}>
+                            {activeColor.toUpperCase()}
+                        </span>
+                    </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(9, 1fr)', gap: '4px', marginTop: '6px' }}>
+                    {presets.map((color, i) => (
+                        <button
+                            key={i}
+                            onClick={() => {
+                                handleColorChange(color);
+                            }}
+                            style={{
+                                height: '18px', backgroundColor: color, border: activeColor === color ? `2px solid ${isDark ? '#f8fafc' : '#0f172a'}` : `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                                borderRadius: '4px', cursor: 'pointer', padding: 0
+                            }}
+                        />
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_MOTOR') {
+        const motorType = comp.props.motorType || 'SERVO';
+        
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box',
+                justifyContent: 'space-between'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: isDark ? '#94a3b8' : '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <RotateCw size={14} color={tealColor} />
+                        {comp.props.label || 'Motor Controller'}
+                    </span>
+                    <span style={{ fontSize: '0.6rem', backgroundColor: 'rgba(0,151,157,0.1)', color: tealColor, padding: '1px 5px', borderRadius: '4px', fontWeight: 'bold' }}>
+                        PIN {comp.props.pin || '9'}
+                    </span>
+                </div>
+
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    {motorType === 'SERVO' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: isDark ? '#94a3b8' : '#64748b' }}>
+                                <span>Angle: {liveValue}°</span>
+                                <span>Max: 180°</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="0"
+                                max="180"
+                                value={liveValue}
+                                onChange={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    setLiveValue(val);
+                                    handleMotorControl(val, 'SERVO');
+                                }}
+                                style={{ width: '100%', accentColor: tealColor }}
+                            />
+                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                                {[0, 45, 90, 135, 180].map((angle) => (
+                                    <button
+                                        key={angle}
+                                        onClick={() => {
+                                            setLiveValue(angle);
+                                            handleMotorControl(angle, 'SERVO');
+                                        }}
+                                        style={{
+                                            padding: '2px 6px', fontSize: '0.55rem', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                                            borderRadius: '4px', backgroundColor: 'transparent', color: isDark ? '#f8fafc' : '#0f172a', cursor: 'pointer'
+                                        }}
+                                    >
+                                        {angle}°
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {motorType === 'STEPPER' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                                <button
+                                    onClick={() => handleMotorControl(-(comp.props.stepSize || 10), 'STEPPER')}
+                                    style={{
+                                        flex: 1, padding: '8px 12px', backgroundColor: '#e2e8f0', border: 'none', borderRadius: '6px',
+                                        color: '#0f172a', fontWeight: 'bold', fontSize: '0.7rem', cursor: 'pointer'
+                                    }}
+                                >
+                                    ◀ JOG -{comp.props.stepSize || 10}
+                                </button>
+                                <button
+                                    onClick={() => handleMotorControl((comp.props.stepSize || 10), 'STEPPER')}
+                                    style={{
+                                        flex: 1, padding: '8px 12px', backgroundColor: tealColor, border: 'none', borderRadius: '6px',
+                                        color: 'white', fontWeight: 'bold', fontSize: '0.7rem', cursor: 'pointer'
+                                    }}
+                                >
+                                    JOG +{comp.props.stepSize || 10} ▶
+                                </button>
+                            </div>
+                            <span style={{ fontSize: '0.6rem', color: isDark ? '#64748b' : '#94a3b8' }}>
+                                Step size configured in properties.
+                            </span>
+                        </div>
+                    )}
+
+                    {motorType === 'DC' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: isDark ? '#94a3b8' : '#64748b' }}>
+                                <span>Speed (PWM): {liveValue}</span>
+                                <span>Max: 255</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="0"
+                                max="255"
+                                value={liveValue}
+                                onChange={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    setLiveValue(val);
+                                    handleMotorControl(val, 'DC');
+                                }}
+                                style={{ width: '100%', accentColor: tealColor }}
+                            />
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                                <button
+                                    onClick={() => {
+                                        setLiveValue(0);
+                                        handleMotorControl(0, 'DC');
+                                    }}
+                                    style={{
+                                        flex: 1, padding: '4px', fontSize: '0.65rem', backgroundColor: '#ef4444', color: 'white',
+                                        border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer'
+                                    }}
+                                >
+                                    STOP
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setLiveValue(255);
+                                        handleMotorControl(255, 'DC');
+                                    }}
+                                    style={{
+                                        flex: 1, padding: '4px', fontSize: '0.65rem', backgroundColor: '#22c55e', color: 'white',
+                                        border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer'
+                                    }}
+                                >
+                                    MAX
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_RFID') {
+        const allowedList = (comp.props.allowedCards || '').split(',').map(s => s.trim().toUpperCase());
+        
+        const simulateScan = (cardId) => {
+            const pin = comp.props.pin || '10';
+            hardwareService._emitPinData(pin, cardId, `${pin}:${cardId}`);
+            toast.success(`Simulated scan of card: ${cardId}`);
+        };
+
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box',
+                justifyContent: 'space-between'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: isDark ? '#94a3b8' : '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Nfc size={16} color={tealColor} />
+                        {comp.props.label || 'RFID Scanner'}
+                    </span>
+                    <span style={{ fontSize: '0.6rem', backgroundColor: 'rgba(0,151,157,0.1)', color: tealColor, padding: '1px 5px', borderRadius: '4px', fontWeight: 'bold' }}>
+                        SDA PIN {comp.props.pin || '10'}
+                    </span>
+                </div>
+
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', margin: '8px 0' }}>
+                    <div style={{
+                        width: '50px', height: '50px', borderRadius: '50%',
+                        backgroundColor: rfidStatus === 'ACCESS GRANTED' ? 'rgba(16,185,129,0.15)' : rfidStatus === 'ACCESS DENIED' ? 'rgba(239,68,68,0.15)' : (isDark ? '#1e293b' : '#f1f5f9'),
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '8px',
+                        border: `2px solid ${rfidStatus === 'ACCESS GRANTED' ? '#10b981' : rfidStatus === 'ACCESS DENIED' ? '#ef4444' : (isDark ? '#334155' : '#cbd5e1')}`
+                    }}>
+                        <CreditCard size={24} color={rfidStatus === 'ACCESS GRANTED' ? '#10b981' : rfidStatus === 'ACCESS DENIED' ? '#ef4444' : (isDark ? '#94a3b8' : '#64748b')} />
+                    </div>
+                    <span style={{
+                        fontSize: '0.75rem', fontWeight: 'bold',
+                        color: rfidStatus === 'ACCESS GRANTED' ? '#10b981' : rfidStatus === 'ACCESS DENIED' ? '#ef4444' : (isDark ? '#f8fafc' : '#0f172a')
+                    }}>
+                        {rfidStatus}
+                    </span>
+                    {lastCardId && (
+                        <span style={{ fontSize: '0.65rem', color: isDark ? '#64748b' : '#94a3b8', fontFamily: 'monospace', marginTop: '2px' }}>
+                            UID: {lastCardId}
+                        </span>
+                    )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                        onClick={() => simulateScan(allowedList[0] || 'A1B2C3D4')}
+                        style={{
+                            flex: 1, padding: '6px 4px', fontSize: '0.6rem', backgroundColor: 'rgba(16,185,129,0.15)',
+                            color: '#10b981', border: '1px solid #10b981', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer'
+                        }}
+                    >
+                        Simulate Valid
+                    </button>
+                    <button
+                        onClick={() => simulateScan('BAD99999')}
+                        style={{
+                            flex: 1, padding: '6px 4px', fontSize: '0.6rem', backgroundColor: 'rgba(239,68,68,0.15)',
+                            color: '#ef4444', border: '1px solid #ef4444', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer'
+                        }}
+                    >
+                        Simulate Invalid
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_LCD') {
+        const backlightColor = comp.props.backlightColor || '#00979d';
+        
+        const handleSendLCD = () => {
+            hardwareService.writeSerial(`LCD_L1:${lcdText1}\n`);
+            hardwareService.writeSerial(`LCD_L2:${lcdText2}\n`);
+            toast.success('LCD text updated and sent!');
+        };
+
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box',
+                justifyContent: 'space-between'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: isDark ? '#94a3b8' : '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Tv size={16} color={tealColor} />
+                        {comp.props.label || 'I2C LCD 16x2'}
+                    </span>
+                    <span style={{ fontSize: '0.6rem', backgroundColor: 'rgba(0,151,157,0.1)', color: tealColor, padding: '1px 5px', borderRadius: '4px', fontWeight: 'bold' }}>
+                        {comp.props.pin || 'I2C (SDA/SCL)'}
+                    </span>
+                </div>
+
+                <div style={{
+                    flex: 1, backgroundColor: '#020617', padding: '10px', borderRadius: '8px',
+                    border: `3px solid ${backlightColor}`, boxShadow: `inset 0 0 10px ${backlightColor}`,
+                    display: 'flex', flexDirection: 'column', justifyContent: 'center', fontFamily: 'monospace',
+                    color: backlightColor, textShadow: `0 0 3px ${backlightColor}`, letterSpacing: '1px', minHeight: '50px'
+                }}>
+                    <div style={{ fontSize: '0.8rem', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                        {lcdText1.padEnd(16, ' ')}
+                    </div>
+                    <div style={{ fontSize: '0.8rem', overflow: 'hidden', whiteSpace: 'nowrap', marginTop: '2px' }}>
+                        {lcdText2.padEnd(16, ' ')}
+                    </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '6px' }}>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                        <input
+                            type="text"
+                            maxLength={16}
+                            value={lcdText1}
+                            onChange={(e) => setLcdText1(e.target.value)}
+                            placeholder="Line 1"
+                            style={{ flex: 1, fontSize: '0.65rem', padding: '4px', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`, borderRadius: '4px', backgroundColor: isDark ? '#1e293b' : '#f8fafc', color: isDark ? 'white' : 'black' }}
+                        />
+                        <input
+                            type="text"
+                            maxLength={16}
+                            value={lcdText2}
+                            onChange={(e) => setLcdText2(e.target.value)}
+                            placeholder="Line 2"
+                            style={{ flex: 1, fontSize: '0.65rem', padding: '4px', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`, borderRadius: '4px', backgroundColor: isDark ? '#1e293b' : '#f8fafc', color: isDark ? 'white' : 'black' }}
+                        />
+                    </div>
+                    <button
+                        onClick={handleSendLCD}
+                        style={{
+                            width: '100%', padding: '4px 8px', fontSize: '0.65rem', backgroundColor: tealColor,
+                            color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer'
+                        }}
+                    >
+                        Update Display
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_JOYSTICK') {
+        const handleDrag = (e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = Math.max(0, Math.min(1023, Math.round(((e.clientX - rect.left) / rect.width) * 1023)));
+            const y = Math.max(0, Math.min(1023, Math.round(((e.clientY - rect.top) / rect.height) * 1023)));
+            
+            setJoyX(x);
+            setJoyY(y);
+
+            const pinX = comp.props.pinX || 'A0';
+            const pinY = comp.props.pinY || 'A1';
+            hardwareService._emitPinData(pinX, x, `${pinX}:${x}`);
+            hardwareService._emitPinData(pinY, y, `${pinY}:${y}`);
+            
+            syncVariable(`${x},${y}`);
+            fireWidgetTriggers(comp, 'CoordinatesChanged', { x, y });
+        };
+
+        const toggleButton = () => {
+            const nextZ = joyZ === 1 ? 0 : 1;
+            setJoyZ(nextZ);
+            const pinZ = comp.props.pinSel || '2';
+            hardwareService._emitPinData(pinZ, nextZ, `${pinZ}:${nextZ}`);
+            fireWidgetTriggers(comp, 'ButtonStateChanged', { buttonPressed: nextZ === 0 });
+        };
+
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box',
+                justifyContent: 'space-between'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: isDark ? '#94a3b8' : '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Gamepad2 size={16} color={tealColor} />
+                        {comp.props.label || '2-Axis Joystick'}
+                    </span>
+                    <span style={{ fontSize: '0.55rem', backgroundColor: 'rgba(0,151,157,0.1)', color: tealColor, padding: '1px 5px', borderRadius: '4px', fontFamily: 'monospace' }}>
+                        X:{comp.props.pinX || 'A0'} Y:{comp.props.pinY || 'A1'} SW:{comp.props.pinSel || '2'}
+                    </span>
+                </div>
+
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-around', margin: '6px 0' }}>
+                    <div
+                        onMouseMove={(e) => e.buttons === 1 && handleDrag(e)}
+                        onMouseDown={handleDrag}
+                        style={{
+                            width: '64px', height: '64px', borderRadius: '50%', backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
+                            border: `2px solid ${isDark ? '#334155' : '#cbd5e1'}`, position: 'relative', cursor: 'crosshair'
+                        }}
+                    >
+                        <div style={{
+                            width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ef4444',
+                            position: 'absolute', top: `${(joyY / 1023) * 100}%`, left: `${(joyX / 1023) * 100}%`,
+                            transform: 'translate(-50%, -50%)', pointerEvents: 'none'
+                        }} />
+                    </div>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <span style={{ fontSize: '0.65rem', color: isDark ? '#94a3b8' : '#64748b', fontFamily: 'monospace' }}>X: {joyX}</span>
+                        <span style={{ fontSize: '0.65rem', color: isDark ? '#94a3b8' : '#64748b', fontFamily: 'monospace' }}>Y: {joyY}</span>
+                        <button
+                            onClick={toggleButton}
+                            style={{
+                                padding: '4px 6px', fontSize: '0.6rem',
+                                backgroundColor: joyZ === 0 ? '#10b981' : 'transparent',
+                                color: joyZ === 0 ? 'white' : (isDark ? '#f8fafc' : '#0f172a'),
+                                border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`, borderRadius: '4px', cursor: 'pointer'
+                            }}
+                        >
+                            SW: {joyZ === 0 ? 'ACTIVE' : 'RELEASED'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_KEYPAD') {
+        const keys = [
+            ['1', '2', '3', 'A'],
+            ['4', '5', '6', 'B'],
+            ['7', '8', '9', 'C'],
+            ['*', '0', '#', 'D']
+        ];
+
+        const handleKeyPress = (key) => {
+            setLastKeyPressed(key);
+            hardwareService._emitPinData('KEYPAD', key, `KEYPAD:${key}`);
+            syncVariable(key);
+            fireWidgetTriggers(comp, 'KeyClicked', { key });
+            toast.success(`Key Pressed: ${key}`);
+        };
+
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box',
+                justifyContent: 'space-between'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: isDark ? '#94a3b8' : '#64748b' }}>
+                        {comp.props.label || '4x4 Keypad'}
+                    </span>
+                    {lastKeyPressed && (
+                        <span style={{ fontSize: '0.65rem', color: tealColor, fontFamily: 'monospace', fontWeight: 'bold' }}>
+                            LAST: {lastKeyPressed}
+                        </span>
+                    )}
+                </div>
+
+                <div style={{
+                    display: 'grid', gridTemplateRows: 'repeat(4, 1fr)', gap: '4px', flex: 1
+                }}>
+                    {keys.map((row, rIdx) => (
+                        <div key={rIdx} style={{ display: 'flex', gap: '4px' }}>
+                            {row.map((k) => (
+                                <button
+                                    key={k}
+                                    onClick={() => handleKeyPress(k)}
+                                    style={{
+                                        flex: 1, padding: '4px 0', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                                        borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold',
+                                        backgroundColor: lastKeyPressed === k ? 'rgba(0,151,157,0.2)' : (isDark ? '#1e293b' : '#f8fafc'),
+                                        color: lastKeyPressed === k ? tealColor : (isDark ? '#f8fafc' : '#0f172a'),
+                                        cursor: 'pointer', transition: 'all 0.1s'
+                                    }}
+                                >
+                                    {k}
+                                </button>
+                            ))}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_MATRIX') {
+        const toggleLED = (r, c) => {
+            const next = matrixState.map((row, rIdx) =>
+                row.map((val, cIdx) => (rIdx === r && cIdx === c ? !val : val))
+            );
+            setMatrixState(next);
+            
+            // Format into hex array
+            const hexArray = next.map(row => {
+                let byte = 0;
+                row.forEach((led, idx) => {
+                    if (led) byte |= (1 << (7 - idx));
+                });
+                return '0x' + byte.toString(16).padStart(2, '0').toUpperCase();
+            });
+            
+            const payload = hexArray.join(',');
+            hardwareService.writeSerial(`MATRIX:${payload}\n`);
+            fireWidgetTriggers(comp, 'MatrixChanged', { matrix: payload });
+        };
+
+        const clearMatrix = () => {
+            const empty = Array(8).fill(0).map(() => Array(8).fill(false));
+            setMatrixState(empty);
+            hardwareService.writeSerial(`MATRIX:0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00\n`);
+            fireWidgetTriggers(comp, 'MatrixChanged', { matrix: '0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00' });
+        };
+
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box',
+                justifyContent: 'space-between'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: isDark ? '#94a3b8' : '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Grid3X3 size={16} color={tealColor} />
+                        {comp.props.label || '8x8 LED Matrix'}
+                    </span>
+                    <button
+                        onClick={clearMatrix}
+                        style={{
+                            fontSize: '0.55rem', border: 'none', backgroundColor: 'rgba(239,68,68,0.1)',
+                            color: '#ef4444', padding: '2px 6px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'
+                        }}
+                    >
+                        CLEAR
+                    </button>
+                </div>
+
+                <div style={{
+                    display: 'grid', gridTemplateRows: 'repeat(8, 1fr)', gap: '2px', flex: 1,
+                    backgroundColor: '#020617', padding: '6px', borderRadius: '6px', aspectRatio: '1/1',
+                    alignSelf: 'center', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`
+                }}>
+                    {matrixState.map((row, rIdx) => (
+                        <div key={rIdx} style={{ display: 'flex', gap: '2px' }}>
+                            {row.map((led, cIdx) => (
+                                <div
+                                    key={cIdx}
+                                    onClick={() => toggleLED(rIdx, cIdx)}
+                                    style={{
+                                        width: '12px', height: '12px', borderRadius: '2px',
+                                        backgroundColor: led ? '#ef4444' : '#1e293b',
+                                        boxShadow: led ? '0 0 6px #ef4444' : 'none',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s'
+                                    }}
+                                />
+                            ))}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_RTC') {
+        const handleSyncTime = () => {
+            const epoch = Math.floor(Date.now() / 1000);
+            hardwareService.writeSerial(`RTC_SET:${epoch}\n`);
+            toast.success(`RTC Synced with Epoch: ${epoch}`);
+            fireWidgetTriggers(comp, 'TimeSynced', { epoch });
+        };
+
+        return (
+            <div style={{
+                width: '100%', height: '100%', backgroundColor: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box',
+                justifyContent: 'space-between'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: isDark ? '#94a3b8' : '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Timer size={16} color={tealColor} />
+                        {comp.props.label || 'RTC DS3231 Clock'}
+                    </span>
+                    <span style={{ fontSize: '0.6rem', backgroundColor: 'rgba(0,151,157,0.1)', color: tealColor, padding: '1px 5px', borderRadius: '4px', fontWeight: 'bold' }}>
+                        I2C
+                    </span>
+                </div>
+
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', margin: '8px 0' }}>
+                    <span style={{ fontSize: '1.6rem', fontWeight: 900, color: isDark ? '#f8fafc' : '#0f172a', fontFamily: 'monospace', letterSpacing: '1px' }}>
+                        {currentTime}
+                    </span>
+                    <span style={{ fontSize: '0.6rem', color: isDark ? '#64748b' : '#94a3b8', marginTop: '2px' }}>
+                        {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    </span>
+                </div>
+
+                <button
+                    onClick={handleSyncTime}
+                    style={{
+                        width: '100%', padding: '6px', fontSize: '0.65rem', backgroundColor: tealColor,
+                        color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer'
+                    }}
+                >
+                    Sync with System Time
+                </button>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_RADAR') {
+        const sweep = comp.props.angleSweep || 180;
+        const size = 220;
+        const cx = size / 2, cy = size / 2, r = size / 2 - 8;
+        const sweepRad = (radarAngle * Math.PI) / 180;
+        const sweepX = cx + r * Math.cos(Math.PI - sweepRad);
+        const sweepY = cy - r * Math.sin(sweepRad) * (sweep === 360 ? 1 : 1);
+        const toXY = (ang, dist) => ({
+            x: cx + r * dist * Math.cos(Math.PI - (ang * Math.PI) / 180),
+            y: cy - r * dist * Math.sin((ang * Math.PI) / 180)
+        });
+        const rings = [0.25, 0.5, 0.75, 1.0];
+        const spokeAngles = sweep === 360
+            ? [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330]
+            : [0, 30, 60, 90, 120, 150, 180];
+        return (
+            <div style={{ width: '100%', height: '100%', background: '#000e00', borderRadius: '12px', padding: '8px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#00ff41', fontFamily: 'monospace', marginBottom: '4px', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>⬡ {comp.props.label || 'Radar Sweep'}</span>
+                    <span style={{ color: '#4ade80', fontSize: '0.6rem' }}>MAX: {comp.props.maxDistance || 200}cm | SWEEP: {sweep}°</span>
+                </div>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width={size} height={size * (sweep === 360 ? 1 : 0.6)} viewBox={`0 0 ${size} ${sweep === 360 ? size : size * 0.55}`} style={{ overflow: 'visible' }}>
+                        {rings.map((f, i) => (
+                            <ellipse key={i} cx={cx} cy={cy} rx={r * f} ry={sweep === 360 ? r * f : r * f * 0.55}
+                                fill="none" stroke="#00ff4130" strokeWidth="1" />
+                        ))}
+                        {spokeAngles.map((a, i) => {
+                            const rad = (a * Math.PI) / 180;
+                            return <line key={i} x1={cx} y1={cy}
+                                x2={cx + r * Math.cos(Math.PI - rad)}
+                                y2={cy - r * 0.55 * Math.sin(rad)}
+                                stroke="#00ff4120" strokeWidth="1" />;
+                        })}
+                        <defs>
+                            <radialGradient id={`rg-${comp.id}`} cx="50%" cy="100%" r="100%">
+                                <stop offset="0%" stopColor="#00ff41" stopOpacity="0.4" />
+                                <stop offset="100%" stopColor="#00ff41" stopOpacity="0" />
+                            </radialGradient>
+                        </defs>
+                        <line x1={cx} y1={cy} x2={sweepX} y2={cy - (cy - sweepY) * 0.55}
+                            stroke="#00ff41" strokeWidth="2" opacity="0.9" />
+                        <circle cx={cx} cy={cy} r="3" fill="#00ff41" />
+                        {radarDots.map((d, i) => {
+                            const { x, y } = toXY(d.angle, d.dist);
+                            return <circle key={i} cx={x} cy={cy - (cy - y) * 0.55} r="3"
+                                fill="#00ff41" opacity={0.3 + (i / radarDots.length) * 0.7} />;
+                        })}
+                    </svg>
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_TANK') {
+        const pct = tankLevel;
+        const warningPct = comp.props.warningThreshold || 80;
+        const liqColor = pct >= warningPct ? '#ef4444' : (comp.props.liquidColor || '#3b82f6');
+        const tankH = 180;
+        const fillH = (pct / 100) * tankH;
+        return (
+            <div style={{ width: '100%', height: '100%', background: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', padding: '12px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: isDark ? '#94a3b8' : '#64748b', marginBottom: '8px', width: '100%', textAlign: 'left' }}>
+                    💧 {comp.props.label || 'Liquid Tank'}
+                </div>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>
+                    <svg width="80" height={tankH + 20} viewBox={`0 0 80 ${tankH + 20}`} style={{ overflow: 'visible' }}>
+                        <rect x="5" y="0" width="70" height={tankH} rx="8" fill="#1e293b" stroke="#334155" strokeWidth="2" />
+                        <rect x="5" y={tankH - fillH} width="70" height={fillH} rx="0"
+                            fill={liqColor} opacity="0.8"
+                            style={{ transition: 'height 0.6s ease, y 0.6s ease' }} />
+                        <rect x="5" y="0" width="70" height={tankH} rx="8" fill="none" stroke="#475569" strokeWidth="2" />
+                        {[0.25, 0.5, 0.75].map((f, i) => (
+                            <line key={i} x1="5" y1={tankH * (1 - f)} x2="15" y2={tankH * (1 - f)}
+                                stroke="#64748b" strokeWidth="1" />
+                        ))}
+                        <rect x="30" y={tankH} width="20" height="8" rx="3" fill="#475569" />
+                    </svg>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ fontSize: '2rem', fontWeight: 900, color: liqColor, fontFamily: 'monospace' }}>{pct.toFixed(1)}%</div>
+                        <div style={{ fontSize: '0.65rem', color: isDark ? '#64748b' : '#94a3b8' }}>Capacity: {comp.props.capacity || 1000}L</div>
+                        <div style={{ height: '6px', background: '#1e293b', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${pct}%`, background: liqColor, borderRadius: '3px', transition: 'width 0.6s ease' }} />
+                        </div>
+                        {pct >= warningPct && <div style={{ fontSize: '0.6rem', color: '#ef4444', fontWeight: 700 }}>⚠ HIGH LEVEL ALERT</div>}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_MODBUS') {
+        const regs = modbusRegs;
+        return (
+            <div style={{ width: '100%', height: '100%', background: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div style={{ padding: '8px 12px', borderBottom: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, background: isDark ? '#1e293b' : '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: isDark ? '#f8fafc' : '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ color: '#f59e0b' }}>⬛</span> {comp.props.label || 'Modbus Viewer'}
+                    </span>
+                    <span style={{ fontSize: '0.6rem', color: '#f59e0b', background: 'rgba(245,158,11,0.1)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>RTU | Addr {comp.props.clientAddress || 1}</span>
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem', fontFamily: 'monospace' }}>
+                        <thead>
+                            <tr style={{ background: isDark ? '#1e293b' : '#f8fafc' }}>
+                                <th style={{ padding: '4px 8px', textAlign: 'left', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600, borderBottom: `1px solid ${isDark ? '#334155' : '#e2e8f0'}` }}>Register</th>
+                                <th style={{ padding: '4px 8px', textAlign: 'right', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600, borderBottom: `1px solid ${isDark ? '#334155' : '#e2e8f0'}` }}>DEC</th>
+                                <th style={{ padding: '4px 8px', textAlign: 'right', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600, borderBottom: `1px solid ${isDark ? '#334155' : '#e2e8f0'}` }}>HEX</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {regs.map((r, i) => (
+                                <tr key={i} style={{ borderBottom: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, background: i % 2 === 0 ? 'transparent' : (isDark ? '#1e293b50' : '#f8fafc50') }}>
+                                    <td style={{ padding: '4px 8px', color: '#f59e0b' }}>{r.addr || `4000${i + 1}`}</td>
+                                    <td style={{ padding: '4px 8px', textAlign: 'right', color: isDark ? '#f8fafc' : '#0f172a', fontWeight: 700 }}>{r.val}</td>
+                                    <td style={{ padding: '4px 8px', textAlign: 'right', color: isDark ? '#64748b' : '#94a3b8' }}>{`0x${Number(r.val).toString(16).toUpperCase().padStart(4, '0')}`}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_STATUS_GRID') {
+        const pins = (comp.props.pins || 'D2,D3,D4,D5').split(',').map(p => p.trim());
+        const labels = (comp.props.pinLabels || '').split(',').map(l => l.trim());
+        return (
+            <div style={{ width: '100%', height: '100%', background: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', padding: '12px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: isDark ? '#94a3b8' : '#64748b' }}>🔦 {comp.props.label || 'Status Lights Grid'}</div>
+                <div style={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(${Math.min(4, pins.length)}, 1fr)`, gap: '8px', alignContent: 'start' }}>
+                    {pins.map((pin, i) => {
+                        const active = !!statusPins[pin];
+                        return (
+                            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', padding: '8px', background: isDark ? '#1e293b' : '#f8fafc', borderRadius: '8px', border: `1px solid ${active ? '#10b981' : (isDark ? '#334155' : '#e2e8f0')}` }}>
+                                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: active ? '#10b981' : '#374151', boxShadow: active ? '0 0 10px #10b981' : 'none', transition: 'all 0.2s' }} />
+                                <div style={{ fontSize: '0.55rem', fontWeight: 700, color: active ? '#10b981' : (isDark ? '#64748b' : '#94a3b8'), textAlign: 'center', maxWidth: '60px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {labels[i] || pin}
+                                </div>
+                                <div style={{ fontSize: '0.5rem', color: isDark ? '#475569' : '#cbd5e1' }}>{active ? 'HIGH' : 'LOW'}</div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_OSCILLOSCOPE') {
+        const data = oscData;
+        const W = 280, H = 120;
+        const pts = data.map((v, i) => `${(i / (data.length - 1)) * W},${H - (v / 255) * H}`).join(' ');
+        const freqEst = (comp.props.timebase || 50);
+        return (
+            <div style={{ width: '100%', height: '100%', background: '#000a00', borderRadius: '12px', padding: '10px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#00ff88', fontFamily: 'monospace' }}>⚡ {comp.props.label || 'Oscilloscope'}</span>
+                    <span style={{ fontSize: '0.6rem', color: '#4ade80', fontFamily: 'monospace' }}>PIN {comp.props.pin || 'A0'} | {freqEst}ms/div</span>
+                </div>
+                <div style={{ flex: 1, border: '1px solid #00ff4430', borderRadius: '6px', background: '#00100a', padding: '4px', position: 'relative', overflow: 'hidden' }}>
+                    {[0.25, 0.5, 0.75].map((f, i) => <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: `${f * 100}%`, borderTop: '1px dashed #00ff4420' }} />)}
+                    {[0.2, 0.4, 0.6, 0.8].map((f, i) => <div key={i} style={{ position: 'absolute', top: 0, bottom: 0, left: `${f * 100}%`, borderLeft: '1px dashed #00ff4220' }} />)}
+                    <svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+                        <polyline points={pts} fill="none" stroke="#00ff88" strokeWidth="1.5" />
+                    </svg>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.55rem', color: '#4ade80', marginTop: '4px', fontFamily: 'monospace' }}>
+                    <span>CH1: {comp.props.amplitude || 5}V</span>
+                    <span>TRIG: AUTO</span>
+                    <span>SAMPLE: {data.length}pts</span>
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_THERMAL') {
+        const grid = thermalGrid;
+        const maxT = comp.props.maxTemp || 80;
+        const palette = comp.props.colorPalette || 'IRONBOW';
+        const getColor = (v) => {
+            const t = Math.min(1, Math.max(0, v / maxT));
+            if (palette === 'IRONBOW') {
+                const r = Math.min(255, Math.round(t < 0.5 ? t * 2 * 100 : 100 + (t - 0.5) * 2 * 155));
+                const g = Math.min(255, Math.round(t < 0.33 ? 0 : t < 0.66 ? (t - 0.33) * 3 * 200 : 200 + (t - 0.66) * 3 * 55));
+                const b = Math.min(255, Math.round(t < 0.5 ? 150 - t * 2 * 150 : 0));
+                return `rgb(${r},${g},${b})`;
+            }
+            const r2 = Math.round(t * 255);
+            return `rgb(${r2},${Math.round((1 - Math.abs(t - 0.5) * 2) * 255)},${255 - r2})`;
+        };
+        return (
+            <div style={{ width: '100%', height: '100%', background: '#0a0a0a', borderRadius: '12px', padding: '10px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#fbbf24', marginBottom: '6px', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>🌡 {comp.props.label || 'Thermal Camera'}</span>
+                    <span style={{ fontSize: '0.6rem', color: '#f97316' }}>AMG8833 | 8×8 px</span>
+                </div>
+                <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '2px' }}>
+                    {grid.map((v, i) => (
+                        <div key={i} title={`${v.toFixed(1)}°C`}
+                            style={{ borderRadius: '2px', background: getColor(v), aspectRatio: '1', transition: 'background 0.3s' }} />
+                    ))}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.55rem', color: '#64748b', marginTop: '6px' }}>
+                    <span>Min: {Math.min(...grid).toFixed(1)}°C</span>
+                    <span>Max: {Math.max(...grid).toFixed(1)}°C</span>
+                </div>
+            </div>
+        );
+    }
+
+    if (comp.type === 'ARDUINO_THERMOMETER') {
+        const mn = parseFloat(comp.props.minVal ?? 0);
+        const mx = parseFloat(comp.props.maxVal ?? 100);
+        const val = thermoValue;
+        const pct = Math.min(1, Math.max(0, (val - mn) / (mx - mn)));
+        const barH = 160;
+        const fillH = pct * barH;
+        const tempColor = pct > 0.8 ? '#ef4444' : pct > 0.6 ? '#f59e0b' : '#3b82f6';
+        return (
+            <div style={{ width: '100%', height: '100%', background: isDark ? '#0f172a' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', padding: '12px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: isDark ? '#94a3b8' : '#64748b', width: '100%', textAlign: 'left' }}>Linear Thermometer</div>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
+                    <svg width="40" height={barH + 30} viewBox={`0 0 40 ${barH + 30}`}>
+                        <rect x="14" y="0" width="12" height={barH} rx="6" fill="#1e293b" stroke="#475569" strokeWidth="1.5" />
+                        <rect x="14" y={barH - fillH} width="12" height={fillH} rx="6" fill={tempColor}
+                            style={{ transition: 'height 0.6s ease, y 0.6s ease' }} />
+                        <circle cx="20" cy={barH + 12} r="12" fill={tempColor} />
+                        {[0, 0.25, 0.5, 0.75, 1].map((f, i) => (
+                            <line key={i} x1="22" y1={barH * (1 - f)} x2="30" y2={barH * (1 - f)}
+                                stroke="#64748b" strokeWidth="1" />
+                        ))}
+                    </svg>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div style={{ fontSize: '2rem', fontWeight: 900, color: tempColor, fontFamily: 'monospace' }}>
+                            {val.toFixed(1)}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: isDark ? '#64748b' : '#94a3b8', fontWeight: 600 }}>{comp.props.unit || '°C'}</div>
+                        <div style={{ fontSize: '0.55rem', color: isDark ? '#475569' : '#94a3b8' }}>PIN: {comp.props.pin || 'A0'}</div>
+                        <div style={{ fontSize: '0.55rem', color: isDark ? '#475569' : '#94a3b8' }}>{mn}{comp.props.unit || '°C'} – {mx}{comp.props.unit || '°C'}</div>
+                    </div>
                 </div>
             </div>
         );
@@ -8787,6 +10427,23 @@ const LiveTerminal = () => {
       case 'ARDUINO_PIN_MONITOR':
       case 'ARDUINO_CONTROLLER':
       case 'ARDUINO_GRAPH':
+      case 'ARDUINO_CONSOLE':
+      case 'ARDUINO_GAUGE':
+      case 'ARDUINO_COLOR_PICKER':
+      case 'ARDUINO_MOTOR':
+      case 'ARDUINO_RFID':
+      case 'ARDUINO_LCD':
+      case 'ARDUINO_JOYSTICK':
+      case 'ARDUINO_KEYPAD':
+      case 'ARDUINO_MATRIX':
+      case 'ARDUINO_RTC':
+      case 'ARDUINO_RADAR':
+      case 'ARDUINO_TANK':
+      case 'ARDUINO_MODBUS':
+      case 'ARDUINO_STATUS_GRID':
+      case 'ARDUINO_OSCILLOSCOPE':
+      case 'ARDUINO_THERMAL':
+      case 'ARDUINO_THERMOMETER':
         return (
           <ArduinoWidget
             comp={comp}
