@@ -174,7 +174,28 @@ import {
     Palette,
     CreditCard,
     Tv,
-    Gamepad2
+    Gamepad2,
+    Flame,
+    Box,
+    Waves,
+    Snowflake,
+    Container,
+    Factory,
+    Radio,
+    Crosshair,
+    ArrowDownUp,
+    Percent,
+    Target,
+    ListOrdered,
+    ClockIcon,
+    BarChartHorizontal,
+    CircleDot,
+    Cog,
+    StopCircle,
+    PlaySquare,
+    RotateCcw,
+    PanelTop,
+    Binary
 } from 'lucide-react';
 
 // --- Device Presets for Builder/Preview Canvas ---
@@ -247,6 +268,7 @@ import iotConnector from '../utils/iotConnector';
 import { logEvent, AUDIT_EVENTS } from '../utils/auditLog';
 import ColorPicker from './ColorPicker';
 import ShapePicker from './ShapePicker';
+import ScadaWidgetRenderer from './ScadaWidgets';
 import { createIncomingInspectionTemplate } from '../utils/incomingInspectionTemplate';
 import automationEngine from '../utils/automationEngine';
 import hardwareService from '../utils/hardwareService';
@@ -2182,7 +2204,888 @@ const COMPONENT_TYPES = {
     NUMBER_INPUT: { id: 'NUMBER_INPUT', label: 'Number Input', icon: Hash, defaultProps: { triggers: [], visibilityCondition: null, rotation: 0 } },
     MENU: { id: 'MENU', label: 'Menu', icon: Menu, defaultProps: { triggers: [], visibilityCondition: null, rotation: 0 } },
     TIMER: { id: 'TIMER', label: 'Timer', icon: Clock, defaultProps: { triggers: [], visibilityCondition: null, rotation: 0 } },
-    PRINT_AREA: { id: 'PRINT_AREA', label: 'Print Area', icon: Square, defaultSize: { w: 200, h: 200 }, defaultProps: { border: '2px dashed #ef4444', backgroundColor: 'transparent', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } }
+    PRINT_AREA: { id: 'PRINT_AREA', label: 'Print Area', icon: Square, defaultSize: { w: 200, h: 200 }, defaultProps: { border: '2px dashed #ef4444', backgroundColor: 'transparent', visible: true, triggers: [], visibilityCondition: null, rotation: 0 } },
+    SCADA_PIPE: {
+        id: 'SCADA_PIPE',
+        label: 'SCADA Pipe',
+        icon: MoveHorizontal,
+        defaultSize: { w: 200, h: 24 },
+        defaultProps: {
+            direction: 'horizontal',
+            fluidColor: '#06b6d4',
+            flowSpeed: 2,
+            isActive: true,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_VALVE: {
+        id: 'SCADA_VALVE',
+        label: 'SCADA Valve',
+        icon: Settings2,
+        defaultSize: { w: 60, h: 60 },
+        defaultProps: {
+            targetVariable: '',
+            colorOpen: '#22c55e',
+            colorClosed: '#ef4444',
+            valveState: 'CLOSED',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_TANK: {
+        id: 'SCADA_TANK',
+        label: 'SCADA Tank',
+        icon: Database,
+        defaultSize: { w: 120, h: 200 },
+        defaultProps: {
+            targetVariable: '',
+            capacity: 100,
+            unit: 'L',
+            fluidColor: '#3b82f6',
+            showLabel: true,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_PUMP: {
+        id: 'SCADA_PUMP',
+        label: 'SCADA Pump',
+        icon: Settings2,
+        defaultSize: { w: 80, h: 80 },
+        defaultProps: {
+            targetVariable: '',
+            colorRunning: '#22c55e',
+            colorStopped: '#ef4444',
+            colorFault: '#eab308',
+            pumpState: 'STOPPED',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_ALARM_SUMMARY: {
+        id: 'SCADA_ALARM_SUMMARY',
+        label: 'Alarm Summary',
+        icon: Bell,
+        defaultSize: { w: 600, h: 220 },
+        defaultProps: {
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    // ===== BATCH 1: PROCESS EQUIPMENT =====
+    SCADA_MOTOR: {
+        id: 'SCADA_MOTOR',
+        label: 'Motor',
+        icon: Cog,
+        defaultSize: { w: 100, h: 100 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'M-101',
+            motorState: 'STOPPED', // STOPPED | RUNNING | FAULT
+            rpm: 0,
+            current: 0,
+            colorRunning: '#22c55e',
+            colorStopped: '#64748b',
+            colorFault: '#ef4444',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_CONVEYOR: {
+        id: 'SCADA_CONVEYOR',
+        label: 'Conveyor',
+        icon: ArrowRight,
+        defaultSize: { w: 300, h: 80 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'CONV-101',
+            conveyorState: 'STOPPED',
+            speed: 0,
+            direction: 'RIGHT',
+            beltColor: '#475569',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_MIXER: {
+        id: 'SCADA_MIXER',
+        label: 'Mixer / Agitator',
+        icon: RotateCw,
+        defaultSize: { w: 120, h: 160 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'MIX-101',
+            mixerState: 'STOPPED',
+            rpm: 0,
+            colorRunning: '#22c55e',
+            colorStopped: '#64748b',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_HEAT_EXCHANGER: {
+        id: 'SCADA_HEAT_EXCHANGER',
+        label: 'Heat Exchanger',
+        icon: ArrowDownUp,
+        defaultSize: { w: 140, h: 100 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'HX-101',
+            tempIn: 25,
+            tempOut: 60,
+            unit: '°C',
+            isActive: true,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_BOILER: {
+        id: 'SCADA_BOILER',
+        label: 'Boiler',
+        icon: Flame,
+        defaultSize: { w: 140, h: 180 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'BLR-101',
+            boilerState: 'OFF',
+            pressure: 0,
+            temperature: 25,
+            flameOn: false,
+            unit: 'bar',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_COMPRESSOR: {
+        id: 'SCADA_COMPRESSOR',
+        label: 'Compressor',
+        icon: Wind,
+        defaultSize: { w: 120, h: 120 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'CMP-101',
+            compressorState: 'STOPPED',
+            pressureIn: 0,
+            pressureOut: 0,
+            unit: 'bar',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_CHILLER: {
+        id: 'SCADA_CHILLER',
+        label: 'Chiller',
+        icon: Snowflake,
+        defaultSize: { w: 160, h: 140 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'CHL-101',
+            chillerState: 'OFF',
+            tempSetpoint: 7,
+            tempActual: 12,
+            unit: '°C',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_FURNACE: {
+        id: 'SCADA_FURNACE',
+        label: 'Furnace',
+        icon: Flame,
+        defaultSize: { w: 160, h: 160 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'FUR-101',
+            furnaceState: 'OFF',
+            temperature: 25,
+            setpoint: 800,
+            unit: '°C',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_SILO: {
+        id: 'SCADA_SILO',
+        label: 'Silo / Hopper',
+        icon: Container,
+        defaultSize: { w: 100, h: 200 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'SILO-101',
+            level: 65,
+            capacity: 100,
+            unit: 'ton',
+            materialColor: '#d97706',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    // ===== BATCH 2: INSTRUMENTATION =====
+    SCADA_PRESSURE_GAUGE: {
+        id: 'SCADA_PRESSURE_GAUGE',
+        label: 'Pressure Gauge',
+        icon: Gauge,
+        defaultSize: { w: 140, h: 140 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'PT-101',
+            value: 0,
+            min: 0,
+            max: 10,
+            unit: 'bar',
+            alarmHigh: 8,
+            alarmLow: 1,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_TEMP_INDICATOR: {
+        id: 'SCADA_TEMP_INDICATOR',
+        label: 'Temperature Indicator',
+        icon: Thermometer,
+        defaultSize: { w: 80, h: 200 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'TI-101',
+            value: 25,
+            min: 0,
+            max: 200,
+            unit: '°C',
+            alarmHigh: 150,
+            alarmLow: 5,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_FLOW_METER: {
+        id: 'SCADA_FLOW_METER',
+        label: 'Flow Meter',
+        icon: Waves,
+        defaultSize: { w: 140, h: 100 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'FT-101',
+            value: 0,
+            min: 0,
+            max: 500,
+            unit: 'L/min',
+            totalFlow: 0,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_LEVEL_INDICATOR: {
+        id: 'SCADA_LEVEL_INDICATOR',
+        label: 'Level Indicator',
+        icon: BarChart,
+        defaultSize: { w: 80, h: 200 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'LI-101',
+            value: 50,
+            min: 0,
+            max: 100,
+            unit: '%',
+            alarmHigh: 90,
+            alarmLow: 10,
+            fluidColor: '#3b82f6',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_PH_METER: {
+        id: 'SCADA_PH_METER',
+        label: 'pH Meter',
+        icon: Droplets,
+        defaultSize: { w: 140, h: 140 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'AE-101',
+            value: 7.0,
+            min: 0,
+            max: 14,
+            unit: 'pH',
+            alarmHigh: 10,
+            alarmLow: 4,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_CURRENT_METER: {
+        id: 'SCADA_CURRENT_METER',
+        label: 'Current Meter (A)',
+        icon: Zap,
+        defaultSize: { w: 140, h: 100 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'CT-101',
+            value: 0,
+            min: 0,
+            max: 100,
+            unit: 'A',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_VOLTAGE_METER: {
+        id: 'SCADA_VOLTAGE_METER',
+        label: 'Voltage Meter (V)',
+        icon: Zap,
+        defaultSize: { w: 140, h: 100 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'VT-101',
+            value: 0,
+            min: 0,
+            max: 480,
+            unit: 'V',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_POWER_METER: {
+        id: 'SCADA_POWER_METER',
+        label: 'Power Meter (kW)',
+        icon: Activity,
+        defaultSize: { w: 160, h: 120 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'PM-101',
+            value: 0,
+            min: 0,
+            max: 500,
+            unit: 'kW',
+            voltage: 0,
+            current: 0,
+            powerFactor: 0.85,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    // ===== BATCH 3: DISPLAY =====
+    SCADA_DIGITAL_DISPLAY: {
+        id: 'SCADA_DIGITAL_DISPLAY',
+        label: 'Digital Display',
+        icon: Binary,
+        defaultSize: { w: 200, h: 80 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'DI-101',
+            value: '0000',
+            decimals: 1,
+            unit: '',
+            color: '#22c55e',
+            backgroundColor: '#0f172a',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_NUMERIC_INPUT: {
+        id: 'SCADA_NUMERIC_INPUT',
+        label: 'Numeric Input',
+        icon: Hash,
+        defaultSize: { w: 180, h: 70 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'Input',
+            value: 0,
+            min: 0,
+            max: 100,
+            step: 1,
+            unit: '',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_SETPOINT_INPUT: {
+        id: 'SCADA_SETPOINT_INPUT',
+        label: 'Setpoint Input',
+        icon: Target,
+        defaultSize: { w: 200, h: 100 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'SP',
+            value: 50,
+            min: 0,
+            max: 100,
+            unit: '',
+            hiLimit: 90,
+            loLimit: 10,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_TREND: {
+        id: 'SCADA_TREND',
+        label: 'Trend Chart',
+        icon: TrendingUp,
+        defaultSize: { w: 400, h: 200 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'Real-Time Trend',
+            lineColor: '#3b82f6',
+            gridColor: '#334155',
+            timeRange: 60,
+            min: 0,
+            max: 100,
+            unit: '',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_HISTORICAL_TREND: {
+        id: 'SCADA_HISTORICAL_TREND',
+        label: 'Historical Trend',
+        icon: AreaChart,
+        defaultSize: { w: 500, h: 250 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'Historical Trend',
+            lineColor: '#8b5cf6',
+            gridColor: '#334155',
+            timeRange: 3600,
+            min: 0,
+            max: 100,
+            unit: '',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_BAR_GRAPH: {
+        id: 'SCADA_BAR_GRAPH',
+        label: 'Bar Graph',
+        icon: BarChart,
+        defaultSize: { w: 300, h: 200 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'Bar Graph',
+            barColor: '#3b82f6',
+            barCount: 5,
+            max: 100,
+            unit: '',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_CIRCULAR_GAUGE: {
+        id: 'SCADA_CIRCULAR_GAUGE',
+        label: 'Circular Gauge',
+        icon: CircleDot,
+        defaultSize: { w: 160, h: 160 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'CG-101',
+            value: 0,
+            min: 0,
+            max: 100,
+            unit: '%',
+            arcColor: '#3b82f6',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_PROGRESS_BAR: {
+        id: 'SCADA_PROGRESS_BAR',
+        label: 'Progress Bar',
+        icon: Minus,
+        defaultSize: { w: 300, h: 50 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'Progress',
+            value: 0,
+            min: 0,
+            max: 100,
+            unit: '%',
+            barColor: '#22c55e',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_TANK_LEVEL: {
+        id: 'SCADA_TANK_LEVEL',
+        label: 'Tank Level Gauge',
+        icon: Database,
+        defaultSize: { w: 100, h: 220 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'TK-101',
+            level: 50,
+            capacity: 100,
+            unit: 'L',
+            fluidColor: '#06b6d4',
+            alarmHigh: 90,
+            alarmLow: 10,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    // ===== BATCH 4: ALARM & EVENT =====
+    SCADA_ALARM_BANNER: {
+        id: 'SCADA_ALARM_BANNER',
+        label: 'Alarm Banner',
+        icon: Bell,
+        defaultSize: { w: 500, h: 50 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'Alarm Banner',
+            scrollSpeed: 2,
+            backgroundColor: '#0f172a',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_ALARM_HISTORY: {
+        id: 'SCADA_ALARM_HISTORY',
+        label: 'Alarm History',
+        icon: ListOrdered,
+        defaultSize: { w: 600, h: 280 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'Alarm History Log',
+            maxEntries: 100,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_EVENT_LOG: {
+        id: 'SCADA_EVENT_LOG',
+        label: 'Event Log',
+        icon: FileText,
+        defaultSize: { w: 500, h: 250 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'System Event Log',
+            maxEntries: 200,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_ALARM_ACK: {
+        id: 'SCADA_ALARM_ACK',
+        label: 'Acknowledge Alarm',
+        icon: CheckCircle2,
+        defaultSize: { w: 180, h: 60 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'ACK ALARM',
+            color: '#f59e0b',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    // ===== BATCH 5: CONTROL =====
+    SCADA_BTN_START: {
+        id: 'SCADA_BTN_START',
+        label: 'Start Button',
+        icon: PlaySquare,
+        defaultSize: { w: 120, h: 60 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'START',
+            color: '#22c55e',
+            state: false,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_BTN_STOP: {
+        id: 'SCADA_BTN_STOP',
+        label: 'Stop Button',
+        icon: StopCircle,
+        defaultSize: { w: 120, h: 60 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'STOP',
+            color: '#ef4444',
+            state: false,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_BTN_RESET: {
+        id: 'SCADA_BTN_RESET',
+        label: 'Reset Button',
+        icon: RotateCcw,
+        defaultSize: { w: 120, h: 60 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'RESET',
+            color: '#3b82f6',
+            state: false,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_AUTO_MANUAL: {
+        id: 'SCADA_AUTO_MANUAL',
+        label: 'Auto/Manual Selector',
+        icon: ToggleLeft,
+        defaultSize: { w: 160, h: 70 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'Mode',
+            mode: 'MANUAL',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_MODE_SELECTOR: {
+        id: 'SCADA_MODE_SELECTOR',
+        label: 'Mode Selector',
+        icon: Settings,
+        defaultSize: { w: 180, h: 80 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'Mode Select',
+            modes: ['OFF', 'MANUAL', 'AUTO', 'SERVICE'],
+            selectedMode: 'OFF',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_TOGGLE_SWITCH: {
+        id: 'SCADA_TOGGLE_SWITCH',
+        label: 'Toggle Switch',
+        icon: ToggleRight,
+        defaultSize: { w: 140, h: 60 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'Switch',
+            state: false,
+            onLabel: 'ON',
+            offLabel: 'OFF',
+            onColor: '#22c55e',
+            offColor: '#64748b',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_PLC_STATUS: {
+        id: 'SCADA_PLC_STATUS',
+        label: 'PLC Status',
+        icon: Cpu,
+        defaultSize: { w: 200, h: 100 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'PLC-01',
+            status: 'ONLINE',
+            scanTime: 10,
+            ipAddress: '192.168.1.1',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    // ===== BATCH 6: INDUSTRY 4.0 / MES =====
+    SCADA_OEE: {
+        id: 'SCADA_OEE',
+        label: 'OEE Widget',
+        icon: PieChart,
+        defaultSize: { w: 300, h: 200 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'OEE Monitor',
+            availability: 95,
+            performance: 88,
+            quality: 99,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_PROD_COUNTER: {
+        id: 'SCADA_PROD_COUNTER',
+        label: 'Production Counter',
+        icon: Hash,
+        defaultSize: { w: 220, h: 120 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'Production Count',
+            count: 0,
+            target: 1000,
+            unit: 'pcs',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_DOWNTIME: {
+        id: 'SCADA_DOWNTIME',
+        label: 'Downtime Monitor',
+        icon: Clock,
+        defaultSize: { w: 280, h: 160 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'Downtime Tracker',
+            totalDowntime: 0,
+            plannedDowntime: 0,
+            unplannedDowntime: 0,
+            unit: 'min',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_MACHINE_STATUS: {
+        id: 'SCADA_MACHINE_STATUS',
+        label: 'Machine Status',
+        icon: Factory,
+        defaultSize: { w: 200, h: 120 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'Machine-01',
+            status: 'IDLE',
+            runTime: 0,
+            idleTime: 0,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_SPC_CHART: {
+        id: 'SCADA_SPC_CHART',
+        label: 'SPC Chart',
+        icon: LineChart,
+        defaultSize: { w: 450, h: 250 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'SPC X-Bar Chart',
+            ucl: 75,
+            lcl: 25,
+            cl: 50,
+            unit: '',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_ENERGY_MONITOR: {
+        id: 'SCADA_ENERGY_MONITOR',
+        label: 'Energy Monitor',
+        icon: Zap,
+        defaultSize: { w: 280, h: 180 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'Energy Consumption',
+            currentPower: 0,
+            dailyEnergy: 0,
+            monthlyEnergy: 0,
+            unit: 'kWh',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    SCADA_BATCH_TRACKER: {
+        id: 'SCADA_BATCH_TRACKER',
+        label: 'Batch Tracker',
+        icon: Package,
+        defaultSize: { w: 350, h: 180 },
+        defaultProps: {
+            targetVariable: '',
+            label: 'Batch Production',
+            batchId: 'BATCH-001',
+            product: 'Product A',
+            targetQty: 1000,
+            actualQty: 0,
+            status: 'IN_PROGRESS',
+            startTime: '',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    }
 };
 
 
@@ -2281,6 +3184,40 @@ const CATEGORIZED_COMPONENTS = {
         icon: Ruler,
         color: '#f43f5e',
         types: ['VISION_MEASUREMENT', 'MEASUREMENT_WIDGET', 'GAUGE', 'DIAL_GAUGE', 'GAUGE_CIRCULAR', 'OUTSIDE_MICROMETER', 'INSIDE_MICROMETER', 'DIAL_HEIGHT_GAUGE', 'DEPTH_GAUGE', 'ROUGHNESS_TESTER', 'TORQUE_WRENCH', 'WEIGHING_SCALE']
+    },
+    SCADA: {
+        label: 'SCADA HMI',
+        icon: Activity,
+        color: '#06b6d4',
+        types: [
+            // Process Equipment
+            'SCADA_PIPE', 'SCADA_VALVE', 'SCADA_TANK', 'SCADA_PUMP',
+            'SCADA_MOTOR', 'SCADA_CONVEYOR', 'SCADA_MIXER', 'SCADA_HEAT_EXCHANGER',
+            'SCADA_BOILER', 'SCADA_COMPRESSOR', 'SCADA_CHILLER', 'SCADA_FURNACE', 'SCADA_SILO',
+            // Instruments
+            'SCADA_PRESSURE_GAUGE', 'SCADA_TEMP_INDICATOR', 'SCADA_FLOW_METER',
+            'SCADA_LEVEL_INDICATOR', 'SCADA_PH_METER', 'SCADA_CURRENT_METER',
+            'SCADA_VOLTAGE_METER', 'SCADA_POWER_METER',
+            // Displays & Inputs
+            'SCADA_DIGITAL_DISPLAY', 'SCADA_NUMERIC_INPUT', 'SCADA_SETPOINT_INPUT',
+            'SCADA_TREND', 'SCADA_HISTORICAL_TREND', 'SCADA_BAR_GRAPH',
+            'SCADA_CIRCULAR_GAUGE', 'SCADA_PROGRESS_BAR', 'SCADA_TANK_LEVEL',
+            // Controls
+            'SCADA_BTN_START', 'SCADA_BTN_STOP', 'SCADA_BTN_RESET',
+            'SCADA_AUTO_MANUAL', 'SCADA_MODE_SELECTOR', 'SCADA_TOGGLE_SWITCH', 'SCADA_PLC_STATUS'
+        ]
+    },
+    SCADA_MES: {
+        label: 'MES & Alarms',
+        icon: Factory,
+        color: '#a855f7',
+        types: [
+            // Alarms & Logs
+            'SCADA_ALARM_SUMMARY', 'SCADA_ALARM_BANNER', 'SCADA_ALARM_HISTORY', 'SCADA_EVENT_LOG', 'SCADA_ALARM_ACK',
+            // MES Metrics
+            'SCADA_OEE', 'SCADA_PROD_COUNTER', 'SCADA_DOWNTIME',
+            'SCADA_MACHINE_STATUS', 'SCADA_SPC_CHART', 'SCADA_ENERGY_MONITOR', 'SCADA_BATCH_TRACKER'
+        ]
     },
     ENGINE: {
         label: 'Engine',
@@ -12571,11 +13508,9 @@ const AppBuilder = () => {
             const draggedComps = comps.filter(c => dragState.ids.includes(c.id));
 
             // Clamp drag movement so dragged widgets always stay inside canvas bounds
-            const canvasEl = document.querySelector('.canvas-drawing-area');
-            if (canvasEl && draggedComps.length > 0) {
-                const rect = canvasEl.getBoundingClientRect();
-                const canvasWidth = rect.width / zoomScale;
-                const canvasHeight = rect.height / zoomScale;
+            if (draggedComps.length > 0) {
+                const canvasWidth = canvasBaseSize.width;
+                const canvasHeight = canvasBaseSize.height;
                 const getCompVisualSize = (comp) => {
                     const parsedW = Number(comp?.w);
                     const parsedH = Number(comp?.h);
@@ -12691,15 +13626,12 @@ const AppBuilder = () => {
 
             const comps = currentStepId === 'BASE' ? baseComponents : (currentStep?.components || []);
             const targetComp = comps.find(c => c.id === resizeState.id);
-            const canvasEl = document.querySelector('.canvas-drawing-area');
-
             let nextW = Math.max(GRID_SIZE, resizeState.initialW + dx);
             let nextH = Math.max(GRID_SIZE, resizeState.initialH + dy);
 
-            if (targetComp && canvasEl) {
-                const rect = canvasEl.getBoundingClientRect();
-                const canvasWidth = rect.width / zoomScale;
-                const canvasHeight = rect.height / zoomScale;
+            if (targetComp) {
+                const canvasWidth = canvasBaseSize.width;
+                const canvasHeight = canvasBaseSize.height;
                 const designPadding = 0;
 
                 const maxContentW = Math.max(1, canvasWidth - (targetComp.x || 0) - designPadding);
@@ -13507,6 +14439,325 @@ const AppBuilder = () => {
                     </div>
                 );
             }
+            case 'SCADA_PIPE': {
+                const dir = comp.props.direction || 'horizontal';
+                const isH = dir === 'horizontal';
+                const fluidColor = comp.props.fluidColor || '#06b6d4';
+                const flowSpeed = Number(comp.props.flowSpeed) || 2;
+                const isActive = comp.props.isActive !== false;
+                const flowAnimName = `flow-dash-${comp.id}`;
+                return (
+                    <div style={{ width: '100%', height: '100%', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                        <style>{`
+                            @keyframes ${flowAnimName} {
+                                to {
+                                    stroke-dashoffset: ${isH ? '-20' : '20'};
+                                }
+                            }
+                        `}</style>
+                        <svg width="100%" height="100%" style={{ display: 'block' }}>
+                            {isH ? (
+                                <rect x="0" y="2" width="100%" height="20" rx="3" fill="#475569" stroke="#334155" strokeWidth="1" />
+                            ) : (
+                                <rect x="2" y="0" width="20" height="100%" rx="3" fill="#475569" stroke="#334155" strokeWidth="1" />
+                            )}
+                            {isH ? (
+                                <line x1="0" y1="12" x2="100%" y2="12" stroke={fluidColor} strokeWidth="6" strokeDasharray="10,10" style={{ animation: isActive ? `${flowAnimName} ${6 - flowSpeed}s linear infinite` : 'none' }} />
+                            ) : (
+                                <line x1="12" y1="0" x2="12" y2="100%" stroke={fluidColor} strokeWidth="6" strokeDasharray="10,10" style={{ animation: isActive ? `${flowAnimName} ${6 - flowSpeed}s linear infinite` : 'none' }} />
+                            )}
+                            {isH ? (
+                                <rect x="0" y="4" width="100%" height="4" fill="rgba(255,255,255,0.15)" />
+                            ) : (
+                                <rect x="4" y="0" width="4" height="100%" fill="rgba(255,255,255,0.15)" />
+                            )}
+                        </svg>
+                    </div>
+                );
+            }
+            case 'SCADA_VALVE': {
+                const state = comp.props.valveState || 'CLOSED';
+                const openColor = comp.props.colorOpen || '#22c55e';
+                const closedColor = comp.props.colorClosed || '#ef4444';
+                const isValveOpen = state === 'OPEN';
+                const valveColor = isValveOpen ? openColor : closedColor;
+                return (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', userSelect: 'none' }}>
+                        <svg viewBox="0 0 60 60" width="100%" height="100%">
+                            <rect x="5" y="20" width="4" height="20" rx="1" fill="#475569" />
+                            <rect x="51" y="20" width="4" height="20" rx="1" fill="#475569" />
+                            <line x1="9" y1="30" x2="51" y2="30" stroke="#475569" strokeWidth="6" />
+                            <polygon points="10,20 10,40 30,30" fill={valveColor} stroke="#334155" strokeWidth="1.5" />
+                            <polygon points="50,20 50,40 30,30" fill={valveColor} stroke="#334155" strokeWidth="1.5" />
+                            <circle cx="30" cy="30" r="6" fill="#64748b" stroke="#334155" strokeWidth="1.5" />
+                            <line x1="30" y1="24" x2="30" y2="10" stroke="#64748b" strokeWidth="4" />
+                            <ellipse cx="30" cy="8" rx="12" ry="4" fill={isValveOpen ? openColor : '#64748b'} stroke="#334155" strokeWidth="1.5" />
+                        </svg>
+                        <span style={{ fontSize: '0.65rem', fontWeight: 800, color: valveColor, marginTop: '-2px', textTransform: 'uppercase' }}>
+                            {state}
+                        </span>
+                    </div>
+                );
+            }
+            case 'SCADA_TANK': {
+                const capacity = comp.props.capacity || 100;
+                const unit = comp.props.unit || 'L';
+                const fluidColor = comp.props.fluidColor || '#3b82f6';
+                return (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', padding: '4px', backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px', overflow: 'hidden' }}>
+                        <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textAlign: 'center', marginBottom: '4px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                            {comp.props.label || 'Storage Tank'}
+                        </div>
+                        <div style={{ flex: 1, position: 'relative', display: 'flex', justifyContent: 'center' }}>
+                            <div style={{
+                                width: '85%',
+                                height: '100%',
+                                border: '2px solid #64748b',
+                                borderRadius: '8px 8px 12px 12px',
+                                position: 'relative',
+                                overflow: 'hidden',
+                                backgroundColor: '#0f172a'
+                            }}>
+                                <div style={{
+                                    position: 'absolute',
+                                    bottom: 0,
+                                    left: 0,
+                                    right: 0,
+                                    height: '50%',
+                                    backgroundColor: fluidColor,
+                                    opacity: 0.8
+                                }}>
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        height: '4px',
+                                        background: 'rgba(255,255,255,0.3)',
+                                        borderRadius: '50%'
+                                    }} />
+                                </div>
+                                <div style={{ position: 'absolute', top: 0, bottom: 0, left: '5px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', fontSize: '0.5rem', color: 'rgba(255,255,255,0.35)', fontWeight: 'bold', pointerEvents: 'none' }}>
+                                    <div>100%</div>
+                                    <div>75%</div>
+                                    <div>50%</div>
+                                    <div>25%</div>
+                                    <div>0%</div>
+                                </div>
+                                {comp.props.showLabel !== false && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: '50%',
+                                        left: '50%',
+                                        transform: 'translate(-50%, -50%)',
+                                        backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                                        padding: '2px 6px',
+                                        borderRadius: '4px',
+                                        border: '1px solid #334155',
+                                        color: '#f8fafc',
+                                        fontSize: '0.65rem',
+                                        fontWeight: 900,
+                                        textAlign: 'center',
+                                        pointerEvents: 'none'
+                                    }}>
+                                        {50} {unit}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+            case 'SCADA_PUMP': {
+                const status = comp.props.pumpState || 'STOPPED';
+                const isRunning = status === 'RUNNING';
+                const runColor = comp.props.colorRunning || '#22c55e';
+                const stopColor = comp.props.colorStopped || '#ef4444';
+                const faultColor = comp.props.colorFault || '#eab308';
+                
+                let pumpColor = stopColor;
+                if (status === 'RUNNING') pumpColor = runColor;
+                else if (status === 'FAULT') pumpColor = faultColor;
+
+                const spinAnim = `pump-spin-${comp.id}`;
+
+                return (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                        <style>{`
+                            @keyframes ${spinAnim} {
+                                from { transform: rotate(0deg); }
+                                to { transform: rotate(360deg); }
+                            }
+                        `}</style>
+                        <svg viewBox="0 0 60 60" width="100%" height="100%">
+                            <rect x="10" y="52" width="40" height="6" rx="1" fill="#475569" />
+                            <rect x="22" y="46" width="16" height="6" fill="#334155" />
+                            <rect x="34" y="2" width="12" height="10" fill="#475569" stroke="#334155" strokeWidth="1" />
+                            <path d="M 34 12 L 46 12 L 44 22 L 36 22 Z" fill="#334155" />
+                            <circle cx="30" cy="32" r="18" fill={pumpColor} stroke="#1e293b" strokeWidth="2.5" />
+                            <circle cx="30" cy="32" r="4" fill="#0f172a" />
+                            <g style={{ transformOrigin: '30px 32px', animation: isRunning ? `${spinAnim} 1.5s linear infinite` : 'none' }}>
+                                <line x1="30" y1="16" x2="30" y2="48" stroke="#f1f5f9" strokeWidth="2.5" />
+                                <line x1="14" y1="32" x2="46" y2="32" stroke="#f1f5f9" strokeWidth="2.5" />
+                                <line x1="19" y1="21" x2="41" y2="43" stroke="#f1f5f9" strokeWidth="1.5" />
+                                <line x1="19" y1="43" x2="41" y2="21" stroke="#f1f5f9" strokeWidth="1.5" />
+                            </g>
+                        </svg>
+                        <span style={{ fontSize: '0.6rem', fontWeight: 900, color: pumpColor, marginTop: '-2px', textTransform: 'uppercase' }}>
+                            {status}
+                        </span>
+                    </div>
+                );
+            }
+            case 'SCADA_ALARM_SUMMARY': {
+                const mockAlarms = [
+                    { time: '10:20:15', source: 'LIC-101', msg: 'Water Level High Limit Exceeded', severity: 'CRITICAL', status: 'UNACK' },
+                    { time: '10:18:42', source: 'VALVE-202', msg: 'Valve Fail to Open Feedback', severity: 'WARNING', status: 'ACK' },
+                    { time: '09:45:00', source: 'SYS-MON', msg: 'PLC Communications Restored', severity: 'INFO', status: 'CLEARED' }
+                ];
+                return (
+                    <div style={{
+                        width: '100%',
+                        height: '100%',
+                        backgroundColor: '#0f172a',
+                        border: '2px solid #334155',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        overflow: 'hidden',
+                        fontSize: '0.7rem',
+                        color: '#f8fafc',
+                        boxSizing: 'border-box'
+                    }}>
+                        <div style={{
+                            backgroundColor: '#1e293b',
+                            padding: '6px 12px',
+                            borderBottom: '1px solid #334155',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            fontWeight: 'bold'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ color: '#ef4444' }}>⚠️</span>
+                                <span>ALARM SUMMARY ACTIVE VIEW</span>
+                            </div>
+                            <button style={{
+                                backgroundColor: '#dc2626',
+                                border: 'none',
+                                borderRadius: '4px',
+                                color: '#ffffff',
+                                fontSize: '0.6rem',
+                                fontWeight: 900,
+                                padding: '2px 8px',
+                                cursor: 'default'
+                            }}>
+                                ACK ALL
+                            </button>
+                        </div>
+                        
+                        <div style={{ flex: 1, overflowY: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                <thead>
+                                    <tr style={{ backgroundColor: '#1e293b', color: '#94a3b8', fontSize: '0.6rem', textTransform: 'uppercase', borderBottom: '1px solid #334155' }}>
+                                        <th style={{ padding: '6px' }}>Time</th>
+                                        <th style={{ padding: '6px' }}>Source</th>
+                                        <th style={{ padding: '6px' }}>Message</th>
+                                        <th style={{ padding: '6px' }}>Severity</th>
+                                        <th style={{ padding: '6px' }}>Status</th>
+                                        <th style={{ padding: '6px' }}>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {mockAlarms.map((a, idx) => {
+                                        let rowBg = 'transparent';
+                                        let textColor = '#f8fafc';
+                                        if (a.severity === 'CRITICAL') { rowBg = 'rgba(239, 68, 68, 0.15)'; textColor = '#fca5a5'; }
+                                        else if (a.severity === 'WARNING') { rowBg = 'rgba(234, 179, 8, 0.1)'; textColor = '#fef08a'; }
+                                        else { rowBg = 'rgba(59, 130, 246, 0.05)'; textColor = '#bfdbfe'; }
+
+                                        return (
+                                            <tr key={idx} style={{ backgroundColor: rowBg, color: textColor, borderBottom: '1px solid #1e293b' }}>
+                                                <td style={{ padding: '6px', fontWeight: 'bold' }}>{a.time}</td>
+                                                <td style={{ padding: '6px' }}>{a.source}</td>
+                                                <td style={{ padding: '6px' }}>{a.msg}</td>
+                                                <td style={{ padding: '6px', fontSize: '0.6rem', fontWeight: 900 }}>
+                                                    <span style={{
+                                                        backgroundColor: a.severity === 'CRITICAL' ? '#ef4444' : (a.severity === 'WARNING' ? '#eab308' : '#3b82f6'),
+                                                        color: '#0f172a',
+                                                        padding: '1px 4px',
+                                                        borderRadius: '3px'
+                                                    }}>{a.severity}</span>
+                                                </td>
+                                                <td style={{ padding: '6px' }}>{a.status}</td>
+                                                <td style={{ padding: '6px' }}>
+                                                    <button disabled style={{ padding: '2px 6px', fontSize: '0.55rem', border: '1px solid currentColor', background: 'transparent', color: textColor, borderRadius: '3px', opacity: 0.5 }}>ACK</button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                );
+            }
+            case 'SCADA_MOTOR':
+            case 'SCADA_CONVEYOR':
+            case 'SCADA_MIXER':
+            case 'SCADA_HEAT_EXCHANGER':
+            case 'SCADA_BOILER':
+            case 'SCADA_COMPRESSOR':
+            case 'SCADA_CHILLER':
+            case 'SCADA_FURNACE':
+            case 'SCADA_SILO':
+            case 'SCADA_PRESSURE_GAUGE':
+            case 'SCADA_TEMP_INDICATOR':
+            case 'SCADA_FLOW_METER':
+            case 'SCADA_LEVEL_INDICATOR':
+            case 'SCADA_PH_METER':
+            case 'SCADA_CURRENT_METER':
+            case 'SCADA_VOLTAGE_METER':
+            case 'SCADA_POWER_METER':
+            case 'SCADA_DIGITAL_DISPLAY':
+            case 'SCADA_NUMERIC_INPUT':
+            case 'SCADA_SETPOINT_INPUT':
+            case 'SCADA_TREND':
+            case 'SCADA_HISTORICAL_TREND':
+            case 'SCADA_BAR_GRAPH':
+            case 'SCADA_CIRCULAR_GAUGE':
+            case 'SCADA_PROGRESS_BAR':
+            case 'SCADA_TANK_LEVEL':
+            case 'SCADA_ALARM_BANNER':
+            case 'SCADA_ALARM_HISTORY':
+            case 'SCADA_EVENT_LOG':
+            case 'SCADA_ALARM_ACK':
+            case 'SCADA_BTN_START':
+            case 'SCADA_BTN_STOP':
+            case 'SCADA_BTN_RESET':
+            case 'SCADA_AUTO_MANUAL':
+            case 'SCADA_MODE_SELECTOR':
+            case 'SCADA_TOGGLE_SWITCH':
+            case 'SCADA_PLC_STATUS':
+            case 'SCADA_OEE':
+            case 'SCADA_PROD_COUNTER':
+            case 'SCADA_DOWNTIME':
+            case 'SCADA_MACHINE_STATUS':
+            case 'SCADA_SPC_CHART':
+            case 'SCADA_ENERGY_MONITOR':
+            case 'SCADA_BATCH_TRACKER':
+                return (
+                    <ScadaWidgetRenderer
+                        comp={comp}
+                        viewMode={viewMode}
+                        previewFormValues={previewFormValues}
+                        setPreviewFormValues={setPreviewFormValues}
+                        resolveComponentDatasourceValue={resolveComponentDatasourceValue}
+                        syncInputDatasourceValue={syncInputDatasourceValue}
+                        onWidgetInteraction={onWidgetInteraction}
+                        safeRender={safeRender}
+                    />
+                );
             case 'TEXT':
             case 'LABEL':
             case 'HEADING':
@@ -21416,7 +22667,272 @@ const AppBuilder = () => {
                                                                         </div>
                                                                     )}
                                                                 </>
-                                                            )}
+                                                             )}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {selectedComp.type === 'SCADA_PIPE' && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '16px' }}>
+                                                        <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>SCADA Pipe Config</label>
+                                                            
+                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Direction</label>
+                                                                <select 
+                                                                    value={selectedComp.props.direction || 'horizontal'} 
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { direction: e.target.value })}
+                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }}
+                                                                >
+                                                                    <option value="horizontal">Horizontal</option>
+                                                                    <option value="vertical">Vertical</option>
+                                                                </select>
+                                                            </div>
+
+                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Fluid Color</label>
+                                                                <input 
+                                                                    type="color" 
+                                                                    value={selectedComp.props.fluidColor || '#06b6d4'} 
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { fluidColor: e.target.value })} 
+                                                                    style={{ width: '100%', height: '32px', padding: 0, border: 'none', borderRadius: '4px', cursor: 'pointer' }} 
+                                                                />
+                                                            </div>
+
+                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Flow Speed (1-5)</label>
+                                                                <input 
+                                                                    type="number" 
+                                                                    min="1" 
+                                                                    max="5"
+                                                                    value={selectedComp.props.flowSpeed !== undefined ? selectedComp.props.flowSpeed : 2} 
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { flowSpeed: Number(e.target.value) })}
+                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }}
+                                                                />
+                                                            </div>
+
+                                                            <div className="prop-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                <input 
+                                                                    type="checkbox"
+                                                                    id="pipe-active"
+                                                                    checked={selectedComp.props.isActive !== false} 
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { isActive: e.target.checked })} 
+                                                                    style={{ cursor: 'pointer' }}
+                                                                />
+                                                                <label htmlFor="pipe-active" style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', cursor: 'pointer' }}>Active Flow</label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {selectedComp.type === 'SCADA_VALVE' && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '16px' }}>
+                                                        <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Data Binding</label>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Target Variable (Boolean)</label>
+                                                                <select 
+                                                                    value={selectedComp.props.targetVariable || ''} 
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
+                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }}
+                                                                >
+                                                                    <option value="">-- Select Variable --</option>
+                                                                    {(appVariables || []).map(v => (
+                                                                        <option key={v.id || v.name} value={v.name}>{v.name}</option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                        </div>
+
+                                                        <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>SCADA Valve Config</label>
+                                                            
+                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Valve State Mode</label>
+                                                                <select 
+                                                                    value={selectedComp.props.valveState || 'CLOSED'} 
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { valveState: e.target.value })}
+                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }}
+                                                                >
+                                                                    <option value="OPEN">Open (Manual)</option>
+                                                                    <option value="CLOSED">Closed (Manual)</option>
+                                                                    <option value="AUTO">Auto (Follows Target Variable)</option>
+                                                                </select>
+                                                            </div>
+
+                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Open Color</label>
+                                                                <input 
+                                                                    type="color" 
+                                                                    value={selectedComp.props.colorOpen || '#22c55e'} 
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { colorOpen: e.target.value })} 
+                                                                    style={{ width: '100%', height: '32px', padding: 0, border: 'none', borderRadius: '4px', cursor: 'pointer' }} 
+                                                                />
+                                                            </div>
+
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Closed Color</label>
+                                                                <input 
+                                                                    type="color" 
+                                                                    value={selectedComp.props.colorClosed || '#ef4444'} 
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { colorClosed: e.target.value })} 
+                                                                    style={{ width: '100%', height: '32px', padding: 0, border: 'none', borderRadius: '4px', cursor: 'pointer' }} 
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {selectedComp.type === 'SCADA_TANK' && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '16px' }}>
+                                                        <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Data Binding</label>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Level Variable (Number)</label>
+                                                                <select 
+                                                                    value={selectedComp.props.targetVariable || ''} 
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
+                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }}
+                                                                >
+                                                                    <option value="">-- Select Variable --</option>
+                                                                    {(appVariables || []).map(v => (
+                                                                        <option key={v.id || v.name} value={v.name}>{v.name}</option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                        </div>
+
+                                                        <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>SCADA Tank Config</label>
+                                                            
+                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Label Title</label>
+                                                                <input 
+                                                                    value={selectedComp.props.label || ''} 
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })} 
+                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }} 
+                                                                />
+                                                            </div>
+
+                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Max Capacity</label>
+                                                                <input 
+                                                                    type="number"
+                                                                    value={selectedComp.props.capacity !== undefined ? selectedComp.props.capacity : 100} 
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { capacity: Number(e.target.value) || 1 })} 
+                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }} 
+                                                                />
+                                                            </div>
+
+                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Unit (e.g. L, %)</label>
+                                                                <input 
+                                                                    value={selectedComp.props.unit || 'L'} 
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { unit: e.target.value })} 
+                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }} 
+                                                                />
+                                                            </div>
+
+                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Fluid Color</label>
+                                                                <input 
+                                                                    type="color" 
+                                                                    value={selectedComp.props.fluidColor || '#3b82f6'} 
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { fluidColor: e.target.value })} 
+                                                                    style={{ width: '100%', height: '32px', padding: 0, border: 'none', borderRadius: '4px', cursor: 'pointer' }} 
+                                                                />
+                                                            </div>
+
+                                                            <div className="prop-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                <input 
+                                                                    type="checkbox"
+                                                                    id="tank-show-label"
+                                                                    checked={selectedComp.props.showLabel !== false} 
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { showLabel: e.target.checked })} 
+                                                                    style={{ cursor: 'pointer' }}
+                                                                />
+                                                                <label htmlFor="tank-show-label" style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', cursor: 'pointer' }}>Show Numerical Value</label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {selectedComp.type === 'SCADA_PUMP' && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '16px' }}>
+                                                        <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Data Binding</label>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Running Variable (Boolean)</label>
+                                                                <select 
+                                                                    value={selectedComp.props.targetVariable || ''} 
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
+                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }}
+                                                                >
+                                                                    <option value="">-- Select Variable --</option>
+                                                                    {(appVariables || []).map(v => (
+                                                                        <option key={v.id || v.name} value={v.name}>{v.name}</option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                        </div>
+
+                                                        <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>SCADA Pump Config</label>
+                                                            
+                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Pump State Mode</label>
+                                                                <select 
+                                                                    value={selectedComp.props.pumpState || 'STOPPED'} 
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { pumpState: e.target.value })}
+                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }}
+                                                                >
+                                                                    <option value="RUNNING">Running (Manual)</option>
+                                                                    <option value="STOPPED">Stopped (Manual)</option>
+                                                                    <option value="FAULT">Fault (Manual)</option>
+                                                                    <option value="AUTO">Auto (Follows Target Variable)</option>
+                                                                </select>
+                                                            </div>
+
+                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Running Color</label>
+                                                                <input 
+                                                                    type="color" 
+                                                                    value={selectedComp.props.colorRunning || '#22c55e'} 
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { colorRunning: e.target.value })} 
+                                                                    style={{ width: '100%', height: '32px', padding: 0, border: 'none', borderRadius: '4px', cursor: 'pointer' }} 
+                                                                />
+                                                            </div>
+
+                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Stopped Color</label>
+                                                                <input 
+                                                                    type="color" 
+                                                                    value={selectedComp.props.colorStopped || '#ef4444'} 
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { colorStopped: e.target.value })} 
+                                                                    style={{ width: '100%', height: '32px', padding: 0, border: 'none', borderRadius: '4px', cursor: 'pointer' }} 
+                                                                />
+                                                            </div>
+
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Fault Color</label>
+                                                                <input 
+                                                                    type="color" 
+                                                                    value={selectedComp.props.colorFault || '#eab308'} 
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { colorFault: e.target.value })} 
+                                                                    style={{ width: '100%', height: '32px', padding: 0, border: 'none', borderRadius: '4px', cursor: 'pointer' }} 
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {selectedComp.type === 'SCADA_ALARM_SUMMARY' && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '16px' }}>
+                                                        <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Alarm Config</label>
+                                                            <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                                                                Displays all active industrial alarms. Variables out of bounds will trigger dynamic alarms automatically.
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 )}

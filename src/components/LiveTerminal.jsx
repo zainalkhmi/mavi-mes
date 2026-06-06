@@ -130,6 +130,7 @@ import ChatWidget from './ChatWidget';
 import AnalysisWidget from './AnalysisWidget';
 import UnifiedScanner from './UnifiedScanner';
 import MobileBottomNav from './MobileBottomNav';
+import ScadaWidgetRenderer from './ScadaWidgets';
 import { listGlobalVariables, upsertGlobalVariable, subscribeToGlobalVariables } from '../utils/supabaseGlobalVars';
 import { validateVariable } from '../utils/validationEngine';
 import { getCurrentUser, getAllUsers, logout } from '../utils/auth';
@@ -3040,6 +3041,151 @@ const LiveTerminal = () => {
     }, 5000); // Poll OEE every 5s
     return () => clearInterval(interval);
   }, []);
+
+  // Modbus TCP Background Polling at Runtime
+  useEffect(() => {
+    let isMounted = true;
+    let activeIntervals = [];
+
+    const initConnectionAndPoll = async () => {
+      let tauriInvoke = null;
+      if (window.__TAURI_INTERNALS__) {
+        try {
+          const core = await import('@tauri-apps/api/core');
+          tauriInvoke = core.invoke;
+        } catch (e) {
+          console.warn('Failed to load Tauri core invoke:', e);
+        }
+      }
+
+      const savedControllers = localStorage.getItem('mavi_plc_controllers');
+      const savedTags = localStorage.getItem('mavi_plc_tags');
+      if (!savedControllers || !savedTags) return;
+
+      let parsedCtrls = [];
+      let parsedTags = [];
+      try {
+        parsedCtrls = JSON.parse(savedControllers);
+        parsedTags = JSON.parse(savedTags);
+      } catch (e) {
+        console.error('Failed to parse PLC configs:', e);
+        return;
+      }
+
+      // 1. If Tauri is available, connect and poll real Modbus
+      if (tauriInvoke) {
+        for (const ctrl of parsedCtrls) {
+          if (ctrl.type === 'MODBUS_TCP' && ctrl.status === 'connected') {
+            try {
+              await tauriInvoke('modbus_connect', {
+                id: ctrl.id,
+                ip: ctrl.ip,
+                port: parseInt(ctrl.port) || 502,
+                unitId: parseInt(ctrl.unitId) || 1
+              });
+            } catch (err) {
+              console.error(`Modbus connection failed on startup for ${ctrl.name}:`, err);
+            }
+
+            const intervalId = setInterval(async () => {
+              if (!isMounted) return;
+              const ctrlTags = parsedTags.filter(t => t.controllerId === ctrl.id);
+              let tagUpdates = false;
+
+              for (const tag of ctrlTags) {
+                let addr = parseInt(tag.address);
+                if (isNaN(addr)) continue;
+
+                let offset = addr;
+                if (tag.regType === 'COIL') offset = addr - 1;
+                else if (tag.regType === 'DISCRETE_INPUT') offset = addr - 10001;
+                else if (tag.regType === 'INPUT_REGISTER') offset = addr - 30001;
+                else if (tag.regType === 'HOLDING_REGISTER') offset = addr - 40001;
+                if (offset < 0) offset = 0;
+
+                try {
+                  const res = await tauriInvoke('modbus_read', {
+                    id: ctrl.id,
+                    regType: tag.regType,
+                    address: offset,
+                    quantity: 1
+                  });
+
+                  if (Array.isArray(res) && res.length > 0 && isMounted) {
+                    const rawVal = res[0];
+                    let scaledVal = rawVal;
+                    
+                    if (tag.dataType === 'BOOLEAN') {
+                      scaledVal = rawVal !== 0 ? 'true' : 'false';
+                    } else if (tag.dataType === 'FLOAT') {
+                      scaledVal = (rawVal * (tag.multiplier || 1)).toFixed(2);
+                    } else {
+                      scaledVal = String(Math.round(rawVal * (tag.multiplier || 1)));
+                    }
+
+                    parsedTags = parsedTags.map(t => t.id === tag.id ? { ...t, value: String(scaledVal) } : t);
+                    tagUpdates = true;
+
+                    setAppVariables(prev => prev.map(v => v.name === tag.name ? { ...v, value: String(scaledVal) } : v));
+                  }
+                } catch (err) {
+                  console.error(`Failed to poll register ${tag.address} for ${tag.name}:`, err);
+                }
+              }
+
+              if (tagUpdates && isMounted) {
+                localStorage.setItem('mavi_plc_tags', JSON.stringify(parsedTags));
+              }
+            }, ctrl.pollingInterval || 2000);
+
+            activeIntervals.push(intervalId);
+          }
+        }
+      } else {
+        // 2. Simulation mode when running in browser web-preview
+        const intervalId = setInterval(() => {
+          if (!isMounted) return;
+          let tagUpdates = false;
+
+          parsedTags = parsedTags.map(tag => {
+            const ctrl = parsedCtrls.find(c => c.id === tag.controllerId);
+            if (ctrl && ctrl.status !== 'connected') return tag;
+
+            let newVal = tag.value;
+            if (tag.dataType === 'BOOLEAN') {
+              newVal = Math.random() > 0.9 ? (tag.value === 'true' || tag.value === '1' ? 'false' : 'true') : tag.value;
+            } else if (tag.dataType === 'FLOAT') {
+              const change = (Math.random() - 0.5) * 2;
+              newVal = (parseFloat(tag.value || 0) + change).toFixed(2);
+            } else {
+              const change = Math.floor((Math.random() - 0.5) * 5);
+              newVal = String(Math.max(0, parseInt(tag.value || 0) + change));
+            }
+
+            tagUpdates = true;
+            
+            setAppVariables(prev => prev.map(v => v.name === tag.name ? { ...v, value: String(newVal) } : v));
+
+            return { ...tag, value: newVal };
+          });
+
+          if (tagUpdates && isMounted) {
+            localStorage.setItem('mavi_plc_tags', JSON.stringify(parsedTags));
+          }
+        }, 3000);
+
+        activeIntervals.push(intervalId);
+      }
+    };
+
+    initConnectionAndPoll();
+
+    return () => {
+      isMounted = false;
+      activeIntervals.forEach(clearInterval);
+    };
+  }, []);
+
   const [signatureImage, setSignatureImage] = useState('');
   const [showSignaturePad, setShowSignaturePad] = useState(false);
   const [signature, setSignature] = useState('');
@@ -3088,6 +3234,46 @@ const LiveTerminal = () => {
   const [visionValues, setVisionValues] = useState({}); // { [compId]: string }
   const [ocrProcessing, setOcrProcessing] = useState({}); // { [compId]: boolean }
   const [refreshKey, setRefreshKey] = useState(0);
+  const [activeControlDevice, setActiveControlDevice] = useState(null);
+  const [controlConfirmChecked, setControlConfirmChecked] = useState(false);
+  const [alarms, setAlarms] = useState([
+    { time: '10:20:15', source: 'LIC-101', msg: 'Water Level High Limit Exceeded', severity: 'CRITICAL', status: 'UNACK' },
+    { time: '10:18:42', source: 'VALVE-202', msg: 'Valve Fail to Open Feedback', severity: 'WARNING', status: 'ACK' },
+    { time: '09:45:00', source: 'SYS-MON', msg: 'PLC Communications Restored', severity: 'INFO', status: 'CLEARED' }
+  ]);
+
+  useEffect(() => {
+    appVariables.forEach(v => {
+      const valNum = parseFloat(v.value);
+      if (!isNaN(valNum)) {
+        if (valNum > 90) {
+          setAlarms(prev => {
+            const hasAlarm = prev.some(a => a.source === v.name && a.status === 'UNACK' && a.msg.includes('High Limit'));
+            if (!hasAlarm) {
+              const now = new Date().toLocaleTimeString();
+              return [
+                { time: now, source: v.name, msg: `${v.name} Level High Limit Exceeded (${v.value})`, severity: 'CRITICAL', status: 'UNACK' },
+                ...prev
+              ];
+            }
+            return prev;
+          });
+        } else if (valNum < 10 && valNum > 0) {
+          setAlarms(prev => {
+            const hasAlarm = prev.some(a => a.source === v.name && a.status === 'UNACK' && a.msg.includes('Low Limit'));
+            if (!hasAlarm) {
+              const now = new Date().toLocaleTimeString();
+              return [
+                { time: now, source: v.name, msg: `${v.name} Level Low Limit Warning (${v.value})`, severity: 'WARNING', status: 'UNACK' },
+                ...prev
+              ];
+            }
+            return prev;
+          });
+        }
+      }
+    });
+  }, [appVariables]);
   const stepTimerRef = useRef(null);
   // Defect modal
   const [showDefectModal, setShowDefectModal] = useState(false);
@@ -8098,6 +8284,603 @@ const LiveTerminal = () => {
           </div>
         );
       }
+      case 'SCADA_PIPE': {
+        const dir = comp.props.direction || 'horizontal';
+        const isH = dir === 'horizontal';
+        const fluidColor = comp.props.fluidColor || '#06b6d4';
+        const flowSpeed = Number(comp.props.flowSpeed) || 2;
+        const activeVarVal = comp.props.targetVariable ? resolveValue(`@${comp.props.targetVariable}`) : undefined;
+        const isActive = activeVarVal !== undefined ? (!!activeVarVal && activeVarVal !== '0' && activeVarVal !== 0 && activeVarVal !== 'false') : (comp.props.isActive !== false);
+        const flowAnimName = `flow-dash-run-${comp.id}`;
+        
+        let isCommLost = false;
+        let isAlarmActive = false;
+        const targetVar = comp.props.targetVariable;
+        if (targetVar) {
+          const cleanVar = targetVar.startsWith('@') ? targetVar.substring(1) : targetVar;
+          isAlarmActive = alarms.some(a => a.source === cleanVar && a.status === 'UNACK');
+          try {
+            const savedControllers = localStorage.getItem('mavi_plc_controllers');
+            const savedTags = localStorage.getItem('mavi_plc_tags');
+            if (savedControllers && savedTags) {
+              const parsedCtrls = JSON.parse(savedControllers);
+              const parsedTags = JSON.parse(savedTags);
+              const matchingTag = parsedTags.find(t => t.name === cleanVar);
+              if (matchingTag) {
+                const ctrl = parsedCtrls.find(c => c.id === matchingTag.controllerId);
+                if (ctrl && ctrl.status === 'disconnected') {
+                  isCommLost = true;
+                }
+              }
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+
+        return (
+          <div style={{
+            width: '100%', height: '100%', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+            border: isAlarmActive ? '2px solid #ef4444' : 'none',
+            animation: isAlarmActive ? 'scada-alarm-blink 1s step-end infinite' : 'none'
+          }}>
+            <style>{`
+              @keyframes ${flowAnimName} {
+                to {
+                  stroke-dashoffset: ${isH ? '-20' : '20'};
+                }
+              }
+              @keyframes scada-alarm-blink {
+                0%, 100% { border-color: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.7); }
+                50% { border-color: transparent; box-shadow: none; }
+              }
+            `}</style>
+            <svg width="100%" height="100%" style={{ display: 'block' }}>
+              {isH ? (
+                <rect x="0" y="2" width="100%" height="20" rx="3" fill="#475569" stroke="#334155" strokeWidth="1" />
+              ) : (
+                <rect x="2" y="0" width="20" height="100%" rx="3" fill="#475569" stroke="#334155" strokeWidth="1" />
+              )}
+              {isH ? (
+                <line x1="0" y1="12" x2="100%" y2="12" stroke={fluidColor} strokeWidth="6" strokeDasharray="10,10" style={{ animation: isActive ? `${flowAnimName} ${6 - flowSpeed}s linear infinite` : 'none' }} />
+              ) : (
+                <line x1="12" y1="0" x2="12" y2="100%" stroke={fluidColor} strokeWidth="6" strokeDasharray="10,10" style={{ animation: isActive ? `${flowAnimName} ${6 - flowSpeed}s linear infinite` : 'none' }} />
+              )}
+              {isH ? (
+                <rect x="0" y="4" width="100%" height="4" fill="rgba(255,255,255,0.15)" />
+              ) : (
+                <rect x="4" y="0" width="4" height="100%" fill="rgba(255,255,255,0.15)" />
+              )}
+            </svg>
+            {isCommLost && (
+              <div style={{
+                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                background: 'repeating-linear-gradient(45deg, rgba(30, 41, 59, 0.95), rgba(30, 41, 59, 0.95) 10px, rgba(71, 85, 105, 0.95) 10px, rgba(71, 85, 105, 0.95) 20px)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                color: '#ef4444', fontWeight: 900, fontSize: '0.55rem', zIndex: 10, border: '1px solid #ef4444'
+              }}>
+                <span>COMM LOST</span>
+              </div>
+            )}
+          </div>
+        );
+      }
+      case 'SCADA_VALVE': {
+        const stateMode = comp.props.valveState || 'CLOSED';
+        const targetVar = comp.props.targetVariable;
+        let isValveOpen = false;
+        if (stateMode === 'AUTO') {
+          if (targetVar) {
+            const varVal = resolveValue(`@${targetVar}`);
+            isValveOpen = !!varVal && varVal !== '0' && varVal !== 'CLOSED' && varVal !== 'false' && varVal !== false && varVal !== 0;
+          }
+        } else {
+          isValveOpen = stateMode === 'OPEN';
+        }
+        const openColor = comp.props.colorOpen || '#22c55e';
+        const closedColor = comp.props.colorClosed || '#ef4444';
+        const valveColor = isValveOpen ? openColor : closedColor;
+
+        let isCommLost = false;
+        let isAlarmActive = false;
+        if (targetVar) {
+          const cleanVar = targetVar.startsWith('@') ? targetVar.substring(1) : targetVar;
+          isAlarmActive = alarms.some(a => a.source === cleanVar && a.status === 'UNACK');
+          try {
+            const savedControllers = localStorage.getItem('mavi_plc_controllers');
+            const savedTags = localStorage.getItem('mavi_plc_tags');
+            if (savedControllers && savedTags) {
+              const parsedCtrls = JSON.parse(savedControllers);
+              const parsedTags = JSON.parse(savedTags);
+              const matchingTag = parsedTags.find(t => t.name === cleanVar);
+              if (matchingTag) {
+                const ctrl = parsedCtrls.find(c => c.id === matchingTag.controllerId);
+                if (ctrl && ctrl.status === 'disconnected') {
+                  isCommLost = true;
+                }
+              }
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+
+        const handleValveClick = () => {
+          setActiveControlDevice(comp);
+        };
+
+        return (
+          <div 
+            onClick={handleValveClick}
+            style={{
+              width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', userSelect: 'none', position: 'relative',
+              borderRadius: '8px',
+              border: isAlarmActive ? '2px solid #ef4444' : 'none',
+              animation: isAlarmActive ? 'scada-alarm-blink 1s step-end infinite' : 'none'
+            }}
+          >
+            <svg viewBox="0 0 60 60" width="100%" height="100%">
+              <rect x="5" y="20" width="4" height="20" rx="1" fill="#475569" />
+              <rect x="51" y="20" width="4" height="20" rx="1" fill="#475569" />
+              <line x1="9" y1="30" x2="51" y2="30" stroke="#475569" strokeWidth="6" />
+              <polygon points="10,20 10,40 30,30" fill={valveColor} stroke="#334155" strokeWidth="1.5" />
+              <polygon points="50,20 50,40 30,30" fill={valveColor} stroke="#334155" strokeWidth="1.5" />
+              <circle cx="30" cy="30" r="6" fill="#64748b" stroke="#334155" strokeWidth="1.5" />
+              <line x1="30" y1="24" x2="30" y2="10" stroke="#64748b" strokeWidth="4" />
+              <ellipse cx="30" cy="8" rx="12" ry="4" fill={isValveOpen ? openColor : '#64748b'} stroke="#334155" strokeWidth="1.5" />
+            </svg>
+            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: valveColor, marginTop: '-2px', textTransform: 'uppercase' }}>
+              {isValveOpen ? 'OPEN' : 'CLOSED'}
+            </span>
+            {isCommLost && (
+              <div style={{
+                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                background: 'repeating-linear-gradient(45deg, rgba(30, 41, 59, 0.95), rgba(30, 41, 59, 0.95) 10px, rgba(71, 85, 105, 0.95) 10px, rgba(71, 85, 105, 0.95) 20px)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                color: '#ef4444', fontWeight: 900, fontSize: '0.55rem', zIndex: 10, borderRadius: '8px', border: '1px solid #ef4444'
+              }}>
+                <span style={{ fontSize: '0.75rem' }}>⚠️</span>
+                <span>COMM LOST</span>
+              </div>
+            )}
+          </div>
+        );
+      }
+      case 'SCADA_TANK': {
+        const targetVar = comp.props.targetVariable;
+        const capacity = Number(comp.props.capacity) || 100;
+        const unit = comp.props.unit || 'L';
+        const fluidColor = comp.props.fluidColor || '#3b82f6';
+        let currentVal = 0;
+        if (targetVar) {
+          const resolved = parseFloat(resolveValue(`@${targetVar}`));
+          currentVal = isNaN(resolved) ? 0 : resolved;
+        } else {
+          currentVal = parseFloat(resolvedProps.value || resolvedProps.defaultValue) || 0;
+        }
+        const fillPct = Math.max(0, Math.min(100, Math.round((currentVal / capacity) * 100)));
+        const displayVal = comp.props.showLabel !== false ? `${currentVal} ${unit}` : '';
+
+        let isCommLost = false;
+        let isAlarmActive = false;
+        if (targetVar) {
+          const cleanVar = targetVar.startsWith('@') ? targetVar.substring(1) : targetVar;
+          isAlarmActive = alarms.some(a => a.source === cleanVar && a.status === 'UNACK');
+          try {
+            const savedControllers = localStorage.getItem('mavi_plc_controllers');
+            const savedTags = localStorage.getItem('mavi_plc_tags');
+            if (savedControllers && savedTags) {
+              const parsedCtrls = JSON.parse(savedControllers);
+              const parsedTags = JSON.parse(savedTags);
+              const matchingTag = parsedTags.find(t => t.name === cleanVar);
+              if (matchingTag) {
+                const ctrl = parsedCtrls.find(c => c.id === matchingTag.controllerId);
+                if (ctrl && ctrl.status === 'disconnected') {
+                  isCommLost = true;
+                }
+              }
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+
+        return (
+          <div style={{
+            width: '100%', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', padding: '6px', backgroundColor: '#0f172a', borderRadius: '12px', overflow: 'hidden', position: 'relative',
+            border: isAlarmActive ? '2px solid #ef4444' : `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+            animation: isAlarmActive ? 'scada-alarm-blink 1s step-end infinite' : 'none'
+          }}>
+            <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', textAlign: 'center', marginBottom: '6px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+              {comp.props.label || 'Storage Tank'}
+            </div>
+            <div style={{ flex: 1, position: 'relative', display: 'flex', justifyContent: 'center' }}>
+              <div style={{
+                width: '85%',
+                height: '100%',
+                border: '2.5px solid #475569',
+                borderRadius: '10px 10px 14px 14px',
+                position: 'relative',
+                overflow: 'hidden',
+                backgroundColor: '#020617'
+              }}>
+                <div style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  height: `${fillPct}%`,
+                  backgroundColor: fluidColor,
+                  transition: 'height 0.4s ease-out',
+                  opacity: 0.85
+                }}>
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: '5px',
+                    background: 'rgba(255,255,255,0.4)',
+                    borderRadius: '50%'
+                  }} />
+                </div>
+                <div style={{ position: 'absolute', top: 0, bottom: 0, left: '6px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', fontSize: '0.55rem', color: 'rgba(255,255,255,0.35)', fontWeight: 'bold', pointerEvents: 'none' }}>
+                  <div>100%</div>
+                  <div>75%</div>
+                  <div>50%</div>
+                  <div>25%</div>
+                  <div>0%</div>
+                </div>
+                {comp.props.showLabel !== false && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    border: '1px solid #475569',
+                    color: '#f8fafc',
+                    fontSize: '0.7rem',
+                    fontWeight: 900,
+                    textAlign: 'center',
+                    pointerEvents: 'none',
+                    boxShadow: '0 4px 6px -1px rgba(0,0,0,0.3)'
+                  }}>
+                    {displayVal}
+                  </div>
+                )}
+              </div>
+            </div>
+            {isCommLost && (
+              <div style={{
+                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                background: 'repeating-linear-gradient(45deg, rgba(30, 41, 59, 0.95), rgba(30, 41, 59, 0.95) 10px, rgba(71, 85, 105, 0.95) 10px, rgba(71, 85, 105, 0.95) 20px)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                color: '#ef4444', fontWeight: 900, fontSize: '0.65rem', zIndex: 10, borderRadius: '12px', border: '1.5px solid #ef4444'
+              }}>
+                <span style={{ fontSize: '0.9rem' }}>⚠️</span>
+                <span>COMM LOST</span>
+              </div>
+            )}
+          </div>
+        );
+      }
+      case 'SCADA_PUMP': {
+        const mode = comp.props.pumpState || 'STOPPED';
+        const targetVar = comp.props.targetVariable;
+        let status = mode;
+        if (mode === 'AUTO') {
+          if (targetVar) {
+            const varVal = resolveValue(`@${targetVar}`);
+            const isAutoRunning = !!varVal && varVal !== '0' && varVal !== 'STOPPED' && varVal !== 'false' && varVal !== false && varVal !== 0;
+            status = isAutoRunning ? 'RUNNING' : 'STOPPED';
+          } else {
+            status = 'STOPPED';
+          }
+        }
+
+        const isRunning = status === 'RUNNING';
+        const runColor = comp.props.colorRunning || '#22c55e';
+        const stopColor = comp.props.colorStopped || '#ef4444';
+        const faultColor = comp.props.colorFault || '#eab308';
+        
+        let pumpColor = stopColor;
+        if (status === 'RUNNING') pumpColor = runColor;
+        else if (status === 'FAULT') pumpColor = faultColor;
+
+        let isCommLost = false;
+        let isAlarmActive = false;
+        if (targetVar) {
+          const cleanVar = targetVar.startsWith('@') ? targetVar.substring(1) : targetVar;
+          isAlarmActive = alarms.some(a => a.source === cleanVar && a.status === 'UNACK');
+          try {
+            const savedControllers = localStorage.getItem('mavi_plc_controllers');
+            const savedTags = localStorage.getItem('mavi_plc_tags');
+            if (savedControllers && savedTags) {
+              const parsedCtrls = JSON.parse(savedControllers);
+              const parsedTags = JSON.parse(savedTags);
+              const matchingTag = parsedTags.find(t => t.name === cleanVar);
+              if (matchingTag) {
+                const ctrl = parsedCtrls.find(c => c.id === matchingTag.controllerId);
+                if (ctrl && ctrl.status === 'disconnected') {
+                  isCommLost = true;
+                }
+              }
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+
+        const handlePumpClick = () => {
+          setActiveControlDevice(comp);
+        };
+
+        const spinAnim = `pump-spin-run-${comp.id}`;
+
+        return (
+          <div 
+            onClick={handlePumpClick}
+            style={{
+              width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', userSelect: 'none', position: 'relative',
+              borderRadius: '8px',
+              border: isAlarmActive ? '2px solid #ef4444' : 'none',
+              animation: isAlarmActive ? 'scada-alarm-blink 1s step-end infinite' : 'none'
+            }}
+          >
+            <style>{`
+              @keyframes ${spinAnim} {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+              }
+            `}</style>
+            <svg viewBox="0 0 60 60" width="100%" height="100%">
+              <rect x="10" y="52" width="40" height="6" rx="1" fill="#475569" />
+              <rect x="22" y="46" width="16" height="6" fill="#334155" />
+              <rect x="34" y="2" width="12" height="10" fill="#475569" stroke="#334155" strokeWidth="1" />
+              <path d="M 34 12 L 46 12 L 44 22 L 36 22 Z" fill="#334155" />
+              <circle cx="30" cy="32" r="18" fill={pumpColor} stroke="#1e293b" strokeWidth="2.5" />
+              <circle cx="30" cy="32" r="4" fill="#0f172a" />
+              <g style={{ transformOrigin: '30px 32px', animation: isRunning ? `${spinAnim} 1.5s linear infinite` : 'none' }}>
+                <line x1="30" y1="16" x2="30" y2="48" stroke="#f1f5f9" strokeWidth="2.5" />
+                <line x1="14" y1="32" x2="46" y2="32" stroke="#f1f5f9" strokeWidth="2.5" />
+                <line x1="19" y1="21" x2="41" y2="43" stroke="#f1f5f9" strokeWidth="1.5" />
+                <line x1="19" y1="43" x2="41" y2="21" stroke="#f1f5f9" strokeWidth="1.5" />
+              </g>
+            </svg>
+            <span style={{ fontSize: '0.6rem', fontWeight: 900, color: pumpColor, marginTop: '-2px', textTransform: 'uppercase' }}>
+              {status}
+            </span>
+            {isCommLost && (
+              <div style={{
+                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                background: 'repeating-linear-gradient(45deg, rgba(30, 41, 59, 0.95), rgba(30, 41, 59, 0.95) 10px, rgba(71, 85, 105, 0.95) 10px, rgba(71, 85, 105, 0.95) 20px)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                color: '#ef4444', fontWeight: 900, fontSize: '0.55rem', zIndex: 10, borderRadius: '8px', border: '1px solid #ef4444'
+              }}>
+                <span style={{ fontSize: '0.75rem' }}>⚠️</span>
+                <span>COMM LOST</span>
+              </div>
+            )}
+          </div>
+        );
+      }
+      case 'SCADA_ALARM_SUMMARY': {
+        const handleAck = (index) => {
+          setAlarms(prev => prev.map((a, idx) => idx === index ? { ...a, status: 'ACK' } : a));
+        };
+
+        const handleAckAll = () => {
+          setAlarms(prev => prev.map(a => ({ ...a, status: 'ACK' })));
+        };
+
+        return (
+          <div style={{
+            width: '100%',
+            height: '100%',
+            backgroundColor: '#0f172a',
+            border: '2px solid #334155',
+            borderRadius: '12px',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            fontSize: '0.75rem',
+            color: '#f8fafc',
+            boxSizing: 'border-box'
+          }}>
+            <div style={{
+              backgroundColor: '#1e293b',
+              padding: '8px 16px',
+              borderBottom: '1px solid #334155',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontWeight: 800
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ color: '#ef4444', fontSize: '0.9rem' }}>⚠️</span>
+                <span style={{ letterSpacing: '0.05em' }}>ALARM SUMMARY ACTIVE VIEW</span>
+              </div>
+              <button 
+                onClick={handleAckAll}
+                style={{
+                  backgroundColor: '#dc2626',
+                  border: 'none',
+                  borderRadius: '4px',
+                  color: '#ffffff',
+                  fontSize: '0.65rem',
+                  fontWeight: 900,
+                  padding: '4px 10px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                  transition: 'background 0.2s'
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#b91c1c'}
+                onMouseOut={(e) => e.target.style.backgroundColor = '#dc2626'}
+              >
+                ACK ALL
+              </button>
+            </div>
+            
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#1e293b', color: '#94a3b8', fontSize: '0.65rem', textTransform: 'uppercase', borderBottom: '1px solid #334155' }}>
+                    <th style={{ padding: '8px 10px' }}>Time</th>
+                    <th style={{ padding: '8px 10px' }}>Source</th>
+                    <th style={{ padding: '8px 10px' }}>Message</th>
+                    <th style={{ padding: '8px 10px' }}>Severity</th>
+                    <th style={{ padding: '8px 10px' }}>Status</th>
+                    <th style={{ padding: '8px 10px' }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {alarms.map((a, idx) => {
+                    let rowBg = 'transparent';
+                    let textColor = '#f8fafc';
+                    if (a.severity === 'CRITICAL') { rowBg = 'rgba(239, 68, 68, 0.12)'; textColor = '#fca5a5'; }
+                    else if (a.severity === 'WARNING') { rowBg = 'rgba(234, 179, 8, 0.08)'; textColor = '#fef08a'; }
+                    else { rowBg = 'rgba(59, 130, 246, 0.04)'; textColor = '#bfdbfe'; }
+
+                    return (
+                      <tr key={idx} style={{ backgroundColor: rowBg, color: textColor, borderBottom: '1px solid #1e293b' }}>
+                        <td style={{ padding: '8px 10px', fontWeight: 'bold' }}>{a.time}</td>
+                        <td style={{ padding: '8px 10px' }}>{a.source}</td>
+                        <td style={{ padding: '8px 10px' }}>{a.msg}</td>
+                        <td style={{ padding: '8px 10px', fontSize: '0.65rem', fontWeight: 900 }}>
+                          <span style={{
+                            backgroundColor: a.severity === 'CRITICAL' ? '#ef4444' : (a.severity === 'WARNING' ? '#eab308' : '#3b82f6'),
+                            color: '#0f172a',
+                            padding: '2px 6px',
+                            borderRadius: '3px',
+                            textTransform: 'uppercase'
+                          }}>{a.severity}</span>
+                        </td>
+                        <td style={{ padding: '8px 10px', fontWeight: 'bold', color: a.status === 'UNACK' ? '#ef4444' : '#22c55e' }}>{a.status}</td>
+                        <td style={{ padding: '8px 10px' }}>
+                          {a.status === 'UNACK' ? (
+                            <button 
+                              onClick={() => handleAck(idx)}
+                              style={{ 
+                                padding: '3px 8px', 
+                                fontSize: '0.6rem', 
+                                border: '1px solid currentColor', 
+                                background: 'transparent', 
+                                color: textColor, 
+                                borderRadius: '4px', 
+                                cursor: 'pointer',
+                                fontWeight: 'bold'
+                              }}
+                            >
+                              ACK
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: '0.65rem', color: '#64748b' }}>Acknowledged</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {alarms.length === 0 && (
+                    <tr>
+                      <td colSpan="6" style={{ textAlign: 'center', padding: '24px', color: '#64748b', fontStyle: 'italic' }}>
+                        No active alarms. System running normally.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      }
+      case 'SCADA_MOTOR':
+      case 'SCADA_CONVEYOR':
+      case 'SCADA_MIXER':
+      case 'SCADA_HEAT_EXCHANGER':
+      case 'SCADA_BOILER':
+      case 'SCADA_COMPRESSOR':
+      case 'SCADA_CHILLER':
+      case 'SCADA_FURNACE':
+      case 'SCADA_SILO':
+      case 'SCADA_PRESSURE_GAUGE':
+      case 'SCADA_TEMP_INDICATOR':
+      case 'SCADA_FLOW_METER':
+      case 'SCADA_LEVEL_INDICATOR':
+      case 'SCADA_PH_METER':
+      case 'SCADA_CURRENT_METER':
+      case 'SCADA_VOLTAGE_METER':
+      case 'SCADA_POWER_METER':
+      case 'SCADA_DIGITAL_DISPLAY':
+      case 'SCADA_NUMERIC_INPUT':
+      case 'SCADA_SETPOINT_INPUT':
+      case 'SCADA_TREND':
+      case 'SCADA_HISTORICAL_TREND':
+      case 'SCADA_BAR_GRAPH':
+      case 'SCADA_CIRCULAR_GAUGE':
+      case 'SCADA_PROGRESS_BAR':
+      case 'SCADA_TANK_LEVEL':
+      case 'SCADA_ALARM_BANNER':
+      case 'SCADA_ALARM_HISTORY':
+      case 'SCADA_EVENT_LOG':
+      case 'SCADA_ALARM_ACK':
+      case 'SCADA_BTN_START':
+      case 'SCADA_BTN_STOP':
+      case 'SCADA_BTN_RESET':
+      case 'SCADA_AUTO_MANUAL':
+      case 'SCADA_MODE_SELECTOR':
+      case 'SCADA_TOGGLE_SWITCH':
+      case 'SCADA_PLC_STATUS':
+      case 'SCADA_OEE':
+      case 'SCADA_PROD_COUNTER':
+      case 'SCADA_DOWNTIME':
+      case 'SCADA_MACHINE_STATUS':
+      case 'SCADA_SPC_CHART':
+      case 'SCADA_ENERGY_MONITOR':
+      case 'SCADA_BATCH_TRACKER': {
+        const resolveComponentDatasourceValue = (component, fallbackValue = '') => {
+          const props = component?.props || {};
+          if (!props.dataSourceType) return fallbackValue;
+
+          if (props.dataSourceType === 'VARIABLE') {
+            const varName = String(props.varSource || '');
+            if (!varName) return fallbackValue;
+            if (varName.startsWith('APP_INFO.')) {
+              return resolveValue(`@${varName}`, 'STATIC');
+            }
+            const v = appVariables.find(av => av.name === varName);
+            return v ? v.value : fallbackValue;
+          }
+
+          const resolved = resolveValue('', 'STATIC', props);
+          return resolved === undefined || resolved === null || resolved === '' ? fallbackValue : resolved;
+        };
+
+        const syncInputDatasourceValue = (component, nextValue, source) => {
+          syncVariable(nextValue);
+        };
+
+        const onWidgetInteraction = (component, triggerName, data) => {
+          fireWidgetTriggers(component, triggerName, data);
+        };
+
+        return (
+          <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+            <ScadaWidgetRenderer
+              comp={comp}
+              viewMode="PREVIEW"
+              previewFormValues={sliderValues}
+              setPreviewFormValues={setSliderValues}
+              resolveComponentDatasourceValue={resolveComponentDatasourceValue}
+              syncInputDatasourceValue={syncInputDatasourceValue}
+              onWidgetInteraction={onWidgetInteraction}
+              safeRender={safeRender}
+            />
+          </div>
+        );
+      }
       case 'NUMBER_INPUT': return (
         <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
           {(resolvedProps.label || resolvedProps.text) && (
@@ -12039,6 +12822,228 @@ const LiveTerminal = () => {
                 disabled={!andonCategory}
               >
                 <AlertCircle size={20} /> PULL ANDON
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SCADA SAFETY CONTROL DIALOG */}
+      {activeControlDevice && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(5px)',
+          zIndex: 3500, display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <div style={{
+            maxWidth: '480px', width: '100%', padding: '24px', 
+            backgroundColor: '#1e293b', border: '2px solid #475569',
+            borderRadius: '12px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
+            color: '#f8fafc'
+          }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #334155', paddingBottom: '12px', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertCircle size={24} color="#f59e0b" />
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Safety Interlock Control
+                </h3>
+              </div>
+              <button 
+                onClick={() => { setActiveControlDevice(null); setControlConfirmChecked(false); }}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Device Details */}
+            <div style={{ backgroundColor: '#0f172a', padding: '12px', borderRadius: '8px', border: '1px solid #334155', marginBottom: '16px', fontSize: '0.8rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: '4px' }}>
+                <span style={{ color: '#94a3b8', fontWeight: 'bold' }}>Device ID:</span>
+                <span>{activeControlDevice.id}</span>
+                <span style={{ color: '#94a3b8', fontWeight: 'bold' }}>Type:</span>
+                <span>{activeControlDevice.type === 'SCADA_PUMP' ? 'Centrifugal Pump' : 'Pipeline Valve'}</span>
+                <span style={{ color: '#94a3b8', fontWeight: 'bold' }}>Tag/Var:</span>
+                <span style={{ fontFamily: 'monospace', color: '#60a5fa', fontWeight: 'bold' }}>
+                  {activeControlDevice.props.targetVariable || 'N/A (Manual State)'}
+                </span>
+                <span style={{ color: '#94a3b8', fontWeight: 'bold' }}>Current:</span>
+                <span style={{ fontWeight: 'bold' }}>
+                  {activeControlDevice.props.targetVariable 
+                    ? String(resolveValue(`@${activeControlDevice.props.targetVariable}`)) 
+                    : (activeControlDevice.type === 'SCADA_PUMP' ? (activeControlDevice.props.pumpState || 'STOPPED') : (activeControlDevice.props.valveState || 'CLOSED'))
+                  }
+                </span>
+              </div>
+            </div>
+
+            {/* Target Commands State Selector */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px' }}>
+                Select Command Action
+              </label>
+              
+              {activeControlDevice.type === 'SCADA_PUMP' ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  {[
+                    { label: 'Manual START (Run)', val: 'RUNNING', color: '#22c55e' },
+                    { label: 'Manual STOP', val: 'STOPPED', color: '#ef4444' },
+                    { label: 'Simulate FAULT', val: 'FAULT', color: '#eab308' },
+                    { label: 'AUTO (Follow PLC Tag)', val: 'AUTO', color: '#3b82f6' }
+                  ].map(cmd => {
+                    const isSelected = activeControlDevice.props.pumpState === cmd.val;
+                    return (
+                      <button
+                        key={cmd.val}
+                        onClick={() => {
+                          const updated = { ...activeControlDevice, props: { ...activeControlDevice.props, pumpState: cmd.val } };
+                          setActiveControlDevice(updated);
+                        }}
+                        style={{
+                          padding: '12px 8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold',
+                          backgroundColor: isSelected ? cmd.color : '#0f172a',
+                          color: isSelected ? '#0f172a' : '#f8fafc',
+                          border: `2px solid ${isSelected ? cmd.color : '#334155'}`,
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        {cmd.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  {[
+                    { label: 'Manual OPEN', val: 'OPEN', color: '#22c55e' },
+                    { label: 'Manual CLOSE', val: 'CLOSED', color: '#ef4444' },
+                    { label: 'AUTO (Follow PLC Tag)', val: 'AUTO', color: '#3b82f6' }
+                  ].map(cmd => {
+                    const isSelected = activeControlDevice.props.valveState === cmd.val;
+                    return (
+                      <button
+                        key={cmd.val}
+                        onClick={() => {
+                          const updated = { ...activeControlDevice, props: { ...activeControlDevice.props, valveState: cmd.val } };
+                          setActiveControlDevice(updated);
+                        }}
+                        style={{
+                          padding: '12px 8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold',
+                          backgroundColor: isSelected ? cmd.color : '#0f172a',
+                          color: isSelected ? '#0f172a' : '#f8fafc',
+                          border: `2px solid ${isSelected ? cmd.color : '#334155'}`,
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        {cmd.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Checkbox confirmation */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '10px', 
+              padding: '12px', backgroundColor: '#334155', borderRadius: '8px',
+              border: `1.5px solid ${controlConfirmChecked ? '#f59e0b' : 'transparent'}`,
+              marginBottom: '20px', cursor: 'pointer', userSelect: 'none'
+            }} onClick={() => setControlConfirmChecked(!controlConfirmChecked)}>
+              <input 
+                type="checkbox"
+                checked={controlConfirmChecked}
+                onChange={() => {}} // handled by div click
+                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f8fafc' }}>
+                Confirm execution of this remote PLC override command.
+              </span>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button 
+                onClick={() => { setActiveControlDevice(null); setControlConfirmChecked(false); }}
+                style={{ flex: 1, padding: '12px', borderRadius: '6px', backgroundColor: '#475569', color: '#f8fafc', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={async () => {
+                  if (!controlConfirmChecked) return;
+                  
+                  // Sync locally
+                  if (activeStep && activeStep.components) {
+                    const compIndex = activeStep.components.findIndex(c => c.id === activeControlDevice.id);
+                    if (compIndex !== -1) {
+                      activeStep.components[compIndex].props = { ...activeControlDevice.props };
+                    }
+                  }
+
+                  // Write value back to targetVariable / PLC register
+                  const targetVar = activeControlDevice.props.targetVariable;
+                  if (targetVar) {
+                    let newVal = 0;
+                    if (activeControlDevice.type === 'SCADA_PUMP') {
+                      newVal = activeControlDevice.props.pumpState === 'RUNNING' ? 1 : (activeControlDevice.props.pumpState === 'FAULT' ? 'FAULT' : 0);
+                    } else {
+                      newVal = activeControlDevice.props.valveState === 'OPEN' ? 1 : 0;
+                    }
+
+                    // Check if variable is mapped to any real Modbus PLC
+                    const savedControllers = localStorage.getItem('mavi_plc_controllers');
+                    const savedTags = localStorage.getItem('mavi_plc_tags');
+                    if (savedControllers && savedTags) {
+                      try {
+                        const parsedCtrls = JSON.parse(savedControllers);
+                        const parsedTags = JSON.parse(savedTags);
+                        const cleanVar = targetVar.startsWith('@') ? targetVar.substring(1) : targetVar;
+                        const matchingTag = parsedTags.find(t => t.name === cleanVar);
+                        if (matchingTag && window.__TAURI_INTERNALS__) {
+                          const ctrl = parsedCtrls.find(c => c.id === matchingTag.controllerId);
+                          if (ctrl && ctrl.status === 'connected' && ctrl.type === 'MODBUS_TCP') {
+                            const core = await import('@tauri-apps/api/core');
+                            let addr = parseInt(matchingTag.address);
+                            let offset = addr;
+                            let regType = matchingTag.regType || 'HOLDING_REGISTER';
+                            if (regType === 'COIL') offset = addr - 1;
+                            else if (regType === 'HOLDING_REGISTER') offset = addr - 40001;
+                            if (offset < 0) offset = 0;
+
+                            await core.invoke('modbus_write', {
+                              id: ctrl.id,
+                              regType,
+                              address: offset,
+                              value: newVal === 'FAULT' ? 2 : newVal
+                            });
+                          }
+                        }
+                      } catch (err) {
+                        console.error('Failed to trigger real Modbus write-back:', err);
+                      }
+                    }
+
+                    // Sync state variable value in frontend
+                    setAppVariables(prev => prev.map(av => av.name === targetVar ? { ...av, value: String(newVal) } : av));
+                  }
+
+                  toast.success(`SCADA Command Sent: ${activeControlDevice.type === 'SCADA_PUMP' ? activeControlDevice.props.pumpState : activeControlDevice.props.valveState}`);
+                  setActiveControlDevice(null);
+                  setControlConfirmChecked(false);
+                }}
+                disabled={!controlConfirmChecked}
+                style={{
+                  flex: 2, padding: '12px', borderRadius: '6px', 
+                  backgroundColor: controlConfirmChecked ? '#f59e0b' : '#334155', 
+                  color: controlConfirmChecked ? '#0f172a' : '#94a3b8', 
+                  border: 'none', cursor: controlConfirmChecked ? 'pointer' : 'not-allowed', 
+                  fontWeight: 900, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                }}
+              >
+                <ShieldCheck size={18} />
+                SUBMIT OVERRIDE
               </button>
             </div>
           </div>
