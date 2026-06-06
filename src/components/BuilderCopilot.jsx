@@ -799,180 +799,251 @@ Apa yang bisa kamu bantu untuk widget ini?`;
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div style={{
-        padding: '16px 20px',
         background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)',
         color: 'white',
         display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        flexDirection: 'column',
         flexShrink: 0,
         borderBottom: '1px solid rgba(255,255,255,0.08)',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{
-            width: '40px', height: '40px',
-            background: 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(59,130,246,0.3))',
-            borderRadius: '12px',
-            border: '1px solid rgba(99,102,241,0.4)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 20px rgba(99,102,241,0.3)',
-          }}>
-            <Wand2 size={20} color="#a5b4fc" />
+        {/* Row 1: Title and Window Controls */}
+        <div style={{
+          padding: '14px 16px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{
+              width: '36px', height: '36px',
+              background: 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(59,130,246,0.3))',
+              borderRadius: '10px',
+              border: '1px solid rgba(99,102,241,0.4)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 0 15px rgba(99,102,241,0.2)',
+            }}>
+              <Wand2 size={18} color="#a5b4fc" />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#f8fafc' }}>
+                Builder Copilot
+              </div>
+              <div style={{ fontSize: '0.62rem', color: '#6366f1', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 6px #22c55e' }} />
+                AI Agent Active
+              </div>
+            </div>
           </div>
-          <div>
-            <div style={{ fontSize: '0.95rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#f8fafc' }}>
-              Builder Copilot
-            </div>
-            <div style={{ fontSize: '0.65rem', color: '#6366f1', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 600 }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 6px #22c55e' }} />
-              AI Agent Active
-            </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {/* Fullscreen toggle */}
+            <button
+              onClick={() => setIsFullScreen(v => !v)}
+              title={isFullScreen ? 'Kecilkan Copilot' : 'Perbesar Copilot (Full Screen)'}
+              style={{
+                background: 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: '#cbd5e1',
+                cursor: 'pointer',
+                padding: '7px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                transition: 'all 0.15s'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = '#e2e8f0'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#cbd5e1'; }}
+            >
+              {isFullScreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+            </button>
+
+            {/* Close */}
+            <button
+              onClick={onClose}
+              title="Tutup Copilot"
+              style={{
+                background: 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: 'white',
+                cursor: 'pointer',
+                padding: '7px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                transition: 'all 0.15s'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+            >
+              <X size={13} />
+            </button>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          {/* Undo/Redo */}
-          <div style={{ display: 'flex', background: 'rgba(255,255,255,0.08)', borderRadius: '10px', padding: '2px', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <button
-              onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)"
-              style={{ background: 'none', border: 'none', color: 'white', opacity: canUndo ? 1 : 0.3, cursor: canUndo ? 'pointer' : 'default', padding: '7px 8px', borderRadius: '8px', display: 'flex', alignItems: 'center', transition: 'background 0.15s' }}
-              onMouseEnter={e => canUndo && (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-            >
-              <RotateCcw size={14} />
-            </button>
-            <button
-              onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Y)"
-              style={{ background: 'none', border: 'none', color: 'white', opacity: canRedo ? 1 : 0.3, cursor: canRedo ? 'pointer' : 'default', padding: '7px 8px', borderRadius: '8px', display: 'flex', alignItems: 'center', transition: 'background 0.15s' }}
-              onMouseEnter={e => canRedo && (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-            >
-              <RotateCw size={14} />
-            </button>
-          </div>
+        {/* Row 2: Toolbar Actions */}
+        <div style={{
+          padding: '8px 16px 12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '6px',
+          borderTop: '1px solid rgba(255,255,255,0.05)',
+          background: 'rgba(0,0,0,0.15)',
+          flexWrap: 'wrap',
+        }}>
+          {/* Left Actions: Undo/Redo & Diagnose */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            {/* Undo/Redo */}
+            <div style={{ display: 'flex', background: 'rgba(255,255,255,0.06)', borderRadius: '8px', padding: '1px', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <button
+                onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)"
+                style={{ background: 'none', border: 'none', color: 'white', opacity: canUndo ? 1 : 0.3, cursor: canUndo ? 'pointer' : 'default', padding: '5px 7px', borderRadius: '6px', display: 'flex', alignItems: 'center', transition: 'background 0.15s' }}
+                onMouseEnter={e => canUndo && (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                <RotateCcw size={12} />
+              </button>
+              <button
+                onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Y)"
+                style={{ background: 'none', border: 'none', color: 'white', opacity: canRedo ? 1 : 0.3, cursor: canRedo ? 'pointer' : 'default', padding: '5px 7px', borderRadius: '6px', display: 'flex', alignItems: 'center', transition: 'background 0.15s' }}
+                onMouseEnter={e => canRedo && (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                <RotateCw size={12} />
+              </button>
+            </div>
 
-          {/* UPGRADE 8: Diagnose button */}
-          <button
-            onClick={handleDiagnose}
-            disabled={isDiagnosing}
-            title="Diagnosa aplikasi — AI akan menganalisis dan auto-fix masalah"
-            style={{ background: isDiagnosing ? 'rgba(139,92,246,0.3)' : 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)', color: '#a78bfa', cursor: isDiagnosing ? 'default' : 'pointer', padding: '7px 10px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.7rem', fontWeight: 700, transition: 'all 0.15s' }}
-            onMouseEnter={e => { if (!isDiagnosing) { e.currentTarget.style.background = 'rgba(139,92,246,0.3)'; e.currentTarget.style.color = '#c4b5fd'; }}}
-            onMouseLeave={e => { if (!isDiagnosing) { e.currentTarget.style.background = 'rgba(139,92,246,0.15)'; e.currentTarget.style.color = '#a78bfa'; }}}
-          >
-            {isDiagnosing ? <Loader2 size={13} className="animate-spin" /> : <Stethoscope size={13} />}
-            {isDiagnosing ? 'Diagnosing...' : 'Diagnose'}
-          </button>
-
-          {/* UPGRADE 4: Health Issues Badge */}
-          {appIssues.length > 0 && (
+            {/* UPGRADE 8: Diagnose button */}
             <button
-              onClick={() => setShowIssues(v => !v)}
-              title={`${appIssues.length} masalah terdeteksi — klik untuk lihat`}
-              style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.35)', color: '#fca5a5', cursor: 'pointer', padding: '7px 10px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.7rem', fontWeight: 800, transition: 'all 0.15s' }}
-            >
-              <AlertCircle size={13} />
-              {appIssues.length}
-            </button>
-          )}
-
-          {/* Rollback to Pre-Copilot State */}
-          {hasSnapshot && (
-            <button
-              onClick={handleRollback}
-              title="⏪ Rollback ke kondisi sebelum Copilot — kembalikan semua perubahan"
+              onClick={handleDiagnose}
+              disabled={isDiagnosing}
+              title="Diagnosa aplikasi — AI akan menganalisis dan auto-fix masalah"
               style={{
-                background: 'rgba(245,158,11,0.2)',
-                border: '1px solid rgba(245,158,11,0.5)',
-                color: '#fbbf24',
-                cursor: 'pointer',
-                padding: '7px 10px',
-                borderRadius: '10px',
+                background: isDiagnosing ? 'rgba(139,92,246,0.3)' : 'rgba(139,92,246,0.15)',
+                border: '1px solid rgba(139,92,246,0.3)',
+                color: '#c4b5fd',
+                cursor: isDiagnosing ? 'default' : 'pointer',
+                padding: '5px 8px',
+                borderRadius: '8px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '5px',
-                fontSize: '0.7rem',
+                gap: '4px',
+                fontSize: '0.65rem',
                 fontWeight: 700,
-                transition: 'all 0.15s',
-                animation: 'pulse-red 2s infinite'
+                transition: 'all 0.15s'
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(245,158,11,0.35)'; e.currentTarget.style.color = '#fde68a'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(245,158,11,0.2)'; e.currentTarget.style.color = '#fbbf24'; }}
+              onMouseEnter={e => { if (!isDiagnosing) { e.currentTarget.style.background = 'rgba(139,92,246,0.3)'; }}}
+              onMouseLeave={e => { if (!isDiagnosing) { e.currentTarget.style.background = 'rgba(139,92,246,0.15)'; }}}
             >
-              <History size={13} />
-              Rollback
+              {isDiagnosing ? <Loader2 size={11} className="animate-spin" /> : <Stethoscope size={11} />}
+              {isDiagnosing ? 'Diagnosing...' : 'Diagnose'}
             </button>
-          )}
 
-          {/* Export Audit Trail */}
-          <button
-            onClick={handleExportAuditTrail}
-            title="Export Audit Trail (Download Chat & Command Log)"
-            style={{
-              background: 'rgba(255,255,255,0.08)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              color: '#94a3b8',
-              cursor: 'pointer',
-              padding: '8px',
-              borderRadius: '10px',
-              display: 'flex',
-              alignItems: 'center',
-              transition: 'all 0.15s'
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.2)'; e.currentTarget.style.color = '#93c5fd'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#94a3b8'; }}
-          >
-            <Download size={14} />
-          </button>
+            {/* UPGRADE 4: Health Issues Badge */}
+            {appIssues.length > 0 && (
+              <button
+                onClick={() => setShowIssues(v => !v)}
+                title={`${appIssues.length} masalah terdeteksi — klik untuk lihat`}
+                style={{
+                  background: 'rgba(239,68,68,0.15)',
+                  border: '1px solid rgba(239,68,68,0.35)',
+                  color: '#fca5a5',
+                  cursor: 'pointer',
+                  padding: '5px 8px',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontSize: '0.65rem',
+                  fontWeight: 800,
+                  transition: 'all 0.15s'
+                }}
+              >
+                <AlertCircle size={11} />
+                {appIssues.length}
+              </button>
+            )}
+          </div>
 
-          {/* Fullscreen toggle */}
-          <button
-            onClick={() => setIsFullScreen(v => !v)}
-            title={isFullScreen ? 'Kecilkan Copilot' : 'Perbesar Copilot (Full Screen)'}
-            style={{
-              background: 'rgba(255,255,255,0.08)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              color: '#94a3b8',
-              cursor: 'pointer',
-              padding: '8px',
-              borderRadius: '10px',
-              display: 'flex',
-              alignItems: 'center',
-              transition: 'all 0.15s'
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = '#e2e8f0'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#94a3b8'; }}
-          >
-            {isFullScreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-          </button>
+          {/* Right Actions: Rollback, Export, Clear Chat */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+            {/* Rollback to Pre-Copilot State */}
+            {hasSnapshot && (
+              <button
+                onClick={handleRollback}
+                title="⏪ Rollback ke kondisi sebelum Copilot — kembalikan semua perubahan"
+                style={{
+                  background: 'rgba(245,158,11,0.2)',
+                  border: '1px solid rgba(245,158,11,0.5)',
+                  color: '#fbbf24',
+                  cursor: 'pointer',
+                  padding: '5px 8px',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontSize: '0.65rem',
+                  fontWeight: 700,
+                  transition: 'all 0.15s',
+                  animation: 'pulse-red 2s infinite'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(245,158,11,0.35)'; e.currentTarget.style.color = '#fde68a'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(245,158,11,0.2)'; e.currentTarget.style.color = '#fbbf24'; }}
+              >
+                <History size={11} />
+                Rollback
+              </button>
+            )}
 
-          {/* Clear chat */}
-          <button
-            onClick={() => {
-              sessionStorage.removeItem(STORAGE_KEY);
-              setMessages([{
-                role: 'assistant',
-                content: 'Chat dibersihkan. Saya siap membantu Anda membangun aplikasi baru!',
-                timestamp: new Date()
-              }]);
-            }}
-            title="Clear chat"
-            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', cursor: 'pointer', padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', transition: 'all 0.15s' }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; e.currentTarget.style.color = '#fca5a5'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#94a3b8'; }}
-          >
-            <Trash2 size={14} />
-          </button>
+            {/* Export Audit Trail */}
+            <button
+              onClick={handleExportAuditTrail}
+              title="Export Audit Trail (Download Chat & Command Log)"
+              style={{
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                color: '#94a3b8',
+                cursor: 'pointer',
+                padding: '6px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                transition: 'all 0.15s'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.2)'; e.currentTarget.style.color = '#93c5fd'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = '#94a3b8'; }}
+            >
+              <Download size={12} />
+            </button>
 
-          {/* Close */}
-          <button
-            onClick={onClose}
-            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', cursor: 'pointer', padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', transition: 'all 0.15s' }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
-          >
-            <X size={16} />
-          </button>
+            {/* Clear chat */}
+            <button
+              onClick={() => {
+                sessionStorage.removeItem(STORAGE_KEY);
+                setMessages([{
+                  role: 'assistant',
+                  content: 'Chat dibersihkan. Saya siap membantu Anda membangun aplikasi baru!',
+                  timestamp: new Date()
+                }]);
+              }}
+              title="Clear chat"
+              style={{
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                color: '#94a3b8',
+                cursor: 'pointer',
+                padding: '6px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                transition: 'all 0.15s'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; e.currentTarget.style.color = '#fca5a5'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = '#94a3b8'; }}
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
         </div>
       </div>
 

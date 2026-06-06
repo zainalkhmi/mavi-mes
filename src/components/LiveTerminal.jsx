@@ -3426,6 +3426,7 @@ const LiveTerminal = () => {
 
   const [currentTime, setCurrentTime] = useState(new Date());
   const [stations, setStations] = useState([]);
+  const [keyboardShift, setKeyboardShift] = useState({});
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -3443,7 +3444,7 @@ const LiveTerminal = () => {
       if (binding && typeof binding === 'string' && binding.startsWith('@')) {
         const val = resolveValue(binding);
         if (val !== undefined && val !== null) {
-          if (comp.type === 'TEXT_INPUT') {
+          if (comp.type === 'TEXT_INPUT' || comp.type === 'PASSWORD_TEXT') {
             setTextInputValues(prev => prev[comp.id] === val ? prev : { ...prev, [comp.id]: val });
           } else if (comp.type === 'NUMBER_INPUT') {
             setNumberInputValues(prev => prev[comp.id] === val ? prev : { ...prev, [comp.id]: val });
@@ -3466,7 +3467,7 @@ const LiveTerminal = () => {
         const vDef = appVariables.find(v => v.name === varName);
         if (vDef && vDef.value !== undefined && vDef.value !== null) {
           const val = vDef.value;
-          if (comp.type === 'TEXT_INPUT') {
+          if (comp.type === 'TEXT_INPUT' || comp.type === 'PASSWORD_TEXT') {
             setTextInputValues(prev => prev[comp.id] === val ? prev : { ...prev, [comp.id]: val });
           } else if (comp.type === 'NUMBER_INPUT') {
             setNumberInputValues(prev => prev[comp.id] === val ? prev : { ...prev, [comp.id]: val });
@@ -5450,7 +5451,7 @@ const LiveTerminal = () => {
                 ];
 
                 const getComponentLiveValue = (comp) => {
-                  if (comp.type === 'TEXT_INPUT') return textInputValues[comp.id];
+                  if (comp.type === 'TEXT_INPUT' || comp.type === 'PASSWORD_TEXT') return textInputValues[comp.id];
                   if (comp.type === 'TEXT_AREA') return textAreaValues[comp.id];
                   if (comp.type === 'NUMBER_INPUT') return numberInputValues[comp.id];
                   if (comp.type === 'BARCODE' || comp.type === 'BARCODE_SCANNER') return barcodeValues[comp.id] ?? cameraScannerValues[comp.id];
@@ -6261,6 +6262,7 @@ const LiveTerminal = () => {
       case 'CAMERA_SCANNER': currentValue = cameraScannerValues[comp.id]; break;
       case 'CAMERA_CAPTURE': currentValue = cameraValues[comp.id]; break;
       case 'FILE_UPLOAD': currentValue = uploadValues[comp.id]?.url || uploadValues[comp.id]?.name; break;
+      case 'PASSWORD_TEXT':
       case 'TEXT_INPUT': currentValue = textInputValues[comp.id] ?? comp.props.defaultValue; break;
       case 'TEXT_AREA': currentValue = textAreaValues[comp.id] ?? comp.props.defaultValue; break;
       case 'DROPDOWN': currentValue = dropdownValues[comp.id] ?? comp.props.defaultValue; break;
@@ -7290,9 +7292,260 @@ const LiveTerminal = () => {
           </div>
         );
       }
+      case 'KEYBOARD_PRO': {
+        const theme = comp.props.theme || 'dark';
+        const isCyber = theme === 'cyber';
+        const isLight = theme === 'light';
+        const bg = isCyber ? '#030712' : (isLight ? '#f8fafc' : '#1e293b');
+        const border = isCyber ? '#06b6d4' : (isLight ? '#e2e8f0' : '#334155');
+        const keyBg = isCyber ? 'rgba(6, 182, 212, 0.1)' : (isLight ? '#ffffff' : '#334155');
+        const keyText = isCyber ? '#06b6d4' : (isLight ? '#0f172a' : '#f8fafc');
+        const keyBorder = isCyber ? '1px solid #06b6d4' : (isLight ? '1px solid #e2e8f0' : '1px solid #475569');
+
+        const isShift = !!keyboardShift[comp.id];
+
+        const rows = [
+          ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+          ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+          ['Shift', 'z', 'x', 'c', 'v', 'b', 'n', 'm', 'Backspace'],
+          ['Space', 'Clear']
+        ];
+
+        const handleKeyClick = (k) => {
+          const varName = comp.props.targetVariable;
+          if (!varName) {
+            console.warn('[KeyboardPro] No targetVariable set.');
+            return;
+          }
+          const cleanVarName = varName.startsWith('@') ? varName.substring(1) : varName;
+          const vDef = appVariables.find(v => v.name === cleanVarName || v.id === cleanVarName);
+          let currentVal = String(vDef ? (vDef.value ?? '') : '');
+
+          if (k === 'Shift') {
+            setKeyboardShift(prev => ({ ...prev, [comp.id]: !prev[comp.id] }));
+            return;
+          } else if (k === 'Backspace') {
+            currentVal = currentVal.substring(0, currentVal.length - 1);
+          } else if (k === 'Clear') {
+            currentVal = '';
+          } else if (k === 'Space') {
+            currentVal += ' ';
+          } else {
+            currentVal += isShift ? k.toUpperCase() : k.toLowerCase();
+          }
+
+          // Update variable
+          syncVariable(currentVal);
+          // Auto-update other inputs bound to the same variable
+          (selectedApp?.config?.steps || [])[currentStepIndex]?.components?.forEach(c => {
+            const cVar = c.props.targetVariable || (c.props.dataSourceType === 'VARIABLE' ? c.props.varSource : null);
+            if (cVar && (cVar === varName || cVar === cleanVarName || cVar === `@${cleanVarName}`)) {
+              if (c.type === 'TEXT_INPUT' || c.type === 'PASSWORD_TEXT') {
+                setTextInputValues(prev => ({ ...prev, [c.id]: currentVal }));
+              } else if (c.type === 'TEXT_AREA') {
+                setTextAreaValues(prev => ({ ...prev, [c.id]: currentVal }));
+              } else if (c.type === 'NUMBER_INPUT') {
+                setNumberInputValues(prev => ({ ...prev, [c.id]: currentVal === '' ? 0 : Number(currentVal) }));
+              }
+            }
+          });
+        };
+
+        return (
+          <div style={{
+            width: '100%',
+            height: '100%',
+            backgroundColor: bg,
+            borderRadius: '12px',
+            border: `2px solid ${border}`,
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '12px',
+            gap: '8px',
+            boxSizing: 'border-box',
+            boxShadow: isCyber ? '0 0 15px rgba(6,182,212,0.25)' : '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+            userSelect: 'none'
+          }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: isLight ? '#64748b' : '#94a3b8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+              <span>{resolvedProps.label || 'Keyboard Pro'}</span>
+              <span style={{ fontSize: '0.65rem', color: isCyber ? '#06b6d4' : '#6366f1', textTransform: 'uppercase' }}>{theme} mode</span>
+            </div>
+            <div style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '5px',
+              justifyContent: 'center'
+            }}>
+              {rows.map((row, rIdx) => (
+                <div key={rIdx} style={{ display: 'flex', gap: '5px', justifyContent: 'center', width: '100%' }}>
+                  {row.map((k, kIdx) => {
+                    let flexGrow = 1;
+                    if (k === 'Shift' || k === 'Backspace' || k === 'Clear') { flexGrow = 2; }
+                    if (k === 'Space') { flexGrow = 6; }
+                    
+                    const activeKeyBg = (k === 'Shift' && isShift) 
+                      ? (isCyber ? 'rgba(6, 182, 212, 0.4)' : '#6366f1') 
+                      : keyBg;
+                    const activeKeyText = (k === 'Shift' && isShift)
+                      ? '#ffffff'
+                      : keyText;
+
+                    return (
+                      <button
+                        key={kIdx}
+                        onClick={() => handleKeyClick(k)}
+                        style={{
+                          flexGrow: flexGrow,
+                          flexBasis: 0,
+                          height: '30px',
+                          backgroundColor: activeKeyBg,
+                          border: keyBorder,
+                          borderRadius: '6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: activeKeyText,
+                          fontSize: '0.75rem',
+                          fontWeight: 'bold',
+                          textTransform: (k.length === 1 && k !== 'Space') ? (isShift ? 'uppercase' : 'lowercase') : 'none',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                          cursor: 'pointer',
+                          outline: 'none',
+                          transition: 'all 0.1s ease-in-out'
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.2)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.filter = 'none'; }}
+                      >
+                        {k}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+      case 'NUMPAD': {
+        const allowDecimal = !!comp.props.allowDecimal;
+        const keys = [
+          ['1', '2', '3'],
+          ['4', '5', '6'],
+          ['7', '8', '9'],
+          allowDecimal ? ['C', '0', '.', '⌫'] : ['C', '0', '⌫']
+        ];
+
+        const handleNumClick = (k) => {
+          const varName = comp.props.targetVariable;
+          if (!varName) {
+            console.warn('[Numpad] No targetVariable set.');
+            return;
+          }
+          const cleanVarName = varName.startsWith('@') ? varName.substring(1) : varName;
+          const vDef = appVariables.find(v => v.name === cleanVarName || v.id === cleanVarName);
+          let currentVal = String(vDef ? (vDef.value ?? '') : '');
+
+          if (k === '⌫') {
+            currentVal = currentVal.substring(0, currentVal.length - 1);
+          } else if (k === 'C') {
+            currentVal = '';
+          } else if (k === '.') {
+            if (!allowDecimal || currentVal.includes('.')) return;
+            currentVal = currentVal === '' ? '0.' : currentVal + '.';
+          } else {
+            if (currentVal.includes('.')) {
+              const parts = currentVal.split('.');
+              const maxDecimals = comp.props.decimalPlaces !== undefined ? comp.props.decimalPlaces : 3;
+              if (parts[1].length >= maxDecimals) {
+                return;
+              }
+            }
+            currentVal += k;
+          }
+
+          // Update variable
+          const cleanVal = currentVal === '' ? 0 : parseFloat(currentVal);
+          syncVariable(isNaN(cleanVal) ? 0 : cleanVal);
+
+          // Auto-update other inputs bound to the same variable
+          (selectedApp?.config?.steps || [])[currentStepIndex]?.components?.forEach(c => {
+            const cVar = c.props.targetVariable || (c.props.dataSourceType === 'VARIABLE' ? c.props.varSource : null);
+            if (cVar && (cVar === varName || cVar === cleanVarName || cVar === `@${cleanVarName}`)) {
+              if (c.type === 'TEXT_INPUT' || c.type === 'PASSWORD_TEXT') {
+                setTextInputValues(prev => ({ ...prev, [c.id]: currentVal }));
+              } else if (c.type === 'TEXT_AREA') {
+                setTextAreaValues(prev => ({ ...prev, [c.id]: currentVal }));
+              } else if (c.type === 'NUMBER_INPUT') {
+                setNumberInputValues(prev => ({ ...prev, [c.id]: currentVal }));
+              }
+            }
+          });
+        };
+
+        return (
+          <div style={{
+            width: '100%',
+            height: '100%',
+            backgroundColor: '#1e293b',
+            borderRadius: '12px',
+            border: '2px solid #334155',
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '12px',
+            gap: '10px',
+            boxSizing: 'border-box',
+            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+            userSelect: 'none'
+          }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#94a3b8', textAlign: 'center' }}>
+              {resolvedProps.label || 'Numeric Numpad'}
+            </div>
+            <div style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px'
+            }}>
+              {keys.map((row, rIdx) => (
+                <div key={rIdx} style={{ display: 'flex', gap: '6px', flex: 1 }}>
+                  {row.map((k, kIdx) => (
+                    <button
+                      key={kIdx}
+                      onClick={() => handleNumClick(k)}
+                      style={{
+                        flex: 1,
+                        backgroundColor: (k === 'C' || k === '⌫') ? 'rgba(239, 68, 68, 0.15)' : (k === '.' ? 'rgba(6, 182, 212, 0.15)' : '#334155'),
+                        border: (k === 'C' || k === '⌫') ? '1px solid rgba(239, 68, 68, 0.3)' : (k === '.' ? '1px solid rgba(6, 182, 212, 0.3)' : '1px solid #475569'),
+                        borderRadius: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: (k === 'C' || k === '⌫') ? '#fca5a5' : (k === '.' ? '#06b6d4' : '#f8fafc'),
+                        fontSize: '1rem',
+                        fontWeight: 800,
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                        cursor: 'pointer',
+                        outline: 'none',
+                        transition: 'all 0.1s ease-in-out'
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.2)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.filter = 'none'; }}
+                    >
+                      {k}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+      case 'PASSWORD_TEXT':
       case 'TEXT_INPUT': {
         const targetVarVal = comp.props.targetVariable ? resolveValue(`@${comp.props.targetVariable}`) : undefined;
         const finalValue = targetVarVal !== undefined && targetVarVal !== `@${comp.props.targetVariable}` ? targetVarVal : (textInputValues[comp.id] != null ? textInputValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : (resolvedProps.defaultValue || '')));
+        const isPassword = comp.type === 'PASSWORD_TEXT';
         return (
         <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
           {(resolvedProps.label || resolvedProps.text) && (
@@ -7302,7 +7555,7 @@ const LiveTerminal = () => {
           )}
           <input
             id={`input-${comp.id}`}
-            type="text"
+            type={isPassword ? "password" : "text"}
             value={finalValue}
             onChange={async e => {
               const val = comp.props.mask ? applyInputMask(e.target.value, comp.props.mask) : e.target.value;
@@ -7855,9 +8108,9 @@ const LiveTerminal = () => {
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: 1 }}>
             <button
               onClick={() => {
-                const currentVal = sanitizeNumberInputValue(numberInputValues[comp.id] != null ? numberInputValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : resolvedProps.defaultValue), 0);
+                const currentVal = parseFloat(numberInputValues[comp.id] != null ? numberInputValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : resolvedProps.defaultValue)) || 0;
                 const newVal = Math.max(comp.props.min != null ? comp.props.min : 0, currentVal - 1);
-                setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal }));
+                setNumberInputValues(prev => ({ ...prev, [comp.id]: String(newVal) }));
                 syncVariable(newVal);
                 fireWidgetTriggers(comp, 'ON_CHANGE');
               }}
@@ -7880,11 +8133,13 @@ const LiveTerminal = () => {
             </button>
             <input
               type="number"
-              value={sanitizeNumberInputValue(numberInputValues[comp.id] != null ? numberInputValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : resolvedProps.defaultValue), 0)}
+              step="any"
+              value={numberInputValues[comp.id] !== undefined ? numberInputValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : (resolvedProps.defaultValue != null ? resolvedProps.defaultValue : ''))}
               onChange={e => {
-                const newVal = parseFloat(e.target.value) || 0;
-                setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal }));
-                syncVariable(newVal);
+                const valStr = e.target.value;
+                setNumberInputValues(prev => ({ ...prev, [comp.id]: valStr }));
+                const parsedVal = valStr === '' ? 0 : parseFloat(valStr);
+                syncVariable(isNaN(parsedVal) ? 0 : parsedVal);
                 fireWidgetTriggers(comp, 'ON_CHANGE');
               }}
               style={{
@@ -7903,9 +8158,9 @@ const LiveTerminal = () => {
             />
             <button
               onClick={() => {
-                const currentVal = sanitizeNumberInputValue(numberInputValues[comp.id] != null ? numberInputValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : resolvedProps.defaultValue), 0);
+                const currentVal = parseFloat(numberInputValues[comp.id] != null ? numberInputValues[comp.id] : (resolvedProps.value != null ? resolvedProps.value : resolvedProps.defaultValue)) || 0;
                 const newVal = Math.min(comp.props.max != null ? comp.props.max : 9999, currentVal + 1);
-                setNumberInputValues(prev => ({ ...prev, [comp.id]: newVal }));
+                setNumberInputValues(prev => ({ ...prev, [comp.id]: String(newVal) }));
                 syncVariable(newVal);
                 fireWidgetTriggers(comp, 'ON_CHANGE');
               }}

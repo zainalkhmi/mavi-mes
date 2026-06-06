@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import QRCode from 'react-qr-code';
-import { Wallet } from 'lucide-react';
+import { Wallet, Keyboard } from 'lucide-react';
 import {
     Blocks,
     Plus,
@@ -1877,6 +1877,145 @@ const COMPONENT_TYPES = {
             rotation: 0
         }
     },
+    ARDUINO_SCADA_VALVE: {
+        id: 'ARDUINO_SCADA_VALVE',
+        label: 'SCADA Valve',
+        icon: ToggleLeft,
+        defaultSize: { w: 220, h: 150 },
+        defaultProps: {
+            label: 'Solenoid Valve',
+            valveType: 'SOLENOID', // SOLENOID | CONTROL
+            state: false, // boolean for solenoid (open/closed) or number (0-100) for control
+            pin: 'D3',
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttSubscribeTopic: 'arduino/valve/status',
+            mqttPublishTopic: 'arduino/valve/control',
+            wifiIpAddress: '192.168.1.100',
+            targetVariable: '',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_SCADA_PUMP: {
+        id: 'ARDUINO_SCADA_PUMP',
+        label: 'SCADA Pump/Fan',
+        icon: RotateCw,
+        defaultSize: { w: 220, h: 160 },
+        defaultProps: {
+            label: 'Centrifugal Pump',
+            pumpType: 'CENTRIFUGAL', // CENTRIFUGAL | VACUUM | FAN
+            state: false,
+            speed: 0, // 0-100% or RPM
+            pin: 'D9',
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttSubscribeTopic: 'arduino/pump/status',
+            mqttPublishTopic: 'arduino/pump/control',
+            wifiIpAddress: '192.168.1.100',
+            targetVariable: '',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_SCADA_PIPE: {
+        id: 'ARDUINO_SCADA_PIPE',
+        label: 'SCADA Pipe Flow',
+        icon: SlidersHorizontal,
+        defaultSize: { w: 250, h: 70 },
+        defaultProps: {
+            label: 'Flow Pipeline',
+            flowActive: true,
+            flowSpeed: 2,
+            flowColor: '#3b82f6',
+            orientation: 'HORIZONTAL', // HORIZONTAL | VERTICAL
+            pin: 'D2',
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttSubscribeTopic: 'arduino/pipe/status',
+            wifiIpAddress: '192.168.1.100',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_SCADA_ESTOP: {
+        id: 'ARDUINO_SCADA_ESTOP',
+        label: 'SCADA Emergency Stop',
+        icon: Power,
+        defaultSize: { w: 180, h: 180 },
+        defaultProps: {
+            label: 'EMERGENCY STOP',
+            state: false, // true = tripped, false = normal/reset
+            requireConfirmation: true,
+            pin: 'D10',
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttPublishTopic: 'arduino/estop/trip',
+            wifiIpAddress: '192.168.1.100',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_SCADA_ALARM_BANNER: {
+        id: 'ARDUINO_SCADA_ALARM_BANNER',
+        label: 'SCADA Alarm Annunciator',
+        icon: Bell,
+        defaultSize: { w: 450, h: 220 },
+        defaultProps: {
+            label: 'Active System Alarms',
+            maxAlarms: 10,
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttSubscribeTopic: 'arduino/alarms',
+            wifiIpAddress: '192.168.1.100',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    ARDUINO_SCADA_PID: {
+        id: 'ARDUINO_SCADA_PID',
+        label: 'SCADA PID Faceplate',
+        icon: BarChart3,
+        defaultSize: { w: 300, h: 320 },
+        defaultProps: {
+            label: 'PID Controller',
+            sp: 50,
+            pv: 45,
+            op: 30,
+            kp: 1.5,
+            ki: 0.2,
+            kd: 0.1,
+            mode: 'AUTO', // AUTO | MANUAL
+            pinSP: 'A0',
+            pinPV: 'A1',
+            pinOP: 'D5',
+            connectionType: 'SERIAL',
+            baudRate: 9600,
+            mqttBrokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+            mqttSubscribeTopic: 'arduino/pid/status',
+            mqttPublishTopic: 'arduino/pid/control',
+            wifiIpAddress: '192.168.1.100',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
     MULTI_SELECT: {
         id: 'MULTI_SELECT',
         label: 'MultiSelect Dropdown',
@@ -1998,6 +2137,37 @@ const COMPONENT_TYPES = {
             rotation: 0
         }
     },
+    KEYBOARD_PRO: {
+        id: 'KEYBOARD_PRO',
+        label: 'Keyboard UI/UX Pro',
+        icon: Keyboard,
+        defaultSize: { w: 360, h: 200 },
+        defaultProps: {
+            label: 'Keyboard Pro',
+            theme: 'dark',
+            targetVariable: '',
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
+    NUMPAD: {
+        id: 'NUMPAD',
+        label: 'Numeric Numpad',
+        icon: Grid3X3,
+        defaultSize: { w: 200, h: 280 },
+        defaultProps: {
+            label: 'Numpad',
+            targetVariable: '',
+            allowDecimal: false,
+            decimalPlaces: 3,
+            visible: true,
+            triggers: [],
+            visibilityCondition: null,
+            rotation: 0
+        }
+    },
 
     // Additional & Chromeless Types (Defensive definitions to prevent crashes)
     IOT_CONNECTOR: { id: 'IOT_CONNECTOR', label: 'IoT Connector', icon: Cpu, defaultProps: { triggers: [], visibilityCondition: null, rotation: 0 } },
@@ -2027,7 +2197,7 @@ const CATEGORIZED_COMPONENTS = {
             'SLIDER', 'DROPDOWN', 'MULTI_SELECT', 'LIST_PICKER', 'LIST_VIEW',
             'DATE_PICKER', 'DATETIME_PICKER', 'IMAGE', 'EMBED_WEB', 'VIDEO_PLAYER',
             'FILE_PICKER', 'IMAGE_PICKER', 'SIGNATURE_PAD', 'SIGNATURE',
-            'NOTIFIER', 'CUSTOM_WIDGET', 'PRINT_AREA'
+            'NOTIFIER', 'CUSTOM_WIDGET', 'PRINT_AREA', 'KEYBOARD_PRO', 'NUMPAD'
         ]
     },
     SMARTHOME: {
@@ -2092,13 +2262,7 @@ const CATEGORIZED_COMPONENTS = {
         color: '#0ea5e9',
         types: [
             'ACTIVITY_STARTER', 'BLUETOOTH_CLIENT', 'BLUETOOTH_SERVER', 'SERIAL', 'WEB',
-            'CONTACT_PICKER', 'EMAIL_PICKER', 'PHONE_CALL', 'PHONE_NUMBER_PICKER', 'SHARING', 'TEXTING',
-            // Mirror ENGINE widgets here so they are always visible in Builder palette
-            'OBD2_SCANNER', 'OBD2_RPM', 'OBD2_SPEED', 'OBD2_COOLANT_TEMP', 'OBD2_THROTTLE', 'OBD2_ENGINE_LOAD',
-            'OBD2_MAF', 'OBD2_IAT', 'OBD2_FUEL_LEVEL', 'OBD2_FUEL_PRESSURE', 'OBD2_STFT', 'OBD2_LTFT',
-            'OBD2_AFR', 'OBD2_O2_SENSOR', 'OBD2_IGNITION_TIMING', 'OBD2_KNOCK', 'OBD2_TORQUE_EST', 'OBD2_HP_EST',
-            'OBD2_OIL_TEMP', 'OBD2_MAP', 'OBD2_BARO', 'OBD2_BOOST', 'OBD2_BATTERY_VOLTAGE', 'OBD2_DTC',
-            'OBD2_MIL_STATUS', 'OBD2_FREEZE_FRAME', 'OBD2_CLEAR_DTC', 'OBD2_WARNING'
+            'CONTACT_PICKER', 'EMAIL_PICKER', 'PHONE_CALL', 'PHONE_NUMBER_PICKER', 'SHARING', 'TEXTING'
         ]
     },
     // 8. Embedded Widgets
@@ -2138,7 +2302,8 @@ const CATEGORIZED_COMPONENTS = {
             'ARDUINO_BOARD', 'ARDUINO_PIN_MONITOR', 'ARDUINO_CONTROLLER', 'ARDUINO_GRAPH',
             'ARDUINO_CONSOLE', 'ARDUINO_GAUGE', 'ARDUINO_COLOR_PICKER', 'ARDUINO_MOTOR',
             'ARDUINO_RFID', 'ARDUINO_LCD', 'ARDUINO_JOYSTICK', 'ARDUINO_KEYPAD', 'ARDUINO_MATRIX', 'ARDUINO_RTC',
-            'ARDUINO_RADAR', 'ARDUINO_TANK', 'ARDUINO_MODBUS', 'ARDUINO_STATUS_GRID', 'ARDUINO_OSCILLOSCOPE', 'ARDUINO_THERMAL', 'ARDUINO_THERMOMETER'
+            'ARDUINO_RADAR', 'ARDUINO_TANK', 'ARDUINO_MODBUS', 'ARDUINO_STATUS_GRID', 'ARDUINO_OSCILLOSCOPE', 'ARDUINO_THERMAL', 'ARDUINO_THERMOMETER',
+            'ARDUINO_SCADA_VALVE', 'ARDUINO_SCADA_PUMP', 'ARDUINO_SCADA_PIPE', 'ARDUINO_SCADA_ESTOP', 'ARDUINO_SCADA_ALARM_BANNER', 'ARDUINO_SCADA_PID'
         ]
     }
 };
@@ -2161,20 +2326,25 @@ const DEVICE_TRIGGER_COMPONENT_TYPES = [
     'IOT_DEVICE', 'MACHINE_STATUS', 'ACCELEROMETER', 'LOCATION_SENSOR', 'BARCODE_SCANNER_NON_VISIBLE', 'CLOCK', 'OBD2_SCANNER',
     'ARDUINO_BOARD', 'ARDUINO_PIN_MONITOR', 'ARDUINO_CONTROLLER', 'ARDUINO_GRAPH', 'ARDUINO_GAUGE',
     'ARDUINO_RFID', 'ARDUINO_LCD', 'ARDUINO_JOYSTICK', 'ARDUINO_KEYPAD', 'ARDUINO_MATRIX', 'ARDUINO_RTC',
-    'ARDUINO_RADAR', 'ARDUINO_TANK', 'ARDUINO_MODBUS', 'ARDUINO_STATUS_GRID', 'ARDUINO_OSCILLOSCOPE', 'ARDUINO_THERMAL', 'ARDUINO_THERMOMETER'
+    'ARDUINO_RADAR', 'ARDUINO_TANK', 'ARDUINO_MODBUS', 'ARDUINO_STATUS_GRID', 'ARDUINO_OSCILLOSCOPE', 'ARDUINO_THERMAL', 'ARDUINO_THERMOMETER',
+    'ARDUINO_SCADA_VALVE', 'ARDUINO_SCADA_PUMP', 'ARDUINO_SCADA_PIPE', 'ARDUINO_SCADA_ESTOP', 'ARDUINO_SCADA_ALARM_BANNER', 'ARDUINO_SCADA_PID'
 ];
 const FORM_BINDABLE_COMPONENT_TYPES = [
     'TEXT_INPUT', 'TEXT_AREA', 'DROPDOWN', 'RADIO_GROUP', 'MULTI_SELECT', 'NUMBER_INPUT', 'DATE_PICKER',
     'DATETIME_PICKER', 'BOOLEAN_TOGGLE', 'BARCODE', 'CAMERA_SCANNER', 'VISION_DETECTOR', 'VISION_MEASUREMENT', 'MENU',
     'SLIDER', 'CHECKBOX', 'LIST_PICKER', 'LIST_VIEW', 'PASSWORD_TEXT', 'SPEECH_RECOGNIZER', 'SMARTHOME_DEVICE', 'TUYA_PRODUCT',
     'ARDUINO_PIN_MONITOR', 'ARDUINO_GAUGE', 'ARDUINO_RFID', 'ARDUINO_JOYSTICK', 'ARDUINO_KEYPAD', 'ARDUINO_RTC',
-    'ARDUINO_TANK', 'ARDUINO_THERMOMETER'
+    'ARDUINO_TANK', 'ARDUINO_THERMOMETER',
+    'ARDUINO_SCADA_VALVE', 'ARDUINO_SCADA_PUMP', 'ARDUINO_SCADA_PIPE', 'ARDUINO_SCADA_ESTOP', 'ARDUINO_SCADA_ALARM_BANNER', 'ARDUINO_SCADA_PID',
+    'KEYBOARD_PRO', 'NUMPAD'
 ];
 const INPUT_WIDGET_TYPES_WITH_DATASOURCE = [
     'TEXT_INPUT', 'TEXT_AREA', 'NUMBER_INPUT', 'DATE_PICKER', 'DATETIME_PICKER', 'BOOLEAN_TOGGLE',
     'DROPDOWN', 'MULTI_SELECT', 'CHECKBOX', 'PASSWORD_TEXT', 'LIST_PICKER', 'LIST_VIEW', 'SPEECH_RECOGNIZER', 'SMARTHOME_DEVICE', 'TUYA_PRODUCT',
     'ARDUINO_PIN_MONITOR', 'ARDUINO_GAUGE', 'ARDUINO_RFID', 'ARDUINO_JOYSTICK', 'ARDUINO_KEYPAD', 'ARDUINO_RTC',
-    'ARDUINO_TANK', 'ARDUINO_THERMOMETER'
+    'ARDUINO_TANK', 'ARDUINO_THERMOMETER',
+    'ARDUINO_SCADA_VALVE', 'ARDUINO_SCADA_PUMP', 'ARDUINO_SCADA_PIPE', 'ARDUINO_SCADA_ESTOP', 'ARDUINO_SCADA_ALARM_BANNER', 'ARDUINO_SCADA_PID',
+    'KEYBOARD_PRO', 'NUMPAD'
 ];
 const FORM_STEP_TYPES = ['Form Step', 'Signature Form'];
 
@@ -2479,6 +2649,19 @@ const ArduinoWidget = ({ comp, viewMode, onWidgetInteraction, setPreviewFormValu
     const [thermoValue, setThermoValue] = React.useState(0);
     const radarAnimRef = React.useRef(null);
 
+    // SCADA Widgets States
+    const [scadaValveState, setScadaValveState] = React.useState(comp.props.state !== undefined ? comp.props.state : false);
+    const [scadaPumpState, setScadaPumpState] = React.useState(comp.props.state !== undefined ? comp.props.state : false);
+    const [scadaPumpSpeed, setScadaPumpSpeed] = React.useState(comp.props.speed || 0);
+    const [scadaPipeFlow, setScadaPipeFlow] = React.useState(comp.props.flowRate || 0);
+    const [scadaEstopActive, setScadaEstopActive] = React.useState(comp.props.state !== undefined ? comp.props.state : false);
+    const [scadaAlarms, setScadaAlarms] = React.useState([
+        { id: 1, tag: 'SYS-01', msg: 'SCADA System initialized and ready', time: new Date().toLocaleTimeString(), severity: 'INFO', ack: true }
+    ]);
+    const [pidSp, setPidSp] = React.useState(comp.props.sp || 50);
+    const [pidPv, setPidPv] = React.useState(comp.props.pv || 45);
+    const [pidOp, setPidOp] = React.useState(comp.props.op || 30);
+
     React.useEffect(() => {
         if (viewMode !== 'PREVIEW') return;
         
@@ -2692,6 +2875,89 @@ const ArduinoWidget = ({ comp, viewMode, onWidgetInteraction, setPreviewFormValu
                 setThermoValue(val);
                 if (comp.props.targetVariable) setPreviewFormValues(prev => ({ ...prev, [comp.id]: val }));
                 onWidgetInteraction(comp, 'TempChanged', { value: val });
+            });
+        } else if (comp.type === 'ARDUINO_SCADA_VALVE') {
+            const pin = comp.props.pin || 'D2';
+            if (comp.props.connectionType === 'MQTT') {
+                hardwareService.subscribeMqttPin(pin, comp.props.mqttSubscribeTopic);
+            } else if (comp.props.connectionType === 'WIFI' && hardwareService.wifiIpAddress) {
+                hardwareService.startWifiPolling(hardwareService.wifiIpAddress, pin, comp.props.wifiPollingInterval || 1000);
+            }
+            telemetryUnsub = hardwareService.onPinData(pin, (rawVal) => {
+                const active = parseInt(rawVal) > 0;
+                setScadaValveState(active);
+                if (comp.props.targetVariable) setPreviewFormValues(prev => ({ ...prev, [comp.id]: active }));
+                onWidgetInteraction(comp, 'ValveStateChanged', { state: active });
+            });
+        } else if (comp.type === 'ARDUINO_SCADA_PUMP') {
+            const pin = comp.props.pin || 'D3';
+            if (comp.props.connectionType === 'MQTT') {
+                hardwareService.subscribeMqttPin(pin, comp.props.mqttSubscribeTopic);
+            } else if (comp.props.connectionType === 'WIFI' && hardwareService.wifiIpAddress) {
+                hardwareService.startWifiPolling(hardwareService.wifiIpAddress, pin, comp.props.wifiPollingInterval || 1000);
+            }
+            telemetryUnsub = hardwareService.onPinData(pin, (rawVal) => {
+                const active = parseInt(rawVal) > 0;
+                setScadaPumpState(active);
+                if (comp.props.targetVariable) setPreviewFormValues(prev => ({ ...prev, [comp.id]: active }));
+                onWidgetInteraction(comp, 'PumpStateChanged', { state: active });
+            });
+        } else if (comp.type === 'ARDUINO_SCADA_PIPE') {
+            const pin = comp.props.pin || 'A0';
+            if (comp.props.connectionType === 'MQTT') {
+                hardwareService.subscribeMqttPin(pin, comp.props.mqttSubscribeTopic);
+            } else if (comp.props.connectionType === 'WIFI' && hardwareService.wifiIpAddress) {
+                hardwareService.startWifiPolling(hardwareService.wifiIpAddress, pin, comp.props.wifiPollingInterval || 1000);
+            }
+            telemetryUnsub = hardwareService.onPinData(pin, (rawVal) => {
+                const flow = parseFloat(rawVal) || 0;
+                setScadaPipeFlow(flow);
+                if (comp.props.targetVariable) setPreviewFormValues(prev => ({ ...prev, [comp.id]: flow }));
+                onWidgetInteraction(comp, 'FlowChanged', { flowRate: flow });
+            });
+        } else if (comp.type === 'ARDUINO_SCADA_ESTOP') {
+            const pin = comp.props.pin || 'D4';
+            if (comp.props.connectionType === 'MQTT') {
+                hardwareService.subscribeMqttPin(pin, comp.props.mqttSubscribeTopic);
+            } else if (comp.props.connectionType === 'WIFI' && hardwareService.wifiIpAddress) {
+                hardwareService.startWifiPolling(hardwareService.wifiIpAddress, pin, comp.props.wifiPollingInterval || 1000);
+            }
+            telemetryUnsub = hardwareService.onPinData(pin, (rawVal) => {
+                const active = parseInt(rawVal) > 0;
+                setScadaEstopActive(active);
+                if (comp.props.targetVariable) setPreviewFormValues(prev => ({ ...prev, [comp.id]: active }));
+                onWidgetInteraction(comp, 'EmergencyStop', { active });
+            });
+        } else if (comp.type === 'ARDUINO_SCADA_ALARM_BANNER') {
+            telemetryUnsub = hardwareService.onData((val, rawLine) => {
+                if (rawLine && rawLine.startsWith('ALARM:')) {
+                    const msg = rawLine.substring(6);
+                    setScadaAlarms(prev => {
+                        const newAlarm = {
+                            id: Date.now(),
+                            tag: comp.props.tag || 'ALM',
+                            msg,
+                            time: new Date().toLocaleTimeString(),
+                            severity: 'CRITICAL',
+                            ack: false
+                        };
+                        return [newAlarm, ...prev].slice(0, 50);
+                    });
+                    onWidgetInteraction(comp, 'AlarmTriggered', { message: msg });
+                }
+            });
+        } else if (comp.type === 'ARDUINO_SCADA_PID') {
+            const pin = comp.props.pin || 'A0';
+            if (comp.props.connectionType === 'MQTT') {
+                hardwareService.subscribeMqttPin(pin, comp.props.mqttSubscribeTopic);
+            } else if (comp.props.connectionType === 'WIFI' && hardwareService.wifiIpAddress) {
+                hardwareService.startWifiPolling(hardwareService.wifiIpAddress, pin, comp.props.wifiPollingInterval || 1000);
+            }
+            telemetryUnsub = hardwareService.onPinData(pin, (rawVal) => {
+                const pv = parseFloat(rawVal) || 0;
+                setPidPv(pv);
+                if (comp.props.targetVariable) setPreviewFormValues(prev => ({ ...prev, [comp.id]: pv }));
+                onWidgetInteraction(comp, 'PidUpdated', { pv, sp: pidSp, op: pidOp });
             });
         }
 
@@ -4132,6 +4398,553 @@ const ArduinoWidget = ({ comp, viewMode, onWidgetInteraction, setPreviewFormValu
                         <div style={{ fontSize: '0.55rem', color: 'var(--text-quaternary)' }}>PIN: {comp.props.pin || 'A0'}</div>
                         <div style={{ fontSize: '0.55rem', color: 'var(--text-quaternary)' }}>{mn}{comp.props.unit || '°C'} – {mx}{comp.props.unit || '°C'}</div>
                     </div>
+                </div>
+            </div>
+        );
+    }
+
+    // --- ARDUINO_SCADA_VALVE ---
+    if (comp.type === 'ARDUINO_SCADA_VALVE') {
+        const isOpen = viewMode === 'PREVIEW' ? scadaValveState : (comp.props.state || false);
+        const valveType = comp.props.valveType || 'SOLENOID';
+        const label = comp.props.label || 'Solenoid Valve';
+        const pin = comp.props.pin || 'D3';
+
+        const handleValveToggle = () => {
+            if (viewMode !== 'PREVIEW') return;
+            const newState = !scadaValveState;
+            setScadaValveState(newState);
+            const cmd = newState ? `d${pin}:1` : `d${pin}:0`;
+            if (comp.props.connectionType === 'MQTT') {
+                hardwareService.publishMqtt(comp.props.mqttPublishTopic || 'arduino/valve/control', newState ? '1' : '0');
+            } else if (comp.props.connectionType === 'WIFI' && hardwareService.wifiIpAddress) {
+                hardwareService.writeWifi(hardwareService.wifiIpAddress, pin, newState ? 1 : 0);
+            } else {
+                hardwareService.writeSerial(`${cmd}\n`);
+            }
+            onWidgetInteraction(comp, 'ValveToggled', { state: newState, pin });
+        };
+
+        return (
+            <div style={{
+                width: '100%', height: '100%', background: 'var(--bg-panel)',
+                border: `2px solid ${isOpen ? '#10b981' : '#ef4444'}`,
+                borderRadius: '12px', padding: '10px', boxSizing: 'border-box',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', position: 'relative'
+            }}>
+                <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>⚙ {label}</span>
+                    <span style={{
+                        fontSize: '0.6rem', padding: '2px 7px', borderRadius: '4px', fontWeight: 'bold',
+                        background: isOpen ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
+                        color: isOpen ? '#10b981' : '#ef4444'
+                    }}>{isOpen ? 'OPEN' : 'CLOSED'}</span>
+                </div>
+
+                {/* Bowtie Valve SVG Symbol */}
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="120" height="70" viewBox="0 0 120 70">
+                        {/* Pipe stubs */}
+                        <rect x="0" y="29" width="25" height="12" rx="2" fill="#475569" />
+                        <rect x="95" y="29" width="25" height="12" rx="2" fill="#475569" />
+                        {/* Bowtie body (two triangles) */}
+                        <polygon points="25,10 60,35 25,60" fill={isOpen ? '#10b981' : '#ef4444'} opacity="0.9" />
+                        <polygon points="95,10 60,35 95,60" fill={isOpen ? '#10b981' : '#ef4444'} opacity="0.9" />
+                        {/* Centre stem */}
+                        <line x1="60" y1="0" x2="60" y2="14" stroke="#94a3b8" strokeWidth="3" />
+                        <circle cx="60" cy="6" r="6" fill={isOpen ? '#10b981' : '#94a3b8'} stroke="#1e293b" strokeWidth="1.5" />
+                        {/* Flow arrows when open */}
+                        {isOpen && (
+                            <>
+                                <polyline points="30,35 50,35" stroke="#10b981" strokeWidth="2.5" fill="none" markerEnd="url(#arr)" opacity="0.7" />
+                                <polyline points="70,35 90,35" stroke="#10b981" strokeWidth="2.5" fill="none" opacity="0.7" />
+                                <polygon points="88,31 96,35 88,39" fill="#10b981" />
+                            </>
+                        )}
+                    </svg>
+                </div>
+
+                <button
+                    onClick={handleValveToggle}
+                    disabled={viewMode !== 'PREVIEW'}
+                    style={{
+                        width: '100%', padding: '6px 12px', fontSize: '0.7rem', fontWeight: 'bold',
+                        background: isOpen ? '#ef4444' : '#10b981', color: 'white',
+                        border: 'none', borderRadius: '6px', cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default',
+                        transition: 'background 0.2s'
+                    }}
+                >{isOpen ? '⛔ Close Valve' : '✅ Open Valve'}</button>
+                <div style={{ fontSize: '0.55rem', color: 'var(--text-quaternary)', fontFamily: 'monospace' }}>
+                    {valveType} | PIN: {pin}
+                </div>
+            </div>
+        );
+    }
+
+    // --- ARDUINO_SCADA_PUMP ---
+    if (comp.type === 'ARDUINO_SCADA_PUMP') {
+        const isRunning = viewMode === 'PREVIEW' ? scadaPumpState : (comp.props.state || false);
+        const speed = viewMode === 'PREVIEW' ? scadaPumpSpeed : (comp.props.speed || 0);
+        const pumpType = comp.props.pumpType || 'CENTRIFUGAL';
+        const label = comp.props.label || 'Pump';
+        const pin = comp.props.pin || 'D9';
+        const pumpIcons = { CENTRIFUGAL: '🌀', VACUUM: '💨', FAN: '🔄' };
+
+        const handlePumpToggle = () => {
+            if (viewMode !== 'PREVIEW') return;
+            const newState = !scadaPumpState;
+            setScadaPumpState(newState);
+            if (comp.props.connectionType === 'MQTT') {
+                hardwareService.publishMqtt(comp.props.mqttPublishTopic || 'arduino/pump/control', newState ? '1' : '0');
+            } else if (comp.props.connectionType === 'WIFI' && hardwareService.wifiIpAddress) {
+                hardwareService.writeWifi(hardwareService.wifiIpAddress, pin, newState ? 1 : 0);
+            } else {
+                hardwareService.writeSerial(`d${pin}:${newState ? 1 : 0}\n`);
+            }
+            onWidgetInteraction(comp, 'PumpToggled', { state: newState, pin });
+        };
+
+        const handleSpeedChange = (e) => {
+            if (viewMode !== 'PREVIEW') return;
+            const spd = parseInt(e.target.value);
+            setScadaPumpSpeed(spd);
+            const pwmVal = Math.round((spd / 100) * 255);
+            if (comp.props.connectionType === 'MQTT') {
+                hardwareService.publishMqtt(comp.props.mqttPublishTopic || 'arduino/pump/control', String(pwmVal));
+            } else if (comp.props.connectionType === 'WIFI' && hardwareService.wifiIpAddress) {
+                hardwareService.writeWifi(hardwareService.wifiIpAddress, pin, pwmVal);
+            } else {
+                hardwareService.writeSerial(`p${pin}:${pwmVal}\n`);
+            }
+        };
+
+        const animSpeed = isRunning ? Math.max(0.3, 3 - (speed / 100) * 2.5) : 0;
+
+        return (
+            <div style={{
+                width: '100%', height: '100%', background: 'var(--bg-panel)',
+                border: `2px solid ${isRunning ? '#10b981' : '#475569'}`,
+                borderRadius: '12px', padding: '10px', boxSizing: 'border-box',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px'
+            }}>
+                <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{pumpIcons[pumpType] || '🌀'} {label}</span>
+                    <span style={{
+                        fontSize: '0.6rem', padding: '2px 7px', borderRadius: '4px', fontWeight: 'bold',
+                        background: isRunning ? 'rgba(16,185,129,0.15)' : 'rgba(71,85,105,0.2)',
+                        color: isRunning ? '#10b981' : '#94a3b8'
+                    }}>{isRunning ? 'RUNNING' : 'STOPPED'}</span>
+                </div>
+
+                {/* Animated Impeller */}
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{
+                        width: '80px', height: '80px', position: 'relative',
+                        animation: isRunning ? `spin ${animSpeed}s linear infinite` : 'none'
+                    }}>
+                        <svg width="80" height="80" viewBox="0 0 80 80">
+                            <circle cx="40" cy="40" r="38" fill="none" stroke={isRunning ? '#10b981' : '#475569'} strokeWidth="2" />
+                            {/* Blades */}
+                            {[0, 60, 120, 180, 240, 300].map((angle, i) => {
+                                const rad = (angle * Math.PI) / 180;
+                                const x1 = 40 + 14 * Math.cos(rad);
+                                const y1 = 40 + 14 * Math.sin(rad);
+                                const x2 = 40 + 32 * Math.cos(rad + 0.7);
+                                const y2 = 40 + 32 * Math.sin(rad + 0.7);
+                                return (
+                                    <line key={i} x1={x1} y1={y1} x2={x2} y2={y2}
+                                        stroke={isRunning ? '#10b981' : '#475569'} strokeWidth="4" strokeLinecap="round" />
+                                );
+                            })}
+                            <circle cx="40" cy="40" r="8" fill={isRunning ? '#10b981' : '#475569'} />
+                        </svg>
+                    </div>
+                </div>
+
+                {/* Speed Slider */}
+                <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '0.6rem', color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>Speed:</span>
+                    <input type="range" min="0" max="100" value={speed}
+                        onChange={handleSpeedChange}
+                        disabled={viewMode !== 'PREVIEW' || !isRunning}
+                        style={{ flex: 1, accentColor: '#10b981' }} />
+                    <span style={{ fontSize: '0.65rem', fontWeight: 'bold', color: '#10b981', fontFamily: 'monospace', minWidth: '28px' }}>{speed}%</span>
+                </div>
+
+                <button onClick={handlePumpToggle} disabled={viewMode !== 'PREVIEW'}
+                    style={{
+                        width: '100%', padding: '6px', fontSize: '0.7rem', fontWeight: 'bold',
+                        background: isRunning ? '#ef4444' : '#10b981', color: 'white',
+                        border: 'none', borderRadius: '6px', cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default', transition: 'background 0.2s'
+                    }}>{isRunning ? '⏹ Stop Pump' : '▶ Start Pump'}</button>
+                <div style={{ fontSize: '0.55rem', color: 'var(--text-quaternary)', fontFamily: 'monospace' }}>
+                    {pumpType} | PIN: {pin}
+                </div>
+                <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+            </div>
+        );
+    }
+
+    // --- ARDUINO_SCADA_PIPE ---
+    if (comp.type === 'ARDUINO_SCADA_PIPE') {
+        const flowActive = comp.props.flowActive !== false;
+        const flowColor = comp.props.flowColor || '#3b82f6';
+        const flowSpeed = comp.props.flowSpeed || 2;
+        const orientation = comp.props.orientation || 'HORIZONTAL';
+        const isHoriz = orientation !== 'VERTICAL';
+        const label = comp.props.label || 'Flow Pipeline';
+        const flowRate = viewMode === 'PREVIEW' ? scadaPipeFlow : 0;
+
+        const animDuration = Math.max(0.3, 3 / flowSpeed);
+        const pipeW = isHoriz ? '100%' : '40px';
+        const pipeH = isHoriz ? '40px' : '100%';
+
+        return (
+            <div style={{
+                width: '100%', height: '100%', background: 'var(--bg-panel)',
+                border: '1px solid var(--border-secondary)', borderRadius: '12px',
+                padding: '10px', boxSizing: 'border-box',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', gap: '6px'
+            }}>
+                <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>🔵 {label}</span>
+                    {viewMode === 'PREVIEW' && (
+                        <span style={{ fontSize: '0.6rem', color: flowColor, fontFamily: 'monospace', fontWeight: 'bold' }}>
+                            {flowRate.toFixed(1)} L/min
+                        </span>
+                    )}
+                </div>
+
+                {/* Animated Pipe */}
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+                    <div style={{
+                        width: pipeW, height: pipeH, maxWidth: '100%', maxHeight: '100%',
+                        background: '#1e293b', borderRadius: '20px',
+                        border: `3px solid ${flowColor}`, position: 'relative', overflow: 'hidden'
+                    }}>
+                        {/* Animated dashes */}
+                        <div style={{
+                            position: 'absolute',
+                            top: isHoriz ? '50%' : '0%',
+                            left: isHoriz ? '0%' : '50%',
+                            width: isHoriz ? '200%' : '4px',
+                            height: isHoriz ? '4px' : '200%',
+                            transform: isHoriz ? 'translateY(-50%)' : 'translateX(-50%)',
+                            background: flowActive
+                                ? `repeating-linear-gradient(${isHoriz ? '90deg' : '180deg'}, ${flowColor} 0px, ${flowColor} 16px, transparent 16px, transparent 28px)`
+                                : 'transparent',
+                            animation: flowActive ? `pipeFlow${isHoriz ? 'H' : 'V'} ${animDuration}s linear infinite` : 'none',
+                            opacity: 0.7
+                        }} />
+                    </div>
+                </div>
+
+                <div style={{ fontSize: '0.55rem', color: 'var(--text-quaternary)', fontFamily: 'monospace' }}>
+                    {orientation} | Flow: {flowActive ? 'ACTIVE' : 'IDLE'} | PIN: {comp.props.pin || 'D2'}
+                </div>
+                <style>{`
+                    @keyframes pipeFlowH { from { left: 0%; } to { left: -50%; } }
+                    @keyframes pipeFlowV { from { top: 0%; } to { top: -50%; } }
+                `}</style>
+            </div>
+        );
+    }
+
+    // --- ARDUINO_SCADA_ESTOP ---
+    if (comp.type === 'ARDUINO_SCADA_ESTOP') {
+        const isTripped = viewMode === 'PREVIEW' ? scadaEstopActive : (comp.props.state || false);
+        const label = comp.props.label || 'EMERGENCY STOP';
+        const requireConfirm = comp.props.requireConfirmation !== false;
+
+        const handleEstop = () => {
+            if (viewMode !== 'PREVIEW') return;
+            if (!isTripped && requireConfirm) {
+                if (!window.confirm('⚠️ ACTIVATE EMERGENCY STOP?\n\nThis will send a STOP signal to all connected devices.')) return;
+            }
+            const newState = !isTripped;
+            setScadaEstopActive(newState);
+            const pin = comp.props.pin || 'D10';
+            if (comp.props.connectionType === 'MQTT') {
+                hardwareService.publishMqtt(comp.props.mqttPublishTopic || 'arduino/estop/trip', newState ? '1' : '0');
+            } else if (comp.props.connectionType === 'WIFI' && hardwareService.wifiIpAddress) {
+                hardwareService.writeWifi(hardwareService.wifiIpAddress, pin, newState ? 1 : 0);
+            } else {
+                hardwareService.writeSerial(`d${pin}:${newState ? 1 : 0}\n`);
+            }
+            if (newState) {
+                setScadaAlarms(prev => [{
+                    id: Date.now(), tag: 'SYS-ESTOP', msg: 'EMERGENCY STOP ACTIVATED by operator',
+                    time: new Date().toLocaleTimeString(), severity: 'CRITICAL', ack: false
+                }, ...prev].slice(0, 50));
+            }
+            onWidgetInteraction(comp, 'EmergencyStop', { active: newState });
+        };
+
+        return (
+            <div style={{
+                width: '100%', height: '100%',
+                background: isTripped ? '#450a0a' : '#1c1917',
+                border: `3px solid ${isTripped ? '#ef4444' : '#78716c'}`,
+                borderRadius: '12px', padding: '12px', boxSizing: 'border-box',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', gap: '8px'
+            }}>
+                <div style={{ fontSize: '0.65rem', fontWeight: 800, color: isTripped ? '#fca5a5' : '#a8a29e', letterSpacing: '0.05em', textAlign: 'center' }}>
+                    ⚠ {label}
+                </div>
+
+                {/* Mushroom Button */}
+                <button
+                    onClick={handleEstop}
+                    disabled={viewMode !== 'PREVIEW'}
+                    style={{
+                        width: '80px', height: '80px', borderRadius: '50%',
+                        background: isTripped
+                            ? 'radial-gradient(circle at 35% 35%, #ff6b6b, #dc2626)'
+                            : 'radial-gradient(circle at 35% 35%, #f87171, #b91c1c)',
+                        border: `4px solid ${isTripped ? '#fca5a5' : '#7f1d1d'}`,
+                        cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default',
+                        boxShadow: isTripped
+                            ? '0 0 30px rgba(239,68,68,0.8), inset 0 2px 4px rgba(255,255,255,0.2)'
+                            : '0 4px 12px rgba(0,0,0,0.6), inset 0 2px 4px rgba(255,255,255,0.1)',
+                        animation: isTripped ? 'estopPulse 1s ease-in-out infinite' : 'none',
+                        fontSize: '1.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'all 0.15s'
+                    }}
+                >🔴</button>
+
+                {/* Status Text */}
+                <div style={{
+                    fontSize: '0.65rem', fontWeight: 700, fontFamily: 'monospace',
+                    color: isTripped ? '#ef4444' : '#78716c', textAlign: 'center',
+                    letterSpacing: '0.08em'
+                }}>
+                    {isTripped ? '■ STOP ACTIVE — Click to RESET' : '● NORMAL — Click to ACTIVATE'}
+                </div>
+
+                {/* Indicator Ring */}
+                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: isTripped ? '#ef4444' : '#22c55e' }} />
+                    <span style={{ fontSize: '0.55rem', color: 'var(--text-quaternary)', fontFamily: 'monospace' }}>
+                        PIN: {comp.props.pin || 'D10'}
+                    </span>
+                </div>
+
+                <style>{`@keyframes estopPulse { 0%,100%{box-shadow:0 0 30px rgba(239,68,68,0.8)} 50%{box-shadow:0 0 50px rgba(239,68,68,1),0 0 80px rgba(239,68,68,0.4)} }`}</style>
+            </div>
+        );
+    }
+
+    // --- ARDUINO_SCADA_ALARM_BANNER ---
+    if (comp.type === 'ARDUINO_SCADA_ALARM_BANNER') {
+        const alarms = viewMode === 'PREVIEW' ? scadaAlarms : [
+            { id: 1, tag: 'TMP-01', msg: 'High temperature detected on Zone A', time: '12:00:01', severity: 'CRITICAL', ack: false },
+            { id: 2, tag: 'PRS-02', msg: 'Low pressure warning on Line 2', time: '12:01:30', severity: 'WARNING', ack: false },
+            { id: 3, tag: 'SYS-01', msg: 'SCADA System initialized and ready', time: '12:00:00', severity: 'INFO', ack: true },
+        ];
+
+        const handleAck = (alarmId) => {
+            if (viewMode !== 'PREVIEW') return;
+            setScadaAlarms(prev => prev.map(a => a.id === alarmId ? { ...a, ack: true } : a));
+            onWidgetInteraction(comp, 'AlarmAcknowledged', { alarmId });
+        };
+
+        const handleAckAll = () => {
+            if (viewMode !== 'PREVIEW') return;
+            setScadaAlarms(prev => prev.map(a => ({ ...a, ack: true })));
+            onWidgetInteraction(comp, 'AllAlarmsAcknowledged', {});
+        };
+
+        const severityColor = { CRITICAL: '#ef4444', WARNING: '#f59e0b', INFO: '#3b82f6' };
+        const unackedCount = alarms.filter(a => !a.ack).length;
+
+        return (
+            <div style={{
+                width: '100%', height: '100%', background: '#0a0a0a',
+                border: `2px solid ${unackedCount > 0 ? '#ef4444' : '#334155'}`,
+                borderRadius: '12px', boxSizing: 'border-box',
+                display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                animation: unackedCount > 0 ? 'alarmBlink 1.5s ease-in-out infinite' : 'none'
+            }}>
+                {/* Header */}
+                <div style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '6px 10px', background: '#111827', borderBottom: '1px solid #1e293b'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Bell size={12} color={unackedCount > 0 ? '#ef4444' : '#64748b'} />
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: unackedCount > 0 ? '#fca5a5' : '#94a3b8' }}>
+                            {comp.props.label || 'Active Alarms'}
+                        </span>
+                        {unackedCount > 0 && (
+                            <span style={{
+                                fontSize: '0.55rem', background: '#ef4444', color: 'white',
+                                borderRadius: '10px', padding: '1px 6px', fontWeight: 'bold'
+                            }}>{unackedCount}</span>
+                        )}
+                    </div>
+                    <button onClick={handleAckAll} disabled={viewMode !== 'PREVIEW' || unackedCount === 0}
+                        style={{
+                            fontSize: '0.6rem', padding: '2px 8px', background: unackedCount > 0 ? '#1d4ed8' : 'transparent',
+                            color: unackedCount > 0 ? 'white' : '#475569', border: '1px solid #334155',
+                            borderRadius: '4px', cursor: unackedCount > 0 && viewMode === 'PREVIEW' ? 'pointer' : 'default'
+                        }}>ACK ALL</button>
+                </div>
+
+                {/* Alarm List */}
+                <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
+                    {alarms.slice(0, comp.props.maxAlarms || 10).map((alarm) => (
+                        <div key={alarm.id} style={{
+                            display: 'flex', alignItems: 'center', gap: '6px',
+                            padding: '4px 6px', marginBottom: '2px',
+                            background: alarm.ack ? '#0f172a' : 'rgba(239,68,68,0.08)',
+                            border: `1px solid ${alarm.ack ? '#1e293b' : severityColor[alarm.severity] || '#ef4444'}40`,
+                            borderRadius: '4px', opacity: alarm.ack ? 0.6 : 1
+                        }}>
+                            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: severityColor[alarm.severity] || '#ef4444', flexShrink: 0 }} />
+                            <span style={{ fontSize: '0.55rem', color: '#64748b', fontFamily: 'monospace', flexShrink: 0 }}>{alarm.time}</span>
+                            <span style={{ fontSize: '0.6rem', fontWeight: 700, color: severityColor[alarm.severity] || '#ef4444', flexShrink: 0 }}>[{alarm.tag}]</span>
+                            <span style={{ fontSize: '0.6rem', color: alarm.ack ? '#475569' : '#e2e8f0', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{alarm.msg}</span>
+                            {!alarm.ack && (
+                                <button onClick={() => handleAck(alarm.id)} disabled={viewMode !== 'PREVIEW'}
+                                    style={{
+                                        fontSize: '0.5rem', padding: '1px 5px', background: '#1d4ed8',
+                                        color: 'white', border: 'none', borderRadius: '3px',
+                                        cursor: viewMode === 'PREVIEW' ? 'pointer' : 'default', flexShrink: 0
+                                    }}>ACK</button>
+                            )}
+                            {alarm.ack && <span style={{ fontSize: '0.5rem', color: '#22c55e', flexShrink: 0 }}>✓</span>}
+                        </div>
+                    ))}
+                    {alarms.length === 0 && (
+                        <div style={{ textAlign: 'center', padding: '20px', color: '#334155', fontSize: '0.7rem' }}>
+                            ✅ No active alarms
+                        </div>
+                    )}
+                </div>
+                <style>{`@keyframes alarmBlink { 0%,100%{border-color:#ef4444} 50%{border-color:#450a0a} }`}</style>
+            </div>
+        );
+    }
+
+    // --- ARDUINO_SCADA_PID ---
+    if (comp.type === 'ARDUINO_SCADA_PID') {
+        const sp = viewMode === 'PREVIEW' ? pidSp : (comp.props.sp || 50);
+        const pv = viewMode === 'PREVIEW' ? pidPv : (comp.props.pv || 45);
+        const op = viewMode === 'PREVIEW' ? pidOp : (comp.props.op || 30);
+        const kp = comp.props.kp || 1.5;
+        const ki = comp.props.ki || 0.2;
+        const kd = comp.props.kd || 0.1;
+        const mode = comp.props.mode || 'AUTO';
+        const label = comp.props.label || 'PID Controller';
+
+        const spPct = Math.min(100, Math.max(0, sp));
+        const pvPct = Math.min(100, Math.max(0, pv));
+        const opPct = Math.min(100, Math.max(0, op));
+        const error = (pv - sp).toFixed(1);
+        const deviation = Math.abs(pv - sp);
+        const devColor = deviation > 10 ? '#ef4444' : deviation > 5 ? '#f59e0b' : '#10b981';
+
+        const handleSpChange = (e) => {
+            if (viewMode !== 'PREVIEW' || mode !== 'AUTO') return;
+            const val = parseFloat(e.target.value);
+            setPidSp(val);
+            if (comp.props.connectionType === 'MQTT') {
+                hardwareService.publishMqtt(comp.props.mqttPublishTopic || 'arduino/pid/control', JSON.stringify({ sp: val }));
+            } else {
+                hardwareService.writeSerial(`pid:sp:${val}\n`);
+            }
+            onWidgetInteraction(comp, 'SetpointChanged', { sp: val });
+        };
+
+        const handleOpChange = (e) => {
+            if (viewMode !== 'PREVIEW' || mode !== 'MANUAL') return;
+            const val = parseFloat(e.target.value);
+            setPidOp(val);
+            if (comp.props.connectionType === 'MQTT') {
+                hardwareService.publishMqtt(comp.props.mqttPublishTopic || 'arduino/pid/control', JSON.stringify({ op: val }));
+            } else {
+                hardwareService.writeSerial(`pid:op:${val}\n`);
+            }
+            onWidgetInteraction(comp, 'OutputChanged', { op: val });
+        };
+
+        const Bar = ({ label: bLabel, pct, color, value, unit = '%' }) => (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flex: 1 }}>
+                <span style={{ fontSize: '0.6rem', fontWeight: 700, color, fontFamily: 'monospace' }}>{bLabel}</span>
+                <div style={{ width: '28px', height: '100px', background: '#0f172a', border: `1px solid ${color}40`, borderRadius: '4px', position: 'relative', overflow: 'hidden' }}>
+                    <div style={{
+                        position: 'absolute', bottom: 0, left: 0, right: 0,
+                        height: `${pct}%`, background: color, opacity: 0.85,
+                        transition: 'height 0.4s ease', borderRadius: '2px 2px 0 0'
+                    }} />
+                </div>
+                <span style={{ fontSize: '0.65rem', fontWeight: 900, color, fontFamily: 'monospace' }}>{value.toFixed(1)}</span>
+                <span style={{ fontSize: '0.5rem', color: '#64748b' }}>{unit}</span>
+            </div>
+        );
+
+        return (
+            <div style={{
+                width: '100%', height: '100%', background: '#0f172a',
+                border: `2px solid ${tealColor}40`, borderRadius: '12px',
+                padding: '10px', boxSizing: 'border-box',
+                display: 'flex', flexDirection: 'column', gap: '8px', overflow: 'hidden'
+            }}>
+                {/* Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: tealColor }}>⚡ {label}</span>
+                    <span style={{
+                        fontSize: '0.6rem', padding: '2px 7px', borderRadius: '4px', fontWeight: 'bold',
+                        background: mode === 'AUTO' ? 'rgba(0,151,157,0.15)' : 'rgba(245,158,11,0.15)',
+                        color: mode === 'AUTO' ? tealColor : '#f59e0b'
+                    }}>{mode}</span>
+                </div>
+
+                {/* Triple Bar Display */}
+                <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'flex-end', height: '140px' }}>
+                    <Bar label="SP" pct={spPct} color={tealColor} value={sp} />
+                    <Bar label="PV" pct={pvPct} color={devColor} value={pv} />
+                    <Bar label="OP" pct={opPct} color="#a78bfa" value={op} />
+                </div>
+
+                {/* Error Display */}
+                <div style={{
+                    display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px',
+                    padding: '3px 8px', background: '#1e293b', borderRadius: '4px'
+                }}>
+                    <span style={{ fontSize: '0.55rem', color: '#64748b' }}>ERR:</span>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 900, color: devColor, fontFamily: 'monospace' }}>
+                        {error > 0 ? '+' : ''}{error}
+                    </span>
+                    <span style={{ fontSize: '0.55rem', color: '#475569', marginLeft: '8px' }}>Kp:{kp} Ki:{ki} Kd:{kd}</span>
+                </div>
+
+                {/* SP / OP Sliders */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {mode === 'AUTO' && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '0.55rem', color: tealColor, minWidth: '16px' }}>SP</span>
+                            <input type="range" min="0" max="100" step="0.5" value={sp}
+                                onChange={handleSpChange}
+                                disabled={viewMode !== 'PREVIEW'}
+                                style={{ flex: 1, accentColor: tealColor }} />
+                            <span style={{ fontSize: '0.6rem', color: tealColor, fontFamily: 'monospace', minWidth: '28px' }}>{sp.toFixed(1)}</span>
+                        </div>
+                    )}
+                    {mode === 'MANUAL' && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '0.55rem', color: '#a78bfa', minWidth: '16px' }}>OP</span>
+                            <input type="range" min="0" max="100" step="0.5" value={op}
+                                onChange={handleOpChange}
+                                disabled={viewMode !== 'PREVIEW'}
+                                style={{ flex: 1, accentColor: '#a78bfa' }} />
+                            <span style={{ fontSize: '0.6rem', color: '#a78bfa', fontFamily: 'monospace', minWidth: '28px' }}>{op.toFixed(1)}</span>
+                        </div>
+                    )}
+                </div>
+
+                <div style={{ fontSize: '0.55rem', color: '#334155', fontFamily: 'monospace', textAlign: 'center' }}>
+                    PIN PV:{comp.props.pinPV || 'A1'} | SP:{comp.props.pinSP || 'A0'} | OP:{comp.props.pinOP || 'D5'}
                 </div>
             </div>
         );
@@ -12557,6 +13370,143 @@ const AppBuilder = () => {
                         </div>
                     </div>
                 );
+            case 'KEYBOARD_PRO': {
+                const theme = comp.props.theme || 'dark';
+                const isCyber = theme === 'cyber';
+                const isLight = theme === 'light';
+                const bg = isCyber ? '#030712' : (isLight ? '#f8fafc' : '#1e293b');
+                const border = isCyber ? '#06b6d4' : (isLight ? '#e2e8f0' : '#334155');
+                const keyBg = isCyber ? 'rgba(6, 182, 212, 0.1)' : (isLight ? '#ffffff' : '#334155');
+                const keyText = isCyber ? '#06b6d4' : (isLight ? '#0f172a' : '#f8fafc');
+                const keyBorder = isCyber ? '1px solid #06b6d4' : (isLight ? '1px solid #e2e8f0' : '1px solid #475569');
+
+                const rows = [
+                    ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+                    ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+                    ['Shift', 'z', 'x', 'c', 'v', 'b', 'n', 'm', 'Backspace'],
+                    ['Space', 'Clear']
+                ];
+
+                return (
+                    <div style={{
+                        width: '100%',
+                        height: '100%',
+                        backgroundColor: bg,
+                        borderRadius: '12px',
+                        border: `2px solid ${border}`,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        padding: '12px',
+                        gap: '8px',
+                        boxSizing: 'border-box',
+                        boxShadow: isCyber ? '0 0 15px rgba(6,182,212,0.25)' : '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                    }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 800, color: isLight ? '#64748b' : '#94a3b8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                            <span>{comp.props.label || 'Keyboard Pro'}</span>
+                            <span style={{ fontSize: '0.65rem', color: isCyber ? '#06b6d4' : '#6366f1', textTransform: 'uppercase' }}>{theme} mode</span>
+                        </div>
+                        <div style={{
+                            flex: 1,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '5px',
+                            justifyContent: 'center'
+                        }}>
+                            {rows.map((row, rIdx) => (
+                                <div key={rIdx} style={{ display: 'flex', gap: '5px', justifyContent: 'center', width: '100%' }}>
+                                    {row.map((k, kIdx) => {
+                                        let flexGrow = 1;
+                                        if (k === 'Shift' || k === 'Backspace' || k === 'Clear') { flexGrow = 2; }
+                                        if (k === 'Space') { flexGrow = 6; }
+                                        return (
+                                            <div
+                                                key={kIdx}
+                                                style={{
+                                                    flexGrow: flexGrow,
+                                                    flexBasis: 0,
+                                                    height: '30px',
+                                                    backgroundColor: keyBg,
+                                                    border: keyBorder,
+                                                    borderRadius: '6px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    color: keyText,
+                                                    fontSize: '0.75rem',
+                                                    fontWeight: 'bold',
+                                                    textTransform: (k.length === 1 && k !== 'Space') ? 'uppercase' : 'none',
+                                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                                }}
+                                            >
+                                                {k}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            }
+            case 'NUMPAD': {
+                const allowDecimal = !!comp.props.allowDecimal;
+                const keys = [
+                    ['1', '2', '3'],
+                    ['4', '5', '6'],
+                    ['7', '8', '9'],
+                    allowDecimal ? ['C', '0', '.', '⌫'] : ['C', '0', '⌫']
+                ];
+                return (
+                    <div style={{
+                        width: '100%',
+                        height: '100%',
+                        backgroundColor: '#1e293b',
+                        borderRadius: '12px',
+                        border: '2px solid #334155',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        padding: '12px',
+                        gap: '10px',
+                        boxSizing: 'border-box',
+                        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                    }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#94a3b8', textAlign: 'center' }}>
+                            {comp.props.label || 'Numeric Numpad'}
+                        </div>
+                        <div style={{
+                            flex: 1,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '6px'
+                        }}>
+                            {keys.map((row, rIdx) => (
+                                <div key={rIdx} style={{ display: 'flex', gap: '6px', flex: 1 }}>
+                                    {row.map((k, kIdx) => (
+                                        <div
+                                            key={kIdx}
+                                            style={{
+                                                flex: 1,
+                                                backgroundColor: (k === 'C' || k === '⌫') ? 'rgba(239, 68, 68, 0.15)' : (k === '.' ? 'rgba(6, 182, 212, 0.15)' : '#334155'),
+                                                border: (k === 'C' || k === '⌫') ? '1px solid rgba(239, 68, 68, 0.3)' : (k === '.' ? '1px solid rgba(6, 182, 212, 0.3)' : '1px solid #475569'),
+                                                borderRadius: '8px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                color: (k === 'C' || k === '⌫') ? '#fca5a5' : (k === '.' ? '#06b6d4' : '#f8fafc'),
+                                                fontSize: '1rem',
+                                                fontWeight: 800,
+                                                boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                                            }}
+                                        >
+                                            {k}
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            }
             case 'TEXT':
             case 'LABEL':
             case 'HEADING':
@@ -15149,6 +16099,12 @@ const AppBuilder = () => {
             case 'ARDUINO_OSCILLOSCOPE':
             case 'ARDUINO_THERMAL':
             case 'ARDUINO_THERMOMETER':
+            case 'ARDUINO_SCADA_VALVE':
+            case 'ARDUINO_SCADA_PUMP':
+            case 'ARDUINO_SCADA_PIPE':
+            case 'ARDUINO_SCADA_ESTOP':
+            case 'ARDUINO_SCADA_ALARM_BANNER':
+            case 'ARDUINO_SCADA_PID':
                 return (
                     <ArduinoWidget
                         comp={comp}
@@ -20388,6 +21344,79 @@ const AppBuilder = () => {
                                                                     style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid var(--border-secondary)' }}
                                                                 />
                                                             </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {(selectedComp.type === 'KEYBOARD_PRO' || selectedComp.type === 'NUMPAD') && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '16px' }}>
+                                                        <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Data Binding</label>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Target Variable</label>
+                                                                <select 
+                                                                    value={selectedComp.props.targetVariable || ''} 
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { targetVariable: e.target.value })}
+                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }}
+                                                                >
+                                                                    <option value="">-- Select Variable --</option>
+                                                                    {(appVariables || []).map(v => (
+                                                                        <option key={v.id || v.name} value={v.name}>{v.name}</option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Options</label>
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Label</label>
+                                                                <input 
+                                                                    value={selectedComp.props.label || ''} 
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })} 
+                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }} 
+                                                                />
+                                                            </div>
+                                                            {selectedComp.type === 'KEYBOARD_PRO' && (
+                                                                <div className="prop-group" style={{ marginTop: '12px' }}>
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Theme</label>
+                                                                    <select 
+                                                                        value={selectedComp.props.theme || 'dark'} 
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { theme: e.target.value })}
+                                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }}
+                                                                    >
+                                                                        <option value="dark">Dark Theme</option>
+                                                                        <option value="light">Light Theme</option>
+                                                                        <option value="cyber">Cyberpunk</option>
+                                                                    </select>
+                                                                </div>
+                                                            )}
+                                                            {selectedComp.type === 'NUMPAD' && (
+                                                                <>
+                                                                    <div className="prop-group" style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                        <input 
+                                                                            type="checkbox"
+                                                                            id="allow-decimal"
+                                                                            checked={!!selectedComp.props.allowDecimal} 
+                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { allowDecimal: e.target.checked })} 
+                                                                            style={{ cursor: 'pointer' }}
+                                                                        />
+                                                                        <label htmlFor="allow-decimal" style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', cursor: 'pointer' }}>Allow Decimal</label>
+                                                                    </div>
+                                                                    {selectedComp.props.allowDecimal && (
+                                                                        <div className="prop-group" style={{ marginTop: '12px' }}>
+                                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Decimal Places</label>
+                                                                            <input 
+                                                                                type="number"
+                                                                                min={0}
+                                                                                max={5}
+                                                                                value={selectedComp.props.decimalPlaces !== undefined ? selectedComp.props.decimalPlaces : 3} 
+                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { decimalPlaces: Number(e.target.value) })} 
+                                                                                style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }} 
+                                                                            />
+                                                                        </div>
+                                                                    )}
+                                                                </>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 )}
