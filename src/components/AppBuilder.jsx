@@ -3273,7 +3273,21 @@ const FORM_BINDABLE_COMPONENT_TYPES = [
     'ARDUINO_PIN_MONITOR', 'ARDUINO_GAUGE', 'ARDUINO_RFID', 'ARDUINO_JOYSTICK', 'ARDUINO_KEYPAD', 'ARDUINO_RTC',
     'ARDUINO_TANK', 'ARDUINO_THERMOMETER',
     'ARDUINO_SCADA_VALVE', 'ARDUINO_SCADA_PUMP', 'ARDUINO_SCADA_PIPE', 'ARDUINO_SCADA_ESTOP', 'ARDUINO_SCADA_ALARM_BANNER', 'ARDUINO_SCADA_PID',
-    'KEYBOARD_PRO', 'NUMPAD'
+    'KEYBOARD_PRO', 'NUMPAD',
+    'SCADA_PIPE', 'SCADA_VALVE', 'SCADA_TANK', 'SCADA_PUMP',
+    'SCADA_MOTOR', 'SCADA_CONVEYOR', 'SCADA_MIXER', 'SCADA_HEAT_EXCHANGER',
+    'SCADA_BOILER', 'SCADA_COMPRESSOR', 'SCADA_CHILLER', 'SCADA_FURNACE', 'SCADA_SILO',
+    'SCADA_PRESSURE_GAUGE', 'SCADA_TEMP_INDICATOR', 'SCADA_FLOW_METER',
+    'SCADA_LEVEL_INDICATOR', 'SCADA_PH_METER', 'SCADA_CURRENT_METER',
+    'SCADA_VOLTAGE_METER', 'SCADA_POWER_METER',
+    'SCADA_DIGITAL_DISPLAY', 'SCADA_NUMERIC_INPUT', 'SCADA_SETPOINT_INPUT',
+    'SCADA_TREND', 'SCADA_HISTORICAL_TREND', 'SCADA_BAR_GRAPH',
+    'SCADA_CIRCULAR_GAUGE', 'SCADA_PROGRESS_BAR', 'SCADA_TANK_LEVEL',
+    'SCADA_BTN_START', 'SCADA_BTN_STOP', 'SCADA_BTN_RESET',
+    'SCADA_AUTO_MANUAL', 'SCADA_MODE_SELECTOR', 'SCADA_TOGGLE_SWITCH', 'SCADA_PLC_STATUS',
+    'SCADA_ALARM_SUMMARY', 'SCADA_ALARM_BANNER', 'SCADA_ALARM_HISTORY', 'SCADA_EVENT_LOG', 'SCADA_ALARM_ACK',
+    'SCADA_OEE', 'SCADA_PROD_COUNTER', 'SCADA_DOWNTIME',
+    'SCADA_MACHINE_STATUS', 'SCADA_SPC_CHART', 'SCADA_ENERGY_MONITOR', 'SCADA_BATCH_TRACKER'
 ];
 const INPUT_WIDGET_TYPES_WITH_DATASOURCE = [
     'TEXT_INPUT', 'TEXT_AREA', 'NUMBER_INPUT', 'DATE_PICKER', 'DATETIME_PICKER', 'BOOLEAN_TOGGLE',
@@ -3281,7 +3295,21 @@ const INPUT_WIDGET_TYPES_WITH_DATASOURCE = [
     'ARDUINO_PIN_MONITOR', 'ARDUINO_GAUGE', 'ARDUINO_RFID', 'ARDUINO_JOYSTICK', 'ARDUINO_KEYPAD', 'ARDUINO_RTC',
     'ARDUINO_TANK', 'ARDUINO_THERMOMETER',
     'ARDUINO_SCADA_VALVE', 'ARDUINO_SCADA_PUMP', 'ARDUINO_SCADA_PIPE', 'ARDUINO_SCADA_ESTOP', 'ARDUINO_SCADA_ALARM_BANNER', 'ARDUINO_SCADA_PID',
-    'KEYBOARD_PRO', 'NUMPAD'
+    'KEYBOARD_PRO', 'NUMPAD',
+    'SCADA_PIPE', 'SCADA_VALVE', 'SCADA_TANK', 'SCADA_PUMP',
+    'SCADA_MOTOR', 'SCADA_CONVEYOR', 'SCADA_MIXER', 'SCADA_HEAT_EXCHANGER',
+    'SCADA_BOILER', 'SCADA_COMPRESSOR', 'SCADA_CHILLER', 'SCADA_FURNACE', 'SCADA_SILO',
+    'SCADA_PRESSURE_GAUGE', 'SCADA_TEMP_INDICATOR', 'SCADA_FLOW_METER',
+    'SCADA_LEVEL_INDICATOR', 'SCADA_PH_METER', 'SCADA_CURRENT_METER',
+    'SCADA_VOLTAGE_METER', 'SCADA_POWER_METER',
+    'SCADA_DIGITAL_DISPLAY', 'SCADA_NUMERIC_INPUT', 'SCADA_SETPOINT_INPUT',
+    'SCADA_TREND', 'SCADA_HISTORICAL_TREND', 'SCADA_BAR_GRAPH',
+    'SCADA_CIRCULAR_GAUGE', 'SCADA_PROGRESS_BAR', 'SCADA_TANK_LEVEL',
+    'SCADA_BTN_START', 'SCADA_BTN_STOP', 'SCADA_BTN_RESET',
+    'SCADA_AUTO_MANUAL', 'SCADA_MODE_SELECTOR', 'SCADA_TOGGLE_SWITCH', 'SCADA_PLC_STATUS',
+    'SCADA_ALARM_SUMMARY', 'SCADA_ALARM_BANNER', 'SCADA_ALARM_HISTORY', 'SCADA_EVENT_LOG', 'SCADA_ALARM_ACK',
+    'SCADA_OEE', 'SCADA_PROD_COUNTER', 'SCADA_DOWNTIME',
+    'SCADA_MACHINE_STATUS', 'SCADA_SPC_CHART', 'SCADA_ENERGY_MONITOR', 'SCADA_BATCH_TRACKER'
 ];
 const FORM_STEP_TYPES = ['Form Step', 'Signature Form'];
 
@@ -10168,11 +10196,24 @@ const AppBuilder = () => {
             return v ? v.value : fallbackValue;
         }
 
+        if (props.dataSourceType === 'PLC_TAG') {
+            const parsedTags = window.mavi_plc_tags || [];
+            const tag = parsedTags.find(t => t.id === props.plcTagId || t.name === props.varSource);
+            if (tag) return tag.value;
+            // Fallback to appVariables
+            const varName = String(props.varSource || '');
+            if (varName) {
+                const v = appVariables.find(av => av.name === varName);
+                if (v) return v.value;
+            }
+            return fallbackValue;
+        }
+
         const resolved = resolveValue('', 'STATIC', props);
         return resolved === undefined || resolved === null || resolved === '' ? fallbackValue : resolved;
     };
 
-    const syncInputDatasourceValue = (comp, nextValue, source = 'widget_input') => {
+    const syncInputDatasourceValue = async (comp, nextValue, source = 'widget_input') => {
         const props = comp?.props || {};
         // Primary: dataSourceType=VARIABLE with varSource
         if (props.dataSourceType === 'VARIABLE') {
@@ -10181,6 +10222,53 @@ const AppBuilder = () => {
             setValidatedVariableValue(varName, nextValue, source);
             return;
         }
+
+        if (props.dataSourceType === 'PLC_TAG') {
+            try {
+                const parsedTags = window.mavi_plc_tags || [];
+                const parsedCtrls = window.mavi_plc_controllers || [];
+                const tagIdx = parsedTags.findIndex(t => t.id === props.plcTagId || t.name === props.varSource);
+                if (tagIdx > -1) {
+                    parsedTags[tagIdx].value = String(nextValue);
+                    window.mavi_plc_tags = parsedTags;
+
+                    // If Tauri is running and it's Modbus TCP, trigger write backend
+                    if (window.__TAURI_INTERNALS__) {
+                        const tag = parsedTags[tagIdx];
+                        const ctrl = parsedCtrls.find(c => c.id === tag.controllerId);
+                        if (ctrl && ctrl.status === 'connected' && ctrl.type === 'MODBUS_TCP') {
+                            const core = await import('@tauri-apps/api/core');
+                            let addr = parseInt(tag.address);
+                            let offset = addr;
+                            let regType = tag.regType || 'HOLDING_REGISTER';
+                            if (regType === 'COIL') offset = addr - 1;
+                            else if (regType === 'HOLDING_REGISTER') offset = addr - 40001;
+                            if (offset < 0) offset = 0;
+
+                            const isTrueVal = nextValue === 'true' || nextValue === true || nextValue === 'RUNNING' || nextValue === 'AUTO' || nextValue === 'ON' || nextValue === 'OPEN' || nextValue === 'START' || nextValue === 'RESET';
+                            const isFalseVal = nextValue === 'false' || nextValue === false || nextValue === 'STOPPED' || nextValue === 'MANUAL' || nextValue === 'OFF' || nextValue === 'CLOSED' || nextValue === 'STOP';
+                            const finalVal = isTrueVal ? 1 : (isFalseVal ? 0 : (isNaN(nextValue) ? 0 : parseInt(nextValue)));
+                            
+                            await core.invoke('modbus_write', {
+                                id: ctrl.id,
+                                regType,
+                                address: offset,
+                                value: finalVal
+                            });
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to sync PLC tag input value:', e);
+            }
+            // For preview compatibility, sync variable too if matches name
+            const varName = String(props.varSource || '');
+            if (varName && appVariables.some(av => av.name === varName)) {
+                setValidatedVariableValue(varName, nextValue, source);
+            }
+            return;
+        }
+
         // Fallback: targetVariable prop (common for TEXT_INPUT widgets)
         if (props.targetVariable) {
             setValidatedVariableValue(props.targetVariable, nextValue, source);
@@ -14443,8 +14531,13 @@ const AppBuilder = () => {
                 const dir = comp.props.direction || 'horizontal';
                 const isH = dir === 'horizontal';
                 const fluidColor = comp.props.fluidColor || '#06b6d4';
-                const flowSpeed = Number(comp.props.flowSpeed) || 2;
-                const isActive = comp.props.isActive !== false;
+                const boundVal = resolveComponentDatasourceValue ? resolveComponentDatasourceValue(comp, null) : null;
+                const isActive = boundVal !== null
+                    ? (typeof boundVal === 'boolean' ? boundVal : (boundVal === 'true' || parseFloat(boundVal) > 0))
+                    : (comp.props.isActive !== false);
+                const flowSpeed = boundVal !== null && !isNaN(parseFloat(boundVal)) && typeof boundVal !== 'boolean'
+                    ? Math.max(0, Math.min(10, parseFloat(boundVal)))
+                    : (Number(comp.props.flowSpeed) || 2);
                 const flowAnimName = `flow-dash-${comp.id}`;
                 return (
                     <div style={{ width: '100%', height: '100%', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
@@ -14476,10 +14569,13 @@ const AppBuilder = () => {
                 );
             }
             case 'SCADA_VALVE': {
-                const state = comp.props.valveState || 'CLOSED';
+                const boundVal = resolveComponentDatasourceValue ? resolveComponentDatasourceValue(comp, null) : null;
+                const resolvedState = boundVal !== null
+                    ? (boundVal === 'OPEN' || boundVal === 'true' || boundVal === true || parseFloat(boundVal) > 0 ? 'OPEN' : 'CLOSED')
+                    : (comp.props.valveState || 'CLOSED');
                 const openColor = comp.props.colorOpen || '#22c55e';
                 const closedColor = comp.props.colorClosed || '#ef4444';
-                const isValveOpen = state === 'OPEN';
+                const isValveOpen = resolvedState === 'OPEN';
                 const valveColor = isValveOpen ? openColor : closedColor;
                 return (
                     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', userSelect: 'none' }}>
@@ -14494,7 +14590,7 @@ const AppBuilder = () => {
                             <ellipse cx="30" cy="8" rx="12" ry="4" fill={isValveOpen ? openColor : '#64748b'} stroke="#334155" strokeWidth="1.5" />
                         </svg>
                         <span style={{ fontSize: '0.65rem', fontWeight: 800, color: valveColor, marginTop: '-2px', textTransform: 'uppercase' }}>
-                            {state}
+                            {resolvedState}
                         </span>
                     </div>
                 );
@@ -14503,6 +14599,11 @@ const AppBuilder = () => {
                 const capacity = comp.props.capacity || 100;
                 const unit = comp.props.unit || 'L';
                 const fluidColor = comp.props.fluidColor || '#3b82f6';
+                const boundVal = resolveComponentDatasourceValue ? resolveComponentDatasourceValue(comp, null) : null;
+                const resolvedVal = boundVal !== null && !isNaN(parseFloat(boundVal))
+                    ? parseFloat(boundVal)
+                    : 50;
+                const pct = Math.max(0, Math.min(100, (resolvedVal / capacity) * 100));
                 return (
                     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', padding: '4px', backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px', overflow: 'hidden' }}>
                         <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textAlign: 'center', marginBottom: '4px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
@@ -14517,15 +14618,16 @@ const AppBuilder = () => {
                                 position: 'relative',
                                 overflow: 'hidden',
                                 backgroundColor: '#0f172a'
-                            }}>
+                             }}>
                                 <div style={{
                                     position: 'absolute',
                                     bottom: 0,
                                     left: 0,
                                     right: 0,
-                                    height: '50%',
+                                    height: `${pct}%`,
                                     backgroundColor: fluidColor,
-                                    opacity: 0.8
+                                    opacity: 0.8,
+                                    transition: 'height 0.5s ease-in-out'
                                 }}>
                                     <div style={{
                                         position: 'absolute',
@@ -14560,7 +14662,7 @@ const AppBuilder = () => {
                                         textAlign: 'center',
                                         pointerEvents: 'none'
                                     }}>
-                                        {50} {unit}
+                                        {resolvedVal.toFixed(1)} {unit}
                                     </div>
                                 )}
                             </div>
@@ -14569,7 +14671,10 @@ const AppBuilder = () => {
                 );
             }
             case 'SCADA_PUMP': {
-                const status = comp.props.pumpState || 'STOPPED';
+                const boundVal = resolveComponentDatasourceValue ? resolveComponentDatasourceValue(comp, null) : null;
+                const status = boundVal !== null
+                    ? (boundVal === 'RUNNING' || boundVal === 'true' || boundVal === true || parseFloat(boundVal) === 1 ? 'RUNNING' : (boundVal === 'FAULT' || parseFloat(boundVal) === 2 ? 'FAULT' : 'STOPPED'))
+                    : (comp.props.pumpState || 'STOPPED');
                 const isRunning = status === 'RUNNING';
                 const runColor = comp.props.colorRunning || '#22c55e';
                 const stopColor = comp.props.colorStopped || '#ef4444';
@@ -22926,7 +23031,215 @@ const AppBuilder = () => {
                                                     </div>
                                                 )}
 
-                                                {selectedComp.type === 'SCADA_ALARM_SUMMARY' && (
+                                                 {selectedComp.type.startsWith('SCADA_') && !['SCADA_PIPE', 'SCADA_VALVE', 'SCADA_TANK', 'SCADA_PUMP', 'SCADA_ALARM_SUMMARY', 'SCADA_ALARM_HISTORY', 'SCADA_EVENT_LOG', 'SCADA_ALARM_ACK'].includes(selectedComp.type) && (
+                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '16px' }}>
+                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                             <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>SCADA Widget Config</label>
+                                                             
+                                                             {/* Label Input */}
+                                                             {selectedComp.type !== 'SCADA_ALARM_ACK' && selectedComp.type !== 'SCADA_ALARM_HISTORY' && selectedComp.type !== 'SCADA_EVENT_LOG' && (
+                                                                 <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Widget Label</label>
+                                                                     <input 
+                                                                         type="text" 
+                                                                         value={selectedComp.props.label || ''} 
+                                                                         onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })} 
+                                                                         style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }}
+                                                                         placeholder="Enter label..."
+                                                                     />
+                                                                 </div>
+                                                             )}
+
+                                                             {/* Unit Input */}
+                                                             {['SCADA_SILO', 'SCADA_PRESSURE_GAUGE', 'SCADA_TEMP_INDICATOR', 'SCADA_FLOW_METER', 'SCADA_LEVEL_INDICATOR', 'SCADA_PH_METER', 'SCADA_CURRENT_METER', 'SCADA_VOLTAGE_METER', 'SCADA_POWER_METER', 'SCADA_DIGITAL_DISPLAY', 'SCADA_CIRCULAR_GAUGE', 'SCADA_PROGRESS_BAR', 'SCADA_TANK_LEVEL', 'SCADA_ENERGY_MONITOR'].includes(selectedComp.type) && (
+                                                                 <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Unit (e.g. °C, bar, %)</label>
+                                                                     <input 
+                                                                         type="text" 
+                                                                         value={selectedComp.props.unit || ''} 
+                                                                         onChange={(e) => updateComponentProps(selectedComp.id, { unit: e.target.value })} 
+                                                                         style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }}
+                                                                         placeholder="e.g. bar"
+                                                                     />
+                                                                 </div>
+                                                             )}
+
+                                                             {/* Scale Min / Max */}
+                                                             {['SCADA_PRESSURE_GAUGE', 'SCADA_TEMP_INDICATOR', 'SCADA_LEVEL_INDICATOR', 'SCADA_NUMERIC_INPUT', 'SCADA_SETPOINT_INPUT', 'SCADA_CIRCULAR_GAUGE', 'SCADA_PROGRESS_BAR', 'SCADA_TANK_LEVEL', 'SCADA_SPC_CHART'].includes(selectedComp.type) && (
+                                                                 <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
+                                                                     <div style={{ flex: 1 }}>
+                                                                         <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Min Value</label>
+                                                                         <input 
+                                                                             type="number" 
+                                                                             value={selectedComp.props.min !== undefined ? selectedComp.props.min : 0} 
+                                                                             onChange={(e) => updateComponentProps(selectedComp.id, { min: Number(e.target.value) })} 
+                                                                             style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }}
+                                                                         />
+                                                                     </div>
+                                                                     <div style={{ flex: 1 }}>
+                                                                         <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Max Value</label>
+                                                                         <input 
+                                                                             type="number" 
+                                                                             value={selectedComp.props.max !== undefined ? selectedComp.props.max : 100} 
+                                                                             onChange={(e) => updateComponentProps(selectedComp.id, { max: Number(e.target.value) })} 
+                                                                             style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }}
+                                                                         />
+                                                                     </div>
+                                                                 </div>
+                                                             )}
+
+                                                             {/* Silo Capacity */}
+                                                             {selectedComp.type === 'SCADA_SILO' && (
+                                                                 <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Capacity</label>
+                                                                     <input 
+                                                                         type="number" 
+                                                                         value={selectedComp.props.capacity !== undefined ? selectedComp.props.capacity : 100} 
+                                                                         onChange={(e) => updateComponentProps(selectedComp.id, { capacity: Number(e.target.value) })} 
+                                                                         style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }}
+                                                                     />
+                                                                 </div>
+                                                             )}
+
+                                                             {/* Material/Custom Color */}
+                                                             {['SCADA_SILO', 'SCADA_BTN_START', 'SCADA_BTN_STOP', 'SCADA_BTN_RESET', 'SCADA_TOGGLE_SWITCH'].includes(selectedComp.type) && (
+                                                                 <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
+                                                                         {selectedComp.type === 'SCADA_SILO' ? 'Material Color' : selectedComp.type === 'SCADA_TOGGLE_SWITCH' ? 'On Color' : 'Button Color'}
+                                                                     </label>
+                                                                     <input 
+                                                                         type="color" 
+                                                                         value={
+                                                                             selectedComp.type === 'SCADA_SILO' 
+                                                                                 ? (selectedComp.props.materialColor || '#d97706') 
+                                                                                 : selectedComp.type === 'SCADA_TOGGLE_SWITCH' 
+                                                                                     ? (selectedComp.props.onColor || '#22c55e') 
+                                                                                     : (selectedComp.props.color || (selectedComp.type === 'SCADA_BTN_START' ? '#22c55e' : selectedComp.type === 'SCADA_BTN_STOP' ? '#ef4444' : '#3b82f6'))
+                                                                         } 
+                                                                         onChange={(e) => {
+                                                                             const field = selectedComp.type === 'SCADA_SILO' ? 'materialColor' : selectedComp.type === 'SCADA_TOGGLE_SWITCH' ? 'onColor' : 'color';
+                                                                             updateComponentProps(selectedComp.id, { [field]: e.target.value });
+                                                                         }} 
+                                                                         style={{ width: '100%', height: '32px', padding: 0, border: 'none', borderRadius: '4px', cursor: 'pointer' }} 
+                                                                     />
+                                                                 </div>
+                                                             )}
+
+                                                             {/* Switch Off Label & Off Color */}
+                                                             {selectedComp.type === 'SCADA_TOGGLE_SWITCH' && (
+                                                                 <>
+                                                                     <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>On Label</label>
+                                                                         <input 
+                                                                             type="text" 
+                                                                             value={selectedComp.props.onLabel || 'ON'} 
+                                                                             onChange={(e) => updateComponentProps(selectedComp.id, { onLabel: e.target.value })} 
+                                                                             style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }}
+                                                                         />
+                                                                     </div>
+                                                                     <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Off Label</label>
+                                                                         <input 
+                                                                             type="text" 
+                                                                             value={selectedComp.props.offLabel || 'OFF'} 
+                                                                             onChange={(e) => updateComponentProps(selectedComp.id, { offLabel: e.target.value })} 
+                                                                             style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }}
+                                                                         />
+                                                                     </div>
+                                                                     <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Off Color</label>
+                                                                         <input 
+                                                                             type="color" 
+                                                                             value={selectedComp.props.offColor || '#64748b'} 
+                                                                             onChange={(e) => updateComponentProps(selectedComp.id, { offColor: e.target.value })} 
+                                                                             style={{ width: '100%', height: '32px', padding: 0, border: 'none', borderRadius: '4px', cursor: 'pointer' }} 
+                                                                         />
+                                                                     </div>
+                                                                 </>
+                                                             )}
+
+                                                             {/* State Dropdowns / Number values */}
+                                                             {/* Motor, Conveyor, Mixer state */}
+                                                             {['SCADA_MOTOR', 'SCADA_CONVEYOR', 'SCADA_MIXER', 'SCADA_COMPRESSOR'].includes(selectedComp.type) && (
+                                                                 <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>State</label>
+                                                                     <select 
+                                                                         value={
+                                                                             selectedComp.type === 'SCADA_MOTOR' ? (selectedComp.props.motorState || 'STOPPED') :
+                                                                             selectedComp.type === 'SCADA_CONVEYOR' ? (selectedComp.props.conveyorState || 'STOPPED') :
+                                                                             selectedComp.type === 'SCADA_MIXER' ? (selectedComp.props.mixerState || 'STOPPED') :
+                                                                             (selectedComp.props.compressorState || 'STOPPED')
+                                                                         } 
+                                                                         onChange={(e) => {
+                                                                             const field = selectedComp.type === 'SCADA_MOTOR' ? 'motorState' :
+                                                                                           selectedComp.type === 'SCADA_CONVEYOR' ? 'conveyorState' :
+                                                                                           selectedComp.type === 'SCADA_MIXER' ? 'mixerState' :
+                                                                                           'compressorState';
+                                                                             updateComponentProps(selectedComp.id, { [field]: e.target.value });
+                                                                         }}
+                                                                         style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }}
+                                                                     >
+                                                                         <option value="RUNNING">Running</option>
+                                                                         <option value="STOPPED">Stopped</option>
+                                                                         <option value="FAULT">Fault</option>
+                                                                     </select>
+                                                                 </div>
+                                                             )}
+
+                                                             {/* Boiler, Chiller, Furnace state */}
+                                                             {['SCADA_BOILER', 'SCADA_CHILLER', 'SCADA_FURNACE'].includes(selectedComp.type) && (
+                                                                 <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>State</label>
+                                                                     <select 
+                                                                         value={
+                                                                             selectedComp.type === 'SCADA_BOILER' ? (selectedComp.props.boilerState || 'OFF') :
+                                                                             selectedComp.type === 'SCADA_CHILLER' ? (selectedComp.props.chillerState || 'OFF') :
+                                                                             (selectedComp.props.furnaceState || 'OFF')
+                                                                         } 
+                                                                         onChange={(e) => {
+                                                                             const field = selectedComp.type === 'SCADA_BOILER' ? 'boilerState' :
+                                                                                           selectedComp.type === 'SCADA_CHILLER' ? 'chillerState' :
+                                                                                           'furnaceState';
+                                                                             updateComponentProps(selectedComp.id, { [field]: e.target.value });
+                                                                         }}
+                                                                         style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }}
+                                                                     >
+                                                                         <option value="ON">ON</option>
+                                                                         <option value="OFF">OFF</option>
+                                                                         <option value="STANDBY">Standby</option>
+                                                                         <option value="FAULT">Fault</option>
+                                                                     </select>
+                                                                 </div>
+                                                             )}
+
+                                                             {/* Default Value Input */}
+                                                             {['SCADA_PRESSURE_GAUGE', 'SCADA_TEMP_INDICATOR', 'SCADA_FLOW_METER', 'SCADA_LEVEL_INDICATOR', 'SCADA_PH_METER', 'SCADA_CURRENT_METER', 'SCADA_VOLTAGE_METER', 'SCADA_POWER_METER', 'SCADA_DIGITAL_DISPLAY', 'SCADA_NUMERIC_INPUT', 'SCADA_SETPOINT_INPUT', 'SCADA_CIRCULAR_GAUGE', 'SCADA_PROGRESS_BAR', 'SCADA_TANK_LEVEL', 'SCADA_SILO', 'SCADA_ENERGY_MONITOR', 'SCADA_PROD_COUNTER'].includes(selectedComp.type) && (
+                                                                 <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
+                                                                         Default {selectedComp.type === 'SCADA_SILO' || selectedComp.type === 'SCADA_TANK_LEVEL' ? 'Level' : 'Value'}
+                                                                     </label>
+                                                                     <input 
+                                                                         type={selectedComp.type === 'SCADA_DIGITAL_DISPLAY' ? 'text' : 'number'}
+                                                                         value={
+                                                                             selectedComp.type === 'SCADA_SILO' || selectedComp.type === 'SCADA_TANK_LEVEL' 
+                                                                                 ? (selectedComp.props.level !== undefined ? selectedComp.props.level : 50) 
+                                                                                 : (selectedComp.props.value !== undefined ? selectedComp.props.value : '')
+                                                                         } 
+                                                                         onChange={(e) => {
+                                                                             const field = selectedComp.type === 'SCADA_SILO' || selectedComp.type === 'SCADA_TANK_LEVEL' ? 'level' : 'value';
+                                                                             const val = selectedComp.type === 'SCADA_DIGITAL_DISPLAY' ? e.target.value : Number(e.target.value);
+                                                                             updateComponentProps(selectedComp.id, { [field]: val });
+                                                                         }} 
+                                                                         style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', outline: 'none' }}
+                                                                         placeholder="Enter default value..."
+                                                                     />
+                                                                 </div>
+                                                             )}
+                                                         </div>
+                                                     </div>
+                                                 )}
+
+                                                 {selectedComp.type === 'SCADA_ALARM_SUMMARY' && (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '16px' }}>
                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
                                                             <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Alarm Config</label>

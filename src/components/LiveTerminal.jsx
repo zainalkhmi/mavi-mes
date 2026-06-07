@@ -115,7 +115,7 @@ import WebcamComp from 'react-webcam';
 import Tesseract from 'tesseract.js';
 import { listManualSummaries, getManualById, uploadManualImage } from '../utils/supabaseManualDB';
 import { saveLiveMeasurement } from '../utils/supabaseUtilityDB';
-import { getAllFrontlineApps, getProductionQueue } from '../utils/supabaseFrontlineDB';
+import { getAllFrontlineApps, getProductionQueue, loadPlcSettingsFromSupabase, savePlcSettingsToSupabase } from '../utils/supabaseFrontlineDB';
 import { getTableRecords, queryTableRecords, getTableById, resolveTableIdReference, addTableRecord } from '../utils/supabaseTablesDB';
 import { saveCompletion } from '../utils/supabaseCompletionsDB';
 import { getMachines, getStations, getInterfaces } from '../utils/database';
@@ -3046,6 +3046,7 @@ const LiveTerminal = () => {
   useEffect(() => {
     let isMounted = true;
     let activeIntervals = [];
+    let activeMqttClients = [];
 
     const initConnectionAndPoll = async () => {
       let tauriInvoke = null;
@@ -3058,18 +3059,105 @@ const LiveTerminal = () => {
         }
       }
 
-      const savedControllers = localStorage.getItem('mavi_plc_controllers');
-      const savedTags = localStorage.getItem('mavi_plc_tags');
-      if (!savedControllers || !savedTags) return;
-
       let parsedCtrls = [];
       let parsedTags = [];
-      try {
-        parsedCtrls = JSON.parse(savedControllers);
-        parsedTags = JSON.parse(savedTags);
-      } catch (e) {
-        console.error('Failed to parse PLC configs:', e);
-        return;
+
+      if (window.mavi_plc_controllers && window.mavi_plc_tags) {
+        parsedCtrls = window.mavi_plc_controllers;
+        parsedTags = window.mavi_plc_tags;
+      } else {
+        try {
+          const { controllers: dbCtrls, tags: dbTags } = await loadPlcSettingsFromSupabase();
+          if (dbCtrls && dbCtrls.length > 0) {
+            parsedCtrls = dbCtrls;
+            parsedTags = dbTags || [];
+            window.mavi_plc_controllers = dbCtrls;
+            window.mavi_plc_tags = dbTags || [];
+          } else {
+            console.warn('LiveTerminal: No PLC settings found in Supabase.');
+            return;
+          }
+        } catch (err) {
+          console.error('Failed to load PLC settings from Supabase:', err);
+          return;
+        }
+      }
+
+      // Connect and poll MQTT brokers
+      for (const ctrl of parsedCtrls) {
+        if (ctrl.type === 'MQTT') {
+          try {
+            let host = ctrl.ip || 'broker.emqx.io';
+            let port = ctrl.port || 1883;
+            // Map standard TCP ports to websocket equivalents for browser compatibility
+            if (port === 1883 || port === 1884) {
+              if (host.includes('emqx.io')) port = 8084;
+              else if (host.includes('hivemq.com')) port = 8000;
+              else port = 8084;
+            }
+            const scheme = (port === 8000 || port === 8083) ? 'ws://' : 'wss://';
+            const path = host.includes('hivemq.com') ? '/mqtt' : (host.includes('emqx.io') ? '/mqtt' : '/mqtt');
+            const brokerUrl = (host.startsWith('ws://') || host.startsWith('wss://')) 
+              ? host 
+              : `${scheme}${host}:${port}${path}`;
+
+            console.log(`LiveTerminal: Connecting to PLC MQTT Broker: ${brokerUrl}`);
+            const mqttOptions = {
+              clientId: ctrl.clientId || `mavi-plc-${Math.random().toString(16).substr(2, 8)}`
+            };
+            if (ctrl.username) mqttOptions.username = ctrl.username;
+            if (ctrl.password) mqttOptions.password = ctrl.password;
+
+            const client = mqtt.connect(brokerUrl, mqttOptions);
+            activeMqttClients.push(client);
+
+            client.on('connect', () => {
+              console.log(`LiveTerminal: Connected to PLC MQTT Broker at ${brokerUrl}`);
+              const ctrlTags = parsedTags.filter(t => t.controllerId === ctrl.id);
+              ctrlTags.forEach(tag => {
+                const topic = (ctrl.topicPrefix || '') + (tag.address || '');
+                if (topic) {
+                  client.subscribe(topic);
+                  console.log(`LiveTerminal: Subscribed to MQTT PLC Tag Topic: ${topic}`);
+                }
+              });
+            });
+
+            client.on('message', (topic, message) => {
+              if (!isMounted) return;
+              const payload = message.toString();
+              
+              let currentTags = window.mavi_plc_tags || parsedTags;
+
+              let tagUpdates = false;
+              currentTags = currentTags.map(t => {
+                if (t.controllerId === ctrl.id) {
+                  const tagTopic = (ctrl.topicPrefix || '') + (t.address || '');
+                  if (tagTopic === topic) {
+                    tagUpdates = true;
+                    return { ...t, value: payload };
+                  }
+                }
+                return t;
+              });
+
+              if (tagUpdates && isMounted) {
+                parsedTags = currentTags;
+                window.mavi_plc_tags = currentTags;
+                
+                const ctrlTags = currentTags.filter(t => t.controllerId === ctrl.id);
+                for (const tag of ctrlTags) {
+                  const tagTopic = (ctrl.topicPrefix || '') + (tag.address || '');
+                  if (tagTopic === topic) {
+                    setAppVariables(prev => prev.map(v => v.name === tag.name ? { ...v, value: payload } : v));
+                  }
+                }
+              }
+            });
+          } catch (e) {
+            console.error(`Failed to connect to PLC MQTT Broker:`, e);
+          }
+        }
       }
 
       // 1. If Tauri is available, connect and poll real Modbus
@@ -3134,7 +3222,7 @@ const LiveTerminal = () => {
               }
 
               if (tagUpdates && isMounted) {
-                localStorage.setItem('mavi_plc_tags', JSON.stringify(parsedTags));
+                window.mavi_plc_tags = parsedTags;
               }
             }, ctrl.pollingInterval || 2000);
 
@@ -3170,7 +3258,7 @@ const LiveTerminal = () => {
           });
 
           if (tagUpdates && isMounted) {
-            localStorage.setItem('mavi_plc_tags', JSON.stringify(parsedTags));
+            window.mavi_plc_tags = parsedTags;
           }
         }, 3000);
 
@@ -3183,6 +3271,11 @@ const LiveTerminal = () => {
     return () => {
       isMounted = false;
       activeIntervals.forEach(clearInterval);
+      activeMqttClients.forEach(client => {
+        try {
+          client.end();
+        } catch (e) {}
+      });
     };
   }, []);
 
@@ -7007,34 +7100,37 @@ const LiveTerminal = () => {
       }
     }
 
+    const syncVariableByName = (varName, value) => {
+      if (!varName || typeof varName !== 'string') return;
+      const cleanVarName = varName.startsWith('@') ? varName.substring(1) : varName;
+      if (cleanVarName.includes('.')) {
+        const [pName, ...fPath] = cleanVarName.split('.');
+        const placeholder = recordPlaceholders.find(rp => rp.name === pName || rp.id === pName);
+        if (placeholder) {
+          setRecordPlaceholderData(prev => {
+            const currentRecord = prev[placeholder.id] || {};
+            const updatedRecord = { ...currentRecord };
+            let cur = updatedRecord;
+            for (let i = 0; i < fPath.length - 1; i++) {
+              const part = fPath[i];
+              if (!cur[part] || typeof cur[part] !== 'object') {
+                cur[part] = {};
+              }
+              cur[part] = { ...cur[part] };
+              cur = cur[part];
+            }
+            cur[fPath[fPath.length - 1]] = value;
+            return { ...prev, [placeholder.id]: updatedRecord };
+          });
+        }
+      } else {
+        setAppVariables(prev => prev.map(v => v.name === cleanVarName ? { ...v, value } : v));
+      }
+    };
+
     const syncVariable = (value) => {
       let varName = comp.props?.targetVariable || (comp.props?.dataSourceType === 'VARIABLE' ? comp.props?.varSource : null);
-      if (varName && typeof varName === 'string') {
-        const cleanVarName = varName.startsWith('@') ? varName.substring(1) : varName;
-        if (cleanVarName.includes('.')) {
-          const [pName, ...fPath] = cleanVarName.split('.');
-          const placeholder = recordPlaceholders.find(rp => rp.name === pName || rp.id === pName);
-          if (placeholder) {
-            setRecordPlaceholderData(prev => {
-              const currentRecord = prev[placeholder.id] || {};
-              const updatedRecord = { ...currentRecord };
-              let cur = updatedRecord;
-              for (let i = 0; i < fPath.length - 1; i++) {
-                const part = fPath[i];
-                if (!cur[part] || typeof cur[part] !== 'object') {
-                  cur[part] = {};
-                }
-                cur[part] = { ...cur[part] };
-                cur = cur[part];
-              }
-              cur[fPath[fPath.length - 1]] = value;
-              return { ...prev, [placeholder.id]: updatedRecord };
-            });
-          }
-        } else {
-          setAppVariables(prev => prev.map(v => v.name === cleanVarName ? { ...v, value } : v));
-        }
-      }
+      syncVariableByName(varName, value);
     };
 
     switch (comp.type) {
@@ -8300,11 +8396,10 @@ const LiveTerminal = () => {
           const cleanVar = targetVar.startsWith('@') ? targetVar.substring(1) : targetVar;
           isAlarmActive = alarms.some(a => a.source === cleanVar && a.status === 'UNACK');
           try {
-            const savedControllers = localStorage.getItem('mavi_plc_controllers');
-            const savedTags = localStorage.getItem('mavi_plc_tags');
-            if (savedControllers && savedTags) {
-              const parsedCtrls = JSON.parse(savedControllers);
-              const parsedTags = JSON.parse(savedTags);
+            const parsedCtrls = window.mavi_plc_controllers;
+            const parsedTags = window.mavi_plc_tags;
+            if (parsedCtrls && parsedTags) {
+              const cleanVar = targetVar.startsWith('@') ? targetVar.substring(1) : targetVar;
               const matchingTag = parsedTags.find(t => t.name === cleanVar);
               if (matchingTag) {
                 const ctrl = parsedCtrls.find(c => c.id === matchingTag.controllerId);
@@ -8387,11 +8482,10 @@ const LiveTerminal = () => {
           const cleanVar = targetVar.startsWith('@') ? targetVar.substring(1) : targetVar;
           isAlarmActive = alarms.some(a => a.source === cleanVar && a.status === 'UNACK');
           try {
-            const savedControllers = localStorage.getItem('mavi_plc_controllers');
-            const savedTags = localStorage.getItem('mavi_plc_tags');
-            if (savedControllers && savedTags) {
-              const parsedCtrls = JSON.parse(savedControllers);
-              const parsedTags = JSON.parse(savedTags);
+            const parsedCtrls = window.mavi_plc_controllers;
+            const parsedTags = window.mavi_plc_tags;
+            if (parsedCtrls && parsedTags) {
+              const cleanVar = targetVar.startsWith('@') ? targetVar.substring(1) : targetVar;
               const matchingTag = parsedTags.find(t => t.name === cleanVar);
               if (matchingTag) {
                 const ctrl = parsedCtrls.find(c => c.id === matchingTag.controllerId);
@@ -8467,11 +8561,10 @@ const LiveTerminal = () => {
           const cleanVar = targetVar.startsWith('@') ? targetVar.substring(1) : targetVar;
           isAlarmActive = alarms.some(a => a.source === cleanVar && a.status === 'UNACK');
           try {
-            const savedControllers = localStorage.getItem('mavi_plc_controllers');
-            const savedTags = localStorage.getItem('mavi_plc_tags');
-            if (savedControllers && savedTags) {
-              const parsedCtrls = JSON.parse(savedControllers);
-              const parsedTags = JSON.parse(savedTags);
+            const parsedCtrls = window.mavi_plc_controllers;
+            const parsedTags = window.mavi_plc_tags;
+            if (parsedCtrls && parsedTags) {
+              const cleanVar = targetVar.startsWith('@') ? targetVar.substring(1) : targetVar;
               const matchingTag = parsedTags.find(t => t.name === cleanVar);
               if (matchingTag) {
                 const ctrl = parsedCtrls.find(c => c.id === matchingTag.controllerId);
@@ -8596,11 +8689,10 @@ const LiveTerminal = () => {
           const cleanVar = targetVar.startsWith('@') ? targetVar.substring(1) : targetVar;
           isAlarmActive = alarms.some(a => a.source === cleanVar && a.status === 'UNACK');
           try {
-            const savedControllers = localStorage.getItem('mavi_plc_controllers');
-            const savedTags = localStorage.getItem('mavi_plc_tags');
-            if (savedControllers && savedTags) {
-              const parsedCtrls = JSON.parse(savedControllers);
-              const parsedTags = JSON.parse(savedTags);
+            const parsedCtrls = window.mavi_plc_controllers;
+            const parsedTags = window.mavi_plc_tags;
+            if (parsedCtrls && parsedTags) {
+              const cleanVar = targetVar.startsWith('@') ? targetVar.substring(1) : targetVar;
               const matchingTag = parsedTags.find(t => t.name === cleanVar);
               if (matchingTag) {
                 const ctrl = parsedCtrls.find(c => c.id === matchingTag.controllerId);
@@ -8854,12 +8946,75 @@ const LiveTerminal = () => {
             return v ? v.value : fallbackValue;
           }
 
+          if (props.dataSourceType === 'PLC_TAG') {
+            const tagPath = String(props.varSource || '');
+            if (!tagPath) return fallbackValue;
+            const tags = window.mavi_plc_tags || [];
+            const tag = tags.find(t => (t.controllerName + '/' + t.name) === tagPath || t.name === tagPath);
+            return tag ? tag.value : fallbackValue;
+          }
+
           const resolved = resolveValue('', 'STATIC', props);
           return resolved === undefined || resolved === null || resolved === '' ? fallbackValue : resolved;
         };
 
-        const syncInputDatasourceValue = (component, nextValue, source) => {
-          syncVariable(nextValue);
+        const syncInputDatasourceValue = async (component, nextValue, source = 'widget_input') => {
+          const props = component?.props || {};
+          if (props.dataSourceType === 'VARIABLE') {
+            const varName = String(props.varSource || '');
+            if (!varName || varName.startsWith('APP_INFO.')) return;
+            syncVariableByName(varName, nextValue);
+            return;
+          }
+
+          if (props.dataSourceType === 'PLC_TAG') {
+            try {
+              const parsedTags = window.mavi_plc_tags || [];
+              const parsedCtrls = window.mavi_plc_controllers || [];
+              const tagIdx = parsedTags.findIndex(t => t.id === props.plcTagId || t.name === props.varSource);
+              if (tagIdx > -1) {
+                parsedTags[tagIdx].value = String(nextValue);
+                window.mavi_plc_tags = parsedTags;
+
+                if (window.__TAURI_INTERNALS__) {
+                  const tag = parsedTags[tagIdx];
+                  const ctrl = parsedCtrls.find(c => c.id === tag.controllerId);
+                  if (ctrl && ctrl.status === 'connected' && ctrl.type === 'MODBUS_TCP') {
+                    const core = await import('@tauri-apps/api/core');
+                    let addr = parseInt(tag.address);
+                    let offset = addr;
+                    let regType = tag.regType || 'HOLDING_REGISTER';
+                    if (regType === 'COIL') offset = addr - 1;
+                    else if (regType === 'HOLDING_REGISTER') offset = addr - 40001;
+                    if (offset < 0) offset = 0;
+
+                    const isTrueVal = nextValue === 'true' || nextValue === true || nextValue === 'RUNNING' || nextValue === 'AUTO' || nextValue === 'ON' || nextValue === 'OPEN' || nextValue === 'START' || nextValue === 'RESET';
+                    const isFalseVal = nextValue === 'false' || nextValue === false || nextValue === 'STOPPED' || nextValue === 'MANUAL' || nextValue === 'OFF' || nextValue === 'CLOSED' || nextValue === 'STOP';
+                    const finalVal = isTrueVal ? 1 : (isFalseVal ? 0 : (isNaN(nextValue) ? 0 : parseInt(nextValue)));
+
+                    await core.invoke('modbus_write', {
+                      id: ctrl.id,
+                      regType,
+                      address: offset,
+                      value: finalVal
+                    });
+                  }
+                }
+              }
+            } catch (e) {
+              console.error('Failed to sync PLC tag input value in LiveTerminal:', e);
+            }
+            
+            const varName = String(props.varSource || '');
+            if (varName && appVariables.some(av => av.name === varName)) {
+              syncVariableByName(varName, nextValue);
+            }
+            return;
+          }
+
+          if (props.targetVariable) {
+            syncVariableByName(props.targetVariable, nextValue);
+          }
         };
 
         const onWidgetInteraction = (component, triggerName, data) => {
@@ -12993,12 +13148,10 @@ const LiveTerminal = () => {
                     }
 
                     // Check if variable is mapped to any real Modbus PLC
-                    const savedControllers = localStorage.getItem('mavi_plc_controllers');
-                    const savedTags = localStorage.getItem('mavi_plc_tags');
-                    if (savedControllers && savedTags) {
+                    const parsedCtrls = window.mavi_plc_controllers;
+                    const parsedTags = window.mavi_plc_tags;
+                    if (parsedCtrls && parsedTags) {
                       try {
-                        const parsedCtrls = JSON.parse(savedControllers);
-                        const parsedTags = JSON.parse(savedTags);
                         const cleanVar = targetVar.startsWith('@') ? targetVar.substring(1) : targetVar;
                         const matchingTag = parsedTags.find(t => t.name === cleanVar);
                         if (matchingTag && window.__TAURI_INTERNALS__) {

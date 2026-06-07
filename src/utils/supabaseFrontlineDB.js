@@ -712,3 +712,198 @@ export async function logPlayerSession(session) {
 
     return payload;
 }
+
+export async function savePlcSettingsToSupabase(controllers, tags) {
+    try {
+        const supabase = getSupabaseClient();
+        
+        // 1. Try writing to separate tables: plc_controllers and plc_tags
+        // Clean up old ones first (or upsert)
+        try {
+            // Check if plc_controllers table exists by doing a select
+            const { error: testError } = await supabase.from('plc_controllers').select('id').limit(1);
+            if (!testError || testError.code !== '42P01') {
+                // Table exists! Let's clear and insert
+                const { error: delError1 } = await supabase.from('plc_controllers').delete().neq('id', 'dummy');
+                if (delError1) throw delError1;
+
+                if (controllers.length > 0) {
+                    const { error: insError1 } = await supabase.from('plc_controllers').insert(controllers.map(c => ({
+                        id: c.id,
+                        name: c.name,
+                        type: c.type,
+                        ip: c.ip,
+                        port: parseInt(c.port) || 0,
+                        status: c.status || 'offline',
+                        latency: parseInt(c.latency) || 0,
+                        polling_interval: parseInt(c.pollingInterval) || 1000,
+                        unit_id: parseInt(c.unitId) || 1,
+                        baud_rate: parseInt(c.baudRate) || 9600,
+                        parity: c.parity || 'None',
+                        client_id: c.clientId || '',
+                        topic_prefix: c.topicPrefix || '',
+                        security_policy: c.securityPolicy || 'None',
+                        username: c.username || '',
+                        password: c.password || ''
+                    })));
+                    if (insError1) throw insError1;
+                }
+
+                const { error: delError2 } = await supabase.from('plc_tags').delete().neq('id', 'dummy');
+                if (delError2) throw delError2;
+
+                if (tags.length > 0) {
+                    const { error: insError2 } = await supabase.from('plc_tags').insert(tags.map(t => ({
+                        id: t.id,
+                        controller_id: t.controllerId,
+                        name: t.name,
+                        reg_type: t.regType,
+                        address: t.address,
+                        data_type: t.dataType,
+                        multiplier: parseFloat(t.multiplier) || 1.0,
+                        permissions: t.permissions || 'RO',
+                        value: t.value || ''
+                    })));
+                    if (insError2) throw insError2;
+                }
+
+                console.log('[Supabase] Successfully saved PLC settings to dedicated plc_controllers & plc_tags tables.');
+                return true;
+            }
+        } catch (dbErr) {
+            console.warn('[Supabase] Failed to write to dedicated PLC tables, falling back to app_variables:', dbErr);
+            // Fall through to variable store if separate tables don't exist or write failed
+        }
+
+        // 2. Fallback: Save PLC_CONTROLLERS & PLC_TAGS in app_variables
+        console.log('[Supabase] plc_controllers/tags tables not found. Storing config in app_variables table.');
+        
+        // Save PLC_CONTROLLERS
+        const { data: existingCtrls } = await supabase
+            .from('app_variables')
+            .select('id')
+            .eq('name', 'PLC_CONTROLLERS')
+            .maybeSingle();
+
+        const ctrlPayload = {
+            name: 'PLC_CONTROLLERS',
+            type: 'TEXT',
+            default_value: JSON.stringify(controllers),
+            clear_on_completion: false,
+            save_for_analysis: false,
+            where_used: 'PLC Settings',
+            updated_at: new Date().toISOString()
+        };
+
+        if (existingCtrls?.id) {
+            await supabase.from('app_variables').update(ctrlPayload).eq('id', existingCtrls.id);
+        } else {
+            await supabase.from('app_variables').insert({ ...ctrlPayload, created_at: new Date().toISOString() });
+        }
+
+        // Save PLC_TAGS
+        const { data: existingTags } = await supabase
+            .from('app_variables')
+            .select('id')
+            .eq('name', 'PLC_TAGS')
+            .maybeSingle();
+
+        const tagsPayload = {
+            name: 'PLC_TAGS',
+            type: 'TEXT',
+            default_value: JSON.stringify(tags),
+            clear_on_completion: false,
+            save_for_analysis: false,
+            where_used: 'PLC Settings',
+            updated_at: new Date().toISOString()
+        };
+
+        if (existingTags?.id) {
+            await supabase.from('app_variables').update(tagsPayload).eq('id', existingTags.id);
+        } else {
+            await supabase.from('app_variables').insert({ ...tagsPayload, created_at: new Date().toISOString() });
+        }
+
+        return true;
+    } catch (e) {
+        console.error('Failed to save PLC settings to Supabase:', e);
+        return false;
+    }
+}
+
+export async function loadPlcSettingsFromSupabase() {
+    try {
+        const supabase = getSupabaseClient();
+        
+        // 1. Try reading from plc_controllers & plc_tags tables first
+        try {
+            const { data: ctrls, error: ctrlError } = await supabase.from('plc_controllers').select('*');
+            const { data: tagList, error: tagError } = await supabase.from('plc_tags').select('*');
+
+            if (!ctrlError && !tagError && ctrls && tagList) {
+                const mappedCtrls = ctrls.map(c => ({
+                    id: c.id,
+                    name: c.name,
+                    type: c.type,
+                    ip: c.ip,
+                    port: c.port,
+                    status: c.status,
+                    latency: c.latency,
+                    pollingInterval: c.polling_interval,
+                    unitId: c.unit_id,
+                    baudRate: c.baud_rate,
+                    parity: c.parity,
+                    clientId: c.client_id,
+                    topicPrefix: c.topic_prefix,
+                    securityPolicy: c.security_policy,
+                    username: c.username,
+                    password: c.password
+                }));
+
+                const mappedTags = tagList.map(t => ({
+                    id: t.id,
+                    controllerId: t.controller_id,
+                    name: t.name,
+                    regType: t.reg_type,
+                    address: t.address,
+                    dataType: t.data_type,
+                    multiplier: t.multiplier,
+                    permissions: t.permissions,
+                    value: t.value
+                }));
+
+                console.log('[Supabase] Loaded PLC settings from dedicated plc_controllers & plc_tags tables.');
+                return { controllers: mappedCtrls, tags: mappedTags };
+            }
+        } catch (dbErr) {
+            // Fall through to app_variables
+        }
+
+        // 2. Fallback: load from app_variables
+        console.log('[Supabase] Stored tables not found or query failed. Loading PLC settings from app_variables.');
+        const { data } = await supabase
+            .from('app_variables')
+            .select('*')
+            .in('name', ['PLC_CONTROLLERS', 'PLC_TAGS']);
+        
+        const res = { controllers: null, tags: null };
+        if (data) {
+            data.forEach(item => {
+                if (item.name === 'PLC_CONTROLLERS' && item.default_value) {
+                    try {
+                        res.controllers = JSON.parse(item.default_value);
+                    } catch (e) {}
+                }
+                if (item.name === 'PLC_TAGS' && item.default_value) {
+                    try {
+                        res.tags = JSON.parse(item.default_value);
+                    } catch (e) {}
+                }
+            });
+        }
+        return res;
+    } catch (e) {
+        console.error('Failed to load PLC settings from Supabase:', e);
+        return { controllers: null, tags: null };
+    }
+}

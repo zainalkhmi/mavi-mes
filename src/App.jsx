@@ -86,6 +86,25 @@ const App = () => {
     return saved === 'true';
   });
 
+  // Load PLC Settings from Supabase globally on startup
+  useEffect(() => {
+    const fetchGlobalPlcSettings = async () => {
+      try {
+        const { loadPlcSettingsFromSupabase } = await import('./utils/supabaseFrontlineDB');
+        const { controllers, tags } = await loadPlcSettingsFromSupabase();
+        if (controllers) {
+          window.mavi_plc_controllers = controllers;
+        }
+        if (tags) {
+          window.mavi_plc_tags = tags;
+        }
+      } catch (err) {
+        console.error('Failed to load global PLC settings from Supabase:', err);
+      }
+    };
+    fetchGlobalPlcSettings();
+  }, []);
+
   // Apply zoom level dynamically to document.body
   useEffect(() => {
     document.body.style.zoom = zoomLevel;

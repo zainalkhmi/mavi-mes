@@ -639,3 +639,54 @@ ALTER TABLE public.iot_gateways ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all iot_gateways" ON public.iot_gateways;
 CREATE POLICY "Allow all iot_gateways" ON public.iot_gateways FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
+-- =====================================================
+-- PLC & SCADA Tables
+-- =====================================================
+
+-- 27. Table: plc_controllers
+CREATE TABLE IF NOT EXISTS public.plc_controllers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT DEFAULT 'OPC UA',
+    ip TEXT,
+    port INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'offline',
+    latency INTEGER DEFAULT 0,
+    polling_interval INTEGER DEFAULT 1000,
+    unit_id INTEGER DEFAULT 1,
+    baud_rate INTEGER DEFAULT 9600,
+    parity TEXT DEFAULT 'None',
+    client_id TEXT,
+    topic_prefix TEXT,
+    security_policy TEXT DEFAULT 'None',
+    username TEXT,
+    password TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+GRANT ALL ON TABLE public.plc_controllers TO anon, authenticated;
+ALTER TABLE public.plc_controllers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all plc_controllers" ON public.plc_controllers;
+CREATE POLICY "Allow all plc_controllers" ON public.plc_controllers FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+-- 28. Table: plc_tags
+CREATE TABLE IF NOT EXISTS public.plc_tags (
+    id TEXT PRIMARY KEY,
+    controller_id TEXT REFERENCES public.plc_controllers(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    reg_type TEXT,
+    address TEXT,
+    data_type TEXT,
+    multiplier REAL DEFAULT 1.0,
+    permissions TEXT DEFAULT 'RO',
+    value TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+GRANT ALL ON TABLE public.plc_tags TO anon, authenticated;
+ALTER TABLE public.plc_tags ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all plc_tags" ON public.plc_tags;
+CREATE POLICY "Allow all plc_tags" ON public.plc_tags FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+

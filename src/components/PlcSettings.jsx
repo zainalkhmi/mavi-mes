@@ -6,11 +6,15 @@ import {
   TrendingUp, Radio, HelpCircle, AlertCircle, Key
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { savePlcSettingsToSupabase, loadPlcSettingsFromSupabase } from '../utils/supabaseFrontlineDB';
+import PlcHelpAssistant from './PlcHelpAssistant';
 
 // ─── Constants & Options ───────────────────────────────────────────────────
 const CONTROLLER_TYPES = [
   { value: 'MODBUS_TCP', label: 'Modbus TCP', icon: Database, color: '#6366f1', desc: 'Direct Modbus registers over TCP/IP' },
-  { value: 'OPC_UA', label: 'OPC UA', icon: Cpu, color: '#8b5cf6', desc: 'Secure Unified Architecture nodes' }
+  { value: 'MODBUS_RTU', label: 'Modbus RTU', icon: Radio, color: '#10b981', desc: 'Modbus serial communications over RS485/RTU' },
+  { value: 'OPC_UA', label: 'OPC UA', icon: Cpu, color: '#8b5cf6', desc: 'Secure Unified Architecture nodes' },
+  { value: 'MQTT', label: 'MQTT Broker', icon: Zap, color: '#f59e0b', desc: 'Telemetry subscription over MQTT Broker' }
 ];
 
 const MODBUS_REG_TYPES = [
@@ -58,6 +62,26 @@ const TEMPLATES = {
       { name: 'Photo_Eye_Blocked', type: 'MODBUS_TCP', regType: 'DISCRETE_INPUT', address: '12', dataType: 'BOOLEAN', multiplier: 1, permissions: 'RO', value: 'true' },
       { name: 'Cycle_Time_Ms', type: 'MODBUS_TCP', regType: 'INPUT_REGISTER', address: '20', dataType: 'UINT16', multiplier: 1, permissions: 'RO', value: '850' }
     ]
+  },
+  assembly_rtu: {
+    name: 'Assembly Line RTU Template',
+    description: 'Modbus RTU registers for torque tools, test benches, and cycle status.',
+    tags: [
+      { name: 'Torque_Target', type: 'MODBUS_RTU', regType: 'HOLDING_REGISTER', address: '40010', dataType: 'INT16', multiplier: 0.1, permissions: 'RW', value: '45.0' },
+      { name: 'Tool_Lock_Cmd', type: 'MODBUS_RTU', regType: 'COIL', address: '15', dataType: 'BOOLEAN', multiplier: 1, permissions: 'RW', value: 'false' },
+      { name: 'Test_Result_Pass', type: 'MODBUS_RTU', regType: 'DISCRETE_INPUT', address: '10012', dataType: 'BOOLEAN', multiplier: 1, permissions: 'RO', value: 'true' },
+      { name: 'Cycle_Completed_Count', type: 'MODBUS_RTU', regType: 'INPUT_REGISTER', address: '30005', dataType: 'UINT16', multiplier: 1, permissions: 'RO', value: '384' }
+    ]
+  },
+  mqtt_telemetry: {
+    name: 'MQTT Telemetry Broker Template',
+    description: 'Topics for environment logging, vibration sensors, and power diagnostics.',
+    tags: [
+      { name: 'Machine_Vibration_Rms', type: 'MQTT', regType: 'MQTT_TOPIC', address: 'sensors/vibration/rms', dataType: 'FLOAT', multiplier: 1, permissions: 'RO', value: '2.45' },
+      { name: 'Machine_Power_State', type: 'MQTT', regType: 'MQTT_TOPIC', address: 'telemetry/power/state', dataType: 'BOOLEAN', multiplier: 1, permissions: 'RW', value: 'true' },
+      { name: 'Total_Energy_Kwh', type: 'MQTT', regType: 'MQTT_TOPIC', address: 'telemetry/power/energy_kwh', dataType: 'FLOAT', multiplier: 0.1, permissions: 'RO', value: '9845.2' },
+      { name: 'Cabinet_Temp_C', type: 'MQTT', regType: 'MQTT_TOPIC', address: 'sensors/temp/cabinet', dataType: 'FLOAT', multiplier: 1, permissions: 'RO', value: '34.8' }
+    ]
   }
 };
 
@@ -80,52 +104,29 @@ async function getTauriApi() {
 export default function PlcSettings() {
   const [activeTab, setActiveTab] = useState('overview');
 
+  const saveToDb = async (ctrls, tagList) => {
+    if (ctrls) window.mavi_plc_controllers = ctrls;
+    if (tagList) window.mavi_plc_tags = tagList;
+    try {
+      await savePlcSettingsToSupabase(ctrls, tagList);
+    } catch (err) {
+      console.error('Failed to sync PLC settings to Supabase:', err);
+    }
+  };
+
   // ─── PERSISTENCE STATES ──────────────────────────────────────────────────
   const [controllers, setControllers] = useState(() => {
-    try {
-      const saved = localStorage.getItem('mavi_plc_controllers');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {
-      console.error('Error parsing PLC controllers:', e);
-    }
-    return [
-      { id: 'ctrl_1', name: 'Main Conveyor PLC', type: 'MODBUS_TCP', ip: '192.168.1.50', port: 502, unitId: 1, status: 'connected', latency: 45, tagCount: 4, pollingInterval: 1000 },
-      { id: 'ctrl_2', name: 'Boiler OPC UA Server', type: 'OPC_UA', ip: 'opc.tcp://192.168.1.60:4840', port: 4840, securityPolicy: 'Basic256Sha256', status: 'connected', latency: 68, tagCount: 4, pollingInterval: 2000 }
-    ];
+    if (Array.isArray(window.mavi_plc_controllers)) return window.mavi_plc_controllers;
+    return [];
   });
 
   const [tags, setTags] = useState(() => {
-    try {
-      const saved = localStorage.getItem('mavi_plc_tags');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {
-      console.error('Error parsing PLC tags:', e);
-    }
-    return [
-      { id: 'tag_1', controllerId: 'ctrl_1', name: 'Motor_Status', regType: 'COIL', address: '1', dataType: 'BOOLEAN', multiplier: 1, permissions: 'RW', value: '1' },
-      { id: 'tag_2', controllerId: 'ctrl_1', name: 'Conveyor_Speed_Setpoint', regType: 'HOLDING_REGISTER', address: '2', dataType: 'INT16', multiplier: 0.1, permissions: 'RW', value: '65.5' },
-      { id: 'tag_3', controllerId: 'ctrl_1', name: 'Emergency_Stop', regType: 'DISCRETE_INPUT', address: '5', dataType: 'BOOLEAN', multiplier: 1, permissions: 'RO', value: 'false' },
-      { id: 'tag_4', controllerId: 'ctrl_1', name: 'Item_Counter', regType: 'INPUT_REGISTER', address: '10', dataType: 'UINT16', multiplier: 1, permissions: 'RO', value: '1420' },
-      
-      { id: 'tag_5', controllerId: 'ctrl_2', name: 'Core_Temperature', regType: 'NODE', address: 'ns=2;s=BoilerCore.Temperature', dataType: 'FLOAT', multiplier: 1, permissions: 'RO', value: '184.2' },
-      { id: 'tag_6', controllerId: 'ctrl_2', name: 'Water_Level_Sensor', regType: 'NODE', address: 'ns=2;s=BoilerCore.WaterLevel', dataType: 'FLOAT', multiplier: 1, permissions: 'RO', value: '72.8' },
-      { id: 'tag_7', controllerId: 'ctrl_2', name: 'Safety_Valve_Command', regType: 'NODE', address: 'ns=2;s=BoilerCore.ValveCommand', dataType: 'BOOLEAN', multiplier: 1, permissions: 'RW', value: 'false' },
-      { id: 'tag_8', controllerId: 'ctrl_2', name: 'Pressure_Psi', regType: 'NODE', address: 'ns=2;s=BoilerCore.PressurePSI', dataType: 'INT32', multiplier: 0.1, permissions: 'RO', value: '142' }
-    ];
+    if (Array.isArray(window.mavi_plc_tags)) return window.mavi_plc_tags;
+    return [];
   });
 
   const [logs, setLogs] = useState([
-    { ts: new Date(Date.now() - 5000).toLocaleTimeString(), type: 'INFO', msg: 'System initialized. Loading controllers.' },
-    { ts: new Date(Date.now() - 4000).toLocaleTimeString(), type: 'SUCCESS', msg: 'Successfully connected to Main Conveyor PLC (192.168.1.50:502)' },
-    { ts: new Date(Date.now() - 3500).toLocaleTimeString(), type: 'SUCCESS', msg: 'Successfully connected to Boiler OPC UA Server (opc.tcp://192.168.1.60:4840)' },
-    { ts: new Date(Date.now() - 2000).toLocaleTimeString(), type: 'READ', msg: '[Modbus] Read Coil 00001 (Motor_Status): 1' },
-    { ts: new Date(Date.now() - 1000).toLocaleTimeString(), type: 'READ', msg: '[OPC UA] Read ns=2;s=BoilerCore.Temperature: 184.2' }
+    { ts: new Date().toLocaleTimeString(), type: 'INFO', msg: 'System initialized. Loading controllers.' }
   ]);
 
   // Sync default scanner controller on load
@@ -138,17 +139,39 @@ export default function PlcSettings() {
   // Persistent settings save
   useEffect(() => {
     if (Array.isArray(controllers)) {
-      localStorage.setItem('mavi_plc_controllers', JSON.stringify(controllers));
+      window.mavi_plc_controllers = controllers;
     }
   }, [controllers]);
 
-  // Connect to Modbus TCP PLCs on startup if they are set to 'connected'
+  // Connect to PLCs and load from Supabase on startup
   useEffect(() => {
-    const initConnections = async () => {
+    const initApp = async () => {
+      let activeControllers = controllers;
+      let activeTags = tags;
+
+      // 1. Try loading settings from Supabase
+      addLog('INFO', 'Synchronizing PLC settings with Supabase...');
+      try {
+        const { controllers: dbControllers, tags: dbTags } = await loadPlcSettingsFromSupabase();
+        if (dbControllers && dbControllers.length > 0) {
+          activeControllers = dbControllers;
+          activeTags = dbTags || [];
+          setControllers(dbControllers);
+          setTags(dbTags || []);
+          addLog('SUCCESS', 'PLC settings synchronized successfully from Supabase.');
+        } else {
+          addLog('INFO', 'Supabase PLC settings empty or tables not found. Using local configuration.');
+        }
+      } catch (err) {
+        addLog('WARNING', 'Failed to sync with Supabase. Using offline local config.');
+        console.warn('Failed to load PLC settings from Supabase:', err);
+      }
+
+      // 2. Initialize startup connections
       const api = await getTauriApi();
       if (!api.invoke) return;
       
-      for (const ctrl of controllers) {
+      for (const ctrl of activeControllers) {
         if (ctrl.type === 'MODBUS_TCP' && ctrl.status === 'connected') {
           addLog('INFO', `Initializing startup connection for Modbus PLC: ${ctrl.name}...`);
           try {
@@ -167,12 +190,12 @@ export default function PlcSettings() {
         }
       }
     };
-    initConnections();
+    initApp();
   }, []); // Run once on mount
 
   useEffect(() => {
     if (Array.isArray(tags)) {
-      localStorage.setItem('mavi_plc_tags', JSON.stringify(tags));
+      window.mavi_plc_tags = tags;
       // Dynamic recalculate tag count on controllers
       setControllers(prev => (prev || []).map(c => ({
         ...c,
@@ -224,7 +247,12 @@ export default function PlcSettings() {
         nextTags[targetIdx] = { ...currentTag, value: newVal };
         
         // Log the read
-        const protocol = controller?.type === 'OPC_UA' ? 'OPC UA' : 'Modbus';
+        let protocol = 'Modbus';
+        if (controller?.type === 'OPC_UA') protocol = 'OPC UA';
+        else if (controller?.type === 'MQTT') protocol = 'MQTT';
+        else if (controller?.type === 'MODBUS_RTU') protocol = 'Modbus RTU';
+        else if (controller?.type === 'MODBUS_TCP') protocol = 'Modbus TCP';
+        
         addLog('READ', `[${protocol}] Read ${currentTag.name} (${currentTag.address}): ${newVal}`);
         
         return nextTags;
@@ -390,25 +418,32 @@ export default function PlcSettings() {
       toast.error('Nama dan Host/IP wajib diisi.');
       return;
     }
+    let updatedControllers;
     if (editingCtrl) {
-      setControllers(prev => prev.map(c => c.id === editingCtrl.id ? { ...c, ...ctrlForm } : c));
+      updatedControllers = controllers.map(c => c.id === editingCtrl.id ? { ...c, ...ctrlForm } : c);
+      setControllers(updatedControllers);
       addLog('INFO', `Controller '${ctrlForm.name}' updated.`);
       toast.success('Controller berhasil diperbarui.');
     } else {
       const newId = `ctrl_${Date.now()}`;
-      setControllers(prev => [...prev, {
+      updatedControllers = [...controllers, {
         id: newId, ...ctrlForm, status: 'connected', latency: 30, tagCount: 0
-      }]);
+      }];
+      setControllers(updatedControllers);
       addLog('SUCCESS', `New controller '${ctrlForm.name}' connected.`);
       toast.success('Controller baru ditambahkan.');
     }
+    saveToDb(updatedControllers, tags);
     setIsCtrlModalOpen(false);
   };
 
   const handleDeleteController = (id, name) => {
     if (window.confirm(`Hapus controller '${name}' beserta semua tag yang dimilikinya?`)) {
-      setControllers(prev => prev.filter(c => c.id !== id));
-      setTags(prev => prev.filter(t => t.controllerId !== id));
+      const updatedCtrls = controllers.filter(c => c.id !== id);
+      const updatedTags = tags.filter(t => t.controllerId !== id);
+      setControllers(updatedCtrls);
+      setTags(updatedTags);
+      saveToDb(updatedCtrls, updatedTags);
       addLog('WARNING', `Controller '${name}' deleted.`);
       toast.success('Controller berhasil dihapus.');
     }
@@ -450,11 +485,13 @@ export default function PlcSettings() {
       }
     }
 
-    setControllers(prev => prev.map(c => c.id === id ? {
+    const updatedCtrls = controllers.map(c => c.id === id ? {
       ...c,
       status: nextStatus,
       latency: nextStatus === 'connected' ? 30 : 0
-    } : c));
+    } : c);
+    setControllers(updatedCtrls);
+    saveToDb(updatedCtrls, tags);
     addLog(nextStatus === 'connected' ? 'SUCCESS' : 'WARNING', `Controller status changed: ${nextStatus.toUpperCase()}`);
     if (!api.invoke || controller.type !== 'MODBUS_TCP') {
       toast.success(`Controller status: ${nextStatus}`);
@@ -501,22 +538,28 @@ export default function PlcSettings() {
       toast.error('Nama tag dan Alamat register wajib diisi.');
       return;
     }
+    let updatedTags;
     if (editingTag) {
-      setTags(prev => prev.map(t => t.id === editingTag.id ? { ...t, ...tagForm } : t));
+      updatedTags = tags.map(t => t.id === editingTag.id ? { ...t, ...tagForm } : t);
+      setTags(updatedTags);
       addLog('INFO', `Tag '${tagForm.name}' updated.`);
       toast.success('Tag berhasil diperbarui.');
     } else {
       const newId = `tag_${Date.now()}`;
-      setTags(prev => [...prev, { id: newId, ...tagForm }]);
+      updatedTags = [...tags, { id: newId, ...tagForm }];
+      setTags(updatedTags);
       addLog('SUCCESS', `Mapped new tag '${tagForm.name}' on register ${tagForm.address}.`);
       toast.success('Tag baru berhasil dipetakan.');
     }
+    saveToDb(controllers, updatedTags);
     setIsTagModalOpen(false);
   };
 
   const handleDeleteTag = (id, name) => {
     if (window.confirm(`Hapus pemetaan tag '${name}'?`)) {
-      setTags(prev => prev.filter(t => t.id !== id));
+      const updatedTags = tags.filter(t => t.id !== id);
+      setTags(updatedTags);
+      saveToDb(controllers, updatedTags);
       addLog('WARNING', `Tag mapping '${name}' deleted.`);
       toast.success('Tag berhasil dihapus.');
     }
@@ -781,7 +824,9 @@ export default function PlcSettings() {
         ...t
       }));
 
-      setTags(prev => [...prev, ...importedTags]);
+      const updatedTags = [...tags, ...importedTags];
+      setTags(updatedTags);
+      saveToDb(controllers, updatedTags);
       addLog('SUCCESS', `Imported ${importedTags.length} tags from '${template.name}' to '${activeCtrl.name}'.`);
       toast.success(`Sukses mengimpor ${importedTags.length} tag.`);
     }
@@ -858,7 +903,8 @@ export default function PlcSettings() {
           { id: 'controllers', label: 'PLC Controllers', icon: Server },
           { id: 'tags', label: 'Register Tag Mapping', icon: Key },
           { id: 'scanner', label: 'Live Register Grid', icon: Grid },
-          { id: 'templates', label: 'Industrial Templates', icon: FileJson }
+          { id: 'templates', label: 'Industrial Templates', icon: FileJson },
+          { id: 'help', label: 'Help & Wiring Guide', icon: HelpCircle }
         ].map(tab => (
           <button
             key={tab.id}
@@ -1046,7 +1092,18 @@ export default function PlcSettings() {
                   <div key={ctrl.id} style={{ backgroundColor: '#111827', border: '1.5px solid #1f2937', borderRadius: '14px', padding: '20px', position: 'relative' }}>
                     <div style={{ display: 'flex', justifyBetween: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
                       <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                        <div style={{ width: '42px', height: '42px', borderRadius: '10px', backgroundColor: ctrl.type === 'OPC_UA' ? 'rgba(139, 92, 246, 0.1)' : 'rgba(99, 102, 241, 0.1)', color: ctrl.type === 'OPC_UA' ? '#8b5cf6' : '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{
+                          width: '42px', height: '42px', borderRadius: '10px',
+                          backgroundColor: ctrl.type === 'OPC_UA' ? 'rgba(139, 92, 246, 0.1)' :
+                                           ctrl.type === 'MODBUS_RTU' ? 'rgba(16, 185, 129, 0.1)' :
+                                           ctrl.type === 'MQTT' ? 'rgba(245, 158, 11, 0.1)' :
+                                           'rgba(99, 102, 241, 0.1)',
+                          color: ctrl.type === 'OPC_UA' ? '#8b5cf6' :
+                                 ctrl.type === 'MODBUS_RTU' ? '#10b981' :
+                                 ctrl.type === 'MQTT' ? '#f59e0b' :
+                                 '#6366f1',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}>
                           <Server size={22} />
                         </div>
                         <div>
@@ -1063,21 +1120,40 @@ export default function PlcSettings() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.78rem', borderBottom: '1px solid #1f2937', paddingBottom: '14px', marginBottom: '14px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: '#64748b' }}>Tipe Protokol</span>
-                        <span style={{ color: '#cbd5e1', fontWeight: 700 }}>{ctrl.type === 'OPC_UA' ? 'OPC UA' : 'Modbus TCP'}</span>
+                        <span style={{ color: '#cbd5e1', fontWeight: 700 }}>
+                          {ctrl.type === 'OPC_UA' ? 'OPC UA' :
+                           ctrl.type === 'MODBUS_RTU' ? 'Modbus RTU' :
+                           ctrl.type === 'MQTT' ? 'MQTT Broker' : 'Modbus TCP'}
+                        </span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#64748b' }}>Server Host/IP</span>
+                        <span style={{ color: '#64748b' }}>
+                          {ctrl.type === 'MODBUS_RTU' ? 'Serial Port' : ctrl.type === 'OPC_UA' ? 'Endpoint URL' : ctrl.type === 'MQTT' ? 'Broker Host' : 'Server Host/IP'}
+                        </span>
                         <span style={{ color: '#cbd5e1', fontFamily: 'monospace' }}>{ctrl.ip}</span>
                       </div>
-                      {ctrl.type === 'MODBUS_TCP' ? (
+                      {ctrl.type === 'MODBUS_TCP' && (
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                           <span style={{ color: '#64748b' }}>Port & Unit ID</span>
                           <span style={{ color: '#cbd5e1' }}>Port {ctrl.port} / Slave #{ctrl.unitId}</span>
                         </div>
-                      ) : (
+                      )}
+                      {ctrl.type === 'MODBUS_RTU' && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#64748b' }}>Baud & Parity & Slave</span>
+                          <span style={{ color: '#cbd5e1' }}>Baud {ctrl.baudRate || 9600} / {ctrl.parity || 'None'} / Slave #{ctrl.unitId || 1}</span>
+                        </div>
+                      )}
+                      {ctrl.type === 'OPC_UA' && (
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                           <span style={{ color: '#64748b' }}>Security Policy</span>
                           <span style={{ color: '#cbd5e1' }}>{ctrl.securityPolicy || 'None'}</span>
+                        </div>
+                      )}
+                      {ctrl.type === 'MQTT' && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#64748b' }}>Port & Client ID</span>
+                          <span style={{ color: '#cbd5e1' }}>Port {ctrl.port || 1883} / {ctrl.clientId || 'mavi-client'}</span>
                         </div>
                       )}
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -1354,6 +1430,11 @@ export default function PlcSettings() {
           </div>
         )}
 
+        {/* ── Tab 6: HELP & WIRING GUIDE ── */}
+        {activeTab === 'help' && (
+          <PlcHelpAssistant />
+        )}
+
       </div>
 
       {/* ─── CONTROLLER CONFIG MODAL ─────────────────────────────────────────── */}
@@ -1384,27 +1465,31 @@ export default function PlcSettings() {
                   <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Tipe Protokol</label>
                   <select
                     value={ctrlForm.type}
-                    onChange={e => setCtrlForm({...ctrlForm, type: e.target.value, port: e.target.value === 'OPC_UA' ? 4840 : 502})}
+                    onChange={e => setCtrlForm({...ctrlForm, type: e.target.value, port: e.target.value === 'OPC_UA' ? 4840 : (e.target.value === 'MQTT' ? 1883 : 502)})}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
                   >
                     <option value="MODBUS_TCP">Modbus TCP</option>
+                    <option value="MODBUS_RTU">Modbus RTU</option>
                     <option value="OPC_UA">OPC UA</option>
+                    <option value="MQTT">MQTT Broker</option>
                   </select>
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Host/IP Address</label>
+                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>
+                    {ctrlForm.type === 'MODBUS_RTU' ? 'Serial Port Path' : ctrlForm.type === 'OPC_UA' ? 'Endpoint URL' : ctrlForm.type === 'MQTT' ? 'Broker Host' : 'Host/IP Address'}
+                  </label>
                   <input
                     type="text"
                     value={ctrlForm.ip}
                     onChange={e => setCtrlForm({...ctrlForm, ip: e.target.value})}
-                    placeholder="e.g. 192.168.1.15"
+                    placeholder={ctrlForm.type === 'MODBUS_RTU' ? 'e.g. COM3 or /dev/ttyUSB0' : ctrlForm.type === 'OPC_UA' ? 'opc.tcp://192.168.1.60:4840' : ctrlForm.type === 'MQTT' ? 'e.g. broker.hivemq.com' : 'e.g. 192.168.1.15'}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
                   />
                 </div>
               </div>
 
-              {ctrlForm.type === 'MODBUS_TCP' ? (
+              {ctrlForm.type === 'MODBUS_TCP' && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Port TCP</label>
@@ -1425,11 +1510,53 @@ export default function PlcSettings() {
                     />
                   </div>
                 </div>
-              ) : (
+              )}
+
+              {ctrlForm.type === 'MODBUS_RTU' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Baud Rate</label>
+                    <select
+                      value={ctrlForm.baudRate || 9600}
+                      onChange={e => setCtrlForm({...ctrlForm, baudRate: parseInt(e.target.value)})}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                    >
+                      <option value="4800">4800</option>
+                      <option value="9600">9600</option>
+                      <option value="19200">19200</option>
+                      <option value="38400">38400</option>
+                      <option value="115200">115200</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Parity</label>
+                    <select
+                      value={ctrlForm.parity || 'None'}
+                      onChange={e => setCtrlForm({...ctrlForm, parity: e.target.value})}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                    >
+                      <option value="None">None</option>
+                      <option value="Even">Even</option>
+                      <option value="Odd">Odd</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Unit/Slave ID</label>
+                    <input
+                      type="number"
+                      value={ctrlForm.unitId || 1}
+                      onChange={e => setCtrlForm({...ctrlForm, unitId: parseInt(e.target.value)})}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {ctrlForm.type === 'OPC_UA' && (
                 <div>
                   <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Security Policy</label>
                   <select
-                    value={ctrlForm.securityPolicy}
+                    value={ctrlForm.securityPolicy || 'None'}
                     onChange={e => setCtrlForm({...ctrlForm, securityPolicy: e.target.value})}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
                   >
@@ -1438,6 +1565,61 @@ export default function PlcSettings() {
                     <option value="Basic256">Basic256 (Sign)</option>
                   </select>
                 </div>
+              )}
+
+              {ctrlForm.type === 'MQTT' && (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Port MQTT</label>
+                      <input
+                        type="number"
+                        value={ctrlForm.port || 1883}
+                        onChange={e => setCtrlForm({...ctrlForm, port: parseInt(e.target.value)})}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Client ID</label>
+                      <input
+                        type="text"
+                        value={ctrlForm.clientId || 'mavi-client'}
+                        onChange={e => setCtrlForm({...ctrlForm, clientId: e.target.value})}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Username</label>
+                      <input
+                        type="text"
+                        value={ctrlForm.username || ''}
+                        onChange={e => setCtrlForm({...ctrlForm, username: e.target.value})}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Password</label>
+                      <input
+                        type="password"
+                        value={ctrlForm.password || ''}
+                        onChange={e => setCtrlForm({...ctrlForm, password: e.target.value})}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Topic Prefix (Optional)</label>
+                    <input
+                      type="text"
+                      value={ctrlForm.topicPrefix || ''}
+                      onChange={e => setCtrlForm({...ctrlForm, topicPrefix: e.target.value})}
+                      placeholder="e.g. factory/line1/"
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </>
               )}
 
               <div>
@@ -1497,19 +1679,24 @@ export default function PlcSettings() {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Tipe Register</label>
+                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Tipe Register / Topic</label>
                   <select
                     value={tagForm.regType}
                     onChange={e => setTagForm({...tagForm, regType: e.target.value})}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
                   >
-                    {controllers.find(c => c.id === tagForm.controllerId)?.type === 'OPC_UA' ? (
-                      <option value="NODE">OPC UA Node</option>
-                    ) : (
-                      MODBUS_REG_TYPES.map(r => (
-                        <option key={r.value} value={r.value}>{r.label}</option>
-                      ))
-                    )}
+                    {(() => {
+                      const cType = controllers.find(c => c.id === tagForm.controllerId)?.type;
+                      if (cType === 'OPC_UA') {
+                        return <option value="NODE">OPC UA Node</option>;
+                      } else if (cType === 'MQTT') {
+                        return <option value="MQTT_TOPIC">MQTT Topic</option>;
+                      } else {
+                        return MODBUS_REG_TYPES.map(r => (
+                          <option key={r.value} value={r.value}>{r.label}</option>
+                        ));
+                      }
+                    })()}
                   </select>
                 </div>
               </div>
@@ -1517,13 +1704,13 @@ export default function PlcSettings() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>
-                    {tagForm.regType === 'NODE' ? 'Node ID' : 'Register Address'}
+                    {tagForm.regType === 'NODE' ? 'Node ID' : tagForm.regType === 'MQTT_TOPIC' ? 'MQTT Topic' : 'Register Address'}
                   </label>
                   <input
                     type="text"
                     value={tagForm.address}
                     onChange={e => setTagForm({...tagForm, address: e.target.value})}
-                    placeholder={tagForm.regType === 'NODE' ? 'ns=2;s=Device.TagName' : 'e.g. 40001'}
+                    placeholder={tagForm.regType === 'NODE' ? 'ns=2;s=Device.TagName' : tagForm.regType === 'MQTT_TOPIC' ? 'e.g. telemetry/temperature' : 'e.g. 40001'}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
                   />
                 </div>
