@@ -106,9 +106,25 @@ const App = () => {
     fetchGlobalPlcSettings();
   }, []);
 
-  // Apply zoom level dynamically to document.body
+  // Apply zoom level dynamically to root wrapper
   useEffect(() => {
-    document.body.style.zoom = zoomLevel;
+    // Clean up body zoom style in case it was set by legacy code
+    document.body.style.zoom = '';
+    
+    const root = document.getElementById('root');
+    if (root) {
+      if (zoomLevel === 1.0) {
+        root.style.transform = '';
+        root.style.transformOrigin = '';
+        root.style.width = '';
+        root.style.height = '';
+      } else {
+        root.style.transform = `scale(${zoomLevel})`;
+        root.style.transformOrigin = 'top left';
+        root.style.width = `${100 / zoomLevel}%`;
+        root.style.height = `${100 / zoomLevel}%`;
+      }
+    }
     localStorage.setItem('mavi-zoom-level', zoomLevel.toFixed(2));
   }, [zoomLevel]);
 

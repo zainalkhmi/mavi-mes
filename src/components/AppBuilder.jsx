@@ -18651,9 +18651,10 @@ const AppBuilder = () => {
                 color: 'var(--header-text)',
                 zIndex: 100,
                 boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                position: 'relative'
+                position: 'relative',
+                gap: '16px'
             }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: '1 1 0%', justifyContent: 'flex-start', minWidth: 'max-content' }}>
                     {currentAppId && (
                         <>
                             <ProjectManager
@@ -18769,12 +18770,10 @@ const AppBuilder = () => {
                 </div>
 
                 <div style={{
-                    position: 'absolute',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '12px'
+                    gap: '12px',
+                    flex: '0 1 auto'
                 }}>
                     {/* Relocated Device & Lock Controls */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginRight: '4px' }}>
@@ -19074,7 +19073,7 @@ const AppBuilder = () => {
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: '1 1 0%', justifyContent: 'flex-end', minWidth: 'max-content' }}>
                     <input
                         value={appName}
                         onChange={(e) => setAppName(e.target.value)}
@@ -19096,20 +19095,21 @@ const AppBuilder = () => {
             {viewMode === 'DESIGN' && (
                 <div style={{
                     display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
                     padding: '8px 24px',
                     backgroundColor: 'var(--bg-panel)',
                     borderBottom: '1px solid var(--border-primary)',
                     /* must stay visible vertically — overflow hidden clips widget category dropdowns below buttons */
                     overflowX: 'visible',
                     overflowY: 'visible',
-                    alignItems: 'center',
-                    gap: '12px',
+                    gap: '16px',
                     boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
                     minHeight: '60px',
                     position: 'relative'
                 }}>
                     {/* Left Side: Add Step, Undo/Redo */}
-                    <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: '1 1 0%', justifyContent: 'flex-start', minWidth: 'max-content' }}>
                         <div
                             style={{ position: 'relative' }}
                             onMouseLeave={() => setActiveDropdown(null)}
@@ -19212,19 +19212,17 @@ const AppBuilder = () => {
                         </div>
                     </div>
 
-                    {/* Center Section: Widget Categories — paddingRight reserves space for absolutely positioned Lock/Forward/Back */}
+                    {/* Center Section: Widget Categories */}
                     <div
                         data-widget-palette-root
                         style={{
-                            position: 'absolute',
-                            left: '50%',
-                            top: '50%',
-                            transform: 'translate(-50%, -50%)',
                             display: 'flex',
                             gap: '4px',
                             justifyContent: 'center',
                             alignItems: 'center',
                             zIndex: 100,
+                            flex: '0 1 auto',
+                            flexWrap: 'wrap'
                         }}>
                         {Object.entries(CATEGORIZED_COMPONENTS).map(([catKey, category]) => (
                             <div
@@ -19243,15 +19241,15 @@ const AppBuilder = () => {
                                         flexDirection: 'column',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        minWidth: '85px',
-                                        padding: '12px 14px',
-                                        height: '76px',
+                                        minWidth: '76px',
+                                        padding: '6px 8px',
+                                        height: '66px',
                                         backgroundColor: openWidgetPaletteKey === catKey ? '#ffffff' : '#f8fafc',
                                         border: openWidgetPaletteKey === catKey ? `2px solid ${category.color}` : '1px solid #e2e8f0',
-                                        borderRadius: '16px',
+                                        borderRadius: '12px',
                                         cursor: 'pointer',
                                         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                        gap: '8px',
+                                        gap: '4px',
                                         boxShadow: openWidgetPaletteKey === catKey ? '0 10px 20px -5px rgba(0, 0, 0, 0.1)' : 'none',
                                         position: 'relative',
                                         overflow: 'hidden'
@@ -19277,21 +19275,21 @@ const AppBuilder = () => {
                                         background: openWidgetPaletteKey === catKey
                                             ? `linear-gradient(135deg, ${category.color} 0%, ${category.color}dd 100%)`
                                             : `${category.color}15`,
-                                        padding: '8px',
-                                        borderRadius: '12px',
+                                        padding: '6px',
+                                        borderRadius: '8px',
                                         color: openWidgetPaletteKey === catKey ? '#ffffff' : category.color,
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        width: '36px',
-                                        height: '36px',
+                                        width: '28px',
+                                        height: '28px',
                                         boxShadow: openWidgetPaletteKey === catKey ? `0 4px 12px ${category.color}44` : 'none',
                                         transition: 'all 0.3s ease'
                                     }}>
-                                        <category.icon size={20} strokeWidth={2.5} />
+                                        <category.icon size={16} strokeWidth={2.5} />
                                     </div>
                                     <span style={{
-                                        fontSize: '0.72rem',
+                                        fontSize: '0.68rem',
                                         fontWeight: 700,
                                         color: openWidgetPaletteKey === catKey ? '#1e293b' : '#64748b',
                                         textAlign: 'center',
@@ -19413,99 +19411,93 @@ const AppBuilder = () => {
                         ))}
                     </div>
 
-                    {/* Right Side: Lock + Forward + Back — pointer-events: none on shell so overlap strip does not steal clicks from the widget palette */}
+                    {/* Right Side: Lock + Forward + Back */}
                     <div style={{
-                        position: 'absolute',
-                        right: '20px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
                         zIndex: 40,
                         display: 'flex',
                         alignItems: 'center',
                         gap: '8px',
                         backgroundColor: 'var(--bg-panel)',
-                        padding: '2px 4px 2px 12px',
+                        padding: '2px 4px',
                         borderRadius: '8px',
-                        boxShadow: '-10px 0 14px -2px rgba(255,255,255,0.95)',
-                        pointerEvents: 'none'
+                        flex: '1 1 0%',
+                        justifyContent: 'flex-end',
+                        minWidth: 'max-content'
                     }}>
                         <button
-                            type="button"
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onClick={(e) => { e.stopPropagation(); setIsCanvasLocked(v => !v); }}
-                            title={isCanvasLocked ? 'Buka kunci — klik untuk menggeser widget lagi' : 'Kunci kanvas — widget tidak bisa digeser'}
-                            aria-pressed={isCanvasLocked}
-                            style={{
-                                pointerEvents: 'auto',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                padding: '4px 8px',
-                                minWidth: '60px',
-                                background: isCanvasLocked ? '#e0e7ff' : '#f8fafc',
-                                border: isCanvasLocked ? '1px solid #6366f1' : '1px solid #e2e8f0',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                gap: '4px'
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = isCanvasLocked ? '#c7d2fe' : '#f1f5f9' }}
-                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = isCanvasLocked ? '#e0e7ff' : '#f8fafc' }}
+                             type="button"
+                             onMouseDown={(e) => e.stopPropagation()}
+                             onClick={(e) => { e.stopPropagation(); setIsCanvasLocked(v => !v); }}
+                             title={isCanvasLocked ? 'Buka kunci — klik untuk menggeser widget lagi' : 'Kunci kanvas — widget tidak bisa digeser'}
+                             aria-pressed={isCanvasLocked}
+                             style={{
+                                 display: 'flex',
+                                 flexDirection: 'column',
+                                 alignItems: 'center',
+                                 justifyContent: 'center',
+                                 padding: '4px 8px',
+                                 minWidth: '60px',
+                                 background: isCanvasLocked ? '#e0e7ff' : '#f8fafc',
+                                 border: isCanvasLocked ? '1px solid #6366f1' : '1px solid #e2e8f0',
+                                 borderRadius: '6px',
+                                 cursor: 'pointer',
+                                 transition: 'all 0.2s',
+                                 gap: '4px'
+                             }}
+                             onMouseEnter={e => { e.currentTarget.style.backgroundColor = isCanvasLocked ? '#c7d2fe' : '#f1f5f9' }}
+                             onMouseLeave={e => { e.currentTarget.style.backgroundColor = isCanvasLocked ? '#e0e7ff' : '#f8fafc' }}
                         >
                             {isCanvasLocked ? <Unlock size={16} color="#4338ca" /> : <Lock size={16} color="var(--text-tertiary)" />}
                             <span style={{ fontSize: '0.6rem', color: isCanvasLocked ? '#4338ca' : '#475569', fontWeight: 600 }}>{isCanvasLocked ? 'Buka' : 'Kunci'}</span>
                         </button>
                         <button
-                            type="button"
-                            onClick={() => selectedCompId && reorderComponent(selectedCompId, 'FORWARD')}
-                            disabled={!selectedCompId}
-                            title="Move Forward"
-                            style={{
-                                pointerEvents: 'auto',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                padding: '4px 8px',
-                                minWidth: '60px',
-                                background: 'var(--bg-secondary)',
-                                border: '1px solid var(--border-primary)',
-                                borderRadius: '6px',
-                                cursor: !selectedCompId ? 'not-allowed' : 'pointer',
-                                opacity: !selectedCompId ? 0.6 : 1,
-                                transition: 'all 0.2s',
-                                gap: '4px'
-                            }}
-                            onMouseEnter={e => { if (selectedCompId) e.currentTarget.style.backgroundColor = '#f1f5f9' }}
-                            onMouseLeave={e => { if (selectedCompId) e.currentTarget.style.backgroundColor = '#f8fafc' }}
+                             type="button"
+                             onClick={() => selectedCompId && reorderComponent(selectedCompId, 'FORWARD')}
+                             disabled={!selectedCompId}
+                             title="Move Forward"
+                             style={{
+                                 display: 'flex',
+                                 flexDirection: 'column',
+                                 alignItems: 'center',
+                                 justifyContent: 'center',
+                                 padding: '4px 8px',
+                                 minWidth: '60px',
+                                 background: 'var(--bg-secondary)',
+                                 border: '1px solid var(--border-primary)',
+                                 borderRadius: '6px',
+                                 cursor: !selectedCompId ? 'not-allowed' : 'pointer',
+                                 opacity: !selectedCompId ? 0.6 : 1,
+                                 transition: 'all 0.2s',
+                                 gap: '4px'
+                             }}
+                             onMouseEnter={e => { if (selectedCompId) e.currentTarget.style.backgroundColor = '#f1f5f9' }}
+                             onMouseLeave={e => { if (selectedCompId) e.currentTarget.style.backgroundColor = '#f8fafc' }}
                         >
                             <BringToFront size={16} color="var(--text-tertiary)" />
                             <span style={{ fontSize: '0.6rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>Forward</span>
                         </button>
                         <button
-                            type="button"
-                            onClick={() => selectedCompId && reorderComponent(selectedCompId, 'BACKWARD')}
-                            disabled={!selectedCompId}
-                            title="Move Backward"
-                            style={{
-                                pointerEvents: 'auto',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                padding: '4px 8px',
-                                minWidth: '60px',
-                                background: 'var(--bg-secondary)',
-                                border: '1px solid var(--border-primary)',
-                                borderRadius: '6px',
-                                cursor: !selectedCompId ? 'not-allowed' : 'pointer',
-                                opacity: !selectedCompId ? 0.6 : 1,
-                                transition: 'all 0.2s',
-                                gap: '4px'
-                            }}
-                            onMouseEnter={e => { if (selectedCompId) e.currentTarget.style.backgroundColor = '#f1f5f9' }}
-                            onMouseLeave={e => { if (selectedCompId) e.currentTarget.style.backgroundColor = '#f8fafc' }}
+                             type="button"
+                             onClick={() => selectedCompId && reorderComponent(selectedCompId, 'BACKWARD')}
+                             disabled={!selectedCompId}
+                             title="Move Backward"
+                             style={{
+                                 display: 'flex',
+                                 flexDirection: 'column',
+                                 alignItems: 'center',
+                                 justifyContent: 'center',
+                                 padding: '4px 8px',
+                                 minWidth: '60px',
+                                 background: 'var(--bg-secondary)',
+                                 border: '1px solid var(--border-primary)',
+                                 borderRadius: '6px',
+                                 cursor: !selectedCompId ? 'not-allowed' : 'pointer',
+                                 opacity: !selectedCompId ? 0.6 : 1,
+                                 transition: 'all 0.2s',
+                                 gap: '4px'
+                             }}
+                             onMouseEnter={e => { if (selectedCompId) e.currentTarget.style.backgroundColor = '#f1f5f9' }}
+                             onMouseLeave={e => { if (selectedCompId) e.currentTarget.style.backgroundColor = '#f8fafc' }}
                         >
                             <SendToBack size={16} color="var(--text-tertiary)" />
                             <span style={{ fontSize: '0.6rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>Back</span>
