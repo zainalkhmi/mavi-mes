@@ -7,7 +7,7 @@ import {
   Play, Volume2, Mic, Tv, Map, Wifi, AlertTriangle, Wrench, CreditCard, Gamepad2, Grid3X3, Sun, Flame, Wind,
   Snowflake, Compass, Container, Bell, Power, ArrowRight, RotateCw, ArrowDownUp, Car, Fuel, Bug, Trash2, Wallet,
   Keyboard, Menu, Hash, Upload, ShieldCheck, Cog, AlignLeft, LayoutGrid, Palette, PlayCircle, Thermometer, Video,
-  Gauge, TrendingUp
+  Gauge, TrendingUp, Rocket
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
@@ -64,6 +64,63 @@ Berikut adalah panduan langkah demi langkah (workflow) untuk merancang, membangu
    - **Langkah 4.1: Simulasi Lokal (Simulate/Preview):** Gunakan tombol Preview di App Builder untuk mensimulasikan alur kerja aplikasi secara lokal.
    - **Langkah 4.2: Publikasikan Aplikasi (Publish):** Jika sudah siap, klik **Publish** untuk mengirim versi aplikasi ke **App Store** internal Mavi.
    - **Langkah 4.3: Tetapkan Aplikasi ke Stasiun Kerja (Assign to Station):** Masuk ke menu **Shop Floor -> Stations**, pilih stasiun kerja fisik (contoh: "Assembly Line 1"), dan tetapkan aplikasi yang baru dipublikasikan tersebut. Operator yang login di stasiun kerja tersebut akan otomatis melihat aplikasi Anda berjalan di layar mereka.
+    `
+  },
+  {
+    id: 'create-app',
+    title: 'Create App',
+    icon: Rocket,
+    color: '#14b8a6',
+    content: `
+**3 Cara Membuat Aplikasi di Mavi — Tanpa Coding, Tanpa Database Manual**
+
+![3 Ways to Create Apps](/assets/create-app-ways.jpg)
+
+Mavi menyediakan **tiga cara** untuk membuat aplikasi industri (HMI/Operator) sesuai kebutuhan dan tingkat kenyamanan Anda:
+
+---
+
+### 1. Download Template dari App Store
+
+Cara termudah dan tercepat untuk memulai. Cukup buka menu **App Store**, pilih template yang sesuai dengan kebutuhan Anda (Quality Inspection, Manufacturing Dashboard, Weigh and Dispense, dll.), lalu klik **Install**.
+
+- Template siap pakai untuk berbagai kebutuhan industri (Quality, Manufacturing, Production)
+- Cukup satu klik untuk menginstall dan langsung digunakan
+- Alur: **DOWNLOAD -> CUSTOMIZE -> DEPLOY -> USE**
+- *Best for: Quick start dengan template yang sudah teruji*
+
+---
+
+### 2. Manual Drag & Drop ke Canvas
+
+Bangun aplikasi dari nol dengan kendali penuh. Buka **App Builder**, lalu tarik widget (Button, Chart, Text Input, Camera Scanner, dll.) dari toolbar ke canvas.
+
+- Kontrol penuh atas desain dan layout aplikasi
+- Tambahkan logic, tables, validasi, dan konfigurasi sesuai keinginan
+- Alur: **DRAG -> CONFIGURE -> SAVE -> DEPLOY**
+- *Best for: Aplikasi kustom yang sesuai kebutuhan spesifik Anda*
+
+---
+
+### 3. Generate dengan Copilot (AI-Powered)
+
+Deskripsikan apa yang Anda butuhkan, dan **Mavi Builder Copilot** (AI) akan membuatkan aplikasi lengkap untuk Anda — termasuk form, tabel, logic, dan chart.
+
+- AI membuat app, forms, tables, logic & charts secara otomatis
+- Hemat waktu dan kurangi pekerjaan manual
+- Alur: **DESCRIBE -> GENERATE -> REVIEW -> DEPLOY**
+- *Best for: Pembuatan cepat dengan bantuan AI*
+
+[Buka Copilot App Builder](#/builder?copilot=true)
+
+---
+
+### Deploy ke Station & Mulai Digunakan
+
+Setelah aplikasi selesai dibuat (dengan cara apapun di atas), langkah terakhir adalah men-**deploy** aplikasi ke Station yang tepat. Operator dapat langsung membuka aplikasi di PC, tablet, atau kiosk dan mulai bekerja.
+
+- Real-time Data & Track & Monitor
+- Improve Productivity & Ensure Quality
     `
   },
   {
@@ -378,135 +435,326 @@ export default function GlobalHelpAssistant() {
         flex: '1', 
         display: 'flex', 
         flexDirection: 'column', 
-        backgroundColor: '#ffffff',
-        border: '1px solid #cbd5e1',
+        backgroundColor: '#0f172a',
         borderRadius: '16px',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        boxShadow: '0 20px 60px -15px rgba(0,0,0,0.3)',
+        position: 'relative'
       }}>
-        {/* Chat Header */}
+        {/* Inline CSS for animations */}
+        <style>{`
+          @keyframes chatPulseGlow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+          }
+          @keyframes chatTypingDot {
+            0%, 80%, 100% { transform: scale(0.4); opacity: 0.4; }
+            40% { transform: scale(1); opacity: 1; }
+          }
+          @keyframes chatFadeSlideIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes chatShimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+          }
+          .mavi-chat-msg { animation: chatFadeSlideIn 0.3s ease-out forwards; }
+          .mavi-chat-input:focus { border-color: #6366f1 !important; box-shadow: 0 0 0 3px rgba(99,102,241,0.15) !important; }
+          .mavi-chat-suggestion:hover { background: rgba(99,102,241,0.15) !important; border-color: #6366f1 !important; transform: translateY(-1px); }
+          .mavi-chat-send:hover:not(:disabled) { transform: scale(1.05); box-shadow: 0 4px 15px rgba(99,102,241,0.4); }
+          .mavi-chat-attach:hover { background: rgba(255,255,255,0.1) !important; border-color: rgba(148,163,184,0.4) !important; color: #a5b4fc !important; }
+          .mavi-chat-scroll::-webkit-scrollbar { width: 4px; }
+          .mavi-chat-scroll::-webkit-scrollbar-track { background: transparent; }
+          .mavi-chat-scroll::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.25); border-radius: 4px; }
+          .mavi-chat-scroll::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,0.4); }
+        `}</style>
+
+        {/* ── Chat Header ── */}
         <div style={{ 
           padding: '16px 20px', 
-          backgroundColor: '#f8fafc', 
-          borderBottom: '1px solid #e2e8f0',
+          background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+          borderBottom: '1px solid rgba(148,163,184,0.1)',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between'
+          justifyContent: 'space-between',
+          position: 'relative',
+          zIndex: 2
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ 
-              width: '36px', height: '36px', borderRadius: '10px', 
-              background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
+              width: '40px', height: '40px', borderRadius: '12px', 
+              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 4px 15px rgba(99,102,241,0.35)',
+              position: 'relative'
             }}>
-              <Bot size={20} color="#fff" />
+              <Sparkles size={20} color="#fff" />
             </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1rem', color: '#0f172a', fontWeight: 600 }}>Mavi AI Assistant</h3>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: aiConnector ? '#10b981' : '#ef4444' }} />
-                <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
-                  {aiConnector ? 'Online • Ready to assist' : 'Offline • Configure AI Settings'}
+              <h3 style={{ margin: 0, fontSize: '1rem', color: '#f1f5f9', fontWeight: 700, letterSpacing: '-0.01em' }}>Mavi AI Assistant</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
+                <span style={{ 
+                  width: '7px', height: '7px', borderRadius: '50%', 
+                  backgroundColor: aiConnector ? '#10b981' : '#ef4444',
+                  animation: aiConnector ? 'chatPulseGlow 2s ease-in-out infinite' : 'none'
+                }} />
+                <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500 }}>
+                  {aiConnector ? 'Online • Ready to assist' : 'Offline • Configure AI'}
                 </span>
               </div>
             </div>
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ 
+              padding: '5px 10px', borderRadius: '8px', 
+              background: 'rgba(99,102,241,0.12)', 
+              fontSize: '0.65rem', color: '#a5b4fc', fontWeight: 600,
+              letterSpacing: '0.05em', textTransform: 'uppercase'
+            }}>
+              AI Chat
+            </div>
+          </div>
         </div>
 
-        {/* Chat Messages */}
+        {/* ── Chat Messages Area ── */}
         <div 
           ref={scrollRef}
+          className="mavi-chat-scroll"
           style={{ 
             flex: 1, 
             padding: '20px', 
             overflowY: 'auto', 
             display: 'flex', 
             flexDirection: 'column', 
-            gap: '16px' 
+            gap: '16px',
+            background: 'linear-gradient(180deg, #0f172a 0%, #111827 100%)',
+            position: 'relative'
           }}
         >
+          {/* Subtle background grid */}
+          <div style={{
+            position: 'absolute', inset: 0, opacity: 0.03,
+            backgroundImage: 'radial-gradient(circle at 1px 1px, #94a3b8 1px, transparent 0)',
+            backgroundSize: '24px 24px',
+            pointerEvents: 'none'
+          }} />
+
+          {/* Welcome State — only shown if no user messages yet */}
+          {messages.length <= 1 && !isLoading && (
+            <div className="mavi-chat-msg" style={{ 
+              display: 'flex', flexDirection: 'column', alignItems: 'center', 
+              justifyContent: 'center', flex: 1, gap: '20px', position: 'relative', zIndex: 1,
+              paddingTop: '24px'
+            }}>
+              {/* Brand Logo */}
+              <div style={{ 
+                width: '64px', height: '64px', borderRadius: '20px', 
+                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 8px 30px rgba(99,102,241,0.3)',
+                marginBottom: '4px'
+              }}>
+                <Sparkles size={30} color="#fff" />
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <h3 style={{ margin: '0 0 6px', fontSize: '1.25rem', color: '#f1f5f9', fontWeight: 700 }}>
+                  Ada yang bisa saya bantu?
+                </h3>
+                <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b', maxWidth: '320px', lineHeight: '1.5' }}>
+                  Tanyakan apapun tentang Mavi — dari cara membuat aplikasi hingga konfigurasi PLC.
+                </p>
+              </div>
+
+              {/* Quick Suggestion Chips */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', maxWidth: '400px', marginTop: '4px' }}>
+                {[
+                  { icon: Layout, text: 'Cara membuat App baru' },
+                  { icon: Cpu, text: 'Koneksi PLC Modbus' },
+                  { icon: Zap, text: 'Setup Automation' },
+                  { icon: BarChart3, text: 'Buat Dashboard OEE' }
+                ].map((suggestion, i) => (
+                  <button 
+                    key={i}
+                    className="mavi-chat-suggestion"
+                    onClick={() => { setInput(suggestion.text); }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '7px',
+                      padding: '8px 14px', borderRadius: '12px',
+                      background: 'rgba(51,65,85,0.4)',
+                      border: '1px solid rgba(148,163,184,0.15)',
+                      color: '#cbd5e1', fontSize: '0.78rem', fontWeight: 500,
+                      cursor: 'pointer', transition: 'all 0.2s ease',
+                      backdropFilter: 'blur(8px)'
+                    }}
+                  >
+                    <suggestion.icon size={14} style={{ color: '#a5b4fc', flexShrink: 0 }} />
+                    {suggestion.text}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Message Bubbles */}
           {messages.map((msg, idx) => {
             const isUser = msg.role === 'user';
+            // Skip the initial welcome from the assistant if we're showing the welcome UI
+            if (idx === 0 && messages.length <= 1 && !isLoading) return null;
             return (
-              <div key={idx} style={{ 
+              <div key={idx} className="mavi-chat-msg" style={{ 
                 display: 'flex', 
-                gap: '12px', 
+                gap: '10px', 
                 alignSelf: isUser ? 'flex-end' : 'flex-start',
-                maxWidth: '85%'
+                maxWidth: '85%',
+                position: 'relative',
+                zIndex: 1
               }}>
                 {!isUser && (
-                  <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Bot size={18} color="#2563eb" />
+                  <div style={{ 
+                    width: '30px', height: '30px', borderRadius: '10px', 
+                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                    flexShrink: 0, marginTop: '2px',
+                    boxShadow: '0 2px 8px rgba(99,102,241,0.25)'
+                  }}>
+                    <Sparkles size={14} color="#fff" />
                   </div>
                 )}
                 
-                <div style={{ 
-                  backgroundColor: isUser ? '#2563eb' : msg.isError ? 'rgba(239,68,68,0.1)' : '#f1f5f9',
-                  border: msg.isError ? '1px solid rgba(239,68,68,0.2)' : '1px solid transparent',
-                  padding: '12px 16px',
-                  borderRadius: '16px',
-                  borderTopRightRadius: isUser ? '4px' : '16px',
-                  borderTopLeftRadius: !isUser ? '4px' : '16px',
-                  color: isUser ? '#ffffff' : msg.isError ? '#ef4444' : '#1e293b',
-                  fontSize: '0.9rem',
-                  lineHeight: '1.5'
-                }}>
-                  <div className="markdown-body" style={{ color: 'inherit' }}>
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ 
+                    backgroundColor: isUser 
+                      ? 'linear-gradient(135deg, #4f46e5, #6366f1)' 
+                      : msg.isError 
+                        ? 'rgba(239,68,68,0.1)' 
+                        : 'rgba(30, 41, 59, 0.8)',
+                    background: isUser 
+                      ? 'linear-gradient(135deg, #4f46e5, #6366f1)' 
+                      : msg.isError 
+                        ? 'rgba(239,68,68,0.15)' 
+                        : 'rgba(30, 41, 59, 0.8)',
+                    border: msg.isError 
+                      ? '1px solid rgba(239,68,68,0.25)' 
+                      : '1px solid rgba(148,163,184,0.08)',
+                    padding: '12px 16px',
+                    borderRadius: '16px',
+                    borderTopRightRadius: isUser ? '4px' : '16px',
+                    borderTopLeftRadius: !isUser ? '4px' : '16px',
+                    color: isUser ? '#ffffff' : msg.isError ? '#fca5a5' : '#e2e8f0',
+                    fontSize: '0.88rem',
+                    lineHeight: '1.6',
+                    backdropFilter: 'blur(12px)',
+                    boxShadow: isUser 
+                      ? '0 4px 15px rgba(79,70,229,0.3)' 
+                      : '0 2px 8px rgba(0,0,0,0.15)'
+                  }}>
+                    <div className="markdown-body" style={{ color: 'inherit' }}>
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
                   </div>
                 </div>
 
                 {isUser && (
-                  <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <User size={18} color="#ffffff" />
+                  <div style={{ 
+                    width: '30px', height: '30px', borderRadius: '10px', 
+                    background: 'linear-gradient(135deg, #4f46e5, #6366f1)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                    flexShrink: 0, marginTop: '2px',
+                    boxShadow: '0 2px 8px rgba(79,70,229,0.3)'
+                  }}>
+                    <User size={14} color="#ffffff" />
                   </div>
                 )}
               </div>
             );
           })}
           
+          {/* Typing Indicator */}
           {isLoading && (
-            <div style={{ display: 'flex', gap: '12px', alignSelf: 'flex-start' }}>
-              <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Bot size={18} color="#2563eb" />
+            <div className="mavi-chat-msg" style={{ display: 'flex', gap: '10px', alignSelf: 'flex-start', position: 'relative', zIndex: 1 }}>
+              <div style={{ 
+                width: '30px', height: '30px', borderRadius: '10px', 
+                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                flexShrink: 0, marginTop: '2px',
+                boxShadow: '0 2px 8px rgba(99,102,241,0.25)'
+              }}>
+                <Sparkles size={14} color="#fff" />
               </div>
-              <div style={{ backgroundColor: '#f1f5f9', padding: '12px 16px', borderRadius: '16px', borderTopLeftRadius: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Loader2 size={16} color="#64748b" className="animate-spin" />
-                <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Thinking...</span>
+              <div style={{ 
+                background: 'rgba(30, 41, 59, 0.8)', 
+                border: '1px solid rgba(148,163,184,0.08)',
+                padding: '14px 20px', borderRadius: '16px', borderTopLeftRadius: '4px', 
+                display: 'flex', alignItems: 'center', gap: '5px',
+                backdropFilter: 'blur(12px)'
+              }}>
+                {[0, 1, 2].map(i => (
+                  <span key={i} style={{
+                    width: '7px', height: '7px', borderRadius: '50%',
+                    backgroundColor: '#a5b4fc',
+                    display: 'inline-block',
+                    animation: `chatTypingDot 1.4s ease-in-out ${i * 0.2}s infinite`
+                  }} />
+                ))}
               </div>
             </div>
           )}
         </div>
 
-        {/* Input Area */}
-        <div style={{ padding: '16px', backgroundColor: '#ffffff', borderTop: '1px solid #e2e8f0' }}>
+        {/* ── Input Area ── */}
+        <div style={{ 
+          padding: '16px 16px 16px 16px', 
+          background: 'linear-gradient(0deg, #0f172a 0%, rgba(15,23,42,0.95) 100%)',
+          borderTop: '1px solid rgba(148,163,184,0.08)',
+          position: 'relative', zIndex: 2
+        }}>
           
           {/* Knowledge Base Chips */}
           {knowledgeFiles.length > 0 && (
-            <div style={{ padding: '8px 12px', backgroundColor: '#f8fafc', borderRadius: '12px 12px 0 0', display: 'flex', gap: '8px', flexWrap: 'wrap', border: '1px solid #cbd5e1', borderBottom: 'none' }}>
+            <div style={{ 
+              padding: '8px 12px', 
+              backgroundColor: 'rgba(30,41,59,0.6)', 
+              borderRadius: '12px 12px 0 0', 
+              display: 'flex', gap: '8px', flexWrap: 'wrap', 
+              border: '1px solid rgba(148,163,184,0.1)', 
+              borderBottom: 'none',
+              marginBottom: '-1px'
+            }}>
               <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'flex', alignItems: 'center', marginRight: '4px', fontWeight: 600 }}>
-                <BookOpen size={12} style={{ marginRight: '4px' }}/> File Referensi:
+                <BookOpen size={12} style={{ marginRight: '4px' }}/> Referensi:
               </span>
               {knowledgeFiles.map(f => (
-                <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.75rem', color: '#334155' }}>
-                  <span style={{ maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.name}>{f.name}</span>
-                  <button onClick={() => handleDeleteFile(f.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0 2px' }}>
-                    <X size={12} />
+                <div key={f.id} style={{ 
+                  display: 'flex', alignItems: 'center', gap: '4px', 
+                  padding: '3px 8px', 
+                  backgroundColor: 'rgba(99,102,241,0.1)', 
+                  border: '1px solid rgba(99,102,241,0.2)', 
+                  borderRadius: '8px', fontSize: '0.72rem', color: '#a5b4fc' 
+                }}>
+                  <span style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.name}>{f.name}</span>
+                  <button onClick={() => handleDeleteFile(f.id)} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0 2px' }}>
+                    <X size={11} />
                   </button>
                 </div>
               ))}
             </div>
           )}
 
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'flex-end', 
-            gap: '10px', 
-            backgroundColor: '#f8fafc',
-            borderRadius: knowledgeFiles.length > 0 ? '0 0 12px 12px' : '12px',
-            border: '1px solid #cbd5e1',
-            padding: '8px 8px 8px 16px',
-            transition: 'border-color 0.2s',
-          }}>
+          <div 
+            className="mavi-chat-input"
+            style={{ 
+              display: 'flex', 
+              alignItems: 'flex-end', 
+              gap: '8px', 
+              backgroundColor: 'rgba(30,41,59,0.6)',
+              borderRadius: knowledgeFiles.length > 0 ? '0 0 14px 14px' : '14px',
+              border: '1px solid rgba(148,163,184,0.12)',
+              padding: '8px 8px 8px 16px',
+              transition: 'all 0.25s ease',
+              backdropFilter: 'blur(12px)'
+            }}
+          >
             <textarea
               value={input}
               onChange={e => setInput(e.target.value)}
@@ -517,13 +765,14 @@ export default function GlobalHelpAssistant() {
                 flex: 1,
                 backgroundColor: 'transparent',
                 border: 'none',
-                color: '#0f172a',
-                fontSize: '0.95rem',
+                color: '#e2e8f0',
+                fontSize: '0.9rem',
                 outline: 'none',
                 resize: 'none',
                 maxHeight: '120px',
-                paddingTop: '6px',
-                fontFamily: 'inherit'
+                paddingTop: '7px',
+                fontFamily: 'inherit',
+                lineHeight: '1.4'
               }}
               onInput={(e) => {
                 e.target.style.height = 'auto';
@@ -532,34 +781,47 @@ export default function GlobalHelpAssistant() {
             />
             <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".txt,.csv,.json,.md,.js" style={{ display: 'none' }} />
             <button
+              className="mavi-chat-attach"
               onClick={() => fileInputRef.current?.click()}
               title="Unggah Dokumen Referensi"
               style={{
-                width: '40px', height: '40px', borderRadius: '10px',
-                backgroundColor: '#ffffff', color: '#64748b',
-                border: '1px solid #cbd5e1', cursor: 'pointer',
+                width: '36px', height: '36px', borderRadius: '10px',
+                backgroundColor: 'transparent', color: '#64748b',
+                border: '1px solid rgba(148,163,184,0.15)', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'all 0.2s', flexShrink: 0
+                transition: 'all 0.2s ease', flexShrink: 0
               }}
-              onMouseEnter={e => { e.currentTarget.style.color = '#2563eb'; e.currentTarget.style.borderColor = '#2563eb'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = '#64748b'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
             >
-              <Paperclip size={18} />
+              <Paperclip size={16} />
             </button>
             <button
+              className="mavi-chat-send"
               onClick={handleSend}
               disabled={isLoading || !input.trim()}
               style={{
-                width: '40px', height: '40px', borderRadius: '10px',
-                backgroundColor: (isLoading || !input.trim()) ? '#cbd5e1' : '#2563eb',
-                color: '#ffffff',
-                border: 'none', cursor: (isLoading || !input.trim()) ? 'not-allowed' : 'pointer',
+                width: '36px', height: '36px', borderRadius: '10px',
+                background: (isLoading || !input.trim()) 
+                  ? 'rgba(51,65,85,0.5)' 
+                  : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                color: (isLoading || !input.trim()) ? '#475569' : '#ffffff',
+                border: 'none', 
+                cursor: (isLoading || !input.trim()) ? 'not-allowed' : 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'all 0.2s', flexShrink: 0
+                transition: 'all 0.25s ease', flexShrink: 0,
+                boxShadow: (isLoading || !input.trim()) ? 'none' : '0 2px 10px rgba(99,102,241,0.3)'
               }}
             >
-              {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+              {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
             </button>
+          </div>
+
+          {/* Powered by label */}
+          <div style={{ 
+            textAlign: 'center', marginTop: '8px', 
+            fontSize: '0.62rem', color: '#475569', fontWeight: 500,
+            letterSpacing: '0.03em'
+          }}>
+            Powered by Mavi AI Engine
           </div>
         </div>
       </div>
