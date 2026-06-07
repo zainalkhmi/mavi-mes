@@ -61,8 +61,12 @@
   --odoo-purple: #3b82f6; /* Shift purple branding to blue in dark mode for better contrast */
 }
 
-body {
+html, body {
+  height: 100%;
   margin: 0;
+}
+
+body {
   font-family: 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   background-color: var(--bg-primary);
   color: var(--text-primary);

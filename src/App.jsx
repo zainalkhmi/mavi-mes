@@ -121,8 +121,8 @@ const App = () => {
       } else {
         root.style.transform = `scale(${zoomLevel})`;
         root.style.transformOrigin = 'top left';
-        root.style.width = `${100 / zoomLevel}%`;
-        root.style.height = `${100 / zoomLevel}%`;
+        root.style.width = `${100 / zoomLevel}vw`;
+        root.style.height = `${100 / zoomLevel}vh`;
       }
     }
     localStorage.setItem('mavi-zoom-level', zoomLevel.toFixed(2));
