@@ -215,7 +215,7 @@ export default function PlcSettings() {
   };
 
   // ─── SIMULATION LOOP ───────────────────────────────────────────────────────
-  const [simulationActive, setSimulationActive] = useState(true);
+  const [simulationActive, setSimulationActive] = useState(false);
   useEffect(() => {
     if (!simulationActive) return;
     const interval = setInterval(() => {
@@ -701,15 +701,6 @@ export default function PlcSettings() {
         let val = 0;
         if (matchingTag) {
           val = parseFloat(matchingTag.value) || 0;
-        } else {
-          const timeFactor = Date.now() / 10000;
-          if (isCoil || isDiscIn) {
-            val = Math.sin(timeFactor + i) > 0 ? 1 : 0;
-          } else if (isInputReg) {
-            val = Math.floor(150 + Math.sin(timeFactor + i) * 30 + Math.random() * 5);
-          } else {
-            val = Math.floor(60 + Math.cos(timeFactor + i) * 10);
-          }
         }
 
         data.push({

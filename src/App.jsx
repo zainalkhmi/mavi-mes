@@ -62,6 +62,7 @@ import AppStore from './components/AppStore';
 import AppManagement from './components/AppManagement';
 import FileExplorer from './components/FileExplorer';
 import BuildManager from './components/BuildManager';
+import GlobalHelpAssistant from './components/GlobalHelpAssistant';
 import { Toaster } from 'react-hot-toast';
 
 const Placeholder = ({ title }) => (
@@ -328,6 +329,21 @@ const App = () => {
 
           {/* MAIN NAVIGATION */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            {/* HELP */}
+            <Link
+              to="/help"
+              style={{
+                ...navLinkStyle('/help'),
+                backgroundColor: location.pathname === '/help' ? '#f0f7ff' : 'transparent',
+                color: location.pathname === '/help' ? '#2563eb' : '#475569',
+                fontSize: '0.9rem', padding: '6px 12px', fontWeight: 600
+              }}
+              onMouseEnter={(e) => { if (location.pathname !== '/help') { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
+              onMouseLeave={(e) => { if (location.pathname !== '/help') { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
+            >
+              Help
+            </Link>
+
             {/* APPS */}
             {['/builder', '/file-explorer', '/store', '/app-management', '/tables', '/connectors', '/variables'].some(hasAccess) && (
               <div style={{ position: 'relative' }} ref={appsMenuRef}>
@@ -582,6 +598,7 @@ const App = () => {
               <Route path="/ai-settings" element={hasAccess('/ai-settings') ? <AiSettings /> : <Navigate to="/" replace />} />
               <Route path="/supabase-settings" element={hasAccess('/supabase-settings') ? <SupabaseSettings /> : <Navigate to="/" replace />} />
               <Route path="/build-center" element={hasAccess('/build-center') ? <BuildManager /> : <Navigate to="/" replace />} />
+              <Route path="/help" element={<GlobalHelpAssistant />} />
               <Route path="*" element={<Home />} />
             </>
           )}

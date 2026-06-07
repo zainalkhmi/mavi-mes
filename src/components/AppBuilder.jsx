@@ -13383,13 +13383,22 @@ const AppBuilder = () => {
     };
 
     useEffect(() => {
-        const queryParams = new URLSearchParams(window.location.search);
+        // Since we are using HashRouter, query params are part of the hash (e.g. #/builder?copilot=true)
+        const hashStr = window.location.hash;
+        const queryStr = hashStr.includes('?') ? hashStr.split('?')[1] : '';
+        const queryParams = new URLSearchParams(queryStr);
+        
         const appIdParam = queryParams.get('appId');
         if (appIdParam && appsList.length > 0) {
             const matchedApp = appsList.find(app => String(app.id) === String(appIdParam));
             if (matchedApp && matchedApp.id !== currentAppId) {
                 loadApp(matchedApp);
             }
+        }
+        
+        const copilotParam = queryParams.get('copilot');
+        if (copilotParam === 'true') {
+            setIsCopilotOpen(true);
         }
     }, [appsList, currentAppId]);
 
