@@ -3463,22 +3463,20 @@ const LiveTerminal = () => {
   const isDark = selectedApp?.config?.appThemeMode === 'DARK';
 
   const scaleX = useMemo(() => {
-    if (isMobile) return 1;
     if (containerWidth <= 0 || layoutWidth <= 0) return 1;
     const sX = containerWidth / layoutWidth;
     if (containerHeight <= 0 || layoutHeight <= 0) return sX;
     const sY = containerHeight / layoutHeight;
     return Math.min(sX, sY);
-  }, [containerWidth, containerHeight, layoutWidth, layoutHeight, isMobile]);
+  }, [containerWidth, containerHeight, layoutWidth, layoutHeight]);
 
   const scaleY = useMemo(() => {
-    if (isMobile) return 1;
     if (containerHeight <= 0 || layoutHeight <= 0) return 1;
     const sY = containerHeight / layoutHeight;
     if (containerWidth <= 0 || layoutWidth <= 0) return sY;
     const sX = containerWidth / layoutWidth;
     return Math.min(sX, sY);
-  }, [containerWidth, containerHeight, layoutWidth, layoutHeight, isMobile]);
+  }, [containerWidth, containerHeight, layoutWidth, layoutHeight]);
 
   const canvasFrameRadius = useMemo(() => {
     if (!isPreset) return '8px';
@@ -12225,22 +12223,82 @@ const LiveTerminal = () => {
         </div>
 
         {/* Mobile Component Container */}
-        <div style={{
-          flex: 1, overflowY: 'auto', padding: '16px',
-          display: 'flex', flexDirection: 'column', gap: '20px',
-          backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc')
-        }}>
-          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: '0 0 10px 0', color: selectedApp?.config?.appThemeMode === 'DARK' ? 'white' : '#0f172a' }}>{activeStep?.title}</h2>
-
-          {appComponents.filter(c => !c.step_id || c.step_id === activeStep?.id).map((comp) => (
-            <div key={comp.id} style={{ width: '100%' }}>
-              {/* This will use the existing component switch logic, just in a mobile-optimized container */}
-              {renderComponent(comp)}
+        <div 
+          ref={setCanvasWrapper}
+          style={{
+            flex: 1, overflowY: 'auto', padding: '16px',
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc')
+          }}
+        >
+          <div style={{
+            width: `${layoutWidth * scaleX}px`,
+            height: `${layoutHeight * scaleY}px`,
+            position: 'relative',
+            overflow: 'hidden',
+            flexShrink: 0,
+            backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff',
+            borderRadius: isResponsiveMode ? '0px' : canvasFrameRadius,
+            boxShadow: isResponsiveMode ? 'none' : canvasFrameShadow,
+            border: isResponsiveMode ? 'none' : canvasFrameBorder
+          }}>
+            <div style={{
+              width: `${layoutWidth}px`,
+              height: `${layoutHeight}px`,
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              transform: `scale(${scaleX}, ${scaleY})`,
+              transformOrigin: 'top left',
+              backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff'
+            }}>
+              {[...appComponents]
+                .filter(c => (!c.step_id || c.step_id === activeStep?.id) && visibilityMap[c.id] !== false)
+                .sort((a, b) => (a.props?.zIndex || 0) - (b.props?.zIndex || 0))
+                .map((comp, idx) => {
+                  const isAbsolute = comp.x != null && comp.y != null;
+                  const containerStyle = isAbsolute ? {
+                    position: 'absolute',
+                    left: `${comp.x}px`,
+                    top: `${comp.y}px`,
+                    width: comp.w ? `${comp.w}px` : 'auto',
+                    height: comp.h ? `${comp.h}px` : 'auto',
+                    zIndex: comp.props?.zIndex || 100,
+                    transform: `rotate(${comp.props?.rotation || 0}deg)`,
+                    overflow: 'visible'
+                  } : {
+                    width: '100%',
+                    transform: `rotate(${comp.props?.rotation || 0}deg)`,
+                    marginBottom: '20px',
+                    position: 'relative'
+                  };
+                  const err = validationErrors[comp.id];
+                  return (
+                    <div key={comp.id || idx} style={containerStyle}>
+                      <div style={{
+                        border: err ? '2px solid #ef4444' : 'none',
+                        borderRadius: '8px',
+                        padding: err ? '10px' : 0,
+                        backgroundColor: err ? '#fee2e2' : 'transparent',
+                        height: isAbsolute ? '100%' : 'auto',
+                        position: 'relative',
+                        boxSizing: 'border-box'
+                      }}>
+                        {renderComponent(comp)}
+                      </div>
+                      {err && (
+                        <div style={{ marginTop: '6px', fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>
+                          {err}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
             </div>
-          ))}
-
+          </div>
+          
           {/* Padding for bottom buttons */}
-          <div style={{ height: '80px' }} />
+          <div style={{ height: '80px', flexShrink: 0 }} />
         </div>
 
         {/* Mobile Footer Controls */}

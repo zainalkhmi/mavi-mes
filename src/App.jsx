@@ -321,7 +321,7 @@ const App = () => {
   const isOperator = user.role === 'OPERATOR' || user.role === 'STATION_OPERATOR';
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f1f5f9', fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#f1f5f9', fontFamily: "'Inter', sans-serif" }}>
       {/* Navigation Bar — hidden if Operator OR if on Operator Routes (terminal/player) */}
       {!isOperatorRoute && !isOperator && <nav style={{
         display: 'flex',

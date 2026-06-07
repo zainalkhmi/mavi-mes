@@ -6343,7 +6343,8 @@ const AppBuilder = () => {
     const mediaStreamRefs = useRef({});
 
     const [contextMenu, setContextMenu] = useState({ isOpen: false, x: 0, y: 0, compId: null });
-    const [isCanvasLocked, setIsCanvasLocked] = useState(false);
+    // Canvas lock/unlock for panning and zooming. Default locked as per user request.
+    const [isCanvasLocked, setIsCanvasLocked] = useState(true);
     const [dragState, setDragState] = useState(null); // { ids, startX, startY, initialPositions }
     const [resizeState, setResizeState] = useState(null); // { id, startX, startY, initialW, initialH }
 
@@ -9476,6 +9477,7 @@ const AppBuilder = () => {
         const el = canvasWrapperRef.current;
         if (!el) return;
         const handleWheel = (e) => {
+            if (isCanvasLocked) return; // Do not zoom if locked
             // Native mouse wheel zoom without requiring Ctrl
             e.preventDefault();
             const zoomSpeed = 0.08;
@@ -9486,7 +9488,7 @@ const AppBuilder = () => {
         };
         el.addEventListener('wheel', handleWheel, { passive: false });
         return () => el.removeEventListener('wheel', handleWheel);
-    }, []);
+    }, [isCanvasLocked]);
 
     const handleFitToScreen = () => {
         if (!canvasWrapperRef.current) return;
@@ -13555,6 +13557,7 @@ const AppBuilder = () => {
         if (!workspace) return;
 
         const handleNativeWheel = (e) => {
+            if (isCanvasLocked) return; // Do not zoom if locked
             // Zoom logic: Scroll directly zooms on the workspace
             e.preventDefault();
             const zoomAmount = e.deltaY > 0 ? -0.1 : 0.1;
@@ -13563,7 +13566,7 @@ const AppBuilder = () => {
 
         workspace.addEventListener('wheel', handleNativeWheel, { passive: false });
         return () => workspace.removeEventListener('wheel', handleNativeWheel);
-    }, [canvasWrapperRef]);
+    }, [canvasWrapperRef, isCanvasLocked]);
 
     const handleCanvasMouseMove = (e) => {
         if (isPanning) {
