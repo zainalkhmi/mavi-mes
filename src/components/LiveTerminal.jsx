@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import QRCode from 'react-qr-code';
+import ReactMarkdown from 'react-markdown';
 import { Wallet } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -3335,6 +3336,10 @@ const LiveTerminal = () => {
     { time: '09:45:00', source: 'SYS-MON', msg: 'PLC Communications Restored', severity: 'INFO', status: 'CLEARED' }
   ]);
 
+  const [appVariables, setAppVariables] = useState([]);
+  const [globalLogic, setGlobalLogic] = useState(null);
+  const [blocklyRuntimeError, setBlocklyRuntimeError] = useState(null);
+
   useEffect(() => {
     appVariables.forEach(v => {
       const valNum = parseFloat(v.value);
@@ -3383,9 +3388,6 @@ const LiveTerminal = () => {
   const [andonDetail, setAndonDetail] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const [appVariables, setAppVariables] = useState([]);
-  const [globalLogic, setGlobalLogic] = useState(null);
-  const [blocklyRuntimeError, setBlocklyRuntimeError] = useState(null);
 
   // --- DERIVED STATE ---
   const steps = useMemo(() => selectedApp ? (selectedApp.config?.steps || []) : (selectedManual?.content?.steps || []), [selectedApp, selectedManual]);
@@ -3461,22 +3463,30 @@ const LiveTerminal = () => {
   const isPreset = presetKey !== 'RESPONSIVE';
   const isResponsiveMode = presetKey === 'RESPONSIVE';
   const isDark = selectedApp?.config?.appThemeMode === 'DARK';
+  const scalingMode = selectedApp?.config?.scalingMode || 'FIT_SCREEN';
 
   const scaleX = useMemo(() => {
     if (containerWidth <= 0 || layoutWidth <= 0) return 1;
     const sX = containerWidth / layoutWidth;
+    if (scalingMode === 'FIT_WIDTH') {
+      return sX;
+    }
     if (containerHeight <= 0 || layoutHeight <= 0) return sX;
     const sY = containerHeight / layoutHeight;
     return Math.min(sX, sY);
-  }, [containerWidth, containerHeight, layoutWidth, layoutHeight]);
+  }, [containerWidth, containerHeight, layoutWidth, layoutHeight, scalingMode]);
 
   const scaleY = useMemo(() => {
+    if (scalingMode === 'FIT_WIDTH') {
+      if (containerWidth <= 0 || layoutWidth <= 0) return 1;
+      return containerWidth / layoutWidth;
+    }
     if (containerHeight <= 0 || layoutHeight <= 0) return 1;
     const sY = containerHeight / layoutHeight;
     if (containerWidth <= 0 || layoutWidth <= 0) return sY;
     const sX = containerWidth / layoutWidth;
     return Math.min(sX, sY);
-  }, [containerWidth, containerHeight, layoutWidth, layoutHeight]);
+  }, [containerWidth, containerHeight, layoutWidth, layoutHeight, scalingMode]);
 
   const canvasFrameRadius = useMemo(() => {
     if (!isPreset) return '8px';
@@ -7178,6 +7188,25 @@ const LiveTerminal = () => {
                 <span style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                     Rp {amount.toLocaleString('id-ID')}
                 </span>
+            </div>
+          </div>
+        );
+      }
+      case 'MARKDOWN': {
+        const mdContent = resolvedProps.text || '';
+        return (
+          <div style={{
+            width: '100%',
+            height: '100%',
+            overflowY: 'auto',
+            padding: '16px',
+            backgroundColor: resolvedProps.backgroundColor || 'transparent',
+            color: resolvedProps.textColor || (isDark ? '#f8fafc' : '#0f172a'),
+            borderRadius: '8px',
+            boxSizing: 'border-box'
+          }}>
+            <div className="markdown-plan">
+              <ReactMarkdown>{String(mdContent)}</ReactMarkdown>
             </div>
           </div>
         );
@@ -12724,9 +12753,10 @@ const LiveTerminal = () => {
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                justifyContent: 'center',
+                justifyContent: scalingMode === 'FIT_WIDTH' ? 'flex-start' : 'center',
                 position: 'relative',
-                overflow: 'hidden',
+                overflowX: 'hidden',
+                overflowY: scalingMode === 'FIT_WIDTH' ? 'auto' : 'hidden',
                 backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f1f5f9'
               }}
             >

@@ -7,7 +7,7 @@ import {
   Play, Volume2, Mic, Tv, Map, Wifi, AlertTriangle, Wrench, CreditCard, Gamepad2, Grid3X3, Sun, Flame, Wind,
   Snowflake, Compass, Container, Bell, Power, ArrowRight, RotateCw, ArrowDownUp, Car, Fuel, Bug, Trash2, Wallet,
   Keyboard, Menu, Hash, Upload, ShieldCheck, Cog, AlignLeft, LayoutGrid, Palette, PlayCircle, Thermometer, Video,
-  Gauge, TrendingUp, Rocket
+  Gauge, TrendingUp, Rocket, Route, AppWindow, Factory, Workflow
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
@@ -38,7 +38,7 @@ const MAVI_GUIDES = [
   {
     id: 'workflow-roadmap',
     title: 'Workflow & Roadmap',
-    icon: Map,
+    icon: Route,
     color: '#6366f1', // Indigo
     content: `
 **Roadmap Alur Pembuatan Aplikasi di Mavi**
@@ -64,12 +64,75 @@ Berikut adalah panduan langkah demi langkah (workflow) untuk merancang, membangu
    - **Langkah 4.1: Simulasi Lokal (Simulate/Preview):** Gunakan tombol Preview di App Builder untuk mensimulasikan alur kerja aplikasi secara lokal.
    - **Langkah 4.2: Publikasikan Aplikasi (Publish):** Jika sudah siap, klik **Publish** untuk mengirim versi aplikasi ke **App Store** internal Mavi.
    - **Langkah 4.3: Tetapkan Aplikasi ke Stasiun Kerja (Assign to Station):** Masuk ke menu **Shop Floor -> Stations**, pilih stasiun kerja fisik (contoh: "Assembly Line 1"), dan tetapkan aplikasi yang baru dipublikasikan tersebut. Operator yang login di stasiun kerja tersebut akan otomatis melihat aplikasi Anda berjalan di layar mereka.
+
+---
+
+### Kamus Istilah Cepat (Glossary)
+- **Tag:** Alamat memori di PLC (sensor/mesin) untuk membaca/menulis data.
+- **Trigger:** Aturan sebab-akibat (Jika tombol diklik, maka simpan data).
+- **Record Placeholder:** Wadah sementara di memori aplikasi untuk menyimpan satu baris data dari Tabel Database.
+- **Edge Device:** Komputer mini di pabrik yang menjembatani mesin fisik ke sistem Mavi.
+    `
+  },
+  {
+    id: 'quick-start',
+    title: 'Quick Start: Hello World',
+    icon: Rocket,
+    color: '#f43f5e', // Rose
+    content: `
+**Tutorial 5 Menit: Membuat Aplikasi Pertama Anda**
+
+Mari kita buat aplikasi "Hello World" sederhana untuk memahami cara kerja App Builder!
+
+1. **Buka App Builder**
+   - Navigasi ke menu **Apps**, lalu klik tombol **Buat Aplikasi Baru**.
+   - Pilih opsi **Blank Canvas** (Kanvas Kosong).
+
+2. **Tambahkan Widget ke Layar**
+   - Di sebelah kiri layar, cari menu **Widget Palette** (ikon Plus).
+   - Tarik (drag) widget **Text** ke tengah layar. Ubah teksnya menjadi "Status: Belum Ditekan" melalui panel Properties di sebelah kanan.
+   - Tarik widget **Button** dan letakkan di bawah teks tadi. Ubah label tombol menjadi "Tekan Saya".
+
+3. **Buat Logika Sederhana (Trigger)**
+   - Klik widget **Button** yang baru Anda buat.
+   - Di panel kanan, buka tab **Triggers** dan klik **Add Trigger**.
+   - **Kondisi (When):** Pilih \`On Click\` (Saat diklik).
+   - **Aksi (Then):** Pilih \`Update Widget Property\`. Pilih widget **Text** tadi, pilih properti \`text\`, dan masukkan nilai baru: "Status: Tombol Ditekan!".
+   - Simpan Trigger.
+
+4. **Uji Coba Aplikasi**
+   - Klik tombol **Simulate / Preview** (ikon Play) di pojok kanan atas.
+   - Klik tombol "Tekan Saya" di layar simulasi. Jika teks berubah, selamat! Anda baru saja membuat aplikasi pertama Anda yang berfungsi!
+    `
+  },
+  {
+    id: 'copilot-tips',
+    title: 'Tips AI Copilot',
+    icon: Sparkles,
+    color: '#8b5cf6', // Violet
+    content: `
+**Cara Membuat Prompt AI yang Akurat**
+
+Mavi dilengkapi dengan **AI Copilot** yang bisa men-generate aplikasi (UI dan tabel) secara otomatis. Kunci untuk mendapatkan hasil yang bagus adalah memberikan perintah (*prompt*) yang spesifik.
+
+### Contoh Prompt yang Buruk ❌
+> *"Buatkan aplikasi untuk inspeksi."*
+*(Terlalu singkat. AI akan mengarang struktur form yang mungkin tidak sesuai dengan format pabrik Anda).*
+
+### Contoh Prompt yang Baik ✅
+> *"Buatkan form inspeksi Quality Control. Saya butuh input untuk Nama Inspektur, dropdown untuk Status (Lolos / Gagal), dan input angka untuk Berat Produk. Berikan warna tema gelap (dark mode), dan tambahkan tombol Submit besar di bagian bawah."*
+
+### Tips Iterasi 🔄
+Jika hasil pertama dari AI kurang pas, Anda tidak perlu mengulang dari nol! Cukup berikan perintah lanjutan di kolom chat Copilot, misalnya:
+- *"Ganti warna tombol Submit menjadi merah."*
+- *"Tambahkan satu kolom input teks untuk Catatan Tambahan."*
+- *"Ubah dropdown Status menjadi opsi: Good, Rework, dan Reject."*
     `
   },
   {
     id: 'create-app',
     title: 'Create App',
-    icon: Rocket,
+    icon: AppWindow,
     color: '#14b8a6',
     content: `
 **3 Cara Membuat Aplikasi di Mavi — Tanpa Coding, Tanpa Database Manual**
@@ -126,7 +189,7 @@ Setelah aplikasi selesai dibuat (dengan cara apapun di atas), langkah terakhir a
   {
     id: 'app-builder',
     title: 'App Builder & Copilot',
-    icon: Layout,
+    icon: Bot,
     color: '#ec4899', // Pink
     content: `
 **Membangun Aplikasi HMI/Operator**
@@ -144,7 +207,7 @@ Mavi menyediakan **App Builder** yang memungkinkan Anda membuat antarmuka aplika
   {
     id: 'shop-floor',
     title: 'Shop Floor & Konektivitas',
-    icon: Cpu,
+    icon: Factory,
     color: '#3b82f6', // Blue
     content: `
 **Manajemen Pabrik & Hardware**
@@ -162,7 +225,7 @@ Mavi mengatur hierarki lantai produksi dan mengumpulkan data dari mesin.
   {
     id: 'logic',
     title: 'Logic & Automations',
-    icon: Zap,
+    icon: Workflow,
     color: '#f59e0b', // Orange
     content: `
 **Automasi & Pengolahan Data**
@@ -192,7 +255,7 @@ Sistem automasi Mavi memproses data dari perangkat keras (PLC/IoT) dan tingkat o
   {
     id: 'analytics',
     title: 'Analytics & Dashboards',
-    icon: BarChart3,
+    icon: TrendingUp,
     color: '#10b981', // Green
     content: `
 **Visualisasi & Manajemen Data Produksi**
@@ -221,7 +284,7 @@ Kelola database produksi Anda dan bangun visualisasi visual (*real-time chart*) 
   {
     id: 'widgets',
     title: 'Daftar Widget HMI',
-    icon: Layout,
+    icon: LayoutGrid,
     color: '#a855f7', // Purple
     content: ''
   }
@@ -378,17 +441,26 @@ export default function GlobalHelpAssistant() {
               <button
                 key={guide.id}
                 onClick={() => setActiveGuide(guide.id)}
+                title={guide.title}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: '8px',
-                  padding: '10px 16px', borderRadius: '12px', border: isActive ? '1px solid ' + guide.color : '1px solid #cbd5e1',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  padding: '10px', borderRadius: '12px', border: isActive ? '1px solid ' + guide.color : '1px solid #cbd5e1',
                   backgroundColor: isActive ? `${guide.color}15` : '#ffffff',
                   color: isActive ? guide.color : '#475569',
-                  cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600,
-                  transition: 'all 0.2s'
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  boxShadow: isActive ? `0 4px 12px ${guide.color}30` : 'none'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = `0 4px 12px ${guide.color}40`;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = isActive ? `0 4px 12px ${guide.color}30` : 'none';
                 }}
               >
-                <Icon size={16} />
-                {guide.title}
+                <Icon size={20} />
               </button>
             );
           })}

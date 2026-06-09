@@ -43,6 +43,9 @@ const ALLOWED_COMMAND_TYPES = new Set([
     'CREATE_AUTOMATION',
     'UPDATE_AUTOMATION',
     'DELETE_AUTOMATION',
+
+    // App Documentation/Guide
+    'UPDATE_HELP_GUIDE',
 ]);
 
 export const COPILOT_SAFETY_ERROR_CODES = {
@@ -105,6 +108,9 @@ const REQUIRED_FIELDS_BY_TYPE = {
     CREATE_AUTOMATION: ['payload.name'],
     UPDATE_AUTOMATION: [],      // accepts payload.automationId OR payload.automationName
     DELETE_AUTOMATION: [],      // accepts payload.automationId OR payload.automationName
+
+    // App Documentation/Guide
+    UPDATE_HELP_GUIDE: ['payload.markdown'],
 };
 
 const getByPath = (obj, path) => {

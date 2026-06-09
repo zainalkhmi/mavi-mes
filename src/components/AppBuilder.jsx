@@ -248,6 +248,7 @@ import {
     resolveTableIdReference
 } from '../utils/supabaseTablesDB';
 import { getCompletionsByApp, getCompletionDetail } from '../utils/supabaseCompletionsDB';
+import ReactMarkdown from 'react-markdown';
 import {
     logCompletion,
     getIntegrationConnectors,
@@ -431,6 +432,19 @@ const COMPONENT_TYPES = {
             triggers: [],
             visibilityCondition: null,
             rotation: 0
+        }
+    },
+    MARKDOWN: {
+        id: 'MARKDOWN',
+        label: 'Markdown Text',
+        icon: FileText,
+        defaultSize: { w: 400, h: 300 },
+        defaultProps: {
+            text: '# Judul\n\nTeks markdown di sini.',
+            backgroundColor: 'transparent',
+            textColor: 'var(--text-primary)',
+            visible: true,
+            triggers: []
         }
     },
     TEXT: {
@@ -6364,6 +6378,7 @@ const AppBuilder = () => {
     const [recordPlaceholders, setRecordPlaceholders] = useState([]);
     const [recordPlaceholderData, setRecordPlaceholderData] = useState({});
     const [helpGuide, setHelpGuide] = useState('');
+    const [isHelpGuideOpen, setIsHelpGuideOpen] = useState(false);
 
     // Refs to track the latest state synchronously during batch Copilot command execution
     const currentStepIdRef = useRef(currentStepId);
@@ -6953,6 +6968,110 @@ const AppBuilder = () => {
                 case 'UPDATE_HELP_GUIDE': {
                     const guideMarkdown = payload?.markdown || payload?.content || payload || '';
                     setHelpGuide(String(guideMarkdown));
+                    setIsHelpGuideOpen(true);
+                    
+                    setSteps(prev => {
+                        const filteredPrev = prev.filter(s => s.stepType !== 'Help Guide' && !s.title.startsWith('Panduan Aplikasi'));
+                        
+                        const chunks = [];
+                        const parts = String(guideMarkdown).split(/(?=## )/);
+                        let currentChunk = '';
+                        for (const part of parts) {
+                            if ((currentChunk.length + part.length) > 1200 && currentChunk.length > 0) {
+                                chunks.push(currentChunk);
+                                currentChunk = part;
+                            } else {
+                                currentChunk += part;
+                            }
+                        }
+                        if (currentChunk) chunks.push(currentChunk);
+                        if (chunks.length === 0) chunks.push('Panduan Kosong');
+
+                        const stamp = Date.now();
+                        const stepIds = chunks.map((_, i) => `step_guide_${stamp}_${i}`);
+                        
+                        const newSteps = chunks.map((chunkText, i) => {
+                            const isFirst = i === 0;
+                            const isLast = i === chunks.length - 1;
+                            
+                            const components = [
+                                {
+                                    id: `comp_${stamp}_md_${i}`,
+                                    name: `guide_content_${i}`,
+                                    displayName: `Guide Content ${i + 1}`,
+                                    type: 'MARKDOWN',
+                                    x: 20, y: 80, w: 960, h: chunks.length > 1 ? 440 : 500,
+                                    props: {
+                                        text: chunkText,
+                                        backgroundColor: '#ffffff'
+                                    }
+                                }
+                            ];
+
+                            if (!isFirst) {
+                                components.push({
+                                    id: `comp_${stamp}_prev_${i}`,
+                                    name: `btn_prev_${i}`,
+                                    displayName: `Prev Button ${i + 1}`,
+                                    type: 'BUTTON',
+                                    x: 20, y: 530, w: 120, h: 44,
+                                    props: {
+                                        text: '⬅️ Prev',
+                                        backgroundColor: '#94a3b8',
+                                        color: '#ffffff',
+                                        shape: 1,
+                                        triggers: [{
+                                            id: `trig_prev_${stamp}_${i}`,
+                                            name: 'Go to Prev',
+                                            event: 'ON_CLICK',
+                                            enabled: true,
+                                            clauses: [{
+                                                match: 'ALL',
+                                                conditions: [],
+                                                actions: [{ type: 'GO_TO_STEP', payload: { stepId: stepIds[i - 1] } }]
+                                            }]
+                                        }]
+                                    }
+                                });
+                            }
+
+                            if (!isLast) {
+                                components.push({
+                                    id: `comp_${stamp}_next_${i}`,
+                                    name: `btn_next_${i}`,
+                                    displayName: `Next Button ${i + 1}`,
+                                    type: 'BUTTON',
+                                    x: 860, y: 530, w: 120, h: 44,
+                                    props: {
+                                        text: 'Next ➡️',
+                                        backgroundColor: '#3b82f6',
+                                        color: '#ffffff',
+                                        shape: 1,
+                                        triggers: [{
+                                            id: `trig_next_${stamp}_${i}`,
+                                            name: 'Go to Next',
+                                            event: 'ON_CLICK',
+                                            enabled: true,
+                                            clauses: [{
+                                                match: 'ALL',
+                                                conditions: [],
+                                                actions: [{ type: 'GO_TO_STEP', payload: { stepId: stepIds[i + 1] } }]
+                                            }]
+                                        }]
+                                    }
+                                });
+                            }
+
+                            return {
+                                id: stepIds[i],
+                                title: chunks.length > 1 ? `Panduan Aplikasi ${i + 1}` : 'Panduan Aplikasi',
+                                stepType: 'Help Guide',
+                                components
+                            };
+                        });
+
+                        return [...filteredPrev, ...newSteps];
+                    });
                     break;
                 }
                 case 'ADD_STEP': {
@@ -8943,6 +9062,7 @@ const AppBuilder = () => {
     const [isCompletionsPanelExpanded, setIsCompletionsPanelExpanded] = useState(true);
     const [previewDevice, setPreviewDevice] = useState('RESPONSIVE'); // Key from DEVICE_PRESETS
     const [previewOrientation, setPreviewOrientation] = useState('PORTRAIT'); // PORTRAIT or LANDSCAPE
+    const [scalingMode, setScalingMode] = useState('FIT_SCREEN'); // 'FIT_SCREEN' | 'FIT_WIDTH'
 
     const canvasPreset = DEVICE_PRESETS[previewDevice] || DEVICE_PRESETS.RESPONSIVE;
     const isPresetCanvasMode = ['DESIGN', 'PREVIEW'].includes(viewMode) && previewDevice !== 'RESPONSIVE';
@@ -12943,7 +13063,8 @@ const AppBuilder = () => {
                     stepListEnabled,
                     isLocked: isCanvasLocked,
                     devicePreset: previewDevice,
-                    previewOrientation: previewOrientation
+                    previewOrientation: previewOrientation,
+                    scalingMode
                 },
                 version: appMeta.version,
                 approval_status: appMeta.approval_status,
@@ -13126,6 +13247,7 @@ const AppBuilder = () => {
             setIntegrationConnectors(importedData.config?.integrationConnectors || []);
             setAppBackgroundColor(importedData.config?.appBackgroundColor || '#ffffff');
             setAppThemeMode(importedData.config?.appThemeMode || 'light');
+            setScalingMode(importedData.config?.scalingMode || 'FIT_SCREEN');
             setLeftSidebarEnabled(importedData.config?.leftSidebarEnabled !== false);
             setRightSidebarEnabled(importedData.config?.rightSidebarEnabled !== false);
             setCopilotEnabled(importedData.config?.copilotEnabled !== false);
@@ -13157,6 +13279,7 @@ const AppBuilder = () => {
             setIntegrationConnectors(duplicatedData.config?.integrationConnectors || []);
             setAppBackgroundColor(duplicatedData.config?.appBackgroundColor || '#ffffff');
             setAppThemeMode(duplicatedData.config?.appThemeMode || 'light');
+            setScalingMode(duplicatedData.config?.scalingMode || 'FIT_SCREEN');
             setLeftSidebarEnabled(duplicatedData.config?.leftSidebarEnabled !== false);
             setRightSidebarEnabled(duplicatedData.config?.rightSidebarEnabled !== false);
             setCopilotEnabled(duplicatedData.config?.copilotEnabled !== false);
@@ -13190,6 +13313,7 @@ const AppBuilder = () => {
                         integrationConnectors,
                         appBackgroundColor,
                         appThemeMode,
+                        scalingMode,
                         leftSidebarEnabled,
                         rightSidebarEnabled,
                         copilotEnabled,
@@ -13329,6 +13453,7 @@ const AppBuilder = () => {
         setProductImage(app.config.productImage || '');
         setAppBackgroundColor(app.config.appBackgroundColor || '#ffffff');
         setAppThemeMode(app.config.appThemeMode || 'LIGHT');
+        setScalingMode(app.config.scalingMode || 'FIT_SCREEN');
         setLeftSidebarEnabled(app.config.leftSidebarEnabled !== false);
         setRightSidebarEnabled(app.config.rightSidebarEnabled !== false);
         setCopilotEnabled(app.config.copilotEnabled !== false);
@@ -13367,6 +13492,7 @@ const AppBuilder = () => {
         setCurrentAppId(null);
         setAppBackgroundColor('#ffffff');
         setAppThemeMode('LIGHT');
+        setScalingMode('FIT_SCREEN');
         setLeftSidebarEnabled(true);
         setRightSidebarEnabled(true);
         setCopilotEnabled(true);
@@ -14875,6 +15001,18 @@ const AppBuilder = () => {
                         safeRender={safeRender}
                     />
                 );
+            case 'MARKDOWN': {
+                const isMdVisible = comp.props.visible !== false;
+                if (!isMdVisible && viewMode === 'PREVIEW') return null;
+                const mdContent = comp.props.text || '';
+                return (
+                    <div style={{ width: '100%', height: '100%', overflowY: 'auto', padding: '16px', backgroundColor: comp.props.backgroundColor || 'transparent', color: comp.props.textColor || 'var(--text-primary)', borderRadius: '8px' }}>
+                        <div className="markdown-plan" style={{ pointerEvents: viewMode === 'DESIGN' ? 'none' : 'auto' }}>
+                            <ReactMarkdown>{safeRender(mdContent)}</ReactMarkdown>
+                        </div>
+                    </div>
+                );
+            }
             case 'TEXT':
             case 'LABEL':
             case 'HEADING':
@@ -18694,6 +18832,30 @@ const AppBuilder = () => {
                     >
                         <FilePlus size={18} />
                     </button>
+                    {helpGuide && (
+                        <button
+                            onClick={() => setIsHelpGuideOpen(true)}
+                            style={{
+                                width: '36px',
+                                height: '36px',
+                                backgroundColor: '#f59e0b',
+                                border: 'none',
+                                borderRadius: '6px',
+                                color: '#fff',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                transition: 'all 0.2s',
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.1)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.filter = 'none'; }}
+                            title="Buka Panduan Aplikasi (Help Guide)"
+                        >
+                            <HelpCircle size={18} />
+                        </button>
+                    )}
                     <button
                         onClick={() => handleSave()}
                         disabled={isSaving}
@@ -29423,6 +29585,30 @@ D3:0
                                             </div>
 
                                             <div className="prop-group">
+                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px', textTransform: 'uppercase', fontWeight: 800 }}>Canvas Scaling Mode</label>
+                                                <div style={{ display: 'flex', backgroundColor: 'var(--bg-tertiary)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border-primary)' }}>
+                                                    <button
+                                                        onClick={() => setScalingMode('FIT_SCREEN')}
+                                                        style={{
+                                                            flex: 1, padding: '8px', borderRadius: '6px', border: 'none', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer',
+                                                            backgroundColor: scalingMode === 'FIT_SCREEN' ? (appThemeMode === 'DARK' ? '#1e293b' : 'white') : 'transparent',
+                                                            color: scalingMode === 'FIT_SCREEN' ? '#3b82f6' : '#64748b',
+                                                            boxShadow: scalingMode === 'FIT_SCREEN' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                                                        }}
+                                                    >FIT TO SCREEN</button>
+                                                    <button
+                                                        onClick={() => setScalingMode('FIT_WIDTH')}
+                                                        style={{
+                                                            flex: 1, padding: '8px', borderRadius: '6px', border: 'none', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer',
+                                                            backgroundColor: scalingMode === 'FIT_WIDTH' ? (appThemeMode === 'DARK' ? '#1e293b' : 'white') : 'transparent',
+                                                            color: scalingMode === 'FIT_WIDTH' ? '#3b82f6' : '#64748b',
+                                                            boxShadow: scalingMode === 'FIT_WIDTH' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                                                        }}
+                                                    >FIT TO WIDTH</button>
+                                                </div>
+                                            </div>
+
+                                            <div className="prop-group">
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                         <Variable size={16} color="var(--text-tertiary)" />
@@ -32968,6 +33154,27 @@ D3:0
                 >
                     <Wand2 size={24} />
                 </button>
+            )}
+            {/* Help Guide Modal */}
+            {isHelpGuideOpen && (
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ backgroundColor: '#fff', borderRadius: '12px', width: '90%', maxWidth: '800px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: '1px solid #e2e8f0' }}>
+                            <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <HelpCircle size={22} color="#6366f1" /> Panduan Aplikasi
+                            </h2>
+                            <button onClick={() => setIsHelpGuideOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
+                                <X size={24} />
+                            </button>
+                        </div>
+                        <div style={{ padding: '24px', overflowY: 'auto', flex: 1, color: '#334155', lineHeight: '1.6' }} className="markdown-plan">
+                            <ReactMarkdown>{helpGuide}</ReactMarkdown>
+                        </div>
+                        <div style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setIsHelpGuideOpen(false)} style={{ padding: '8px 24px', backgroundColor: '#6366f1', color: 'white', borderRadius: '6px', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Tutup</button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
 
