@@ -249,7 +249,7 @@ const App = () => {
     
     // Administrator / ADMIN: All assets + User Access, but NO technical settings
     if (role === 'ADMINISTRATOR' || role === 'ADMIN') {
-      return !['/ai-settings', '/supabase-settings'].includes(path);
+      return !['/supabase-settings'].includes(path);
     }
     
     // Connector Supervisor: Build apps, manage connectors/functions, logic, analytics, console

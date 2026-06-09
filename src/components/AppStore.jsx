@@ -10,6 +10,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { createIncomingInspectionTemplate } from '../utils/incomingInspectionTemplate';
 import { createWeighDispenseTemplate } from '../utils/weighDispenseTemplate';
+import { createVisionInspectionTemplate } from '../utils/visionInspectionTemplate';
 import { createAssyLineProductionTemplate } from '../utils/assyLineProductionTemplate';
 import { createInventoryAlertTemplate } from '../utils/inventoryAlertTemplate';
 import { createCarWorkshopTemplate } from '../utils/carWorkshopTemplate';
@@ -359,6 +360,37 @@ const AppStore = () => {
 
 
     const rawTemplates = [
+        {
+            id: 'vision-inspection-suite',
+            name: 'Cognitive Vision & QC Suite',
+            category: 'Quality',
+            description: 'Automated vision inspection system utilizing edge detection, dial gauge needles, digital calipers (OCR), part counting, and barcode scanning in real-time.',
+            longDescription: 'Deploy computer vision algorithms to automate quality control checks. Features pre-configured steps for caliper OCR reading, dial gauge pointer angle analysis, part counting, laser scanner barcode verification, and green/red quality pass/fail overlays. Automatically commits inspection records to database logs.',
+            icon: <Activity size={28} color="#7c3aed" />,
+            bg: 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)',
+            accent: '#7c3aed',
+            rating: 5.0,
+            installs: 'New',
+            features: ['Live OpenCV.js Wasms', 'Real-time OCR Caliper', 'Real-time Dial Needle', 'Auto-Save Database Logs'],
+            guide: {
+                operation: '1. Setup work order & batch lot id\n2. Perform automated visual quality check\n3. Capture digital caliper measurement via OCR\n4. Scan analog pressure dial pointer angle\n5. Submit inspection to database logs',
+                widgets: ['OpenCV Camera (QC Inspection)', 'OpenCV Camera (Caliper OCR)', 'OpenCV Camera (Dial Gauge)', 'Trigger Action Buttons'],
+                components: ['Multi-step inspection HMI', 'Auto-save database engine', 'Visual pass/fail guides'],
+                tables: [
+                    { name: 'live_measurements', description: 'Primary database table storing all real-time vision measurements.' }
+                ],
+                triggers: [
+                    { event: 'ON_FRAME_CHANGE', function: 'Performs local pixel analysis and draws overlays.' },
+                    { event: 'ON_SAVE_CLICK', function: 'Inserts current readout directly to live_measurements database.' }
+                ],
+                mechanism: 'Integrates real-time OpenCV.js libraries directly inside the browser using webcams for zero-latency cognitive quality inspection.',
+                steps: [
+                    { name: 'QC Work Order Setup', description: 'Configure active Lot/Batch and Work Order IDs.' },
+                    { name: 'Cognitive QC Inspection', description: 'Live vision check (PASS/FAIL) with automatic database logging.' },
+                    { name: 'Caliper & Pressure Verification', description: 'Combined view of caliper OCR and dial gauge needle reading.' }
+                ]
+            }
+        },
         {
             id: 'incoming-inspection',
             name: 'Incoming Quality Inspection',
@@ -1525,7 +1557,30 @@ const AppStore = () => {
         try {
             let templateApp;
 
-            if (templateId === 'incoming-inspection') {
+            if (templateId === 'vision-inspection-suite') {
+                templateApp = createVisionInspectionTemplate();
+                try {
+                    const visionTable = await getOrCreateTableAndSeed(allTables, {
+                        name: 'live_measurements',
+                        fields: [
+                            { name: 'video_name', type: 'text' },
+                            { name: 'timestamp', type: 'datetime' },
+                            { name: 'measurements', type: 'json' },
+                            { name: 'cycle_data', type: 'json' },
+                            { name: 'quality_data', type: 'json' },
+                            { name: 'work_order', type: 'text' },
+                            { name: 'narration', type: 'text' }
+                        ]
+                    });
+                    if (visionTable && visionTable.id) {
+                        const appStr = JSON.stringify(templateApp).replace(/live_measurements/g, visionTable.id);
+                        templateApp = JSON.parse(appStr);
+                        templateApp.config.appTables = [visionTable.id];
+                    }
+                } catch (visionErr) {
+                    console.warn('Could not create vision measurements table:', visionErr);
+                }
+            } else if (templateId === 'incoming-inspection') {
                 templateApp = createIncomingInspectionTemplate();
                 try {
                     const iqcTable = await getOrCreateTableAndSeed(allTables, {

@@ -355,12 +355,16 @@ const generateAppIntelligence = (context) => {
   const completionPct = widgets.length === 0 ? 0 :
     Math.round(((triggeredButtons.length + boundInputs.length) / Math.max(1, buttons.length + inputWidgets.length)) * 100);
 
+  const relatedAppsStr = (context.relatedApps || []).length > 0
+    ? `\n▸ Related Apps for Integration: ${context.relatedApps.map(a => `"${a.name}"`).join(', ')}`
+    : '';
+
   return `
 ════════════════════════════════════
 🧠 APP INTELLIGENCE SNAPSHOT
 ════════════════════════════════════
 ▸ Pattern Detected: ${pattern}
-▸ Screens: ${steps.length} | Widgets on Current Screen: ${widgets.length} | All App Widgets: ${allWidgets.length}
+▸ Screens: ${steps.length} | Widgets on Current Screen: ${widgets.length} | All App Widgets: ${allWidgets.length}${relatedAppsStr}
 ▸ Tables: ${tables.map(t => t.name).join(', ') || 'none'}
 ▸ Variables: ${variables.map(v => v.name).join(', ') || 'none'}
 ▸ Functions: ${functions.map(f => f.name).join(', ') || 'none'}
@@ -730,6 +734,7 @@ CURRENT CONTEXT:
 - Automations: ${JSON.stringify((context.automations || []).map(a => ({ id: a.id, name: a.name, trigger: a.trigger, conditions: a.conditions, actions: a.actions })))}
 - ⭐ CURRENTLY SELECTED WIDGET: ${context.selectedWidget ? JSON.stringify({ id: context.selectedWidget.id, type: context.selectedWidget.type, name: context.selectedWidget.displayName || context.selectedWidget.props?.label || context.selectedWidget.type, existingTriggers: (context.selectedWidget.props?.triggers || []).map(t => ({ id: t.id, name: t.name, event: t.event })) }) : 'none (no widget selected)'}
 - 📖 EXISTING HELP GUIDE: ${context.helpGuide ? `(guide exists, ${context.helpGuide.length} chars — update it)` : '(no guide yet — create from scratch)'}
+- 🔗 INTEGRASI APLIKASI TERKAIT (RELATED APPS - the user wants to connect with these apps): ${JSON.stringify(context.relatedApps || [])}
 
 IMPORTANT: When the user says "add trigger", "add function", "tambahkan trigger", "tambahkan function" WITHOUT specifying a widget name, ALWAYS target the CURRENTLY SELECTED WIDGET above. Use its exact "name" as the widgetId in CREATE_TRIGGER commands.
 

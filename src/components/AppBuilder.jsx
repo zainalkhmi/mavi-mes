@@ -347,6 +347,21 @@ const COMPONENT_TYPES = {
         id: 'CAMERA_CAPTURE', label: 'Camera Capture', icon: Camera, defaultSize: { w: 300, h: 200 },
         defaultProps: { label: 'Take Photo', visible: true, triggers: [] }
     },
+    OPENCV_CAMERA: {
+        id: 'OPENCV_CAMERA', label: 'OpenCV Vision', icon: Eye, defaultSize: { w: 300, h: 220 },
+        defaultProps: { 
+            label: 'OpenCV Live Stream', 
+            filterType: 'CANNY', 
+            thresholdValue: 100, 
+            caliperMin: 25.35,
+            caliperMax: 25.45,
+            gaugeMin: 0.0,
+            gaugeMax: 60.0,
+            targetCount: 3,
+            visible: true, 
+            triggers: [] 
+        }
+    },
     CHECKBOX: {
         id: 'CHECKBOX',
         label: 'Checkbox',
@@ -3128,7 +3143,7 @@ const CATEGORIZED_COMPONENTS = {
         icon: Activity,
         color: '#f59e0b',
         types: [
-            'CHECKLIST', 'QUALITY_TOLERANCE', 'QUALITY_PASS_FAIL', 'CAMERA_CAPTURE', 'RADIO_GROUP', 'VARIABLE_TEXT'
+            'CHECKLIST', 'QUALITY_TOLERANCE', 'QUALITY_PASS_FAIL', 'CAMERA_CAPTURE', 'OPENCV_CAMERA', 'RADIO_GROUP', 'VARIABLE_TEXT'
         ]
     },
     // 2. Tables, records, storage
@@ -18661,6 +18676,19 @@ const AppBuilder = () => {
                         </div>
                     </div>
                 );
+            case 'OPENCV_CAMERA':
+                return (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', padding: '10px', boxSizing: 'border-box' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '8px' }}>{comp.props.label || 'OpenCV Live Stream'}</div>
+                        <div style={{ flex: 1, border: '1px dashed #7c3aed', borderRadius: '12px', backgroundColor: 'rgba(124,58,237,0.05)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#7c3aed', gap: '10px' }}>
+                            <Eye size={48} color="#7c3aed" />
+                            <div style={{ fontSize: '0.85rem', fontWeight: 800 }}>OpenCV Vision Preview</div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', backgroundColor: 'rgba(124,58,237,0.1)', padding: '2px 8px', borderRadius: '12px' }}>
+                                Filter: {comp.props.filterType || 'CANNY'}
+                            </div>
+                        </div>
+                    </div>
+                );
 
             case 'RADIO_GROUP':
                 return (
@@ -22938,7 +22966,66 @@ const AppBuilder = () => {
                                                                         </div>
                                                                     )}
                                                                 </>
-                                                             )}
+                                                            )}
+                                                            {selectedComp.props.filterType === 'CALIPER_OCR' && (
+                                                                <>
+                                                                    <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Caliper Min Tolerance (LSL)</label>
+                                                                        <input
+                                                                            type="number"
+                                                                            step="0.01"
+                                                                            value={selectedComp.props.caliperMin ?? 25.35}
+                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { caliperMin: parseFloat(e.target.value) })}
+                                                                            style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                        />
+                                                                    </div>
+                                                                    <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Caliper Max Tolerance (USL)</label>
+                                                                        <input
+                                                                            type="number"
+                                                                            step="0.01"
+                                                                            value={selectedComp.props.caliperMax ?? 25.45}
+                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { caliperMax: parseFloat(e.target.value) })}
+                                                                            style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                        />
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                            {selectedComp.props.filterType === 'DIAL_GAUGE' && (
+                                                                <>
+                                                                    <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Gauge Min Pressure (LSL)</label>
+                                                                        <input
+                                                                            type="number"
+                                                                            step="0.1"
+                                                                            value={selectedComp.props.gaugeMin ?? 0.0}
+                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { gaugeMin: parseFloat(e.target.value) })}
+                                                                            style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                        />
+                                                                    </div>
+                                                                    <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Gauge Max Pressure (USL)</label>
+                                                                        <input
+                                                                            type="number"
+                                                                            step="0.1"
+                                                                            value={selectedComp.props.gaugeMax ?? 60.0}
+                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { gaugeMax: parseFloat(e.target.value) })}
+                                                                            style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                        />
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                            {selectedComp.props.filterType === 'COUNTING' && (
+                                                                <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Target Part Count</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={selectedComp.props.targetCount ?? 3}
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { targetCount: parseInt(e.target.value) })}
+                                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                    />
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 )}
@@ -23503,6 +23590,8 @@ const AppBuilder = () => {
                                                                     </div>
                                                                 )}
 
+
+
                                                                 {/* SPEECH_RECOGNIZER Settings */}
                                                                 {selectedComp.type === 'SPEECH_RECOGNIZER' && (sidebarSearch === '' || 'media speech recognizer legacy dialog'.includes(sidebarSearch.toLowerCase())) && (
                                                                     <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
@@ -23539,6 +23628,48 @@ const AppBuilder = () => {
                                                                     </div>
                                                                 )}
                                                             </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* OPENCV_CAMERA Configurations */}
+                                                {selectedComp.type === 'OPENCV_CAMERA' && (sidebarSearch === '' || 'opencv vision filter type threshold camera'.includes(sidebarSearch.toLowerCase())) && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
+                                                        <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>OpenCV Vision Properties</label>
+                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Vision Filter Type</label>
+                                                                <select
+                                                                    value={selectedComp.props.filterType || 'CANNY'}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { filterType: e.target.value })}
+                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                >
+                                                                    <option value="GRAY">Grayscale (Filter Dasar)</option>
+                                                                    <option value="CANNY">Canny Edge Detection (Garis Tepi)</option>
+                                                                    <option value="THRESHOLD">Binary Threshold (Biner Hitam-Putih)</option>
+                                                                    <option value="SOBEL">Sobel Gradient (Deteksi Sisi)</option>
+                                                                    <option value="INSPECTION">Vision Inspection (Quality Pass/Fail)</option>
+                                                                    <option value="CALIPER_OCR">Digital Caliper Reader (OCR)</option>
+                                                                    <option value="DIAL_GAUGE">Dial Gauge Reader (Analisis Jarum)</option>
+                                                                    <option value="COUNTING">Part Counting (Hitung Objek)</option>
+                                                                    <option value="BARCODE">Barcode/QR Reader (Pemindai)</option>
+                                                                </select>
+                                                            </div>
+                                                            {(selectedComp.props.filterType === 'CANNY' || selectedComp.props.filterType === 'THRESHOLD') && (
+                                                                <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
+                                                                        Threshold Value: {selectedComp.props.thresholdValue ?? 100}
+                                                                    </label>
+                                                                    <input
+                                                                        type="range"
+                                                                        min="0"
+                                                                        max="255"
+                                                                        value={selectedComp.props.thresholdValue ?? 100}
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { thresholdValue: parseInt(e.target.value) })}
+                                                                        style={{ width: '100%', cursor: 'pointer' }}
+                                                                    />
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 )}

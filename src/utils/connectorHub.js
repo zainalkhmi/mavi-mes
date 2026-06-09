@@ -381,6 +381,30 @@ async function freppledAdapter(connector, fn, inputs) {
   return httpAdapter(modifiedConnector, fn, inputs);
 }
 
+/**
+ * Canva Connect API Adapter
+ */
+async function canvaAdapter(connector, fn, inputs) {
+  const apiKey = connector.canvaSettings?.apiKey || '';
+  if (!apiKey) throw new Error('Canva API Key / Access Token is required.');
+
+  const modifiedConnector = {
+    ...connector,
+    baseUrl: 'https://api.canva.com',
+    auth: {
+      type: 'BEARER',
+      token: apiKey
+    }
+  };
+
+  const modifiedFn = {
+    ...fn,
+    path: fn.path ? (fn.path.startsWith('/') ? fn.path : `/${fn.path}`) : '/v1/users/me'
+  };
+
+  return httpAdapter(modifiedConnector, modifiedFn, inputs);
+}
+
 // ─── Output Mapping ────────────────────────────────────────────────────────────
 function mapOutputs(outputDefs, rawResponse) {
   if (!outputDefs || outputDefs.length === 0) return rawResponse;
@@ -419,11 +443,33 @@ export async function testConnection(connector) {
   try {
     const env = connector.activeEnv || 'dev';
     const envConfig = connector.environments?.[env] || {};
-    const baseUrl = envConfig.baseUrl || connector.baseUrl || '';
+    let baseUrl = envConfig.baseUrl || connector.baseUrl || '';
+
+    if (connector.type === 'CANVA') {
+      baseUrl = 'https://api.canva.com';
+    }
 
     if (!baseUrl) throw new Error('No Base URL configured.');
 
     switch (connector.type) {
+      case 'CANVA': {
+        const apiKey = connector.canvaSettings?.apiKey || '';
+        if (!apiKey) throw new Error('API Key / Access Token required for Canva.');
+        const resp = await fetch('https://api.canva.com/v1/users/me', {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`
+          }
+        });
+        if (!resp.ok) {
+          throw new Error(`Canva API error: HTTP ${resp.status}`);
+        }
+        const data = await resp.json();
+        return { 
+          ok: true, 
+          latencyMs: Date.now() - startTime, 
+          message: `Canva connection successful · User: ${data.user?.display_name || 'Authenticated user'}` 
+        };
+      }
       case 'ODOO': {
         const db = envConfig.databaseName || connector.databaseName;
         if (!db) throw new Error('Database name required for Odoo.');
@@ -540,6 +586,9 @@ export async function executeConnector(connectorId, functionName, inputParams = 
         break;
       case 'SQL':
         result = await sqlAdapter(connector, fn, inputParams);
+        break;
+      case 'CANVA':
+        result = await canvaAdapter(connector, fn, inputParams);
         break;
       case 'HTTP':
       default:
@@ -828,6 +877,7 @@ export const CONNECTOR_TYPES = [
   { value: 'SQL',      label: 'SQL / PostgreSQL',    icon: 'Database', color: '#10b981', description: 'Query PostgreSQL, MySQL, atau database apapun via Mavi ERP Bridge' },
   { value: 'MQTT',     label: 'MQTT / IoT',          icon: 'Zap',      color: '#f59e0b', description: 'MQTT broker for IoT devices' },
   { value: 'SUPABASE', label: 'Supabase',            icon: 'HardDrive',color: '#3ecf8e', description: 'Direct Supabase integration' },
+  { value: 'CANVA',    label: 'Canva Connect',      icon: 'Palette',  color: '#00c4cc', description: 'Connect to Canva API to dynamically pull mockups or asset designs' },
 ];
 
 export default {

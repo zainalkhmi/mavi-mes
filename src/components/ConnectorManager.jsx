@@ -715,6 +715,53 @@ const ConnectorManager = () => {
                                         </div>
                                     )}
 
+                                    {selectedConnector.type === 'CANVA' && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 16, backgroundColor: '#f0fdfa', borderRadius: 12, border: '1px solid #ccfbf1' }}>
+                                            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#0f766e', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                Canva Connect Config
+                                            </div>
+                                            <div>
+                                                <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', marginBottom: 4, display: 'block' }}>Canva API Key / Access Token</label>
+                                                <input
+                                                    type="password" placeholder="Insert your Canva Connect API Key"
+                                                    value={selectedConnector.canvaSettings?.apiKey || ''}
+                                                    onChange={e => setSelectedConnector({
+                                                        ...selectedConnector,
+                                                        canvaSettings: { ...(selectedConnector.canvaSettings || {}), apiKey: e.target.value }
+                                                    })}
+                                                    style={{ width: '100%', padding: '9px 11px', borderRadius: 8, border: '1px solid #99f6e4', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', marginBottom: 4, display: 'block' }}>Default Design Folder ID (Optional)</label>
+                                                <input
+                                                    type="text" placeholder="e.g. FOF12345678"
+                                                    value={selectedConnector.canvaSettings?.defaultFolderId || ''}
+                                                    onChange={e => setSelectedConnector({
+                                                        ...selectedConnector,
+                                                        canvaSettings: { ...(selectedConnector.canvaSettings || {}), defaultFolderId: e.target.value }
+                                                    })}
+                                                    style={{ width: '100%', padding: '9px 11px', borderRadius: 8, border: '1px solid #99f6e4', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', marginBottom: 4, display: 'block' }}>Export Format</label>
+                                                <select
+                                                    value={selectedConnector.canvaSettings?.exportFormat || 'PNG'}
+                                                    onChange={e => setSelectedConnector({
+                                                        ...selectedConnector,
+                                                        canvaSettings: { ...(selectedConnector.canvaSettings || {}), exportFormat: e.target.value }
+                                                    })}
+                                                    style={{ width: '100%', padding: '9px 11px', borderRadius: 8, border: '1px solid #99f6e4', fontSize: '0.85rem', boxSizing: 'border-box', backgroundColor: 'white' }}
+                                                >
+                                                    <option>PNG</option>
+                                                    <option>JPG</option>
+                                                    <option>PDF</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {selectedConnector.type !== 'SQL' && (
                                     <div>
                                         <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: 6, display: 'block' }}>Connector Host</label>

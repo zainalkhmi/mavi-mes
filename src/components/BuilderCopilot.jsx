@@ -11,9 +11,10 @@ import {
   Check, Edit3, Mic, Download, Maximize2, Minimize2
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { getPrimaryAiConnector } from '../utils/database';
+import { getPrimaryAiConnector, saveIntegrationConnector } from '../utils/database';
 import { getBuilderCopilotAdvice, getBuilderVisionAdvice, streamBuilderCopilotAdvice, diagnoseApp } from '../utils/aiService';
 import { sanitizeCopilotCommands } from '../utils/copilotSafety';
+import { getAllFrontlineApps } from '../utils/supabaseFrontlineDB';
 
 // Widget type → icon/color mapping
 const WIDGET_META = {
@@ -348,6 +349,158 @@ const BuilderCopilot = ({
     setIsSpeechSupported(typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition));
   }, []);
 
+  // Related Apps integration states
+  const [allApps, setAllApps] = useState([]);
+  const [selectedApps, setSelectedApps] = useState([]);
+  const [showAppDropdown, setShowAppDropdown] = useState(false);
+  const [appSearchQuery, setAppSearchQuery] = useState('');
+
+  // Load frontline apps for related app selector
+  useEffect(() => {
+    if (isOpen) {
+      getAllFrontlineApps().then(apps => {
+        // Exclude current app
+        const filtered = (apps || []).filter(app => app.name !== context?.appName);
+        setAllApps(filtered);
+      }).catch(err => {
+        console.warn('Failed to fetch frontline apps:', err);
+      });
+    }
+  }, [isOpen, context?.appName]);
+
+  // Canva Design integration states
+  const [canvaConnector, setCanvaConnector] = useState(null);
+  const [canvaDesigns, setCanvaDesigns] = useState([]);
+  const [showCanvaDropdown, setShowCanvaDropdown] = useState(false);
+  const [canvaSearchQuery, setCanvaSearchQuery] = useState('');
+  const [selectedCanvaDesign, setSelectedCanvaDesign] = useState(null);
+  const [isFetchingCanva, setIsFetchingCanva] = useState(false);
+
+  // Load Canva connector and designs list
+  useEffect(() => {
+    if (isOpen) {
+      import('../utils/database').then(({ getIntegrationConnectors }) => {
+        getIntegrationConnectors().then(connectors => {
+          const canvaConn = (connectors || []).find(c => c.type === 'CANVA');
+          if (canvaConn) {
+            setCanvaConnector(canvaConn);
+            const apiKey = canvaConn.canvaSettings?.apiKey || '';
+            if (apiKey) {
+              setIsFetchingCanva(true);
+              fetch('https://api.canva.com/v1/designs', {
+                headers: { 'Authorization': `Bearer ${apiKey}` }
+              })
+              .then(res => {
+                if (res.ok) return res.json();
+                throw new Error('Canva API Error');
+              })
+              .then(data => {
+                setCanvaDesigns(data.items || []);
+              })
+              .catch(err => {
+                console.warn('Canva API CORS or connection failed, loading simulation list:', err);
+                // Fallback simulation list for user testing
+                setCanvaDesigns([
+                  { id: 'canva-design-1', name: 'Form Pengeluaran Barang MES' },
+                  { id: 'canva-design-2', name: 'Dashboard Gudang & Inventory' },
+                  { id: 'canva-design-3', name: 'Form Checklist QC Inspeksi Kualitas' }
+                ]);
+              })
+              .finally(() => {
+                setIsFetchingCanva(false);
+              });
+            }
+          } else {
+            // Default demo list when no connector is registered yet
+            setCanvaDesigns([
+              { id: 'canva-design-1', name: 'Form Pengeluaran Barang MES' },
+              { id: 'canva-design-2', name: 'Dashboard Gudang & Inventory' },
+              { id: 'canva-design-3', name: 'Form Checklist QC Inspeksi Kualitas' }
+            ]);
+          }
+        });
+      });
+    }
+  }, [isOpen]);
+
+  const currentProvider = aiConnector?.aiSettings?.provider || aiConnector?.config?.provider || 'Gemini';
+  const currentModelId = aiConnector?.aiSettings?.modelId || aiConnector?.config?.modelId || 'gemini-1.5-flash';
+
+  const handleModelChange = async (newModelId) => {
+    if (!aiConnector) return;
+    
+    // Update local state config
+    const updatedConnector = {
+      ...aiConnector,
+      config: {
+        ...(aiConnector.config || {}),
+        modelId: newModelId
+      },
+      aiSettings: {
+        ...(aiConnector.aiSettings || {}),
+        modelId: newModelId
+      }
+    };
+    setAiConnector(updatedConnector);
+
+    // Save configuration update to database
+    try {
+      await saveIntegrationConnector(updatedConnector);
+    } catch (err) {
+      console.warn('Failed to save updated model to database:', err);
+    }
+  };
+
+  const getModelsListForProvider = (provider) => {
+    // If connector has configCache from connection tests, use those
+    const cache = aiConnector?.aiSettings?.configCache?.[provider] || aiConnector?.config?.configCache?.[provider];
+    if (cache?.availableModels && cache.availableModels.length > 0) {
+      return cache.availableModels;
+    }
+    
+    // Fallback static list
+    const defaults = {
+      Gemini: [
+        { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
+        { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
+        { id: 'gemini-1.0-pro', name: 'Gemini 1.0 Pro' },
+        { id: 'gemini-1.5-flash-002', name: 'Gemini 1.5 Flash-002' }
+      ],
+      OpenAI: [
+        { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
+        { id: 'gpt-4o', name: 'GPT-4o' },
+        { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
+        { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' }
+      ],
+      Groq: [
+        { id: 'llama-3.1-70b-versatile', name: 'Llama 3.1 70B' },
+        { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B' },
+        { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B' },
+        { id: 'gemma2-9b-it', name: 'Gemma 2 9B' }
+      ],
+      OpenRouter: [
+        { id: 'google/gemini-flash-1.5', name: 'Gemini 1.5 Flash' },
+        { id: 'google/gemini-pro-1.5', name: 'Gemini 1.5 Pro' },
+        { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini' },
+        { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet' },
+        { id: 'meta-llama/llama-3-8b-instruct:free', name: 'Llama 3 8B' }
+      ],
+      Ollama: [
+        { id: 'llama3', name: 'Llama 3' },
+        { id: 'gemma2', name: 'Gemma 2' },
+        { id: 'mistral', name: 'Mistral' },
+        { id: 'phi3', name: 'Phi 3' }
+      ],
+      Custom: []
+    };
+    
+    const list = [...(defaults[provider] || [])];
+    if (currentModelId && !list.find(m => m.id === currentModelId)) {
+      list.unshift({ id: currentModelId, name: currentModelId });
+    }
+    return list;
+  };
+
   // Auto-announce newly selected widget in chat
   useEffect(() => {
     if (!isOpen) return;
@@ -465,9 +618,12 @@ const BuilderCopilot = ({
     return null;
   };
 
-  // ── handleSend ─────────────────────────────────────────────────────────────
   const handleSend = async (overrideInput) => {
-    const text = overrideInput ?? input;
+    let text = overrideInput ?? input;
+    if (selectedCanvaDesign) {
+      text += `\n\n[CONTEKS DESAIN CANVA]: Gunakan Desain Canva bernama "${selectedCanvaDesign.name}" (ID: ${selectedCanvaDesign.id}) sebagai acuan tata letak/layout untuk membuat aplikasi ini.`;
+    }
+
     if ((!text.trim() && !selectedFile) || isLoading) return;
 
     const userMessage = {
@@ -479,6 +635,7 @@ const BuilderCopilot = ({
 
     setMessages(prev => [...prev, userMessage]);
     setInput('');
+    setSelectedCanvaDesign(null);
     setIsLoading(true);
     setStreamingText(''); // UPGRADE 2: reset streaming
 
@@ -494,8 +651,19 @@ const BuilderCopilot = ({
         setSelectedFile(null);
       } else {
         const history = messages.slice(-8).map(m => ({ role: m.role, content: m.content }));
-        // Pass selectedWidget explicitly so AI knows which component is currently selected
-        const enrichedContext = { ...context, selectedWidget: selectedWidget || null, sessionSummary };
+        const enrichedContext = {
+          ...context,
+          selectedWidget: selectedWidget || null,
+          sessionSummary,
+          relatedApps: selectedApps.map(app => ({
+            id: app.id,
+            name: app.name,
+            category: app.category,
+            screens: (app.config?.steps || app.config?.components || []).map(s => s.title || s.displayName || s.type),
+            variables: (app.config?.variables || []).map(v => ({ name: v.name, type: v.type, defaultValue: v.defaultValue })),
+            tablesUsed: app.config?.tablesUsed || []
+          }))
+        };
 
         // UPGRADE 2: Try streaming first, fallback to non-streaming
         try {
@@ -828,9 +996,33 @@ Apa yang bisa kamu bantu untuk widget ini?`;
               <div style={{ fontSize: '0.9rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#f8fafc' }}>
                 Builder Copilot
               </div>
-              <div style={{ fontSize: '0.62rem', color: '#6366f1', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+              <div style={{ fontSize: '0.62rem', color: '#6366f1', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 600 }}>
                 <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 6px #22c55e' }} />
-                AI Agent Active
+                <span>Active</span>
+                <span style={{ color: 'rgba(255,255,255,0.2)' }}>•</span>
+                <select
+                  value={currentModelId}
+                  onChange={(e) => handleModelChange(e.target.value)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#a5b4fc',
+                    fontSize: '0.62rem',
+                    fontWeight: 700,
+                    outline: 'none',
+                    cursor: 'pointer',
+                    padding: 0,
+                    maxWidth: '120px',
+                    textOverflow: 'ellipsis',
+                  }}
+                  title="Pilih Model AI yang Aktif"
+                >
+                  {getModelsListForProvider(currentProvider).map(m => (
+                    <option key={m.id} value={m.id} style={{ backgroundColor: '#1e1b4b', color: '#ffffff' }}>
+                      {m.name || m.id}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
@@ -1554,11 +1746,339 @@ Apa yang bisa kamu bantu untuk widget ini?`;
           </div>
         </div>
 
+        {/* Related Apps Selector */}
+        <div style={{ marginBottom: '12px', position: 'relative' }}>
+          {/* Label and trigger button */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#475569', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <Link size={12} color="#3b82f6" /> Integrasi Aplikasi Terkait:
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowAppDropdown(prev => !prev)}
+              style={{
+                background: 'rgba(59,130,246,0.1)',
+                border: '1px solid rgba(59,130,246,0.2)',
+                color: '#2563eb',
+                fontSize: '0.68rem',
+                fontWeight: 700,
+                borderRadius: '6px',
+                padding: '3px 8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                transition: 'all 0.15s'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.2)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.1)' }}
+            >
+              {showAppDropdown ? 'Tutup' : 'Cari & Pilih App'} <ChevronDown size={10} style={{ transform: showAppDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+            </button>
+          </div>
+
+          {/* Selected Apps Pill Chips */}
+          {selectedApps.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+              {selectedApps.map(app => (
+                <div
+                  key={app.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    backgroundColor: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    color: '#1e40af',
+                    fontSize: '0.7rem',
+                    fontWeight: 700,
+                    borderRadius: '20px',
+                    padding: '3px 10px',
+                  }}
+                >
+                  <span>📱 {app.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedApps(prev => prev.filter(a => a.id !== app.id))}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#1e40af',
+                      cursor: 'pointer',
+                      padding: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <X size={10} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Dropdown Menu */}
+          {showAppDropdown && (
+            <div style={{
+              position: 'absolute',
+              bottom: '100%',
+              left: 0,
+              right: 0,
+              backgroundColor: '#ffffff',
+              borderRadius: '12px',
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 -10px 25px -5px rgba(0,0,0,0.1), 0 -8px 10px -6px rgba(0,0,0,0.1)',
+              zIndex: 10,
+              padding: '10px',
+              marginBottom: '8px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              maxHeight: '200px',
+              overflowY: 'auto'
+            }}>
+              {/* Search input */}
+              <input
+                type="text"
+                placeholder="Cari nama aplikasi..."
+                value={appSearchQuery}
+                onChange={e => setAppSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '6px 10px',
+                  borderRadius: '6px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '0.75rem',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+
+              {/* App List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {allApps
+                  .filter(app => app.name.toLowerCase().includes(appSearchQuery.toLowerCase()))
+                  .map(app => {
+                    const isChecked = selectedApps.some(a => a.id === app.id);
+                    return (
+                      <label
+                        key={app.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontSize: '0.75rem',
+                          color: '#334155',
+                          padding: '5px 8px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          backgroundColor: isChecked ? 'rgba(59,130,246,0.05)' : 'transparent',
+                          transition: 'background-color 0.15s'
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = isChecked ? 'rgba(59,130,246,0.08)' : '#f8fafc' }}
+                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = isChecked ? 'rgba(59,130,246,0.05)' : 'transparent' }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            if (isChecked) {
+                              setSelectedApps(prev => prev.filter(a => a.id !== app.id));
+                            } else {
+                              setSelectedApps(prev => [...prev, app]);
+                            }
+                          }}
+                          style={{
+                            width: '13px',
+                            height: '13px',
+                            accentColor: '#3b82f6',
+                            cursor: 'pointer'
+                          }}
+                        />
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontWeight: 600 }}>{app.name}</span>
+                          <span style={{ fontSize: '0.62rem', color: '#64748b' }}>Kategori: {app.category || 'Shop Floor'}</span>
+                        </div>
+                      </label>
+                    );
+                  })}
+                {allApps.filter(app => app.name.toLowerCase().includes(appSearchQuery.toLowerCase())).length === 0 && (
+                  <div style={{ fontSize: '0.72rem', color: '#94a3b8', textAlign: 'center', padding: '10px' }}>
+                    Tidak ada aplikasi ditemukan
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Canva Design Selector */}
+        <div style={{ marginBottom: '12px', position: 'relative' }}>
+          {/* Label and trigger button */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#475569', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <LayoutTemplate size={12} color="#7c3aed" /> Referensi Layout Canva {canvaConnector ? '(Aktif)' : '(Simulasi)'}:
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowCanvaDropdown(prev => !prev)}
+              style={{
+                background: 'rgba(124,58,237,0.1)',
+                border: '1px solid rgba(124,58,237,0.2)',
+                color: '#7c3aed',
+                fontSize: '0.68rem',
+                fontWeight: 700,
+                borderRadius: '6px',
+                padding: '3px 8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                transition: 'all 0.15s'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.2)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.1)' }}
+            >
+              {showCanvaDropdown ? 'Tutup' : 'Cari Desain Canva'} <ChevronDown size={10} style={{ transform: showCanvaDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+            </button>
+          </div>
+
+          {/* Selected Canva Design Pill Chip */}
+          {selectedCanvaDesign && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  backgroundColor: '#f5f3ff',
+                  border: '1px solid #ddd6fe',
+                  color: '#6d28d9',
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                  borderRadius: '20px',
+                  padding: '3px 10px',
+                }}
+              >
+                <span>🎨 {selectedCanvaDesign.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCanvaDesign(null)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#6d28d9',
+                    cursor: 'pointer',
+                    padding: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <X size={10} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Dropdown Menu */}
+          {showCanvaDropdown && (
+            <div style={{
+              position: 'absolute',
+              bottom: '100%',
+              left: 0,
+              right: 0,
+              backgroundColor: '#ffffff',
+              borderRadius: '12px',
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 -10px 25px -5px rgba(0,0,0,0.1), 0 -8px 10px -6px rgba(0,0,0,0.1)',
+              zIndex: 10,
+              padding: '10px',
+              marginBottom: '8px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              maxHeight: '200px',
+              overflowY: 'auto'
+            }}>
+              {/* Search input */}
+              <input
+                type="text"
+                placeholder="Cari nama desain Canva..."
+                value={canvaSearchQuery}
+                onChange={e => setCanvaSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '6px 10px',
+                  borderRadius: '6px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '0.75rem',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+
+              {/* Loader */}
+              {isFetchingCanva && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px', gap: '6px', fontSize: '0.75rem', color: '#64748b' }}>
+                  <Loader2 size={12} className="animate-spin" /> Memuat dari Canva...
+                </div>
+              )}
+
+              {/* Designs List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {!isFetchingCanva && canvaDesigns
+                  .filter(design => design.name.toLowerCase().includes(canvaSearchQuery.toLowerCase()))
+                  .map(design => {
+                    const isSelected = selectedCanvaDesign?.id === design.id;
+                    return (
+                      <button
+                        key={design.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedCanvaDesign(design);
+                          setShowCanvaDropdown(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'left',
+                          flexDirection: 'column',
+                          gap: '2px',
+                          fontSize: '0.75rem',
+                          color: '#334155',
+                          padding: '6px 8px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          border: 'none',
+                          textAlign: 'left',
+                          backgroundColor: isSelected ? '#f5f3ff' : 'transparent',
+                          transition: 'background-color 0.15s',
+                          width: '100%'
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = isSelected ? '#ede9fe' : '#f8fafc' }}
+                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = isSelected ? '#f5f3ff' : 'transparent' }}
+                      >
+                        <span style={{ fontWeight: 600, color: isSelected ? '#6d28d9' : '#334155' }}>🎨 {design.name}</span>
+                        <span style={{ fontSize: '0.62rem', color: '#64748b' }}>ID: {design.id}</span>
+                      </button>
+                    );
+                  })}
+                {!isFetchingCanva && canvaDesigns.filter(design => design.name.toLowerCase().includes(canvaSearchQuery.toLowerCase())).length === 0 && (
+                  <div style={{ fontSize: '0.72rem', color: '#94a3b8', textAlign: 'center', padding: '10px' }}>
+                    Tidak ada desain Canva ditemukan
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Selected file preview */}
         {selectedFile && (
           <div style={{ marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', backgroundColor: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: '#1e40af', fontWeight: 600 }}>
-              <ImageIcon size={14} /> {selectedFile.name}
+              <ImageIcon size={14} /> {selectedFile.name || 'Gambar Clipboard'}
             </div>
             <button onClick={() => setSelectedFile(null)} style={{ background: 'none', border: 'none', color: '#1e40af', cursor: 'pointer' }}>
               <X size={14} />
@@ -1580,6 +2100,23 @@ Apa yang bisa kamu bantu untuk widget ini?`;
             ref={textareaRef}
             value={input}
             onChange={e => setInput(e.target.value)}
+            onPaste={e => {
+              const items = e.clipboardData?.items;
+              if (items) {
+                for (let i = 0; i < items.length; i++) {
+                  if (items[i].type.indexOf('image') !== -1) {
+                    const file = items[i].getAsFile();
+                    if (file) {
+                      // Create a new File object with a custom name if browser doesn't provide one
+                      const namedFile = new File([file], file.name || `Pasted_Image_${new Date().getTime()}.png`, { type: file.type });
+                      setSelectedFile(namedFile);
+                      e.preventDefault();
+                      break;
+                    }
+                  }
+                }
+              }
+            }}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
             placeholder={selectedWidget
               ? `Tanya sesuatu tentang "${selectedWidget.displayName || selectedWidget.type}"...`

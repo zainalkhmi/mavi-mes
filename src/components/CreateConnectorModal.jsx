@@ -50,6 +50,11 @@ const CreateConnectorModal = ({ isOpen, onClose, onSave }) => {
             apiKey: '',
             modelId: 'gpt-4o',
             basePrompt: 'You are a helpful manufacturing assistant. Answers should be safe and concise.'
+        },
+        canvaSettings: {
+            apiKey: '',
+            defaultFolderId: '',
+            exportFormat: 'PNG'
         }
     });
 
@@ -198,6 +203,13 @@ const CreateConnectorModal = ({ isOpen, onClose, onSave }) => {
                                             <div>
                                                 <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>AI Assistant (Copilot)</div>
                                                 <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Connect to LLMs (OpenAI, Gemini) for smart operator assistance.</div>
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                                            <input type="radio" checked={formData.type === 'CANVA'} onChange={() => setFormData({...formData, type: 'CANVA'})} />
+                                            <div>
+                                                <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>Canva Connect</div>
+                                                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Connect to Canva API to dynamically pull mockups or asset designs.</div>
                                             </div>
                                         </div>
                                     </div>
@@ -517,6 +529,50 @@ const CreateConnectorModal = ({ isOpen, onClose, onSave }) => {
                                                       aiSettings: { ...formData.aiSettings, basePrompt: e.target.value }
                                                   })}
                                               />
+                                          </div>
+                                      </>
+                                  )}
+                                  {formData.type === 'CANVA' && (
+                                      <>
+                                          <div>
+                                              <label style={labelStyle}>Canva API Key / Access Token</label>
+                                              <input 
+                                                  type="password"
+                                                  style={inputStyle} 
+                                                  placeholder="Insert your Canva Connect API Key or token"
+                                                  value={formData.canvaSettings?.apiKey || ''}
+                                                  onChange={e => setFormData({
+                                                      ...formData, 
+                                                      canvaSettings: { ...(formData.canvaSettings || {}), apiKey: e.target.value }
+                                                  })}
+                                              />
+                                          </div>
+                                          <div>
+                                              <label style={labelStyle}>Default Design Folder ID (Optional)</label>
+                                              <input 
+                                                  style={inputStyle} 
+                                                  placeholder="e.g. FOF12345678"
+                                                  value={formData.canvaSettings?.defaultFolderId || ''}
+                                                  onChange={e => setFormData({
+                                                      ...formData, 
+                                                      canvaSettings: { ...(formData.canvaSettings || {}), defaultFolderId: e.target.value }
+                                                  })}
+                                              />
+                                          </div>
+                                          <div>
+                                              <label style={labelStyle}>Export Format</label>
+                                              <select 
+                                                  style={inputStyle} 
+                                                  value={formData.canvaSettings?.exportFormat || 'PNG'}
+                                                  onChange={e => setFormData({
+                                                      ...formData, 
+                                                      canvaSettings: { ...(formData.canvaSettings || {}), exportFormat: e.target.value }
+                                                  })}
+                                              >
+                                                  <option>PNG</option>
+                                                  <option>JPG</option>
+                                                  <option>PDF</option>
+                                              </select>
                                           </div>
                                       </>
                                   )}

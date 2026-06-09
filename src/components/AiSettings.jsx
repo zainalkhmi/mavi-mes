@@ -22,6 +22,41 @@ const PROVIDERS = [
   { id: 'Custom', label: 'Custom API' }
 ];
 
+const DEFAULT_MODELS = {
+  Gemini: [
+    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Recommended - Fast)' },
+    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro (High Intelligence)' },
+    { id: 'gemini-1.0-pro', name: 'Gemini 1.0 Pro' },
+    { id: 'gemini-1.5-flash-002', name: 'Gemini 1.5 Flash-002' }
+  ],
+  OpenAI: [
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini (Fast & Cost-Efficient)' },
+    { id: 'gpt-4o', name: 'GPT-4o (High Performance)' },
+    { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
+    { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' }
+  ],
+  Groq: [
+    { id: 'llama-3.1-70b-versatile', name: 'Llama 3.1 70B Versatile' },
+    { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant (Very Fast)' },
+    { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B' },
+    { id: 'gemma2-9b-it', name: 'Gemma 2 9B' }
+  ],
+  OpenRouter: [
+    { id: 'google/gemini-flash-1.5', name: 'Gemini 1.5 Flash (via OpenRouter)' },
+    { id: 'google/gemini-pro-1.5', name: 'Gemini 1.5 Pro (via OpenRouter)' },
+    { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini' },
+    { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet' },
+    { id: 'meta-llama/llama-3-8b-instruct:free', name: 'Llama 3 8B Instruct (Free)' }
+  ],
+  Ollama: [
+    { id: 'llama3', name: 'Llama 3 (Local)' },
+    { id: 'gemma2', name: 'Gemma 2 (Local)' },
+    { id: 'mistral', name: 'Mistral (Local)' },
+    { id: 'phi3', name: 'Phi 3 (Local)' }
+  ],
+  Custom: []
+};
+
 const TABS = [
   { id: 'ai', label: 'AI Configuration', icon: Settings }
 ];
@@ -32,7 +67,7 @@ const AiSettings = () => {
   const [activeProvider, setActiveProvider] = useState('Gemini');
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
-  const [modelId, setModelId] = useState('gemini-1.5-flash-002');
+  const [modelId, setModelId] = useState('gemini-1.5-flash');
   const [availableModels, setAvailableModels] = useState([]);
   const [isFetchingModels, setIsFetchingModels] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -51,12 +86,20 @@ const AiSettings = () => {
         setConnectorId(aiConn.id);
         const aiSettings = aiConn.aiSettings || aiConn.config || {};
         setDbSettings(aiSettings);
-        setActiveProvider(aiSettings.provider || 'Gemini');
+        const provider = aiSettings.provider || 'Gemini';
+        setActiveProvider(provider);
         setApiKey(aiSettings.apiKey || '');
         setBaseUrl(aiSettings.baseUrl || '');
-        const mid = aiSettings.modelId || 'gemini-1.5-flash-002';
+        const mid = aiSettings.modelId || (provider === 'Gemini' ? 'gemini-1.5-flash' : 'gpt-4o-mini');
         setModelId(mid);
-        setAvailableModels([{ id: mid, name: mid }]);
+
+        // Build initial models list from defaults
+        const defaults = DEFAULT_MODELS[provider] || [];
+        const combined = [...defaults];
+        if (mid && !combined.find(m => m.id === mid)) {
+          combined.unshift({ id: mid, name: `${mid} (Current)` });
+        }
+        setAvailableModels(combined);
         setCopilotSafetyThreshold(typeof aiSettings.copilotSafetyThreshold === 'number' ? aiSettings.copilotSafetyThreshold : 0.6);
 
         // Load the config cache if it exists
@@ -65,11 +108,11 @@ const AiSettings = () => {
         } else {
           // Initialize with current active configuration
           setConfigs({
-            [aiSettings.provider || 'Gemini']: {
+            [provider]: {
               apiKey: aiSettings.apiKey || '',
               baseUrl: aiSettings.baseUrl || '',
               modelId: mid,
-              availableModels: [{ id: mid, name: mid }]
+              availableModels: combined
             }
           });
         }
@@ -91,13 +134,16 @@ const AiSettings = () => {
     }));
 
     // 2. Load inputs for the NEW provider from the configs map (or default)
+    const defaultModelsForNewProvider = DEFAULT_MODELS[newProviderId] || [];
+    const defaultModelIdForNewProvider = defaultModelsForNewProvider.length > 0 
+      ? defaultModelsForNewProvider[0].id 
+      : (newProviderId === 'Gemini' ? 'gemini-1.5-flash' : '');
+
     const nextConfig = configs[newProviderId] || {
       apiKey: '',
       baseUrl: newProviderId.includes('Ollama') ? 'http://localhost:11434/v1' : '',
-      modelId: newProviderId === 'Gemini' ? 'gemini-1.5-flash-002' :
-        newProviderId === 'OpenAI' ? 'gpt-4o' :
-          newProviderId === 'Groq' ? 'llama3-8b-8192' : '',
-      availableModels: []
+      modelId: defaultModelIdForNewProvider,
+      availableModels: defaultModelsForNewProvider
     };
 
     setActiveProvider(newProviderId);

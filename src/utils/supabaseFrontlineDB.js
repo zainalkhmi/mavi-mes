@@ -63,6 +63,34 @@ export async function getAllFrontlineApps() {
     }
 }
 
+export async function getFrontlineAppById(id) {
+    try {
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase
+            .from('frontline_apps')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (error) throw error;
+
+        if (data && data.config?.iotConfig?.brokerUrl) {
+            let url = data.config.iotConfig.brokerUrl;
+            if (url === 'ws://broker.emqx.io:8083/mqtt') url = 'wss://broker.emqx.io:8084/mqtt';
+            else if (url.startsWith('ws://') && typeof window !== 'undefined' && window.location.protocol === 'https:') {
+                url = url.replace('ws://', 'wss://');
+            }
+            if (url !== data.config.iotConfig.brokerUrl) {
+                return { ...data, config: { ...data.config, iotConfig: { ...data.config.iotConfig, brokerUrl: url } } };
+            }
+        }
+        return data;
+    } catch (err) {
+        console.error('[Supabase] Failed to fetch frontline app by ID:', err);
+        return null;
+    }
+}
+
 export async function saveFrontlineApp(app) {
     const payload = {
         name: app.name,
