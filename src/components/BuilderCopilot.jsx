@@ -976,28 +976,28 @@ Apa yang bisa kamu bantu untuk widget ini?`;
       }}>
         {/* Row 1: Title and Window Controls */}
         <div style={{
-          padding: '14px 16px',
+          padding: '10px 14px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{
-              width: '36px', height: '36px',
+              width: '30px', height: '30px',
               background: 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(59,130,246,0.3))',
-              borderRadius: '10px',
+              borderRadius: '8px',
               border: '1px solid rgba(99,102,241,0.4)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               boxShadow: '0 0 15px rgba(99,102,241,0.2)',
             }}>
-              <Wand2 size={18} color="#a5b4fc" />
+              <Wand2 size={15} color="#a5b4fc" />
             </div>
             <div>
-              <div style={{ fontSize: '0.9rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#f8fafc' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#f8fafc' }}>
                 Builder Copilot
               </div>
-              <div style={{ fontSize: '0.62rem', color: '#6366f1', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 600 }}>
-                <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 6px #22c55e' }} />
+              <div style={{ fontSize: '0.6rem', color: '#6366f1', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 6px #22c55e' }} />
                 <span>Active</span>
                 <span style={{ color: 'rgba(255,255,255,0.2)' }}>•</span>
                 <select
@@ -1007,7 +1007,7 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                     background: 'transparent',
                     border: 'none',
                     color: '#a5b4fc',
-                    fontSize: '0.62rem',
+                    fontSize: '0.6rem',
                     fontWeight: 700,
                     outline: 'none',
                     cursor: 'pointer',
@@ -1026,7 +1026,7 @@ Apa yang bisa kamu bantu untuk widget ini?`;
               </div>
             </div>
           </div>
-
+ 
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             {/* Fullscreen toggle */}
             <button
@@ -1037,7 +1037,7 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                 border: '1px solid rgba(255,255,255,0.1)',
                 color: '#cbd5e1',
                 cursor: 'pointer',
-                padding: '7px',
+                padding: '6px',
                 borderRadius: '8px',
                 display: 'flex',
                 alignItems: 'center',
@@ -1046,9 +1046,9 @@ Apa yang bisa kamu bantu untuk widget ini?`;
               onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = '#e2e8f0'; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#cbd5e1'; }}
             >
-              {isFullScreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+              {isFullScreen ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
             </button>
-
+ 
             {/* Close */}
             <button
               onClick={onClose}
@@ -1058,7 +1058,7 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                 border: '1px solid rgba(255,255,255,0.1)',
                 color: 'white',
                 cursor: 'pointer',
-                padding: '7px',
+                padding: '6px',
                 borderRadius: '8px',
                 display: 'flex',
                 alignItems: 'center',
@@ -1067,14 +1067,14 @@ Apa yang bisa kamu bantu untuk widget ini?`;
               onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
             >
-              <X size={13} />
+              <X size={12} />
             </button>
           </div>
         </div>
-
+ 
         {/* Row 2: Toolbar Actions */}
         <div style={{
-          padding: '8px 16px 12px',
+          padding: '6px 14px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -1281,11 +1281,11 @@ Apa yang bisa kamu bantu untuk widget ini?`;
         ref={scrollRef}
         style={{
           flex: 1,
-          padding: '20px',
+          padding: '14px',
           overflowY: 'auto',
           display: 'flex',
           flexDirection: 'column',
-          gap: '18px',
+          gap: '12px',
           backgroundColor: '#f8fafc',
           backgroundImage: 'radial-gradient(circle at 20px 20px, #e2e8f020 1px, transparent 1px)',
           backgroundSize: '40px 40px',
@@ -1336,7 +1336,7 @@ Apa yang bisa kamu bantu untuk widget ini?`;
               {/* Bubble */}
               <div style={{
                 maxWidth: '88%',
-                padding: '12px 16px',
+                padding: '10px 14px',
                 borderRadius: msg.role === 'user' ? '18px 4px 18px 18px' : '4px 18px 18px 18px',
                 background: msg.isError
                   ? '#fef2f2'
@@ -1696,18 +1696,18 @@ Apa yang bisa kamu bantu untuk widget ini?`;
         )}
 
         {/* Chip mode tabs */}
-        <div style={{ marginBottom: '10px' }}>
-          <div style={{ display: 'flex', gap: '4px', marginBottom: '8px', background: '#f1f5f9', padding: '3px', borderRadius: '10px', width: 'fit-content' }}>
+        <div style={{ marginBottom: '6px' }}>
+          <div style={{ display: 'flex', gap: '3px', marginBottom: '6px', background: '#f1f5f9', padding: '2px', borderRadius: '8px', width: 'fit-content' }}>
             {[{ id: 'build', label: '🏗️ Build' }, { id: 'edit', label: '✏️ Edit' }].map(({ id, label }) => (
               <button
                 key={id}
                 onClick={() => setChipMode(id)}
                 style={{
-                  padding: '5px 14px', borderRadius: '8px', border: 'none', cursor: 'pointer',
-                  fontSize: '0.72rem', fontWeight: 700,
+                  padding: '4px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer',
+                  fontSize: '0.68rem', fontWeight: 700,
                   backgroundColor: chipMode === id ? '#ffffff' : 'transparent',
                   color: chipMode === id ? '#1e293b' : '#64748b',
-                  boxShadow: chipMode === id ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  boxShadow: chipMode === id ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
                   transition: 'all 0.15s',
                 }}
               >
@@ -1716,7 +1716,19 @@ Apa yang bisa kamu bantu untuk widget ini?`;
             ))}
           </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+          <div style={{
+            display: 'flex',
+            overflowX: 'auto',
+            gap: '6px',
+            paddingBottom: '4px',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none'
+          }} className="copilot-chips-scroll">
+            <style>{`
+              .copilot-chips-scroll::-webkit-scrollbar {
+                display: none;
+              }
+            `}</style>
             {chips.map((chip, i) => (
               <button
                 key={i}
@@ -1726,7 +1738,7 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                   border: `1px solid ${chipMode === 'edit' ? '#fde68a' : '#e2e8f0'}`,
                   backgroundColor: chipMode === 'edit' ? '#fefce8' : '#f8fafc',
                   color: chipMode === 'edit' ? '#92400e' : '#475569',
-                  fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer',
+                  fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer',
                   transition: 'all 0.15s', whiteSpace: 'nowrap',
                 }}
                 onMouseEnter={e => {
@@ -1746,40 +1758,265 @@ Apa yang bisa kamu bantu untuk widget ini?`;
           </div>
         </div>
 
-        {/* Related Apps Selector */}
-        <div style={{ marginBottom: '12px', position: 'relative' }}>
-          {/* Label and trigger button */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#475569', display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <Link size={12} color="#3b82f6" /> Integrasi Aplikasi Terkait:
-            </span>
-            <button
-              type="button"
-              onClick={() => setShowAppDropdown(prev => !prev)}
-              style={{
-                background: 'rgba(59,130,246,0.1)',
-                border: '1px solid rgba(59,130,246,0.2)',
-                color: '#2563eb',
-                fontSize: '0.68rem',
-                fontWeight: 700,
-                borderRadius: '6px',
-                padding: '3px 8px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                transition: 'all 0.15s'
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.2)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.1)' }}
-            >
-              {showAppDropdown ? 'Tutup' : 'Cari & Pilih App'} <ChevronDown size={10} style={{ transform: showAppDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
-            </button>
+        {/* Unified Integrations Toolbar */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
+          {/* Buttons Row */}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {/* Related Apps Button */}
+            <div style={{ flex: 1, position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAppDropdown(prev => !prev);
+                  setShowCanvaDropdown(false);
+                }}
+                style={{
+                  width: '100%',
+                  background: showAppDropdown ? 'rgba(59,130,246,0.12)' : 'rgba(255,255,255,0.7)',
+                  border: `1.5px solid ${showAppDropdown ? '#3b82f6' : '#e2e8f0'}`,
+                  color: '#1e293b',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  borderRadius: '8px',
+                  padding: '6px 10px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '4px',
+                  transition: 'all 0.15s'
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <Link size={12} color="#3b82f6" />
+                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    App Terkait ({selectedApps.length})
+                  </span>
+                </span>
+                <ChevronDown size={10} style={{ transform: showAppDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+              </button>
+
+              {/* Dropdown Menu for Apps */}
+              {showAppDropdown && (
+                <div style={{
+                  position: 'absolute',
+                  bottom: '100%',
+                  left: 0,
+                  width: '260px',
+                  backgroundColor: '#ffffff',
+                  borderRadius: '12px',
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 -10px 25px -5px rgba(0,0,0,0.15), 0 -8px 10px -6px rgba(0,0,0,0.15)',
+                  zIndex: 50,
+                  padding: '10px',
+                  marginBottom: '8px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  maxHeight: '200px',
+                  overflowY: 'auto'
+                }}>
+                  <input
+                    type="text"
+                    placeholder="Cari nama aplikasi..."
+                    value={appSearchQuery}
+                    onChange={e => setAppSearchQuery(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '6px 10px',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.75rem',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {allApps
+                      .filter(app => app.name.toLowerCase().includes(appSearchQuery.toLowerCase()))
+                      .map(app => {
+                        const isChecked = selectedApps.some(a => a.id === app.id);
+                        return (
+                          <label
+                            key={app.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              fontSize: '0.75rem',
+                              color: '#334155',
+                              padding: '5px 8px',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              backgroundColor: isChecked ? 'rgba(59,130,246,0.05)' : 'transparent',
+                              transition: 'background-color 0.15s'
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = isChecked ? 'rgba(59,130,246,0.08)' : '#f8fafc' }}
+                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = isChecked ? 'rgba(59,130,246,0.05)' : 'transparent' }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                if (isChecked) {
+                                  setSelectedApps(prev => prev.filter(a => a.id !== app.id));
+                                } else {
+                                  setSelectedApps(prev => [...prev, app]);
+                                }
+                              }}
+                              style={{
+                                width: '13px',
+                                height: '13px',
+                                accentColor: '#3b82f6',
+                                cursor: 'pointer'
+                              }}
+                            />
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <span style={{ fontWeight: 600 }}>{app.name}</span>
+                              <span style={{ fontSize: '0.62rem', color: '#64748b' }}>Kategori: {app.category || 'Shop Floor'}</span>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    {allApps.filter(app => app.name.toLowerCase().includes(appSearchQuery.toLowerCase())).length === 0 && (
+                      <div style={{ fontSize: '0.72rem', color: '#94a3b8', textAlign: 'center', padding: '10px' }}>
+                        Tidak ada aplikasi ditemukan
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Canva Layout Button */}
+            <div style={{ flex: 1, position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCanvaDropdown(prev => !prev);
+                  setShowAppDropdown(false);
+                }}
+                style={{
+                  width: '100%',
+                  background: showCanvaDropdown ? 'rgba(124,58,237,0.12)' : 'rgba(255,255,255,0.7)',
+                  border: `1.5px solid ${showCanvaDropdown ? '#7c3aed' : '#e2e8f0'}`,
+                  color: '#1e293b',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  borderRadius: '8px',
+                  padding: '6px 10px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '4px',
+                  transition: 'all 0.15s'
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0, width: '100%' }}>
+                  <LayoutTemplate size={12} color="#7c3aed" />
+                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, textAlign: 'left' }}>
+                    {selectedCanvaDesign ? selectedCanvaDesign.name : 'Desain Canva'}
+                  </span>
+                </span>
+                <ChevronDown size={10} style={{ transform: showCanvaDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+              </button>
+
+              {/* Dropdown Menu for Canva */}
+              {showCanvaDropdown && (
+                <div style={{
+                  position: 'absolute',
+                  bottom: '100%',
+                  right: 0,
+                  width: '260px',
+                  backgroundColor: '#ffffff',
+                  borderRadius: '12px',
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 -10px 25px -5px rgba(0,0,0,0.15), 0 -8px 10px -6px rgba(0,0,0,0.15)',
+                  zIndex: 50,
+                  padding: '10px',
+                  marginBottom: '8px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  maxHeight: '200px',
+                  overflowY: 'auto'
+                }}>
+                  <input
+                    type="text"
+                    placeholder="Cari nama desain Canva..."
+                    value={canvaSearchQuery}
+                    onChange={e => setCanvaSearchQuery(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '6px 10px',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.75rem',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+
+                  {/* Loader */}
+                  {isFetchingCanva && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px', gap: '6px', fontSize: '0.75rem', color: '#64748b' }}>
+                      <Loader2 size={12} className="animate-spin" /> Memuat dari Canva...
+                    </div>
+                  )}
+
+                  {/* Designs List */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {!isFetchingCanva && canvaDesigns
+                      .filter(design => design.name.toLowerCase().includes(canvaSearchQuery.toLowerCase()))
+                      .map(design => {
+                        const isSelected = selectedCanvaDesign?.id === design.id;
+                        return (
+                          <button
+                            key={design.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedCanvaDesign(design);
+                              setShowCanvaDropdown(false);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'left',
+                              flexDirection: 'column',
+                              gap: '2px',
+                              fontSize: '0.75rem',
+                              color: '#334155',
+                              padding: '6px 8px',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              border: 'none',
+                              textAlign: 'left',
+                              backgroundColor: isSelected ? '#f5f3ff' : 'transparent',
+                              transition: 'background-color 0.15s',
+                              width: '100%'
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = isSelected ? '#ede9fe' : '#f8fafc' }}
+                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = isSelected ? '#f5f3ff' : 'transparent' }}
+                          >
+                            <span style={{ fontWeight: 600, color: isSelected ? '#6d28d9' : '#334155' }}>🎨 {design.name}</span>
+                            <span style={{ fontSize: '0.62rem', color: '#64748b' }}>ID: {design.id}</span>
+                          </button>
+                        );
+                      })}
+                    {!isFetchingCanva && canvaDesigns.filter(design => design.name.toLowerCase().includes(canvaSearchQuery.toLowerCase())).length === 0 && (
+                      <div style={{ fontSize: '0.72rem', color: '#94a3b8', textAlign: 'center', padding: '10px' }}>
+                        Tidak ada desain Canva ditemukan
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Selected Apps Pill Chips */}
-          {selectedApps.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+          {/* Unified selected items pill list */}
+          {(selectedApps.length > 0 || selectedCanvaDesign) && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '2px' }}>
               {selectedApps.map(app => (
                 <div
                   key={app.id}
@@ -1793,7 +2030,7 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                     fontSize: '0.7rem',
                     fontWeight: 700,
                     borderRadius: '20px',
-                    padding: '3px 10px',
+                    padding: '2px 8px',
                   }}
                 >
                   <span>📱 {app.name}</span>
@@ -1815,261 +2052,40 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                   </button>
                 </div>
               ))}
-            </div>
-          )}
-
-          {/* Dropdown Menu */}
-          {showAppDropdown && (
-            <div style={{
-              position: 'absolute',
-              bottom: '100%',
-              left: 0,
-              right: 0,
-              backgroundColor: '#ffffff',
-              borderRadius: '12px',
-              border: '1px solid #e2e8f0',
-              boxShadow: '0 -10px 25px -5px rgba(0,0,0,0.1), 0 -8px 10px -6px rgba(0,0,0,0.1)',
-              zIndex: 10,
-              padding: '10px',
-              marginBottom: '8px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px',
-              maxHeight: '200px',
-              overflowY: 'auto'
-            }}>
-              {/* Search input */}
-              <input
-                type="text"
-                placeholder="Cari nama aplikasi..."
-                value={appSearchQuery}
-                onChange={e => setAppSearchQuery(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '6px 10px',
-                  borderRadius: '6px',
-                  border: '1px solid #cbd5e1',
-                  fontSize: '0.75rem',
-                  outline: 'none',
-                  boxSizing: 'border-box'
-                }}
-              />
-
-              {/* App List */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                {allApps
-                  .filter(app => app.name.toLowerCase().includes(appSearchQuery.toLowerCase()))
-                  .map(app => {
-                    const isChecked = selectedApps.some(a => a.id === app.id);
-                    return (
-                      <label
-                        key={app.id}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          fontSize: '0.75rem',
-                          color: '#334155',
-                          padding: '5px 8px',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          backgroundColor: isChecked ? 'rgba(59,130,246,0.05)' : 'transparent',
-                          transition: 'background-color 0.15s'
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = isChecked ? 'rgba(59,130,246,0.08)' : '#f8fafc' }}
-                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = isChecked ? 'rgba(59,130,246,0.05)' : 'transparent' }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => {
-                            if (isChecked) {
-                              setSelectedApps(prev => prev.filter(a => a.id !== app.id));
-                            } else {
-                              setSelectedApps(prev => [...prev, app]);
-                            }
-                          }}
-                          style={{
-                            width: '13px',
-                            height: '13px',
-                            accentColor: '#3b82f6',
-                            cursor: 'pointer'
-                          }}
-                        />
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ fontWeight: 600 }}>{app.name}</span>
-                          <span style={{ fontSize: '0.62rem', color: '#64748b' }}>Kategori: {app.category || 'Shop Floor'}</span>
-                        </div>
-                      </label>
-                    );
-                  })}
-                {allApps.filter(app => app.name.toLowerCase().includes(appSearchQuery.toLowerCase())).length === 0 && (
-                  <div style={{ fontSize: '0.72rem', color: '#94a3b8', textAlign: 'center', padding: '10px' }}>
-                    Tidak ada aplikasi ditemukan
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Canva Design Selector */}
-        <div style={{ marginBottom: '12px', position: 'relative' }}>
-          {/* Label and trigger button */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#475569', display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <LayoutTemplate size={12} color="#7c3aed" /> Referensi Layout Canva {canvaConnector ? '(Aktif)' : '(Simulasi)'}:
-            </span>
-            <button
-              type="button"
-              onClick={() => setShowCanvaDropdown(prev => !prev)}
-              style={{
-                background: 'rgba(124,58,237,0.1)',
-                border: '1px solid rgba(124,58,237,0.2)',
-                color: '#7c3aed',
-                fontSize: '0.68rem',
-                fontWeight: 700,
-                borderRadius: '6px',
-                padding: '3px 8px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                transition: 'all 0.15s'
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.2)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.1)' }}
-            >
-              {showCanvaDropdown ? 'Tutup' : 'Cari Desain Canva'} <ChevronDown size={10} style={{ transform: showCanvaDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
-            </button>
-          </div>
-
-          {/* Selected Canva Design Pill Chip */}
-          {selectedCanvaDesign && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  backgroundColor: '#f5f3ff',
-                  border: '1px solid #ddd6fe',
-                  color: '#6d28d9',
-                  fontSize: '0.7rem',
-                  fontWeight: 700,
-                  borderRadius: '20px',
-                  padding: '3px 10px',
-                }}
-              >
-                <span>🎨 {selectedCanvaDesign.name}</span>
-                <button
-                  type="button"
-                  onClick={() => setSelectedCanvaDesign(null)}
+              {selectedCanvaDesign && (
+                <div
                   style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#6d28d9',
-                    cursor: 'pointer',
-                    padding: 0,
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    gap: '5px',
+                    backgroundColor: '#f5f3ff',
+                    border: '1px solid #ddd6fe',
+                    color: '#6d28d9',
+                    fontSize: '0.7rem',
+                    fontWeight: 700,
+                    borderRadius: '20px',
+                    padding: '2px 8px',
                   }}
                 >
-                  <X size={10} />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Dropdown Menu */}
-          {showCanvaDropdown && (
-            <div style={{
-              position: 'absolute',
-              bottom: '100%',
-              left: 0,
-              right: 0,
-              backgroundColor: '#ffffff',
-              borderRadius: '12px',
-              border: '1px solid #e2e8f0',
-              boxShadow: '0 -10px 25px -5px rgba(0,0,0,0.1), 0 -8px 10px -6px rgba(0,0,0,0.1)',
-              zIndex: 10,
-              padding: '10px',
-              marginBottom: '8px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px',
-              maxHeight: '200px',
-              overflowY: 'auto'
-            }}>
-              {/* Search input */}
-              <input
-                type="text"
-                placeholder="Cari nama desain Canva..."
-                value={canvaSearchQuery}
-                onChange={e => setCanvaSearchQuery(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '6px 10px',
-                  borderRadius: '6px',
-                  border: '1px solid #cbd5e1',
-                  fontSize: '0.75rem',
-                  outline: 'none',
-                  boxSizing: 'border-box'
-                }}
-              />
-
-              {/* Loader */}
-              {isFetchingCanva && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px', gap: '6px', fontSize: '0.75rem', color: '#64748b' }}>
-                  <Loader2 size={12} className="animate-spin" /> Memuat dari Canva...
+                  <span>🎨 {selectedCanvaDesign.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCanvaDesign(null)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#6d28d9',
+                      cursor: 'pointer',
+                      padding: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <X size={10} />
+                  </button>
                 </div>
               )}
-
-              {/* Designs List */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                {!isFetchingCanva && canvaDesigns
-                  .filter(design => design.name.toLowerCase().includes(canvaSearchQuery.toLowerCase()))
-                  .map(design => {
-                    const isSelected = selectedCanvaDesign?.id === design.id;
-                    return (
-                      <button
-                        key={design.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedCanvaDesign(design);
-                          setShowCanvaDropdown(false);
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'left',
-                          flexDirection: 'column',
-                          gap: '2px',
-                          fontSize: '0.75rem',
-                          color: '#334155',
-                          padding: '6px 8px',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          border: 'none',
-                          textAlign: 'left',
-                          backgroundColor: isSelected ? '#f5f3ff' : 'transparent',
-                          transition: 'background-color 0.15s',
-                          width: '100%'
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = isSelected ? '#ede9fe' : '#f8fafc' }}
-                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = isSelected ? '#f5f3ff' : 'transparent' }}
-                      >
-                        <span style={{ fontWeight: 600, color: isSelected ? '#6d28d9' : '#334155' }}>🎨 {design.name}</span>
-                        <span style={{ fontSize: '0.62rem', color: '#64748b' }}>ID: {design.id}</span>
-                      </button>
-                    );
-                  })}
-                {!isFetchingCanva && canvaDesigns.filter(design => design.name.toLowerCase().includes(canvaSearchQuery.toLowerCase())).length === 0 && (
-                  <div style={{ fontSize: '0.72rem', color: '#94a3b8', textAlign: 'center', padding: '10px' }}>
-                    Tidak ada desain Canva ditemukan
-                  </div>
-                )}
-              </div>
             </div>
           )}
         </div>

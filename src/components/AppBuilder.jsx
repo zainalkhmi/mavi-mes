@@ -280,7 +280,7 @@ import * as projectMgmt from '../utils/projectManagement';
 
 import ConditionalFormattingPanel from './ConditionalFormattingPanel';
 
-const COMPONENT_TYPES = {
+export const COMPONENT_TYPES = {
     // 1. User Interface
     BUTTON: {
         id: 'BUTTON',
@@ -3118,7 +3118,7 @@ const COMPONENT_TYPES = {
 };
 
 
-const CATEGORIZED_COMPONENTS = {
+export const CATEGORIZED_COMPONENTS = {
     // 1. All visible UI widgets - inputs, displays, pickers
     USER_INTERFACE: {
         label: 'Interface',
@@ -6273,6 +6273,22 @@ const getFriendlyTriggerName = (trig, defaultType = 'Widget') => {
 
 const AppBuilder = () => {
     const [appName, setAppName] = useState(DEFAULT_FRONTLINE_APP_NAME);
+    const [hiddenCategories, setHiddenCategories] = useState(() => {
+        try {
+            const val = localStorage.getItem('mavi_hidden_categories');
+            return val ? JSON.parse(val) : [];
+        } catch {
+            return [];
+        }
+    });
+    const [hiddenWidgets, setHiddenWidgets] = useState(() => {
+        try {
+            const val = localStorage.getItem('mavi_hidden_widgets');
+            return val ? JSON.parse(val) : [];
+        } catch {
+            return [];
+        }
+    });
     const [appMeta, setAppMeta] = useState({
         version: 1,
         approval_status: 'DRAFT',
@@ -7119,7 +7135,16 @@ const AppBuilder = () => {
                         logic: { xml: null, code: '' }
                     };
 
-                    const nextSteps = [...stepsRef.current, newStep];
+                    let nextSteps;
+                    const isDefaultEmptyStep = stepsRef.current.length === 1 &&
+                        (stepsRef.current[0].id === 'screen_1' || stepsRef.current[0].title === 'Screen 1') &&
+                        (stepsRef.current[0].components || []).length === 0;
+
+                    if (isDefaultEmptyStep) {
+                        nextSteps = [newStep];
+                    } else {
+                        nextSteps = [...stepsRef.current, newStep];
+                    }
                     stepsRef.current = nextSteps;
                     setSteps(nextSteps);
 
@@ -19417,7 +19442,9 @@ const AppBuilder = () => {
                             flex: '0 1 auto',
                             flexWrap: 'wrap'
                         }}>
-                        {Object.entries(CATEGORIZED_COMPONENTS).map(([catKey, category]) => (
+                        {Object.entries(CATEGORIZED_COMPONENTS)
+                            .filter(([catKey, category]) => !hiddenCategories.includes(catKey) && category.types.some(t => !hiddenWidgets.includes(t)))
+                            .map(([catKey, category]) => (
                             <div
                                 key={catKey}
                                 style={{ position: 'relative' }}
@@ -19539,7 +19566,7 @@ const AppBuilder = () => {
                                         maxHeight: '500px',
                                         overflowY: 'auto'
                                     }}>
-                                        {catKey === 'SHAPES' && (
+                                        {catKey === 'SHAPES' && !hiddenWidgets.includes('SHAPE') && (
                                             <>
                                                 <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-quaternary)', padding: '4px 8px', textTransform: 'uppercase' }}>Shapes</div>
                                                 <div style={{ padding: '4px' }}>
@@ -19558,7 +19585,7 @@ const AppBuilder = () => {
                                         )}
 
 
-                                        {category.types.filter(t => t !== 'SHAPE').map(actualKey => {
+                                        {category.types.filter(t => t !== 'SHAPE' && !hiddenWidgets.includes(t)).map(actualKey => {
                                             const type = COMPONENT_TYPES[actualKey];
                                             if (!type) return null;
                                             return (
@@ -33254,7 +33281,11 @@ D3:0
                     functions: appFunctions || [],
                     automations: (appTriggers || []).filter(t => t._isAutomation),
                     helpGuide: helpGuide || '',
-                    appName: appName || ''
+                    appName: appName || '',
+                    previewDevice: previewDevice,
+                    previewOrientation: previewOrientation,
+                    canvasWidth: canvasBaseSize.width,
+                    canvasHeight: canvasBaseSize.height
                 }}
             />
 

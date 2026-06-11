@@ -44,6 +44,7 @@ import { createPlcHmiTerminalTemplate } from '../utils/plcHmiTerminalTemplate';
 import { createWorkInstructionsTemplate } from '../utils/workInstructionsTemplate';
 import { createProductDrawingInspectionTemplate } from '../utils/productDrawingInspectionTemplate';
 import { createHydraulicCylinderInspectionTemplate } from '../utils/hydraulicCylinderInspectionTemplate';
+import { createMobileScanInspectionTemplate } from '../utils/mobileScanInspectionTemplate';
 
 import { saveFrontlineApp, deleteFrontlineApp, getAllFrontlineApps } from '../utils/supabaseFrontlineDB';
 import {
@@ -388,6 +389,36 @@ const AppStore = () => {
                     { name: 'QC Work Order Setup', description: 'Configure active Lot/Batch and Work Order IDs.' },
                     { name: 'Cognitive QC Inspection', description: 'Live vision check (PASS/FAIL) with automatic database logging.' },
                     { name: 'Caliper & Pressure Verification', description: 'Combined view of caliper OCR and dial gauge needle reading.' }
+                ]
+            }
+        },
+        {
+            id: 'mobile-scan-vision',
+            name: 'Mobile Scan & Vision QC',
+            category: 'Quality',
+            description: 'Mobile-optimized barcode scanning and OpenCV camera inspection for quick stock routing and quality verification.',
+            longDescription: 'Optimize scanning and QC workflows on mobile devices. Features pre-configured layouts for vertical stacking, custom mobile barcode reader widget, and live OpenCV camera PASS/FAIL overlays. Integrates with the mobile_scan_logs database.',
+            icon: <Activity size={28} color="#059669" />,
+            bg: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
+            accent: '#059669',
+            rating: 5.0,
+            installs: 'New',
+            features: ['Mobile Barcode Scan', 'Real-time OpenCV Vision', 'Vertical Phone Layout', 'Auto-Save Logs'],
+            guide: {
+                operation: '1. Enter Operator Name\n2. Scan item barcode with mobile camera\n3. Hold item in front of vision camera for QC check\n4. Confirm readouts and submit log to database',
+                widgets: ['Mobile Barcode Scanner', 'OpenCV Camera (QC Inspection)', 'Variable Text Displays'],
+                components: ['Mobile HMI flow', 'Barcode parser', 'Quality verification engine'],
+                tables: [
+                    { name: 'mobile_scan_logs', description: 'Primary database table storing all real-time scan and vision check records.' }
+                ],
+                triggers: [
+                    { event: 'ON_CLICK (Submit)', function: 'Saves Scanned_Barcode, Operator_Name, and result to mobile_scan_logs.' }
+                ],
+                mechanism: 'Integrates barcode scanner and real-time vision checks in a responsive vertically stacked HMI designed for handheld shopfloor terminals.',
+                steps: [
+                    { name: 'Barcode Scan Setup', description: 'Enter operator info and scan item barcode.' },
+                    { name: 'Vision Camera QC', description: 'Live OpenCV visual quality check.' },
+                    { name: 'Review & Submit', description: 'Verify readings and submit record.' }
                 ]
             }
         },
@@ -1579,6 +1610,25 @@ const AppStore = () => {
                     }
                 } catch (visionErr) {
                     console.warn('Could not create vision measurements table:', visionErr);
+                }
+            } else if (templateId === 'mobile-scan-vision') {
+                templateApp = createMobileScanInspectionTemplate();
+                try {
+                    const mobileScanTable = await getOrCreateTableAndSeed(allTables, {
+                        name: 'mobile_scan_logs',
+                        fields: [
+                            { name: 'operator', type: 'text' },
+                            { name: 'scanned_barcode', type: 'text' },
+                            { name: 'timestamp', type: 'datetime' }
+                        ]
+                    });
+                    if (mobileScanTable && mobileScanTable.id) {
+                        const appStr = JSON.stringify(templateApp).replace(/mobile_scan_logs/g, mobileScanTable.id);
+                        templateApp = JSON.parse(appStr);
+                        templateApp.config.appTables = [mobileScanTable.id];
+                    }
+                } catch (msErr) {
+                    console.warn('Could not create mobile scan logs table:', msErr);
                 }
             } else if (templateId === 'incoming-inspection') {
                 templateApp = createIncomingInspectionTemplate();

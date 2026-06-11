@@ -58,6 +58,7 @@ import DashboardManager from './components/DashboardManager';
 import DashboardEditor from './components/DashboardEditor';
 import AiSettings from './components/AiSettings';
 import SupabaseSettings from './components/SupabaseSettings';
+import AdminSettings from './components/AdminSettings';
 import AppStore from './components/AppStore';
 import AppManagement from './components/AppManagement';
 import FileExplorer from './components/FileExplorer';
@@ -502,18 +503,18 @@ const App = () => {
           )}
 
           {/* SYSTEM */}
-          {['/users', '/ai-settings', '/supabase-settings', '/build-center'].some(hasAccess) && (
+          {['/users', '/ai-settings', '/supabase-settings', '/build-center', '/admin-settings'].some(hasAccess) && (
             <div style={{ position: 'relative' }} ref={systemMenuRef}>
               <button
                 onClick={() => setSystemMenuOpen(!systemMenuOpen)}
                 style={{
                   ...navLinkStyle('/system'),
-                  backgroundColor: ['/users', '/ai-settings', '/supabase-settings', '/build-center'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
-                  color: ['/users', '/ai-settings', '/supabase-settings', '/build-center'].includes(location.pathname) ? '#2563eb' : '#475569',
+                  backgroundColor: ['/users', '/ai-settings', '/supabase-settings', '/build-center', '/admin-settings'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
+                  color: ['/users', '/ai-settings', '/supabase-settings', '/build-center', '/admin-settings'].includes(location.pathname) ? '#2563eb' : '#475569',
                   fontSize: '0.9rem', padding: '6px 12px', fontWeight: 600
                 }}
-                onMouseEnter={(e) => { if (!['/users', '/ai-settings', '/supabase-settings', '/build-center'].includes(location.pathname)) { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
-                onMouseLeave={(e) => { if (!['/users', '/ai-settings', '/supabase-settings', '/build-center'].includes(location.pathname)) { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
+                onMouseEnter={(e) => { if (!['/users', '/ai-settings', '/supabase-settings', '/build-center', '/admin-settings'].includes(location.pathname)) { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
+                onMouseLeave={(e) => { if (!['/users', '/ai-settings', '/supabase-settings', '/build-center', '/admin-settings'].includes(location.pathname)) { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
               >
                 System <ChevronDown size={14} style={{ transform: systemMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', marginLeft: '4px' }} />
               </button>
@@ -524,6 +525,8 @@ const App = () => {
                   {hasAccess('/ai-settings') && <Link to="/ai-settings" onClick={() => setSystemMenuOpen(false)} style={dropdownItemStyle('/ai-settings')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/ai-settings' ? '#f0f7ff' : 'transparent'}><BrainCircuit size={16} /> AI Settings</Link>}
                   <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '4px 0' }}></div>
                   {hasAccess('/supabase-settings') && <Link to="/supabase-settings" onClick={() => setSystemMenuOpen(false)} style={dropdownItemStyle('/supabase-settings')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/supabase-settings' ? '#f0f7ff' : 'transparent'}><Database size={16} /> Database Settings</Link>}
+                  <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '4px 0' }}></div>
+                  {hasAccess('/admin-settings') && <Link to="/admin-settings" onClick={() => setSystemMenuOpen(false)} style={dropdownItemStyle('/admin-settings')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/admin-settings' ? '#f0f7ff' : 'transparent'}><SlidersHorizontal size={16} /> Admin Settings</Link>}
                   <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '4px 0' }}></div>
                   {hasAccess('/build-center') && <Link to="/build-center" onClick={() => setSystemMenuOpen(false)} style={dropdownItemStyle('/build-center')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/build-center' ? '#f0f7ff' : 'transparent'}><Cpu size={16} /> App Compiler</Link>}
                 </div>
@@ -611,8 +614,9 @@ const App = () => {
               <Route path="/terminal" element={hasAccess('/terminal') ? <LiveTerminal /> : <Navigate to="/" replace />} />
               <Route path="/terminal/:appId" element={hasAccess('/terminal') ? <LiveTerminal /> : <Navigate to="/" replace />} />
               <Route path="/player" element={hasAccess('/player') ? <AppPlayer /> : <Navigate to="/" replace />} />
-              <Route path="/ai-settings" element={hasAccess('/ai-settings') ? <AiSettings /> : <Navigate to="/" replace />} />
+               <Route path="/ai-settings" element={hasAccess('/ai-settings') ? <AiSettings /> : <Navigate to="/" replace />} />
               <Route path="/supabase-settings" element={hasAccess('/supabase-settings') ? <SupabaseSettings /> : <Navigate to="/" replace />} />
+              <Route path="/admin-settings" element={hasAccess('/admin-settings') ? <AdminSettings /> : <Navigate to="/" replace />} />
               <Route path="/build-center" element={hasAccess('/build-center') ? <BuildManager /> : <Navigate to="/" replace />} />
               <Route path="/help" element={<GlobalHelpAssistant />} />
               <Route path="*" element={<Home />} />

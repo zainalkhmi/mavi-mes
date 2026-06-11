@@ -398,8 +398,67 @@ const WIDGET_CATALOG = {
 };
 
 const getBuilderSystemPrompt = (context) => {
+  const canvasWidth = context?.canvasWidth || 1000;
+  const canvasHeight = context?.canvasHeight || 600;
+  const previewDevice = context?.previewDevice || 'RESPONSIVE';
+  const previewOrientation = context?.previewOrientation || 'PORTRAIT';
+
+  // Dynamic layout helper values
+  const fullWidth = canvasWidth - 40;
+  const gap = 20;
+
+  // 2-col
+  const col2Width = Math.floor((canvasWidth - 60) / 2);
+  const col2RightX = 20 + col2Width + gap;
+
+  // 3-col
+  const col3Width = Math.floor((canvasWidth - 80) / 3);
+  const col3Col2X = 20 + col3Width + gap;
+  const col3Col3X = 20 + 2 * (col3Width + gap);
+
+  // 4-col
+  const col4Width = Math.floor((canvasWidth - 100) / 4);
+  const col4Col2X = 20 + col4Width + gap;
+  const col4Col3X = 20 + 2 * (col4Width + gap);
+  const col4Col4X = 20 + 3 * (col4Width + gap);
+
+  // Determine device kind to give explicit layout instruction
+  let layoutInstruction = '';
+  if (canvasWidth < 500) {
+    layoutInstruction = `LAYOUT MODE: Mobile Portrait / Narrow layout (${previewDevice} - ${previewOrientation}).
+- Do NOT use multi-column layouts side-by-side.
+- All widgets must be stacked vertically in a single column (x=20, w=${fullWidth}) to fit the small screen.
+- Row gap should be 12-16px.
+- Avoid wide elements like full-width tables or multiple horizontal KPIs. If a table (INTERACTIVE_TABLE) is used, set w=${fullWidth} and x=20, and keep its height reasonable (e.g. h=200).
+- Scale down headers and title fonts (e.g. title font size 18, header height 56, header x=0, y=0, w=${canvasWidth}, h=56).`;
+  } else if (canvasWidth >= 500 && canvasWidth <= 800) {
+    layoutInstruction = `LAYOUT MODE: Tablet Portrait / Compact layout (${previewDevice} - ${previewOrientation}).
+- You can use single column (x=20, w=${fullWidth}) or 2-column layout.
+- For 2-column layout, use: Left(x=20, w=${col2Width}) and Right(x=${col2RightX}, w=${col2Width}).
+- Avoid 3-column or 4-column layouts as they will overlap or get squished.
+- Row gap should be 16-20px.
+- Scale down header and title fonts slightly (e.g. title font size 20, header height 60, header x=0, y=0, w=${canvasWidth}, h=60).`;
+  } else {
+    layoutInstruction = `LAYOUT MODE: Desktop / Wide Tablet layout (${previewDevice} - ${previewOrientation}).
+- You can use full-width, 2-column, 3-column, or 4-column layouts.
+- Columns:
+  ▸ Full-width: x=20, w=${fullWidth}
+  ▸ 2-column: Left(x=20, w=${col2Width}) Right(x=${col2RightX}, w=${col2Width})
+  ▸ 3-column: Col1(x=20, w=${col3Width}) Col2(x=${col3Col2X}, w=${col3Width}) Col3(x=${col3Col3X}, w=${col3Width})
+  ▸ 4-column KPI: Col1(x=20, w=${col4Width}) Col2(x=${col4Col2X}, w=${col4Width}) Col3(x=${col4Col3X}, w=${col4Width}) Col4(x=${col4Col4X}, w=${col4Width})
+- Row gap: 20px.
+- Header: x=0, y=0, w=${canvasWidth}, h=64. Title: color='#ffffff', fontWeight='bold', fontSize=22.`;
+  }
+
   return `
 ROLE: You are "Mavi Enterprise & IoT Architect AI" — an elite multi-agent system for building world-class industrial MES and SmartHome IoT applications.
+
+════════════════════════════════════════════════
+📐 TARGET CANVAS CONFIGURATION (${previewDevice} - ${previewOrientation})
+════════════════════════════════════════════════
+▸ Canvas Base Width: ${canvasWidth}px
+▸ Canvas Base Height: ${canvasHeight}px
+▸ Target Layout Type: ${layoutInstruction}
 
 ════════════════════════════════════════════════
 📦 COMPLETE WIDGET CATALOG (USE ONLY THESE EXACT TYPES)
@@ -432,34 +491,34 @@ ArduinoGraph/RealtimePlotter/PinGraph → ARDUINO_GRAPH
 🎨 ENTERPRISE DESIGN RULES
 ════════════════════════════════════════════════
 Colors: primary=#3b82f6, success=#10b981, warning=#f59e0b, danger=#ef4444, dark=#0f172a, light=#f8fafc
-- ALWAYS: dark SHAPE_RECTANGLE header (x=0,y=0,w=1000,h=64,backgroundColor='#0f172a') + white TEXT title (color='#ffffff',fontWeight='bold',fontSize=22,textAlignment=1)
+- ALWAYS: dark SHAPE_RECTANGLE header (x=0,y=0,w=${canvasWidth},h=${canvasWidth < 500 ? 56 : 64},backgroundColor='#0f172a') + white TEXT title (color='#ffffff',fontWeight='bold',fontSize=${canvasWidth < 500 ? 18 : 22},textAlignment=1)
 - ALWAYS: group widgets in white card panels (SHAPE_RECTANGLE with backgroundColor='#ffffff',borderRadius=12)
 - Place SHAPE_RECTANGLE BEFORE its child widgets in command order
 - Gap between cards: 16px min. Buttons: fontWeight='bold',shape=1,backgroundColor='#3b82f6',color='#ffffff'
 
 ════════════════════════════════════════════════
-📐 PRECISION LAYOUT (Canvas: 1000×600, scrollable)
+📐 PRECISION LAYOUT (Canvas: ${canvasWidth}×${canvasHeight}, scrollable)
 ════════════════════════════════════════════════
-Grid: multiples of 4. Standard sizes:
-  TEXT heading(w=400,h=32) | BUTTON(w=160,h=44) | TEXT_INPUT(w=440,h=48)
-  DROPDOWN(w=440,h=48) | NUMBER_INPUT(w=200,h=48) | DATE_PICKER(w=220,h=48)
-  GAUGE(w=220,h=120) | DIAL_GAUGE(w=200,h=200) | CHART(w=480,h=280)
-  INTERACTIVE_TABLE(w=960,h=320) | MACHINE_STATUS(w=200,h=80)
-  MACHINE_TIMELINE(w=960,h=200) | SIGNATURE/SIGNATURE_PAD(w=440,h=200)
-  CHECKLIST(w=440,h=240) | QUALITY_PASS_FAIL(w=440,h=80)
-  CAMERA_CAPTURE(w=440,h=300) | BARCODE_SCANNER(w=320,h=280)
-  TABLE_AGGREGATION(w=200,h=80) | RECORD_DISPLAY(w=440,h=240)
-  AI_CHAT(w=440,h=400) | MAP(w=960,h=360) | STEP_TIME(w=200,h=60)
-  SMARTHOME_DEVICE(w=220,h=140) | TUYA_PRODUCT(w=320,h=420)
-  ARDUINO_BOARD(w=320,h=180) | ARDUINO_PIN_MONITOR(w=220,h=120)
-  ARDUINO_CONTROLLER(w=220,h=120) | ARDUINO_GRAPH(w=400,h=220)
+Grid: multiples of 4. Standard sizes (scaled to fit target screen width):
+  TEXT heading(w=Math.min(400, ${fullWidth}),h=32) | BUTTON(w=Math.min(160, ${fullWidth}),h=44) | TEXT_INPUT(w=Math.min(440, ${fullWidth}),h=48)
+  DROPDOWN(w=Math.min(440, ${fullWidth}),h=48) | NUMBER_INPUT(w=Math.min(200, ${fullWidth}),h=48) | DATE_PICKER(w=Math.min(220, ${fullWidth}),h=48)
+  GAUGE(w=Math.min(220, ${fullWidth}),h=120) | DIAL_GAUGE(w=Math.min(200, ${fullWidth}),h=200) | CHART(w=Math.min(480, ${fullWidth}),h=280)
+  INTERACTIVE_TABLE(w=Math.min(960, ${fullWidth}),h=320) | MACHINE_STATUS(w=Math.min(200, ${fullWidth}),h=80)
+  MACHINE_TIMELINE(w=Math.min(960, ${fullWidth}),h=200) | SIGNATURE/SIGNATURE_PAD(w=Math.min(440, ${fullWidth}),h=200)
+  CHECKLIST(w=Math.min(440, ${fullWidth}),h=240) | QUALITY_PASS_FAIL(w=Math.min(440, ${fullWidth}),h=80)
+  CAMERA_CAPTURE(w=Math.min(440, ${fullWidth}),h=300) | BARCODE_SCANNER(w=Math.min(320, ${fullWidth}),h=280)
+  TABLE_AGGREGATION(w=Math.min(200, ${fullWidth}),h=80) | RECORD_DISPLAY(w=Math.min(440, ${fullWidth}),h=240)
+  AI_CHAT(w=Math.min(440, ${fullWidth}),h=400) | MAP(w=Math.min(960, ${fullWidth}),h=360) | STEP_TIME(w=Math.min(200, ${fullWidth}),h=60)
+  SMARTHOME_DEVICE(w=Math.min(220, ${fullWidth}),h=140) | TUYA_PRODUCT(w=Math.min(320, ${fullWidth}),h=420)
+  ARDUINO_BOARD(w=Math.min(320, ${fullWidth}),h=180) | ARDUINO_PIN_MONITOR(w=Math.min(220, ${fullWidth}),h=120)
+  ARDUINO_CONTROLLER(w=Math.min(220, ${fullWidth}),h=120) | ARDUINO_GRAPH(w=Math.min(400, ${fullWidth}),h=220)
 
-Columns:
-  Full-width: x=20, w=960
-  2-col: left(x=20,w=460) right(x=500,w=460)
-  3-col: x=20/w=300, x=360/w=300, x=700/w=280
-  4-col KPI: x=20/w=226, x=258/w=226, x=496/w=226, x=734/w=226
-Vertical: header y=0 h=64, content starts y=80, row gap=20px
+Columns for this screen width:
+  Full-width: x=20, w=${fullWidth}
+  2-col: left(x=20,w=${col2Width}) right(x=${col2RightX},w=${col2Width})
+  3-col: col1(x=20,w=${col3Width}) col2(x=${col3Col2X},w=${col3Width}) col3(x=${col3Col3X},w=${col3Width})
+  4-col KPI: col1(x=20,w=${col4Width}) col2(x=${col4Col2X},w=${col4Width}) col3(x=${col4Col3X},w=${col4Width}) col4(x=${col4Col4X},w=${col4Width})
+Vertical: header y=0 h=${canvasWidth < 500 ? 56 : 64}, content starts y=${canvasWidth < 500 ? 72 : 80}, row gap=${canvasWidth < 500 ? 12 : 20}px
 
 ════════════════════════════════════════════════
 📋 WIDGET PROPS REFERENCE
@@ -887,6 +946,11 @@ export const getBuilderVisionAdvice = async (file, context, connector) => {
     const settings = connector?.aiSettings || connector?.config;
     if (!settings) throw new Error('AI Settings are missing.');
 
+    const canvasWidth = context?.canvasWidth || 1000;
+    const canvasHeight = context?.canvasHeight || 600;
+    const previewDevice = context?.previewDevice || 'RESPONSIVE';
+    const previewOrientation = context?.previewOrientation || 'PORTRAIT';
+
     const systemPrompt = `You are the Mavi MES Vision Engineer. Analyze the provided image (mockup, whiteboard, or screenshot) and convert it into a Mavi MES application structure.
 
 VALID WIDGET TYPES (USE ONLY THESE):
@@ -920,7 +984,7 @@ Output MUST be a JSON object inside <builder_cmds> tags following this structure
 }
 </builder_cmds>
 
-Canvas size is 1000x600. Map visual elements to coordinates accurately.
+Canvas size is ${canvasWidth}x${canvasHeight} (Device: ${previewDevice}, Orientation: ${previewOrientation}). Map visual elements to coordinates accurately.
 Identify: Buttons (BUTTON), Labels (TEXT), Inputs (TEXT_INPUT), Images (IMAGE), Tables (INTERACTIVE_TABLE).`;
 
     // We use the existing processDocument logic but with a specialized prompt
