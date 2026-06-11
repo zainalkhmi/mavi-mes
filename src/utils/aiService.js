@@ -488,13 +488,27 @@ ArduinoGraph/RealtimePlotter/PinGraph → ARDUINO_GRAPH
 ▸ IoT & Hardware Integration: Didukung oleh jembatan data terintegrasi ke sensor fisik seperti pembaca serial USB / Bluetooth (Caliper/Micrometer/Scale) dan modul scanner OBD2 kendaraan untuk memproses data aktual lapangan secara otomatis.
 
 ════════════════════════════════════════════════
-🎨 ENTERPRISE DESIGN RULES
+🎨 PILLARS OF HIGH-FIDELITY INDUSTRIAL DESIGN (CRITICAL FOR PERFECT ALIGNMENT)
 ════════════════════════════════════════════════
-Colors: primary=#3b82f6, success=#10b981, warning=#f59e0b, danger=#ef4444, dark=#0f172a, light=#f8fafc
-- ALWAYS: dark SHAPE_RECTANGLE header (x=0,y=0,w=${canvasWidth},h=${canvasWidth < 500 ? 56 : 64},backgroundColor='#0f172a') + white TEXT title (color='#ffffff',fontWeight='bold',fontSize=${canvasWidth < 500 ? 18 : 22},textAlignment=1)
-- ALWAYS: group widgets in white card panels (SHAPE_RECTANGLE with backgroundColor='#ffffff',borderRadius=12)
-- Place SHAPE_RECTANGLE BEFORE its child widgets in command order
-- Gap between cards: 16px min. Buttons: fontWeight='bold',shape=1,backgroundColor='#3b82f6',color='#ffffff'
+1. THE GRID & VIEWPORT: All coordinates (x, y, w, h) MUST be clean integers, ideally multiples of 8. Absolutely NO overlapping elements.
+2. CONTAINER INSETS (CARD GROUPING):
+   - Every app screen should group functional elements inside a high-quality Container Card (SHAPE_RECTANGLE with backgroundColor:'#ffffff', borderRadius:16, bordercolor:'#e2e8f0', borderWidth:1).
+   - Place this SHAPE_RECTANGLE FIRST in the command array BEFORE adding its children.
+   - Children MUST be offset inside the container (min. 16px horizontal and vertical padding). For example, if a card is at x=20, w=300, its child widgets must be placed within x=36 to x=284 (max width = 248).
+3. ROW-BASED ALIGNMENT:
+   - For a single-column layout, all components must share the exact same 'x' coordinate (e.g. x=36) and width (w) to look perfectly aligned.
+   - For multi-column layouts, calculate clean grid columns:
+     - 2-Col Left: x=36, w=${col2Width - 32} | 2-Col Right: x=${col2RightX + 16}, w=${col2Width - 32}
+4. CONSISTENT WIDGET HEIGHTS & FONT SIZES:
+   - Inputs (TEXT_INPUT, NUMBER_INPUT), Buttons (BUTTON), and Dropdowns (DROPDOWN) must have consistent heights: 44px or 48px.
+   - Label fonts: TEXT headers should have fontSize: 18 or 20 (bold, color: '#1e293b'). Small label fonts: fontSize: 13 or 14 (color: '#64748b').
+5. PREMIUM INDUSTRIAL PALETTE:
+   - Dark header bar (x=0, y=0, w=${canvasWidth}, h=${canvasWidth < 500 ? 56 : 64}, backgroundColor: '#0f172a') with centered white title TEXT (color: '#ffffff', fontSize: 18, fontWeight: 'bold').
+   - Main Background: Default canvas is light gray, cards are white ('#ffffff').
+   - Brand Primary color: '#2563eb' (Vibrant Blue). Success status: '#10b981' (Emerald). Danger status: '#ef4444' (Rose).
+6. SMOOTH FLOWS & BUTTONS:
+   - Every BUTTON widget must have an explicit 'backgroundColor', 'color', 'fontWeight', and 'shape: 1' (rounded) properties.
+   - Align action buttons logically (e.g., bottom-right of form containers).
 
 ════════════════════════════════════════════════
 📐 PRECISION LAYOUT (Canvas: ${canvasWidth}×${canvasHeight}, scrollable)
