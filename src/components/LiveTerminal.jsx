@@ -11299,21 +11299,28 @@ const LiveTerminal = () => {
         const rec = ph ? (recordPlaceholderData[ph.id] || {}) : {};
         const fields = comp.props.fieldsToShow?.length > 0 ? comp.props.fieldsToShow : Object.keys(rec).slice(0, 6);
         return (
-          <div style={{ backgroundColor: isDark ? '#0f172a' : '#f8fafc', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', padding: '16px' }}>
-            {fields.length > 0 ? fields.map(f => {
-              let val = rec[f];
-              if (val === undefined && (f === 'ID' || f === 'id' || f === 'recordId' || f === 'record_id')) {
-                val = rec.recordId || rec.record_id || rec.id || rec.ID;
-              }
-              return (
-                <div key={f} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${isDark ? '#1e293b' : '#f1f5f9'}` }}>
-                  <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>{f}</span>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: isDark ? '#f8fafc' : '#0f172a' }}>{safeRender(val) || '—'}</span>
-                </div>
-              );
-            }) : (
-              <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem', padding: '20px' }}>No record loaded</div>
+          <div style={{ backgroundColor: isDark ? '#0f172a' : '#f8fafc', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '12px', overflow: 'hidden' }}>
+            {comp.props.title && (
+              <div style={{ padding: '12px 16px', borderBottom: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, fontSize: '0.85rem', fontWeight: 800, color: isDark ? '#cbd5e1' : '#475569', backgroundColor: isDark ? '#1e293b' : '#f1f5f9' }}>
+                {comp.props.title}
+              </div>
             )}
+            <div style={{ padding: '16px' }}>
+              {fields.length > 0 ? fields.map(f => {
+                let val = rec[f];
+                if (val === undefined && (f === 'ID' || f === 'id' || f === 'recordId' || f === 'record_id')) {
+                  val = rec.recordId || rec.record_id || rec.id || rec.ID;
+                }
+                return (
+                  <div key={f} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${isDark ? '#1e293b' : '#f1f5f9'}` }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>{f}</span>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: isDark ? '#f8fafc' : '#0f172a' }}>{safeRender(val) || '—'}</span>
+                  </div>
+                );
+              }) : (
+                <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem', padding: '20px' }}>No record loaded</div>
+              )}
+            </div>
           </div>
         );
       }

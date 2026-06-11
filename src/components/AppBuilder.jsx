@@ -18549,12 +18549,18 @@ const AppBuilder = () => {
                             {comp.props.title || 'Record Details'}
                         </div>
                         <div style={{ flex: 1, padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto' }}>
-                            {[1, 2, 3].map(i => (
-                                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border-secondary)' }}>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-quaternary)' }}>Label {i}</span>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-primary)' }}>Value {i}</span>
+                            {comp.props.fieldsToShow && comp.props.fieldsToShow.length > 0 ? (
+                                comp.props.fieldsToShow.map(fieldName => (
+                                    <div key={fieldName} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border-secondary)' }}>
+                                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-quaternary)' }}>{fieldName}</span>
+                                        <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-primary)' }}>[Value]</span>
+                                    </div>
+                                ))
+                            ) : (
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-quaternary)', fontStyle: 'italic', textAlign: 'center', padding: '20px 0' }}>
+                                    No fields selected. Bind a placeholder and choose fields.
                                 </div>
-                            ))}
+                            )}
                         </div>
                     </div>
                 );
@@ -27254,7 +27260,76 @@ D3:0
                                                      </>
                                                  )}
 
-                                                {selectedComp.type === 'INTERACTIVE_TABLE' && (
+                                                {selectedComp.type === 'RECORD_DISPLAY' && (
+                                                     <>
+                                                         <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CARD TITLE</label>
+                                                             <input 
+                                                                 value={selectedComp.props.title || ''} 
+                                                                 onChange={(e) => updateComponentProps(selectedComp.id, { title: e.target.value })} 
+                                                                 style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} 
+                                                                 placeholder="e.g. Operator Details" 
+                                                             />
+                                                         </div>
+
+                                                         <div style={{ padding: '12px', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-primary)', marginBottom: '15px' }}>
+                                                             <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-tertiary)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                                 <Database size={12} /> RECORD DATA SOURCE
+                                                             </div>
+                                                             <div className="prop-group" style={{ marginBottom: '10px' }}>
+                                                                 <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>RECORD PLACEHOLDER</label>
+                                                                 <select
+                                                                     value={selectedComp.props.placeholderId || ''}
+                                                                     onChange={(e) => updateComponentProps(selectedComp.id, {
+                                                                         placeholderId: e.target.value,
+                                                                         fieldsToShow: []
+                                                                     })}
+                                                                     style={{ width: '100%', padding: '6px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.75rem' }}
+                                                                 >
+                                                                     <option value="">Select Placeholder...</option>
+                                                                     {recordPlaceholders.map(rp => (
+                                                                         <option key={rp.id} value={rp.id}>{rp.name}</option>
+                                                                     ))}
+                                                                 </select>
+                                                             </div>
+
+                                                             {selectedComp.props.placeholderId && (() => {
+                                                                 const ph = recordPlaceholders.find(p => p.id === selectedComp.props.placeholderId);
+                                                                 const table = ph ? tables.find(t => t.id === ph.tableId) : null;
+                                                                 if (!table) return null;
+                                                                 return (
+                                                                     <div className="prop-group" style={{ marginBottom: '10px' }}>
+                                                                         <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', marginBottom: '6px' }}>FIELDS TO SHOW</label>
+                                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--border-secondary)', padding: '6px', borderRadius: '4px', backgroundColor: 'var(--bg-primary)' }}>
+                                                                             {table.columns?.map(col => {
+                                                                                 const fieldName = typeof col === 'object' ? (col.name || col.label || col.value) : String(col);
+                                                                                 const isChecked = (selectedComp.props.fieldsToShow || []).includes(fieldName);
+                                                                                 return (
+                                                                                     <label key={fieldName} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', cursor: 'pointer' }}>
+                                                                                         <input
+                                                                                             type="checkbox"
+                                                                                             checked={isChecked}
+                                                                                             onChange={(e) => {
+                                                                                                 const currentFields = selectedComp.props.fieldsToShow || [];
+                                                                                                 const newFields = e.target.checked
+                                                                                                     ? [...currentFields, fieldName]
+                                                                                                     : currentFields.filter(name => name !== fieldName);
+                                                                                                 updateComponentProps(selectedComp.id, { fieldsToShow: newFields });
+                                                                                             }}
+                                                                                         />
+                                                                                         {fieldName}
+                                                                                     </label>
+                                                                                 );
+                                                                             })}
+                                                                         </div>
+                                                                     </div>
+                                                                 );
+                                                             })()}
+                                                         </div>
+                                                     </>
+                                                 )}
+
+                                                 {selectedComp.type === 'INTERACTIVE_TABLE' && (
                                                     <div style={{ padding: '12px', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-primary)', marginBottom: '15px' }}>
                                                         <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-tertiary)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
                                                             <Database size={12} /> DATA SOURCE & SETTINGS
