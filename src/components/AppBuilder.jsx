@@ -18519,17 +18519,21 @@ const AppBuilder = () => {
                 return (
                     <div style={{
                         width: '100%', height: '100%',
-                        backgroundColor: 'var(--bg-panel)', borderRadius: '12px', border: '1px solid var(--border-primary)',
+                        backgroundColor: comp.props.backgroundColor || 'var(--bg-panel)', borderRadius: '12px', border: '1px solid var(--border-primary)',
                         display: 'flex', flexDirection: 'column', padding: '12px', justifyContent: 'center', alignItems: 'center'
                     }}>
                         <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-quaternary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
                             {comp.props.label || 'Total Summary'}
                         </div>
-                        <div style={{ fontSize: '2rem', fontWeight: 900, color: 'var(--text-primary)' }}>
-                            {comp.props.value || '1,234'}
+                        <div style={{ 
+                            fontSize: comp.props.fontSize ? `${comp.props.fontSize}px` : '2rem', 
+                            fontWeight: 900, 
+                            color: comp.props.textcolor || comp.props.color || 'var(--text-primary)' 
+                        }}>
+                            {comp.props.prefix || ''}{comp.props.value || '1,234'}{comp.props.suffix || ''}
                         </div>
                         <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#22c55e' }}>
-                            {comp.props.aggregationType || 'SUM'}
+                            {comp.props.calculation || comp.props.aggregationType || 'COUNT'}
                         </div>
                     </div>
                 );
@@ -27139,6 +27143,116 @@ D3:0
                                                         </div>
                                                     </>
                                                 )}
+
+                                                {selectedComp.type === 'TABLE_AGGREGATION' && (
+                                                     <>
+                                                         <div className="prop-group">
+                                                             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>WIDGET LABEL</label>
+                                                             <input 
+                                                                 value={selectedComp.props.label || ''} 
+                                                                 onChange={(e) => updateComponentProps(selectedComp.id, { label: e.target.value })} 
+                                                                 style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} 
+                                                                 placeholder="e.g. Total Summary" 
+                                                             />
+                                                         </div>
+                                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
+                                                             <div>
+                                                                 <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>FONT SIZE (Value)</label>
+                                                                 <input 
+                                                                     type="number" 
+                                                                     value={selectedComp.props.fontSize || 24} 
+                                                                     onChange={(e) => updateComponentProps(selectedComp.id, { fontSize: parseInt(e.target.value) || 24 })} 
+                                                                     style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} 
+                                                                 />
+                                                             </div>
+                                                             <div>
+                                                                 <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>TEXT COLOR</label>
+                                                                 <ColorPicker 
+                                                                     value={selectedComp.props.textcolor || selectedComp.props.color || 'var(--text-primary)'} 
+                                                                     onChange={(val) => updateComponentProps(selectedComp.id, { textcolor: val, color: val })} 
+                                                                 />
+                                                             </div>
+                                                         </div>
+                                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
+                                                             <div>
+                                                                 <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>PREFIX</label>
+                                                                 <input 
+                                                                     value={selectedComp.props.prefix || ''} 
+                                                                     onChange={(e) => updateComponentProps(selectedComp.id, { prefix: e.target.value })} 
+                                                                     style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} 
+                                                                     placeholder="e.g. $" 
+                                                                 />
+                                                             </div>
+                                                             <div>
+                                                                 <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>SUFFIX</label>
+                                                                 <input 
+                                                                     value={selectedComp.props.suffix || ''} 
+                                                                     onChange={(e) => updateComponentProps(selectedComp.id, { suffix: e.target.value })} 
+                                                                     style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px' }} 
+                                                                     placeholder="e.g. kg" 
+                                                                 />
+                                                             </div>
+                                                         </div>
+
+                                                         <div style={{ padding: '12px', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-primary)', marginBottom: '15px' }}>
+                                                             <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-tertiary)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                                 <Database size={12} /> TABLE AGGREGATION CONFIG
+                                                             </div>
+                                                             <div className="prop-group" style={{ marginBottom: '10px' }}>
+                                                                 <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>TABLE</label>
+                                                                 <select
+                                                                     value={selectedComp.props.tableId || ''}
+                                                                     onChange={(e) => updateComponentProps(selectedComp.id, {
+                                                                         tableId: e.target.value,
+                                                                         column: ''
+                                                                     })}
+                                                                     style={{ width: '100%', padding: '6px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.75rem' }}
+                                                                 >
+                                                                     <option value="">Select Table...</option>
+                                                                     {tables.map(t => (
+                                                                         <option key={t.id} value={t.id}>{t.name}</option>
+                                                                     ))}
+                                                                 </select>
+                                                             </div>
+
+                                                             {selectedComp.props.tableId && (
+                                                                 <>
+                                                                     <div className="prop-group" style={{ marginBottom: '10px' }}>
+                                                                         <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>COLUMN (QUERY FIELD)</label>
+                                                                         <select
+                                                                             value={selectedComp.props.column || ''}
+                                                                             onChange={(e) => updateComponentProps(selectedComp.id, { column: e.target.value })}
+                                                                             style={{ width: '100%', padding: '6px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.75rem' }}
+                                                                         >
+                                                                             <option value="">Select Column...</option>
+                                                                             {tables.find(t => t.id === selectedComp.props.tableId)?.columns?.map(col => {
+                                                                                 const colStr = typeof col === 'object' ? (col.name || col.label || col.value || JSON.stringify(col)) : String(col);
+                                                                                 return (
+                                                                                     <option key={colStr} value={colStr}>{colStr}</option>
+                                                                                 );
+                                                                             })}
+                                                                         </select>
+                                                                     </div>
+
+                                                                     <div className="prop-group">
+                                                                         <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>CALCULATION TYPE</label>
+                                                                         <select
+                                                                             value={selectedComp.props.calculation || 'COUNT'}
+                                                                             onChange={(e) => updateComponentProps(selectedComp.id, { calculation: e.target.value })}
+                                                                             style={{ width: '100%', padding: '6px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.75rem' }}
+                                                                         >
+                                                                             <option value="COUNT">COUNT (Total records)</option>
+                                                                             <option value="SUM">SUM (Total sum of column)</option>
+                                                                             <option value="AVG">AVG (Average of column)</option>
+                                                                             <option value="MIN">MIN (Minimum of column)</option>
+                                                                             <option value="MAX">MAX (Maximum of column)</option>
+                                                                         </select>
+                                                                     </div>
+                                                                 </>
+                                                             )}
+                                                         </div>
+                                                     </>
+                                                 )}
 
                                                 {selectedComp.type === 'INTERACTIVE_TABLE' && (
                                                     <div style={{ padding: '12px', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-primary)', marginBottom: '15px' }}>
