@@ -343,6 +343,7 @@ const BuilderCopilot = ({
   const [isListening, setIsListening] = useState(false);
   const [isSpeechSupported, setIsSpeechSupported] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [executionProgress, setExecutionProgress] = useState({ total: 0, current: 0, isActive: false });
   const recognitionRef = useRef(null);
 
   useEffect(() => {
@@ -894,6 +895,24 @@ Apa yang bisa kamu bantu untuk widget ini?`;
 
     const msgId = msg.timestamp instanceof Date ? msg.timestamp.getTime() : new Date(msg.timestamp).getTime();
 
+    // Determine how many commands are checked and need execution
+    const commandsToExecute = safePack.safeCommands.filter((cmd, cIdx) => {
+      const uniqueKey = `${msgIdx}_${cIdx}`;
+      const isChecked = checkedCommands[uniqueKey] !== false; // default to true
+      const cmdKey = `${msgId}_${cIdx}`;
+      return isChecked && commandStatus[cmdKey] !== 'success';
+    });
+
+    if (commandsToExecute.length > 0) {
+      setExecutionProgress({
+        total: commandsToExecute.length,
+        current: 0,
+        isActive: true
+      });
+    }
+
+    let completedCount = 0;
+
     // 3. Execute all checked and safe commands
     for (let i = 0; i < safePack.safeCommands.length; i++) {
       const uniqueKey = `${msgIdx}_${i}`;
@@ -915,7 +934,18 @@ Apa yang bisa kamu bantu untuk widget ini?`;
       } catch (e) {
         setCommandStatus(prev => ({ ...prev, [cmdKey]: 'error' }));
       }
+      completedCount++;
+      setExecutionProgress(prev => ({
+        ...prev,
+        current: completedCount
+      }));
     }
+
+    // Done executing
+    setExecutionProgress(prev => ({
+      ...prev,
+      isActive: false
+    }));
   };
 
   const handleRevisePlan = () => {
@@ -1275,6 +1305,35 @@ Apa yang bisa kamu bantu untuk widget ini?`;
         />
       )}
 
+
+      {/* Batch Execution Progress Bar */}
+      {executionProgress.isActive && (
+        <div style={{
+          padding: '10px 14px',
+          background: '#eff6ff',
+          borderBottom: '1px solid #bfdbfe',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '6px',
+          flexShrink: 0
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', color: '#1e40af', fontWeight: 700 }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <Loader2 size={12} className="animate-spin" /> Menerapkan perubahan ke kanvas...
+            </span>
+            <span>{executionProgress.current} / {executionProgress.total} Perintah</span>
+          </div>
+          <div style={{ width: '100%', height: '6px', backgroundColor: '#dbeafe', borderRadius: '3px', overflow: 'hidden' }}>
+            <div style={{
+              width: `${(executionProgress.current / executionProgress.total) * 100}%`,
+              height: '100%',
+              backgroundColor: '#2563eb',
+              borderRadius: '3px',
+              transition: 'width 0.3s ease-out'
+            }} />
+          </div>
+        </div>
+      )}
 
       {/* ── Messages ───────────────────────────────────────────────────────── */}
       <div
