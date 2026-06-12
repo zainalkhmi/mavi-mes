@@ -107,25 +107,23 @@ const App = () => {
     fetchGlobalPlcSettings();
   }, []);
 
-  // Apply zoom level dynamically to root wrapper
+  // Apply zoom level dynamically to root wrapper using CSS zoom
+  // CSS zoom properly scales layout flow, unlike transform: scale() which
+  // only visually scales without adjusting layout calculations.
   useEffect(() => {
-    // Clean up body zoom style in case it was set by legacy code
-    document.body.style.zoom = '';
-    
     const root = document.getElementById('root');
     if (root) {
-      if (zoomLevel === 1.0) {
-        root.style.transform = '';
-        root.style.transformOrigin = '';
-        root.style.width = '';
-        root.style.height = '';
-      } else {
-        root.style.transform = `scale(${zoomLevel})`;
-        root.style.transformOrigin = 'top left';
-        root.style.width = `${100 / zoomLevel}vw`;
-        root.style.height = `${100 / zoomLevel}vh`;
-      }
+      // Clean up any legacy transform-based zoom
+      root.style.transform = '';
+      root.style.transformOrigin = '';
+      root.style.width = '';
+      root.style.height = '';
+      
+      // Apply CSS zoom — this properly scales layout, scroll, and sizing
+      root.style.zoom = zoomLevel === 1.0 ? '' : zoomLevel;
     }
+    // Also clean up body zoom in case it was set by legacy code
+    document.body.style.zoom = '';
     localStorage.setItem('mavi-zoom-level', zoomLevel.toFixed(2));
   }, [zoomLevel]);
 

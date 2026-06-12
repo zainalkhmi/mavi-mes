@@ -3425,6 +3425,7 @@ const LiveTerminal = () => {
     const preset = DEVICE_PRESETS[presetKey] || DEVICE_PRESETS.RESPONSIVE;
     
     if (presetKey === 'RESPONSIVE') {
+      // Fixed design canvas — will be stretched to fill the full screen via transform scale
       return { width: 1000, height: 625 };
     }
     
@@ -3468,34 +3469,29 @@ const LiveTerminal = () => {
   const scaleX = useMemo(() => {
     if (containerWidth <= 0 || layoutWidth <= 0) return 1;
     const sX = containerWidth / layoutWidth;
-    if (scalingMode === 'FIT_WIDTH') {
-      return sX;
-    }
+    if (scalingMode === 'FIT_WIDTH') return sX;
     if (containerHeight <= 0 || layoutHeight <= 0) return sX;
     const sY = containerHeight / layoutHeight;
     return Math.min(sX, sY);
   }, [containerWidth, containerHeight, layoutWidth, layoutHeight, scalingMode]);
 
   const scaleY = useMemo(() => {
-    if (scalingMode === 'FIT_WIDTH') {
-      if (containerWidth <= 0 || layoutWidth <= 0) return 1;
-      return containerWidth / layoutWidth;
-    }
+    if (containerWidth <= 0 || layoutWidth <= 0) return 1;
+    const sX = containerWidth / layoutWidth;
+    if (scalingMode === 'FIT_WIDTH') return sX;
     if (containerHeight <= 0 || layoutHeight <= 0) return 1;
     const sY = containerHeight / layoutHeight;
-    if (containerWidth <= 0 || layoutWidth <= 0) return sY;
-    const sX = containerWidth / layoutWidth;
     return Math.min(sX, sY);
   }, [containerWidth, containerHeight, layoutWidth, layoutHeight, scalingMode]);
 
   const canvasFrameRadius = useMemo(() => {
-    if (!isPreset) return '8px';
+    if (!isPreset) return '0px';
     return preset.kind === 'PHONE' ? '30px' : preset.kind === 'TABLET' ? '22px' : '10px';
   }, [isPreset, preset]);
 
   const canvasFrameShadow = useMemo(() => {
     if (!isPreset) {
-      return '0 10px 30px -5px rgba(0, 0, 0, 0.1), 0 8px 12px -5px rgba(0, 0, 0, 0.04)';
+      return 'none';
     }
     return preset.kind === 'PHONE' || preset.kind === 'TABLET'
       ? '0 0 0 12px #1e293b, 0 20px 50px rgba(0,0,0,0.3)'
@@ -3504,7 +3500,7 @@ const LiveTerminal = () => {
 
   const canvasFrameBorder = useMemo(() => {
     if (!isPreset) {
-      return isDark ? '1px solid #334155' : '1px solid #cbd5e1';
+      return 'none';
     }
     return 'none';
   }, [isPreset, isDark]);
@@ -12287,20 +12283,23 @@ const LiveTerminal = () => {
           ref={setCanvasWrapper}
           style={{
             flex: 1, overflowY: 'auto', padding: (isResponsiveMode || scalingMode === 'FIT_WIDTH') ? '0px' : '16px',
-            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            display: 'flex', flexDirection: 'column', 
+            alignItems: (scalingMode === 'FIT_WIDTH') ? 'stretch' : 'center',
+            justifyContent: (scalingMode === 'FIT_WIDTH') ? 'flex-start' : 'center',
             backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc')
           }}
         >
           <div style={{
-            width: scalingMode === 'FIT_WIDTH' ? '100%' : `${layoutWidth * scaleX}px`,
+            width: (scalingMode === 'FIT_WIDTH') ? '100%' : `${layoutWidth * scaleX}px`,
             height: `${layoutHeight * scaleY}px`,
             position: 'relative',
             overflow: 'hidden',
             flexShrink: 0,
+            flex: 'none',
             backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff',
-            borderRadius: (isResponsiveMode || scalingMode === 'FIT_WIDTH') ? '0px' : canvasFrameRadius,
-            boxShadow: (isResponsiveMode || scalingMode === 'FIT_WIDTH') ? 'none' : canvasFrameShadow,
-            border: (isResponsiveMode || scalingMode === 'FIT_WIDTH') ? 'none' : canvasFrameBorder
+            borderRadius: (isPreset && scalingMode === 'FIT_SCREEN') ? canvasFrameRadius : '0px',
+            boxShadow: (isPreset && scalingMode === 'FIT_SCREEN') ? canvasFrameShadow : 'none',
+            border: (isPreset && scalingMode === 'FIT_SCREEN') ? canvasFrameBorder : 'none'
           }}>
             <div style={{
               width: `${layoutWidth}px`,
@@ -12783,25 +12782,28 @@ const LiveTerminal = () => {
                 padding: (isResponsiveMode || scalingMode === 'FIT_WIDTH') ? '0px' : '20px',
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: scalingMode === 'FIT_WIDTH' ? 'flex-start' : 'center',
+                alignItems: (scalingMode === 'FIT_WIDTH') ? 'stretch' : 'center',
+                justifyContent: (scalingMode === 'FIT_WIDTH') ? 'flex-start' : 'center',
                 position: 'relative',
                 overflowX: 'hidden',
-                overflowY: scalingMode === 'FIT_WIDTH' ? 'auto' : 'hidden',
-                backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f1f5f9'
+                overflowY: (scalingMode === 'FIT_WIDTH') ? 'auto' : 'hidden',
+                backgroundColor: isResponsiveMode
+                  ? (activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#ffffff'))
+                  : (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f1f5f9')
               }}
             >
               {/* Scaled Layout Wrapper */}
               <div style={{
-                width: scalingMode === 'FIT_WIDTH' ? '100%' : `${layoutWidth * scaleX}px`,
+                width: (scalingMode === 'FIT_WIDTH') ? '100%' : `${layoutWidth * scaleX}px`,
                 height: `${layoutHeight * scaleY}px`,
                 position: 'relative',
                 overflow: 'hidden',
                 flexShrink: 0,
+                flex: 'none',
                 backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff',
-                borderRadius: (isResponsiveMode || scalingMode === 'FIT_WIDTH') ? '0px' : canvasFrameRadius,
-                boxShadow: (isResponsiveMode || scalingMode === 'FIT_WIDTH') ? 'none' : canvasFrameShadow,
-                border: (isResponsiveMode || scalingMode === 'FIT_WIDTH') ? 'none' : canvasFrameBorder
+                borderRadius: (isPreset && scalingMode === 'FIT_SCREEN') ? canvasFrameRadius : '0px',
+                boxShadow: (isPreset && scalingMode === 'FIT_SCREEN') ? canvasFrameShadow : 'none',
+                border: (isPreset && scalingMode === 'FIT_SCREEN') ? canvasFrameBorder : 'none'
               }}>
                 {/* App Components Render */}
                 <div id="terminal-canvas-content" style={{
