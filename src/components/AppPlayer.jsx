@@ -1319,7 +1319,7 @@ const AppPlayer = () => {
                                     color: isOnline ? '#166534' : '#991b1b',
                                     display: 'flex', alignItems: 'center', gap: '5px'
                                 }}>
-                                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: isOnline ? '#22c55e' : '#ef4444' }} />
+                                    <span className={`pulse-dot ${isOnline ? 'pulse-dot-success' : 'pulse-dot-danger'}`} style={{ width: '6px', height: '6px' }} />
                                     {isOnline ? 'ONLINE' : 'OFFLINE'}
                                 </div>
                                 <button

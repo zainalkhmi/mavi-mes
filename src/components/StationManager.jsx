@@ -30,6 +30,13 @@ import { getAllFrontlineApps } from '../utils/supabaseFrontlineDB';
 
 const StationManager = () => {
     const [stations, setStations] = useState([]);
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth <= 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
     const [interfaces, setInterfaces] = useState([]);
     const [stationGroups, setStationGroups] = useState([]);
     const [stationEvents, setStationEvents] = useState([]);
@@ -192,93 +199,163 @@ const StationManager = () => {
 
     const getStatusBadge = (status) => {
         const styles = {
-            READY: { bg: '#f1f5f9', color: '#475569', icon: <CheckCircle2 size={14} /> },
-            RUNNING: { bg: '#dcfce7', color: '#166534', icon: <Activity size={14} /> },
-            DOWN: { bg: '#fee2e2', color: '#991b1b', icon: <AlertCircle size={14} /> },
-            OFFLINE: { bg: '#f1f5f9', color: '#94a3b8', icon: <XCircle size={14} /> }
+            READY: { bg: '#eff6ff', color: '#1e40af', dotClass: 'pulse-dot-success', label: 'READY' },
+            RUNNING: { bg: '#dcfce7', color: '#166534', dotClass: 'pulse-dot-success', label: 'RUNNING' },
+            DOWN: { bg: '#fee2e2', color: '#991b1b', dotClass: 'pulse-dot-danger', label: 'DOWN' },
+            OFFLINE: { bg: '#f1f5f9', color: '#94a3b8', dotClass: '', label: 'OFFLINE' }
         };
         const style = styles[status] || styles.OFFLINE;
         return (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', borderRadius: '20px', backgroundColor: style.bg, color: style.color, fontSize: '0.7rem', fontWeight: 800 }}>
-                {style.icon} {status || 'OFFLINE'}
+            <span style={{ 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                gap: '6px', 
+                padding: '4px 10px', 
+                borderRadius: '20px', 
+                backgroundColor: style.bg, 
+                color: style.color, 
+                fontSize: '0.7rem', 
+                fontWeight: 800,
+                letterSpacing: '0.05em'
+            }}>
+                {style.dotClass ? (
+                    <span className={`pulse-dot ${style.dotClass}`} style={{ width: '6px', height: '6px' }} />
+                ) : (
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#94a3b8' }} />
+                )}
+                {style.label}
             </span>
         );
     };
 
+    const showSidebar = !isMobile || !selectedStation;
+    const showDetails = !isMobile || !!selectedStation;
+
     return (
-        <div style={{ height: '100%', display: 'flex', backgroundColor: '#f8fafc' }}>
-            <div style={{ width: selectedStation ? '420px' : '100%', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', backgroundColor: 'white' }}>
-                <div style={{ padding: '24px', borderBottom: '1px solid #e2e8f0' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                        <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>Stations</h2>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <button onClick={() => setIsCreateGroupModalOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px', backgroundColor: 'white', color: '#3b82f6', border: '1px solid #3b82f6', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>
-                                <Layers size={14} /> Group
-                            </button>
-                            <button onClick={() => setIsCreateModalOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', backgroundColor: '#0ea5e9', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>
-                                <Plus size={16} /> Station
-                            </button>
-                        </div>
-                    </div>
-                    <div style={{ position: 'relative' }}>
-                        <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} size={16} />
-                        <input type="text" placeholder="Search site, area, group, station..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ width: '100%', padding: '10px 10px 10px 40px', borderRadius: '10px', border: '1px solid #e2e8f0' }} />
-                    </div>
-                </div>
-
-                <div style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                    {stationGroups.map((group) => (
-                        <span key={group.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '5px 10px', borderRadius: '16px', backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: '0.75rem', fontWeight: 700 }}>
-                            <Layers size={12} /> {group.name}
-                            {group.name !== 'Ungrouped' && (
-                                <button onClick={() => handleDeleteGroup(group.id, group.name)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#ef4444', padding: 0, display: 'inline-flex' }}>
-                                    <Trash2 size={12} />
+        <div style={{ height: '100%', display: 'flex', backgroundColor: '#f8fafc', overflow: 'hidden' }}>
+            {showSidebar && (
+                <div style={{ width: isMobile ? '100%' : '380px', flexShrink: 0, borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', backgroundColor: 'white' }}>
+                    <div style={{ padding: '24px', borderBottom: '1px solid #e2e8f0' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>Stations</h2>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <button onClick={() => setIsCreateGroupModalOpen(true)} className="mavi-widget-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px', backgroundColor: 'white', color: '#3b82f6', border: '1px solid #e2e8f0', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
+                                    <Layers size={14} /> Group
                                 </button>
-                            )}
-                        </span>
-                    ))}
-                </div>
-
-                <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
-                    {groupedStations.map((group) => (
-                        <div key={group.id} style={{ marginBottom: '20px' }}>
-                            <div style={{ padding: '8px 12px', fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <Layers size={12} /> {group.name}
+                                <button onClick={() => setIsCreateModalOpen(true)} className="mavi-widget-btn" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
+                                    <Plus size={16} /> Station
+                                </button>
                             </div>
-                            {group.stations.length === 0 ? (
-                                <div style={{ padding: '8px 12px', fontSize: '0.78rem', color: '#94a3b8' }}>No stations in this group</div>
-                            ) : group.stations.map((station) => (
-                                <div
-                                    key={station.id}
-                                    onClick={() => setSelectedStation(station)}
-                                    style={{ padding: '12px 16px', borderRadius: '12px', marginBottom: '8px', cursor: 'pointer', backgroundColor: selectedStation?.id === station.id ? '#eff6ff' : 'transparent', border: selectedStation?.id === station.id ? '1px solid #3b82f6' : '1px solid transparent', transition: 'all 0.2s' }}
-                                >
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                        <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' }}>{station.name}</span>
-                                        {getStatusBadge(station.status)}
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '0.75rem' }}>
-                                        <Globe size={12} /> {station.site || 'Default Site'}
-                                        <span>•</span>
-                                        <MapPin size={12} /> {station.area || 'General Area'}
-                                    </div>
-                                </div>
-                            ))}
                         </div>
-                    ))}
-                </div>
-            </div>
+                        <div style={{ position: 'relative' }}>
+                            <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} size={16} />
+                            <input 
+                                type="text" 
+                                placeholder="Search site, area, group, station..." 
+                                value={searchTerm} 
+                                onChange={(e) => setSearchTerm(e.target.value)} 
+                                className="mavi-input"
+                                style={{ 
+                                    width: '100%', 
+                                    padding: '10px 10px 10px 40px', 
+                                    borderRadius: '10px', 
+                                    border: '1px solid #e2e8f0',
+                                    outline: 'none',
+                                    fontSize: '0.9rem',
+                                    backgroundColor: '#f8fafc'
+                                }} 
+                            />
+                        </div>
+                    </div>
 
-            {selectedStation && (
-                <div style={{ flex: 1, backgroundColor: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ padding: '24px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {stationGroups.map((group) => (
+                            <span key={group.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '5px 12px', borderRadius: '20px', backgroundColor: '#f1f5f9', color: '#334155', fontSize: '0.75rem', fontWeight: 700, border: `1px solid ${group.color || '#cbd5e1'}` }}>
+                                <Layers size={12} /> {group.name}
+                                {group.name !== 'Ungrouped' && (
+                                    <button onClick={() => handleDeleteGroup(group.id, group.name)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#ef4444', padding: 0, display: 'inline-flex' }}>
+                                        <Trash2 size={12} />
+                                    </button>
+                                )}
+                            </span>
+                        ))}
+                    </div>
+
+                    <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
+                        {groupedStations.map((group) => (
+                            <div key={group.id} style={{ marginBottom: '20px' }}>
+                                <div style={{ padding: '8px 12px', fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <Layers size={12} /> {group.name}
+                                </div>
+                                {group.stations.length === 0 ? (
+                                    <div style={{ padding: '8px 12px', fontSize: '0.78rem', color: '#94a3b8' }}>No stations in this group</div>
+                                ) : group.stations.map((station) => (
+                                    <div
+                                        key={station.id}
+                                        onClick={() => setSelectedStation(station)}
+                                        style={{
+                                            padding: '16px',
+                                            borderRadius: '12px',
+                                            marginBottom: '10px',
+                                            cursor: 'pointer',
+                                            backgroundColor: selectedStation?.id === station.id ? '#eff6ff' : '#ffffff',
+                                            border: selectedStation?.id === station.id ? '1px solid #3b82f6' : '1px solid #e2e8f0',
+                                            boxShadow: selectedStation?.id === station.id ? '0 4px 12px rgba(59, 130, 246, 0.08)' : '0 1px 3px rgba(0,0,0,0.02)',
+                                            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                                            transform: selectedStation?.id === station.id ? 'translateY(-1px)' : 'none'
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            if (selectedStation?.id !== station.id) {
+                                                e.currentTarget.style.borderColor = '#3b82f6';
+                                                e.currentTarget.style.backgroundColor = '#f8fafc';
+                                                e.currentTarget.style.transform = 'translateY(-1px)';
+                                                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.04)';
+                                            }
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            if (selectedStation?.id !== station.id) {
+                                                e.currentTarget.style.borderColor = '#e2e8f0';
+                                                e.currentTarget.style.backgroundColor = '#ffffff';
+                                                e.currentTarget.style.transform = 'none';
+                                                e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.02)';
+                                            }
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
+                                            <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' }}>{station.name}</span>
+                                            {getStatusBadge(station.status)}
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '0.75rem' }}>
+                                            <Globe size={12} /> {station.site || 'Default Site'}
+                                            <span>•</span>
+                                            <MapPin size={12} /> {station.area || 'General Area'}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {showDetails && selectedStation && (
+                <div style={{ flex: 1, backgroundColor: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+                    <div style={{ 
+                        padding: isMobile ? '16px' : '24px', 
+                        borderBottom: '1px solid var(--border-color)', 
+                        display: 'flex', 
+                        flexDirection: isMobile ? 'column' : 'row', 
+                        gap: isMobile ? '16px' : '24px', 
+                        alignItems: isMobile ? 'flex-start' : 'center', 
+                        justifyContent: 'space-between' 
+                    }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                            <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: '#f0f7ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: '#f0f7ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                 <MapPin size={24} color="#3b82f6" />
                             </div>
                             <div>
-                                <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 900, color: '#0f172a' }}>{selectedStation.name}</h1>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '0.85rem' }}>
+                                <h1 style={{ margin: 0, fontSize: isMobile ? '1.25rem' : '1.5rem', fontWeight: 900, color: '#0f172a' }}>{selectedStation.name}</h1>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '0.85rem', flexWrap: 'wrap' }}>
                                     <Globe size={14} /> <span>{selectedStation.site || 'Default Site'}</span>
                                     <span>•</span>
                                     <MapPin size={14} /> <span>{selectedStation.area || 'General Area'}</span>
@@ -287,14 +364,14 @@ const StationManager = () => {
                                 </div>
                             </div>
                         </div>
-                        <div style={{ display: 'flex', gap: '12px' }}>
+                        <div style={{ display: 'flex', gap: '12px', width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'flex-end' : 'flex-start' }}>
                             <button onClick={() => handleDeleteStation(selectedStation.id)} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #fee2e2', color: '#ef4444', backgroundColor: 'transparent', cursor: 'pointer' }}><Trash2 size={18} /></button>
                             <button onClick={() => setSelectedStation(null)} style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)', fontWeight: 700, cursor: 'pointer' }}>Close</button>
                         </div>
                     </div>
 
-                    <div style={{ flex: 1, overflowY: 'auto', padding: '32px' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+                    <div style={{ flex: 1, padding: isMobile ? '16px' : '32px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? '20px' : '32px' }}>
                             <div style={{ padding: '24px', borderRadius: '16px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)' }}>
                                 <h3 style={{ margin: '0 0 20px 0', fontSize: '1rem', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '10px' }}><Layout size={18} color="#3b82f6" /> App Assignments</h3>
                                 {selectedStation.assignedApps?.length > 0 ? (
@@ -380,7 +457,7 @@ const StationManager = () => {
                 </div>
             )}
 
-            {!selectedStation && (
+            {showDetails && !selectedStation && (
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', flexDirection: 'column', gap: '16px' }}>
                     <div style={{ width: '80px', height: '80px', borderRadius: '24px', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}><MapPin size={32} color="#cbd5e1" /></div>
                     <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>Select a station to view details</div>

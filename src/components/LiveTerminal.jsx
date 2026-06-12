@@ -1456,7 +1456,13 @@ const ArduinoWidget = ({ comp, syncVariable, fireWidgetTriggers, isDark }) => {
                         <Cpu size={18} color={tealColor} />
                         <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>{comp.props.label || 'Arduino Uno'}</span>
                     </div>
-                    <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', backgroundColor: connected ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)', color: connected ? '#10b981' : '#ef4444', fontWeight: 'bold' }}>
+                    <span style={{ 
+                        fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', 
+                        backgroundColor: connected ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)', 
+                        color: connected ? '#10b981' : '#ef4444', fontWeight: 'bold',
+                        display: 'inline-flex', alignItems: 'center', gap: '5px'
+                    }}>
+                        <span className={`pulse-dot ${connected ? 'pulse-dot-success' : 'pulse-dot-danger'}`} />
                         {connected ? 'CONNECTED' : 'DISCONNECTED'}
                     </span>
                 </div>
@@ -7893,6 +7899,7 @@ const LiveTerminal = () => {
               fireWidgetTriggers(comp, 'ON_CHANGE');
             }}
             placeholder={resolvedProps.placeholder || 'Type here...'}
+            className="mavi-input"
             style={{
               width: '100%',
               flex: 1,
@@ -7929,6 +7936,7 @@ const LiveTerminal = () => {
             }}
             placeholder={comp.props.placeholder || 'Type notes...'}
             rows={comp.props.rows || 4}
+            className="mavi-input"
             style={{
               width: '100%',
               flex: 1,
@@ -7961,6 +7969,7 @@ const LiveTerminal = () => {
               syncVariable(val);
               fireWidgetTriggers(comp, 'ON_CHANGE');
             }}
+            className="mavi-input"
             style={{
               width: '100%',
               flex: 1,
@@ -8238,6 +8247,7 @@ const LiveTerminal = () => {
                 }
                 handleButtonAction(comp.props, comp);
               }}
+              className="mavi-widget-btn"
               style={{
                 width: '100%',
                 height: '100%',
@@ -9099,6 +9109,7 @@ const LiveTerminal = () => {
                 syncVariable(newVal);
                 fireWidgetTriggers(comp, 'ON_CHANGE');
               }}
+              className="mavi-widget-btn"
               style={{
                 width: '40px',
                 height: '100%',
@@ -9127,6 +9138,7 @@ const LiveTerminal = () => {
                 syncVariable(isNaN(parsedVal) ? 0 : parsedVal);
                 fireWidgetTriggers(comp, 'ON_CHANGE');
               }}
+              className="mavi-input"
               style={{
                 flex: 1,
                 height: '100%',
@@ -9149,6 +9161,7 @@ const LiveTerminal = () => {
                 syncVariable(newVal);
                 fireWidgetTriggers(comp, 'ON_CHANGE');
               }}
+              className="mavi-widget-btn"
               style={{
                 width: '40px',
                 height: '100%',
@@ -11951,7 +11964,7 @@ const LiveTerminal = () => {
               <div style={{ fontSize: '1.1rem', fontWeight: 800, fontFamily: 'monospace' }}>{currentTime.toLocaleTimeString()}</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: isOnline ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)', padding: '6px 12px', borderRadius: '20px', border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)'}` }}>
-              <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: isOnline ? '#22c55e' : '#ef4444', boxShadow: `0 0 8px ${isOnline ? '#22c55e' : '#ef4444'}` }} />
+              <span className={`pulse-dot ${isOnline ? 'pulse-dot-success' : 'pulse-dot-danger'}`} />
               <span style={{ fontSize: '0.75rem', fontWeight: 700, color: isOnline ? '#22c55e' : '#ef4444' }}>{isOnline ? 'ONLINE' : 'OFFLINE'}</span>
             </div>
             <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
@@ -12460,14 +12473,15 @@ const LiveTerminal = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               {/* Network Connectivity Badge */}
               <div style={{
-                display: 'flex', alignItems: 'center', gap: '4px',
+                display: 'flex', alignItems: 'center', gap: '6px',
                 padding: '2px 8px', borderRadius: '20px',
                 backgroundColor: isOnline ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)',
                 color: 'white',
                 fontSize: '0.65rem', fontWeight: 800,
                 border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`
               }}>
-                <Wifi size={10} /> {isOnline ? 'ONLINE' : 'OFFLINE'}
+                <span className={`pulse-dot ${isOnline ? 'pulse-dot-success' : 'pulse-dot-danger'}`} style={{ width: '6px', height: '6px' }} />
+                <span>{isOnline ? 'ONLINE' : 'OFFLINE'}</span>
               </div>
 
               {/* Language Selection */}

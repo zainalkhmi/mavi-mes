@@ -18858,21 +18858,23 @@ const AppBuilder = () => {
                 position: 'relative',
                 gap: '16px'
             }}>
+                {/* Left Side: Project Manager / Quick actions */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: '1 1 0%', justifyContent: 'flex-start', minWidth: 'max-content' }}>
                     {currentAppId && (
-                        <>
-                            <ProjectManager
-                                app={getCurrentApp()}
-                                onImport={handleImportProject}
-                                onDuplicate={handleDuplicateProject}
-                                onAppChange={(app) => {
-                                    loadApp(app);
-                                    handleImportProject(app);
-                                }}
-                            />
-                            <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
-                        </>
+                        <ProjectManager
+                            app={getCurrentApp()}
+                            onImport={handleImportProject}
+                            onDuplicate={handleDuplicateProject}
+                            onAppChange={(app) => {
+                                loadApp(app);
+                                handleImportProject(app);
+                            }}
+                        />
                     )}
+                </div>
+
+                {/* Center Side: Main Action Toolbar */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: '0 0 auto', justifyContent: 'center' }}>
                     <button
                         onClick={() => setIsCreateDrawerOpen(true)}
                         style={{
@@ -18966,122 +18968,151 @@ const AppBuilder = () => {
                             boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                             transition: 'all 0.2s',
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.1)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.filter = 'none'; }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.filter = 'brightness(1.1)';
+                            e.currentTarget.style.transform = 'scale(1.05)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.filter = 'none';
+                            e.currentTarget.style.transform = 'none';
+                        }}
                         title="Companion Connect"
                     >
                         <Smartphone size={18} />
                     </button>
-                    <button
-                        onClick={handlePublish}
-                        style={{
-                            width: '36px',
-                            height: '36px',
-                            backgroundColor: '#0d9488',
-                            border: 'none',
-                            borderRadius: '6px',
-                            color: '#fff',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                            transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.1)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.filter = 'none'; }}
-                        title="Publikasikan Aplikasi"
-                    >
-                        <Upload size={18} />
-                    </button>
 
-                </div>
-
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    flex: '0 1 auto'
-                }}>
                     {/* Relocated Device & Lock Controls */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginRight: '4px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '4px' }}>
                         <button
                             onClick={() => handleUndo()}
                             disabled={history.length === 0}
                             style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: '#fff',
+                                background: history.length === 0 ? 'rgba(255, 255, 255, 0.02)' : 'rgba(56, 189, 248, 0.12)',
+                                border: history.length === 0 ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(56, 189, 248, 0.35)',
+                                color: history.length === 0 ? 'rgba(255, 255, 255, 0.35)' : '#38bdf8',
                                 cursor: history.length === 0 ? 'not-allowed' : 'pointer',
-                                opacity: history.length === 0 ? 0.4 : 1,
+                                opacity: history.length === 0 ? 0.6 : 1,
                                 display: 'flex',
                                 flexDirection: 'column',
                                 alignItems: 'center',
-                                padding: '2px 8px',
-                                gap: '2px'
+                                padding: '4px 10px',
+                                borderRadius: '6px',
+                                gap: '2px',
+                                transition: 'all 0.2s',
+                                outline: 'none'
+                            }}
+                            onMouseEnter={(e) => {
+                                if (history.length > 0) {
+                                    e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.25)';
+                                    e.currentTarget.style.borderColor = '#38bdf8';
+                                    e.currentTarget.style.transform = 'scale(1.08)';
+                                }
+                            }}
+                            onMouseLeave={(e) => {
+                                if (history.length > 0) {
+                                    e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.12)';
+                                    e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.35)';
+                                    e.currentTarget.style.transform = 'none';
+                                }
                             }}
                             title="Undo"
                         >
                             <Undo2 size={16} />
-                            <span style={{ fontSize: '0.65rem', fontWeight: 600 }}>Undo</span>
+                            <span style={{ fontSize: '0.65rem', fontWeight: 700 }}>Undo</span>
                         </button>
                         <button
                             onClick={() => handleRedo()}
                             disabled={future.length === 0}
                             style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: '#fff',
+                                background: future.length === 0 ? 'rgba(255, 255, 255, 0.02)' : 'rgba(167, 139, 250, 0.12)',
+                                border: future.length === 0 ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(167, 139, 250, 0.35)',
+                                color: future.length === 0 ? 'rgba(255, 255, 255, 0.35)' : '#a78bfa',
                                 cursor: future.length === 0 ? 'not-allowed' : 'pointer',
-                                opacity: future.length === 0 ? 0.4 : 1,
+                                opacity: future.length === 0 ? 0.6 : 1,
                                 display: 'flex',
                                 flexDirection: 'column',
                                 alignItems: 'center',
-                                padding: '2px 8px',
-                                gap: '2px'
+                                padding: '4px 10px',
+                                borderRadius: '6px',
+                                gap: '2px',
+                                transition: 'all 0.2s',
+                                outline: 'none'
+                            }}
+                            onMouseEnter={(e) => {
+                                if (future.length > 0) {
+                                    e.currentTarget.style.backgroundColor = 'rgba(167, 139, 250, 0.25)';
+                                    e.currentTarget.style.borderColor = '#a78bfa';
+                                    e.currentTarget.style.transform = 'scale(1.08)';
+                                }
+                            }}
+                            onMouseLeave={(e) => {
+                                if (future.length > 0) {
+                                    e.currentTarget.style.backgroundColor = 'rgba(167, 139, 250, 0.12)';
+                                    e.currentTarget.style.borderColor = 'rgba(167, 139, 250, 0.35)';
+                                    e.currentTarget.style.transform = 'none';
+                                }
                             }}
                             title="Redo"
                         >
                             <Redo2 size={16} />
-                            <span style={{ fontSize: '0.65rem', fontWeight: 600 }}>Redo</span>
+                            <span style={{ fontSize: '0.65rem', fontWeight: 700 }}>Redo</span>
                         </button>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: 'rgba(255, 255, 255, 0.1)', padding: '4px 6px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.2)', backdropFilter: 'blur(4px)' }}>
-                        <div style={{ 
-                            position: 'relative', 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'center', 
-                            width: '28px', 
-                            height: '28px', 
-                            backgroundColor: 'rgba(255,255,255,0.05)', 
-                            borderRadius: '6px',
-                            cursor: 'pointer'
-                        }} title={`Device Preset: ${DEVICE_PRESETS[previewDevice]?.label || 'Responsive'}`}>
-                            <SelectedDeviceIcon size={14} color="rgba(255,255,255,0.7)" />
-                            <select
-                                value={previewDevice}
-                                onChange={e => handleDeviceChange(e.target.value)}
-                                style={{
-                                    position: 'absolute',
-                                    top: 0,
-                                    left: 0,
-                                    width: '100%',
-                                    height: '100%',
-                                    opacity: 0,
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: 'rgba(255, 255, 255, 0.1)', padding: '4px 6px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.2)', backdropFilter: 'blur(4px)' }}>
+                        {(() => {
+                            const deviceKind = DEVICE_PRESETS[previewDevice]?.kind || 'RESPONSIVE';
+                            const deviceColor = deviceKind === 'RESPONSIVE' ? '#38bdf8' : deviceKind === 'PHONE' ? '#34d399' : deviceKind === 'TABLET' ? '#c084fc' : '#fb923c';
+                            const deviceBg = deviceKind === 'RESPONSIVE' ? 'rgba(56, 189, 248, 0.15)' : deviceKind === 'PHONE' ? 'rgba(52, 211, 153, 0.15)' : deviceKind === 'TABLET' ? 'rgba(192, 132, 252, 0.15)' : 'rgba(251, 146, 60, 0.15)';
+                            const deviceBorder = deviceKind === 'RESPONSIVE' ? '1px solid rgba(56, 189, 248, 0.4)' : deviceKind === 'PHONE' ? '1px solid rgba(52, 211, 153, 0.4)' : deviceKind === 'TABLET' ? '1px solid rgba(192, 132, 252, 0.4)' : '1px solid rgba(251, 146, 60, 0.4)';
+                            return (
+                                <div style={{ 
+                                    position: 'relative', 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    justifyContent: 'center', 
+                                    width: '28px', 
+                                    height: '28px', 
+                                    backgroundColor: deviceBg, 
+                                    border: deviceBorder,
+                                    borderRadius: '6px',
                                     cursor: 'pointer',
-                                    border: 'none',
-                                    outline: 'none'
+                                    transition: 'all 0.2s'
+                                }} 
+                                onMouseEnter={(e) => { 
+                                    e.currentTarget.style.transform = 'scale(1.08)'; 
+                                    e.currentTarget.style.filter = 'brightness(1.2)';
                                 }}
-                            >
-                                {Object.entries(DEVICE_PRESETS).map(([key, preset]) => (
-                                    <option key={key} value={key} style={{ color: '#000' }}>
-                                        {preset.label}{preset.width ? ` (${preset.width}x${preset.height})` : ''}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                                onMouseLeave={(e) => { 
+                                    e.currentTarget.style.transform = 'none'; 
+                                    e.currentTarget.style.filter = 'none';
+                                }}
+                                title={`Device Preset: ${DEVICE_PRESETS[previewDevice]?.label || 'Responsive'}`}>
+                                    <SelectedDeviceIcon size={14} color={deviceColor} />
+                                    <select
+                                        value={previewDevice}
+                                        onChange={e => handleDeviceChange(e.target.value)}
+                                        style={{
+                                            position: 'absolute',
+                                            top: 0,
+                                            left: 0,
+                                            width: '100%',
+                                            height: '100%',
+                                            opacity: 0,
+                                            cursor: 'pointer',
+                                            border: 'none',
+                                            outline: 'none'
+                                        }}
+                                    >
+                                        {Object.entries(DEVICE_PRESETS).map(([key, preset]) => (
+                                            <option key={key} value={key} style={{ color: '#000' }}>
+                                                {preset.label}{preset.width ? ` (${preset.width}x${preset.height})` : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            );
+                        })()}
 
                         {/* Portrait / Landscape Toggle — shown when a fixed device is selected */}
                         {previewDevice !== 'RESPONSIVE' && (
@@ -19107,10 +19138,12 @@ const AppBuilder = () => {
                                         border: 'none',
                                         cursor: 'pointer',
                                         transition: 'all 0.15s',
-                                        backgroundColor: previewOrientation === 'PORTRAIT' ? 'rgba(255,255,255,0.20)' : 'transparent',
-                                        color: previewOrientation === 'PORTRAIT' ? '#fff' : 'rgba(255,255,255,0.5)',
+                                        backgroundColor: previewOrientation === 'PORTRAIT' ? 'rgba(56, 189, 248, 0.25)' : 'transparent',
+                                        color: previewOrientation === 'PORTRAIT' ? '#38bdf8' : 'rgba(255,255,255,0.4)',
                                         boxShadow: previewOrientation === 'PORTRAIT' ? '0 1px 4px rgba(0,0,0,0.25)' : 'none'
                                     }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.08)'; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
                                 >
                                     {/* Tall rectangle = portrait icon */}
                                     <svg width="10" height="14" viewBox="0 0 10 14" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -19132,10 +19165,12 @@ const AppBuilder = () => {
                                         border: 'none',
                                         cursor: 'pointer',
                                         transition: 'all 0.15s',
-                                        backgroundColor: previewOrientation === 'LANDSCAPE' ? 'rgba(255,255,255,0.20)' : 'transparent',
-                                        color: previewOrientation === 'LANDSCAPE' ? '#fff' : 'rgba(255,255,255,0.5)',
+                                        backgroundColor: previewOrientation === 'LANDSCAPE' ? 'rgba(251, 146, 60, 0.25)' : 'transparent',
+                                        color: previewOrientation === 'LANDSCAPE' ? '#fb923c' : 'rgba(255,255,255,0.4)',
                                         boxShadow: previewOrientation === 'LANDSCAPE' ? '0 1px 4px rgba(0,0,0,0.25)' : 'none'
                                     }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.08)'; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
                                 >
                                     {/* Wide rectangle = landscape icon */}
                                     <svg width="14" height="10" viewBox="0 0 14 10" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -19157,15 +19192,23 @@ const AppBuilder = () => {
                                     width: '28px',
                                     height: '28px',
                                     borderRadius: '6px',
-                                    backgroundColor: isCanvasLocked ? 'rgba(59, 130, 246, 0.3)' : 'transparent',
-                                    border: isCanvasLocked ? '1px solid #3b82f6' : '1px solid rgba(255,255,255,0.2)',
-                                    color: 'white',
+                                    backgroundColor: isCanvasLocked ? 'rgba(245, 158, 11, 0.25)' : 'rgba(16, 185, 129, 0.25)',
+                                    border: isCanvasLocked ? '1px solid #f59e0b' : '1px solid #10b981',
+                                    color: isCanvasLocked ? '#fbbf24' : '#34d399',
                                     cursor: 'pointer',
                                     transition: 'all 0.2s',
                                     padding: 0
                                 }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.transform = 'scale(1.08)';
+                                    e.currentTarget.style.filter = 'brightness(1.2)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.transform = 'none';
+                                    e.currentTarget.style.filter = 'none';
+                                }}
                             >
-                                {isCanvasLocked ? <Unlock size={14} color="#fff" /> : <Lock size={14} color="rgba(255,255,255,0.7)" />}
+                                {isCanvasLocked ? <Unlock size={14} /> : <Lock size={14} />}
                             </button>
                         )}
                     </div>
@@ -19179,7 +19222,7 @@ const AppBuilder = () => {
                                 borderRadius: '6px',
                                 backgroundColor: viewMode === 'DESIGN' ? '#3b82f6' : 'transparent',
                                 border: 'none',
-                                color: viewMode === 'DESIGN' ? 'white' : 'rgba(255, 255, 255, 0.6)',
+                                color: viewMode === 'DESIGN' ? 'white' : '#60a5fa',
                                 cursor: 'pointer',
                                 transition: 'all 0.2s',
                                 display: 'flex',
@@ -19189,14 +19232,16 @@ const AppBuilder = () => {
                             }}
                             onMouseEnter={(e) => {
                                 if (viewMode !== 'DESIGN') {
-                                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
-                                    e.currentTarget.style.color = 'white';
+                                    e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.2)';
+                                    e.currentTarget.style.color = '#93c5fd';
+                                    e.currentTarget.style.transform = 'scale(1.05)';
                                 }
                             }}
                             onMouseLeave={(e) => {
                                 if (viewMode !== 'DESIGN') {
                                     e.currentTarget.style.backgroundColor = 'transparent';
-                                    e.currentTarget.style.color = 'rgba(255, 255, 255, 0.6)';
+                                    e.currentTarget.style.color = '#60a5fa';
+                                    e.currentTarget.style.transform = 'none';
                                 }
                             }}
                             title="Design Mode"
@@ -19211,7 +19256,7 @@ const AppBuilder = () => {
                                 borderRadius: '6px',
                                 backgroundColor: viewMode === 'PREVIEW' ? '#8b5cf6' : 'transparent',
                                 border: 'none',
-                                color: viewMode === 'PREVIEW' ? 'white' : 'rgba(255, 255, 255, 0.6)',
+                                color: viewMode === 'PREVIEW' ? 'white' : '#c084fc',
                                 cursor: 'pointer',
                                 transition: 'all 0.2s',
                                 display: 'flex',
@@ -19221,14 +19266,16 @@ const AppBuilder = () => {
                             }}
                             onMouseEnter={(e) => {
                                 if (viewMode !== 'PREVIEW') {
-                                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
-                                    e.currentTarget.style.color = 'white';
+                                    e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.2)';
+                                    e.currentTarget.style.color = '#d8b4fe';
+                                    e.currentTarget.style.transform = 'scale(1.05)';
                                 }
                             }}
                             onMouseLeave={(e) => {
                                 if (viewMode !== 'PREVIEW') {
                                     e.currentTarget.style.backgroundColor = 'transparent';
-                                    e.currentTarget.style.color = 'rgba(255, 255, 255, 0.6)';
+                                    e.currentTarget.style.color = '#c084fc';
+                                    e.currentTarget.style.transform = 'none';
                                 }
                             }}
                             title="Developer Mode"
@@ -19258,10 +19305,12 @@ const AppBuilder = () => {
                                 justifyContent: 'center'
                             }}
                             onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.15)';
+                                e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
+                                e.currentTarget.style.transform = 'scale(1.08)';
                             }}
                             onMouseLeave={(e) => {
                                 e.currentTarget.style.backgroundColor = 'transparent';
+                                e.currentTarget.style.transform = 'none';
                             }}
                         >
                             <Play size={18} fill="#10b981" />
@@ -19274,7 +19323,7 @@ const AppBuilder = () => {
                                 borderRadius: '6px',
                                 backgroundColor: viewMode === 'DIAGRAM' ? '#f97316' : 'transparent',
                                 border: 'none',
-                                color: viewMode === 'DIAGRAM' ? 'white' : 'rgba(255, 255, 255, 0.6)',
+                                color: viewMode === 'DIAGRAM' ? 'white' : '#fb923c',
                                 cursor: 'pointer',
                                 transition: 'all 0.2s',
                                 display: 'flex',
@@ -19284,14 +19333,16 @@ const AppBuilder = () => {
                             }}
                             onMouseEnter={(e) => {
                                 if (viewMode !== 'DIAGRAM') {
-                                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
-                                    e.currentTarget.style.color = 'white';
+                                    e.currentTarget.style.backgroundColor = 'rgba(249, 115, 22, 0.2)';
+                                    e.currentTarget.style.color = '#fdbb2d';
+                                    e.currentTarget.style.transform = 'scale(1.05)';
                                 }
                             }}
                             onMouseLeave={(e) => {
                                 if (viewMode !== 'DIAGRAM') {
                                     e.currentTarget.style.backgroundColor = 'transparent';
-                                    e.currentTarget.style.color = 'rgba(255, 255, 255, 0.6)';
+                                    e.currentTarget.style.color = '#fb923c';
+                                    e.currentTarget.style.transform = 'none';
                                 }
                             }}
                             title="Code Blocks"

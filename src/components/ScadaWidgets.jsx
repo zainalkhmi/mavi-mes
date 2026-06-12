@@ -6,17 +6,17 @@ import {
     Factory, LineChart, Package, Activity, ArrowRight, RotateCw, ArrowDownUp, Container, Cog, Play, Info
 } from 'lucide-react';
 
-// Common visual styles for SCADA dark theme
+// Common visual styles for SCADA with light/dark theme variables support
 const themeStyles = {
-    panelBg: '#0f172a',
-    panelBorder: '#334155',
-    textMain: '#f8fafc',
-    textSec: '#94a3b8',
-    gridLine: '#1e293b',
-    glowGreen: '0 0 10px rgba(34, 197, 94, 0.5)',
-    glowRed: '0 0 10px rgba(239, 68, 68, 0.5)',
-    glowAmber: '0 0 10px rgba(245, 158, 11, 0.5)',
-    glowBlue: '0 0 10px rgba(59, 130, 246, 0.5)',
+    panelBg: 'var(--bg-panel, #0f172a)',
+    panelBorder: 'var(--border-primary, #334155)',
+    textMain: 'var(--text-primary, #f8fafc)',
+    textSec: 'var(--text-tertiary, #94a3b8)',
+    gridLine: 'var(--border-secondary, #1e293b)',
+    glowGreen: '0 0 12px rgba(34, 197, 94, 0.4)',
+    glowRed: '0 0 12px rgba(239, 68, 68, 0.4)',
+    glowAmber: '0 0 12px rgba(245, 158, 11, 0.4)',
+    glowBlue: '0 0 12px rgba(59, 130, 246, 0.4)',
 };
 
 export default function ScadaWidgetRenderer({
@@ -78,17 +78,19 @@ export default function ScadaWidgetRenderer({
         width: '100%',
         height: '100%',
         backgroundColor: comp.props.backgroundColor || themeStyles.panelBg,
-        border: `2px solid ${comp.props.borderColor || themeStyles.panelBorder}`,
-        borderRadius: '8px',
+        border: `1px solid ${comp.props.borderColor || themeStyles.panelBorder}`,
+        borderRadius: '12px',
         color: themeStyles.textMain,
-        fontFamily: 'monospace',
-        padding: '8px',
+        fontFamily: "'Inter', -apple-system, sans-serif",
+        padding: '12px',
         boxSizing: 'border-box',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
         position: 'relative',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05)',
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
     };
 
     switch (comp.type) {
