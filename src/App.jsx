@@ -26,7 +26,8 @@ import {
   Folder,
   ZoomIn,
   ZoomOut,
-  Search
+  Search,
+  Volume2
 } from 'lucide-react';
 import TableManager from './components/TableManager';
 import ConnectorManager from './components/ConnectorManager';
@@ -65,6 +66,8 @@ import AppManagement from './components/AppManagement';
 import FileExplorer from './components/FileExplorer';
 import BuildManager from './components/BuildManager';
 import GlobalHelpAssistant from './components/GlobalHelpAssistant';
+import VoiceControlledCaliperInspection from './components/VoiceControlledCaliperInspection';
+import GlobalVoiceAssistant from './components/GlobalVoiceAssistant';
 import { Toaster } from 'react-hot-toast';
 
 const Placeholder = ({ title }) => (
@@ -257,7 +260,7 @@ const App = () => {
       const allowed = [
         '/', '/builder', '/file-explorer', '/store', '/app-management', '/variables',
         '/connectors', '/functions', '/automations', '/analytics', '/dashboards', '/mcp-server',
-        '/player', '/terminal', '/plc-settings'
+        '/player', '/terminal', '/plc-settings', '/voice-inspection'
       ];
       return allowed.some(p => path === p || path.startsWith(p + '/'));
     }
@@ -267,7 +270,7 @@ const App = () => {
       const allowed = [
         '/', '/builder', '/file-explorer', '/store', '/app-management', '/variables',
         '/stations', '/display-devices', '/machines', '/edge-devices', '/iot-hub', '/vision', '/mcp-server',
-        '/analytics', '/dashboards', '/player', '/terminal', '/plc-settings'
+        '/analytics', '/dashboards', '/player', '/terminal', '/plc-settings', '/voice-inspection'
       ];
       return allowed.some(p => path === p || path.startsWith(p + '/'));
     }
@@ -276,7 +279,7 @@ const App = () => {
     if (role === 'TABLES_SUPERVISOR') {
       const allowed = [
         '/', '/builder', '/file-explorer', '/store', '/app-management', '/variables',
-        '/tables', '/analytics', '/dashboards', '/player', '/terminal'
+        '/tables', '/analytics', '/dashboards', '/player', '/terminal', '/voice-inspection'
       ];
       return allowed.some(p => path === p || path.startsWith(p + '/'));
     }
@@ -285,7 +288,7 @@ const App = () => {
     if (role === 'APPLICATION_ENGINEER' || role === 'ENGINEER') {
       const allowed = [
         '/', '/builder', '/file-explorer', '/store', '/app-management', '/variables',
-        '/analytics', '/dashboards', '/player', '/terminal'
+        '/analytics', '/dashboards', '/player', '/terminal', '/voice-inspection'
       ];
       return allowed.some(p => path === p || path.startsWith(p + '/'));
     }
@@ -293,7 +296,7 @@ const App = () => {
     // Viewer: App Store, Analytics, Dashboards, Console
     if (role === 'VIEWER') {
       const allowed = [
-        '/', '/store', '/analytics', '/dashboards', '/player', '/terminal'
+        '/', '/store', '/analytics', '/dashboards', '/player', '/terminal', '/voice-inspection'
       ];
       return allowed.some(p => path === p || path.startsWith(p + '/'));
     }
@@ -392,17 +395,17 @@ const App = () => {
             )}
 
             {/* SHOP FLOOR */}
-            {['/stations', '/display-devices', '/machines', '/edge-devices', '/iot-hub', '/plc-settings'].some(hasAccess) && (
+            {['/stations', '/display-devices', '/machines', '/edge-devices', '/iot-hub', '/plc-settings', '/voice-inspection'].some(hasAccess) && (
               <div style={{ position: 'relative' }} ref={shopFloorMenuRef}>
                 <button
                   onClick={() => setShopFloorMenuOpen(!shopFloorMenuOpen)}
                   style={{
                     ...navLinkStyle('/stations'),
-                    backgroundColor: ['/stations', '/display-devices', '/machines', '/edge-devices', '/vision', '/iot-hub', '/plc-settings'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
-                    color: ['/stations', '/display-devices', '/machines', '/edge-devices', '/vision', '/iot-hub', '/plc-settings'].includes(location.pathname) ? '#2563eb' : '#475569',
+                    backgroundColor: ['/stations', '/display-devices', '/machines', '/edge-devices', '/vision', '/iot-hub', '/plc-settings', '/voice-inspection'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
+                    color: ['/stations', '/display-devices', '/machines', '/edge-devices', '/vision', '/iot-hub', '/plc-settings', '/voice-inspection'].includes(location.pathname) ? '#2563eb' : '#475569',
                     fontSize: '0.9rem', padding: '6px 12px', fontWeight: 600
                   }}
-                  onMouseEnter={(e) => { if (!['/stations', '/display-devices', '/machines', '/edge-devices', '/vision', '/iot-hub', '/plc-settings'].includes(location.pathname)) { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
+                  onMouseEnter={(e) => { if (!['/stations', '/display-devices', '/machines', '/edge-devices', '/vision', '/iot-hub', '/plc-settings', '/voice-inspection'].includes(location.pathname)) { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
                   onMouseLeave={(e) => { if (!['/stations', '/display-devices', '/machines', '/edge-devices', '/vision', '/iot-hub', '/plc-settings'].includes(location.pathname)) { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
                 >
                   Shop Floor <ChevronDown size={14} style={{ transform: shopFloorMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', marginLeft: '4px' }} />
@@ -414,6 +417,7 @@ const App = () => {
                     {hasAccess('/machines') && <Link to="/machines" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/machines')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/machines' ? '#f0f7ff' : 'transparent'}><Cpu size={16} /> Machines</Link>}
                     {hasAccess('/edge-devices') && <Link to="/edge-devices" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/edge-devices')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/edge-devices' ? '#f0f7ff' : 'transparent'}><Activity size={16} /> Edge Devices</Link>}
                     {hasAccess('/vision') && <Link to="/vision" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/vision')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/vision' ? '#f0f7ff' : 'transparent'}><Eye size={16} /> Vision</Link>}
+                    {hasAccess('/voice-inspection') && <Link to="/voice-inspection" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/voice-inspection')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/voice-inspection' ? '#f0f7ff' : 'transparent'}><Volume2 size={16} /> Voice Inspection</Link>}
                     <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '4px 0' }} />
                     {hasAccess('/iot-hub') && <Link to="/iot-hub" onClick={() => setShopFloorMenuOpen(false)} style={{ ...dropdownItemStyle('/iot-hub'), background: location.pathname === '/iot-hub' ? 'linear-gradient(135deg,#eff6ff,#f5f3ff)' : 'transparent' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = location.pathname === '/iot-hub' ? '#eff6ff' : 'transparent'}><Radio size={16} style={{ color: '#8b5cf6' }} /> <span style={{ background: 'linear-gradient(90deg,#3b82f6,#8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontWeight: 800 }}>IoT Hub</span> <span style={{ marginLeft: 'auto', fontSize: '0.6rem', fontWeight: 800, padding: '1px 6px', backgroundColor: '#8b5cf6', color: 'white', borderRadius: '10px' }}>NEW</span></Link>}
                     {hasAccess('/plc-settings') && <Link to="/plc-settings" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/plc-settings')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/plc-settings' ? '#f0f7ff' : 'transparent'}><SlidersHorizontal size={16} /> PLC Settings</Link>}
@@ -621,6 +625,7 @@ const App = () => {
               <Route path="/admin-settings" element={hasAccess('/admin-settings') ? <AdminSettings /> : <Navigate to="/" replace />} />
               <Route path="/build-center" element={hasAccess('/build-center') ? <BuildManager /> : <Navigate to="/" replace />} />
               <Route path="/help" element={<GlobalHelpAssistant />} />
+              <Route path="/voice-inspection" element={<VoiceControlledCaliperInspection />} />
               <Route path="*" element={<Home />} />
             </>
           )}
@@ -774,6 +779,7 @@ const App = () => {
           </>
         )}
       </div>
+      <GlobalVoiceAssistant />
     </div>
   );
 };

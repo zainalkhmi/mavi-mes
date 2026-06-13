@@ -196,6 +196,24 @@ async fn modbus_write(
     }
 }
 
+#[tauri::command]
+fn open_device_pairing_wizard() -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("devicepairingwizard.exe")
+            .spawn()
+            .map_err(|e| format!("Failed to run DevicePairingWizard: {}", e))?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg("/System/Library/PreferencePanes/Bluetooth.prefPane")
+            .spawn()
+            .map_err(|e| format!("Failed to open Mac Bluetooth settings: {}", e))?;
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -212,7 +230,8 @@ pub fn run() {
             modbus_connect,
             modbus_disconnect,
             modbus_read,
-            modbus_write
+            modbus_write,
+            open_device_pairing_wizard
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
