@@ -21,24 +21,117 @@ import {
     FolderPlus,
     Grid,
     Sliders,
-    Loader2
+    Loader2,
+    Shield,
+    ShieldAlert,
+    Sparkles,
+    ChevronDown,
+    ChevronUp,
+    HelpCircle
 } from 'lucide-react';
 import JSZip from 'jszip';
 import { getAllDatasets, saveDataset, deleteDataset } from '../utils/supabaseUtilityDB';
 
 const VisionManager = () => {
-    // Tab Management: 'cameras' | 'datasets'
+    // Tab Management: 'cameras' | 'datasets' | 'privacy'
     const [activeTab, setActiveTab] = useState('cameras');
+
+    // Privacy & Security States
+    const [privacyMode, setPrivacyMode] = useState(localStorage.getItem('mavi-vision-privacy-access') || 'ASK');
+    const [simulatedAccessRequest, setSimulatedAccessRequest] = useState(null);
+
+    useEffect(() => {
+        localStorage.setItem('mavi-vision-privacy-access', privacyMode);
+    }, [privacyMode]);
 
     // Camera Config State
     const [cameraConfigs, setCameraConfigs] = useState([
-        { id: 'cam_1', name: 'Workstation 1 Top View', status: 'ACTIVE', regions: 3, detectors: ['Change Detector', 'Object Detector'] },
-        { id: 'cam_2', name: 'Inspection Area Zoom', status: 'INACTIVE', regions: 1, detectors: ['OCR Detector'] }
+        { id: 'cam_1', name: 'Workstation 1 Top View', status: 'ACTIVE', regions: 2, detectors: ['Color Detector', 'Change Detector'], cameraSource: 'DEVICE' },
+        { id: 'cam_2', name: 'Inspection Area Zoom', status: 'INACTIVE', regions: 1, detectors: ['OCR Detector'], cameraSource: 'DEVICE' }
     ]);
     const [searchTerm, setSearchTerm] = useState('');
     const [showCameraForm, setShowCameraForm] = useState(false);
     const [newCameraName, setNewCameraName] = useState('');
+    const [newCameraSource, setNewCameraSource] = useState('DEVICE');
+    const [newCameraIpUrl, setNewCameraIpUrl] = useState('');
     const [selectedCamera, setSelectedCamera] = useState(null);
+
+    // Camera Settings/Regions state
+    const [editingCameraConfig, setEditingCameraConfig] = useState(null);
+    const [selectedRegionId, setSelectedRegionId] = useState(null);
+    const [regionsByCamera, setRegionsByCamera] = useState({
+        cam_1: [
+            {
+                id: 'reg_1',
+                name: 'Widgets Bin',
+                x: 120, y: 310, w: 90, h: 90,
+                detectors: {
+                    changeDetector: { enabled: false },
+                    colorDetector: {
+                        enabled: true,
+                        name: 'Widgets Bin Color',
+                        beginThreshold: 72,
+                        endThreshold: 66,
+                        targetColor: '#eab308',
+                        similarity: 67
+                    }
+                }
+            },
+            {
+                id: 'reg_2',
+                name: 'Fidgets Bin',
+                x: 430, y: 310, w: 90, h: 90,
+                detectors: {
+                    changeDetector: { enabled: true },
+                    colorDetector: {
+                        enabled: false,
+                        name: 'Fidgets Bin Color',
+                        beginThreshold: 75,
+                        endThreshold: 60,
+                        targetColor: '#ef4444',
+                        similarity: 12
+                    }
+                }
+            }
+        ],
+        cam_2: [
+            {
+                id: 'reg_3',
+                name: 'Region 1',
+                x: 200, y: 150, w: 120, h: 120,
+                detectors: {
+                    changeDetector: { enabled: false },
+                    colorDetector: {
+                        enabled: false,
+                        name: 'Color Detector 1',
+                        beginThreshold: 50,
+                        endThreshold: 45,
+                        targetColor: '#3b82f6',
+                        similarity: 0
+                    }
+                }
+            }
+        ]
+    });
+
+    // Keep camera config stats sync'd with regionsByCamera
+    useEffect(() => {
+        setCameraConfigs(prev => prev.map(cfg => {
+            const list = regionsByCamera[cfg.id] || [];
+            const activeDetectors = [];
+            list.forEach(r => {
+                if (r.detectors.changeDetector?.enabled) activeDetectors.push('Change Detector');
+                if (r.detectors.colorDetector?.enabled) activeDetectors.push('Color Detector');
+            });
+            const uniqueDets = [...new Set(activeDetectors)];
+            if (uniqueDets.length === 0) uniqueDets.push('Change Detector');
+            return {
+                ...cfg,
+                regions: list.length,
+                detectors: uniqueDets
+            };
+        }));
+    }, [regionsByCamera]);
 
     // Dataset Management State
     const [datasets, setDatasets] = useState([]);
@@ -116,10 +209,14 @@ const VisionManager = () => {
             name,
             status: 'INACTIVE',
             regions: 1,
-            detectors: ['Change Detector']
+            detectors: ['Change Detector'],
+            cameraSource: newCameraSource,
+            ipCameraUrl: newCameraSource === 'IP_CAMERA' ? newCameraIpUrl : ''
         };
         setCameraConfigs((prev) => [newConfig, ...prev]);
         setNewCameraName('');
+        setNewCameraSource('DEVICE');
+        setNewCameraIpUrl('');
         setShowCameraForm(false);
     };
 
@@ -343,6 +440,22 @@ const VisionManager = () => {
         };
     }, [activeDataset]);
 
+    const triggerSimulatedRequest = () => {
+        if (privacyMode === 'DENY') {
+            alert('Akses Ditolak: Pengaturan privasi saat ini disetel ke DENY. Permintaan streaming remote diblokir secara otomatis.');
+            return;
+        }
+        if (privacyMode === 'ALLOW') {
+            alert('Akses Diberikan: Pengaturan privasi saat ini disetel ke ALLOW. Streaming langsung dimulai secara remote tanpa meminta konfirmasi.');
+            return;
+        }
+        setSimulatedAccessRequest({
+            id: `req_${Date.now()}`,
+            supervisor: 'Supervisor John Doe',
+            camera: 'Inspection Area Zoom'
+        });
+    };
+
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc', fontFamily: 'Inter, system-ui, sans-serif' }}>
             {/* Main Header & Tab Navigation */}
@@ -379,145 +492,206 @@ const VisionManager = () => {
                     >
                         Visual Inspection Datasets
                     </button>
+                    <button
+                        onClick={() => setActiveTab('privacy')}
+                        style={{
+                            padding: '12px 4px', border: 'none', borderBottom: activeTab === 'privacy' ? '3px solid #3b82f6' : '3px solid transparent',
+                            backgroundColor: 'transparent', color: activeTab === 'privacy' ? '#3b82f6' : '#64748b',
+                            fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', transition: 'all 0.15s'
+                        }}
+                    >
+                        Vision & Privacy Settings
+                    </button>
                 </div>
             </div>
 
             {/* TAB CONTENT: CAMERA CONFIGURATIONS */}
             {activeTab === 'cameras' && (
-                <div style={{ flex: 1, padding: '24px', display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
-                    {/* Configurations List */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#1e293b' }}>Connected Cameras</h3>
-                            <button
-                                onClick={() => setShowCameraForm(true)}
-                                style={{
-                                    display: 'flex', alignItems: 'center', gap: '8px',
-                                    padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white',
-                                    border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.8rem'
-                                }}
-                            >
-                                <Plus size={16} /> New Camera
-                            </button>
-                        </div>
-                        <div style={{ position: 'relative', maxWidth: '420px' }}>
-                            <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-                            <input
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                placeholder="Search camera or detector..."
-                                style={{ width: '100%', padding: '10px 12px 10px 38px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', fontSize: '0.85rem' }}
-                            />
-                        </div>
-
-                        {showCameraForm && (
-                            <div style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', display: 'flex', gap: '12px', alignItems: 'center' }}>
-                                <input
-                                    value={newCameraName}
-                                    onChange={(e) => setNewCameraName(e.target.value)}
-                                    placeholder="Enter camera configuration name (e.g. Area Inspection)"
-                                    style={{ flex: 1, padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
-                                />
-                                <button onClick={addCameraConfig} style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#3b82f6', color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
-                                    Save
-                                </button>
-                                <button onClick={() => setShowCameraForm(false)} style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', cursor: 'pointer', fontSize: '0.85rem' }}>
-                                    Cancel
+                editingCameraConfig ? (
+                    <CameraRegionEditor
+                        camera={editingCameraConfig}
+                        onBack={() => {
+                            setEditingCameraConfig(null);
+                            setSelectedRegionId(null);
+                        }}
+                        regionsByCamera={regionsByCamera}
+                        setRegionsByCamera={setRegionsByCamera}
+                        selectedRegionId={selectedRegionId}
+                        setSelectedRegionId={setSelectedRegionId}
+                    />
+                ) : (
+                    <div style={{ flex: 1, padding: '24px', display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
+                        {/* Configurations List */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#1e293b' }}>Connected Cameras</h3>
+                                <button
+                                    onClick={() => setShowCameraForm(true)}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '8px',
+                                        padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white',
+                                        border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.8rem'
+                                    }}
+                                >
+                                    <Plus size={16} /> New Camera
                                 </button>
                             </div>
-                        )}
+                            <div style={{ position: 'relative', maxWidth: '420px' }}>
+                                <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                                <input
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    placeholder="Search camera or detector..."
+                                    style={{ width: '100%', padding: '10px 12px 10px 38px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', fontSize: '0.85rem' }}
+                                />
+                            </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
-                            {filteredConfigs.map(config => (
-                                <div key={config.id} style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-                                    <div style={{ height: '160px', backgroundColor: '#0f172a', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <Camera size={44} color="#334155" />
-                                        <div style={{ position: 'absolute', top: '12px', right: '12px' }}>
-                                            <span style={{
-                                                padding: '4px 10px', borderRadius: '20px', backgroundColor: config.status === 'ACTIVE' ? '#dcfce7' : '#f1f5f9',
-                                                color: config.status === 'ACTIVE' ? '#166534' : '#64748b', fontSize: '0.65rem', fontWeight: 800,
-                                                border: '1px solid rgba(0,0,0,0.05)'
-                                            }}>
-                                                {config.status}
-                                            </span>
+                            {showCameraForm && (
+                                <div style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                                        <div style={{ flex: '2 1 300px' }}>
+                                            <label style={{ display: 'block', fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '4px' }}>Camera Name</label>
+                                            <input
+                                                value={newCameraName}
+                                                onChange={(e) => setNewCameraName(e.target.value)}
+                                                placeholder="e.g. Workstation 1 Top View"
+                                                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                            />
                                         </div>
-                                        <button
-                                            onClick={() => setSelectedCamera(config)}
-                                            style={{ position: 'absolute', bottom: '12px', right: '12px', padding: '6px', borderRadius: '6px', backgroundColor: 'rgba(255,255,255,0.15)', color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                                        >
-                                            <Maximize size={14} />
+                                        <div style={{ flex: '1 1 180px' }}>
+                                            <label style={{ display: 'block', fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '4px' }}>Camera Source</label>
+                                            <select
+                                                value={newCameraSource}
+                                                onChange={(e) => setNewCameraSource(e.target.value)}
+                                                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem', backgroundColor: 'white' }}
+                                            >
+                                                <option value="DEVICE">Local / USB Camera</option>
+                                                <option value="IP_CAMERA">IP Camera (Network Stream)</option>
+                                                <option value="SCREEN_CAPTURE">Screen Capture / Share Source</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    {newCameraSource === 'IP_CAMERA' && (
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginBottom: '4px' }}>IP Camera Stream URL</label>
+                                            <input
+                                                value={newCameraIpUrl}
+                                                onChange={(e) => setNewCameraIpUrl(e.target.value)}
+                                                placeholder="e.g. rtsp://username:password@192.168.1.100:554/h264 or http://192.168.1.50/mjpeg"
+                                                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                            />
+                                        </div>
+                                    )}
+
+                                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' }}>
+                                        <button onClick={() => setShowCameraForm(false)} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', cursor: 'pointer', fontSize: '0.85rem' }}>
+                                            Cancel
+                                        </button>
+                                        <button onClick={addCameraConfig} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#3b82f6', color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
+                                            Save Configuration
                                         </button>
                                     </div>
-                                    <div style={{ padding: '16px' }}>
-                                        <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#1e293b', marginBottom: '4px' }}>{config.name}</div>
-                                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '12px' }}>{config.regions} monitored regions</div>
-
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '16px' }}>
-                                            {config.detectors.map(d => (
-                                                <span key={d} style={{ padding: '2px 6px', borderRadius: '4px', backgroundColor: '#f1f5f9', color: '#475569', fontSize: '0.65rem', fontWeight: 700 }}>
-                                                    {d}
-                                                </span>
-                                            ))}
-                                        </div>
-
-                                        <div style={{ display: 'flex', gap: '10px' }}>
-                                            <button
-                                                onClick={() => toggleCameraStatus(config.id)}
-                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', backgroundColor: '#3b82f6', color: 'white', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                                            >
-                                                <Play size={12} /> LIVE STREAM
-                                            </button>
-                                            <button
-                                                onClick={() => alert(`Settings opened for: ${config.name}`)}
-                                                style={{ width: '36px', padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                            >
-                                                <Settings size={16} color="#64748b" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-
-                            {filteredConfigs.length === 0 && (
-                                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '32px', backgroundColor: 'white', border: '1px dashed #cbd5e1', borderRadius: '12px', color: '#64748b', fontSize: '0.85rem' }}>
-                                    No camera configurations match "{searchTerm}".
                                 </div>
                             )}
-                        </div>
-                    </div>
 
-                    {/* Side panel: Detectors & Guides */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                        <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-                            <h3 style={{ margin: '0 0 16px 0', fontSize: '0.95rem', fontWeight: 800 }}>Available Detectors</h3>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                {[
-                                    { name: 'Change Detector', desc: 'Monitors regions for visual changes' },
-                                    { name: 'Jig Detector', desc: 'Tracks objects with markers' },
-                                    { name: 'Color Detector', desc: 'Identifies colors in specified regions' },
-                                    { name: 'OCR Detector', desc: 'Reads text from images' }
-                                ].map(d => (
-                                    <div key={d.name} style={{ padding: '10px', border: '1px solid #f1f5f9', borderRadius: '8px' }}>
-                                        <div style={{ fontWeight: 700, fontSize: '0.8rem', color: '#334155' }}>{d.name}</div>
-                                        <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>{d.desc}</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+                                {filteredConfigs.map(config => (
+                                    <div key={config.id} style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                                        <div style={{ height: '160px', backgroundColor: '#0f172a', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <Camera size={44} color="#334155" />
+                                            <div style={{ position: 'absolute', top: '12px', right: '12px' }}>
+                                                <span style={{
+                                                    padding: '4px 10px', borderRadius: '20px', backgroundColor: config.status === 'ACTIVE' ? '#dcfce7' : '#f1f5f9',
+                                                    color: config.status === 'ACTIVE' ? '#166534' : '#64748b', fontSize: '0.65rem', fontWeight: 800,
+                                                    border: '1px solid rgba(0,0,0,0.05)'
+                                                }}>
+                                                    {config.status}
+                                                </span>
+                                            </div>
+                                            <button
+                                                onClick={() => setSelectedCamera(config)}
+                                                style={{ position: 'absolute', bottom: '12px', right: '12px', padding: '6px', borderRadius: '6px', backgroundColor: 'rgba(255,255,255,0.15)', color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                            >
+                                                <Maximize size={14} />
+                                            </button>
+                                        </div>
+                                        <div style={{ padding: '16px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                                <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#1e293b' }}>{config.name}</div>
+                                                <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', backgroundColor: config.cameraSource === 'IP_CAMERA' ? '#eff6ff' : config.cameraSource === 'SCREEN_CAPTURE' ? '#f5f3ff' : '#f1f5f9', color: config.cameraSource === 'IP_CAMERA' ? '#2563eb' : config.cameraSource === 'SCREEN_CAPTURE' ? '#7c3aed' : '#475569', fontWeight: 700 }}>
+                                                    {config.cameraSource === 'IP_CAMERA' ? 'IP CAM' : config.cameraSource === 'SCREEN_CAPTURE' ? 'SCREEN' : 'USB'}
+                                                </span>
+                                            </div>
+                                            <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '12px' }}>{config.regions} monitored regions</div>
+
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '16px' }}>
+                                                {config.detectors.map(d => (
+                                                    <span key={d} style={{ padding: '2px 6px', borderRadius: '4px', backgroundColor: '#f1f5f9', color: '#475569', fontSize: '0.65rem', fontWeight: 700 }}>
+                                                        {d}
+                                                    </span>
+                                                ))}
+                                            </div>
+
+                                            <div style={{ display: 'flex', gap: '10px' }}>
+                                                <button
+                                                    onClick={() => toggleCameraStatus(config.id)}
+                                                    style={{ flex: 1, padding: '8px', borderRadius: '8px', backgroundColor: '#3b82f6', color: 'white', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                                                >
+                                                    <Play size={12} /> LIVE STREAM
+                                                </button>
+                                                <button
+                                                    onClick={() => setEditingCameraConfig(config)}
+                                                    style={{ width: '36px', padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                                >
+                                                    <Settings size={16} color="#64748b" />
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
                                 ))}
+
+                                {filteredConfigs.length === 0 && (
+                                    <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '32px', backgroundColor: 'white', border: '1px dashed #cbd5e1', borderRadius: '12px', color: '#64748b', fontSize: '0.85rem' }}>
+                                        No camera configurations match "{searchTerm}".
+                                    </div>
+                                )}
                             </div>
                         </div>
 
-                        <div style={{ padding: '20px', backgroundColor: '#f8fafc', borderRadius: '16px', border: '1px dashed #cbd5e1', textAlign: 'center' }}>
-                            <Eye size={28} color="#cbd5e1" style={{ marginBottom: '10px', margin: '0 auto' }} />
-                            <h4 style={{ margin: '8px 0 0 0', fontWeight: 800, fontSize: '0.85rem' }}>IP Cameras</h4>
-                            <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '4px 0 12px 0' }}>Connect network stream cameras for visual processing.</p>
-                            <button
-                                onClick={() => setShowCameraForm(true)}
-                                style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #3b82f6', color: '#3b82f6', backgroundColor: 'white', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem' }}
-                            >
-                                Add IP Camera
-                            </button>
+                        {/* Side panel: Detectors & Guides */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                            <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                                <h3 style={{ margin: '0 0 16px 0', fontSize: '0.95rem', fontWeight: 800 }}>Available Detectors</h3>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    {[
+                                        { name: 'Change Detector', desc: 'Monitors regions for visual changes' },
+                                        { name: 'Jig Detector', desc: 'Tracks objects with markers' },
+                                        { name: 'Color Detector', desc: 'Identifies colors in specified regions' },
+                                        { name: 'OCR Detector', desc: 'Reads text from images' }
+                                    ].map(d => (
+                                        <div key={d.name} style={{ padding: '10px', border: '1px solid #f1f5f9', borderRadius: '8px' }}>
+                                            <div style={{ fontWeight: 700, fontSize: '0.8rem', color: '#334155' }}>{d.name}</div>
+                                            <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>{d.desc}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div style={{ padding: '20px', backgroundColor: '#f8fafc', borderRadius: '16px', border: '1px dashed #cbd5e1', textAlign: 'center' }}>
+                                <Eye size={28} color="#cbd5e1" style={{ marginBottom: '10px', margin: '0 auto' }} />
+                                <h4 style={{ margin: '8px 0 0 0', fontWeight: 800, fontSize: '0.85rem' }}>IP Cameras</h4>
+                                <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '4px 0 12px 0' }}>Connect network stream cameras for visual processing.</p>
+                                <button
+                                    onClick={() => setShowCameraForm(true)}
+                                    style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #3b82f6', color: '#3b82f6', backgroundColor: 'white', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem' }}
+                                >
+                                    Add IP Camera
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
+                )
             )}
 
             {/* TAB CONTENT: VISUAL INSPECTION DATA DATASETS */}
@@ -883,12 +1057,8 @@ const VisionManager = () => {
                                 <X size={18} />
                             </button>
                         </div>
-                        <div style={{ height: '420px', backgroundColor: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#cbd5e1' }}>
-                            <div style={{ textAlign: 'center' }}>
-                                <Camera size={48} style={{ marginBottom: '12px' }} />
-                                <div>Stream connected in demo mode</div>
-                                <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>Status: {selectedCamera.status}</div>
-                            </div>
+                        <div style={{ height: '420px', backgroundColor: '#0f172a' }}>
+                            <CameraPreviewer camera={selectedCamera} />
                         </div>
                     </div>
                 </div>
@@ -941,8 +1111,1168 @@ const VisionManager = () => {
                     </div>
                 </div>
             )}
+
+            {/* TAB CONTENT: VISION & PRIVACY SETTINGS */}
+            {activeTab === 'privacy' && (
+                <div style={{ flex: 1, padding: '24px', display: 'grid', gridTemplateColumns: '2fr 1.2fr', gap: '24px', overflowY: 'auto' }}>
+                    {/* Left: Settings */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        <div style={{ padding: '24px', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                            <h3 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', fontWeight: 900, color: '#0f172a' }}>Remote Camera Access</h3>
+                            <p style={{ margin: '0 0 20px 0', color: '#64748b', fontSize: '0.85rem' }}>
+                                Tentukan izin akses bagi Supervisor atau Administrator untuk melihat feed kamera secara remote.
+                            </p>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+                                {[
+                                    { value: 'ALLOW', title: 'Allow (Izinkan)', desc: 'Supervisor dapat langsung melihat streaming video kamera secara remote tanpa konfirmasi operator.', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.04)', border: '#bfdbfe' },
+                                    { value: 'ASK', title: 'Ask (Tanyakan - Default)', desc: 'Menampilkan dialog konfirmasi di layar ketika ada permintaan streaming remote. Operator harus menyetujui.', color: '#eab308', bg: 'rgba(234, 179, 8, 0.04)', border: '#fef08a' },
+                                    { value: 'DENY', title: 'Deny (Tolak)', desc: 'Blokir semua permintaan streaming remote secara instan. Feed video hanya diolah secara lokal.', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.04)', border: '#fca5a5' }
+                                ].map(option => {
+                                    const isSelected = privacyMode === option.value;
+                                    return (
+                                        <div
+                                            key={option.value}
+                                            onClick={() => setPrivacyMode(option.value)}
+                                            style={{
+                                                padding: '16px', borderRadius: '12px', cursor: 'pointer',
+                                                backgroundColor: isSelected ? option.bg : 'white',
+                                                border: isSelected ? `2px solid ${option.color}` : '1px solid #e2e8f0',
+                                                display: 'flex', alignItems: 'flex-start', gap: '12px',
+                                                transition: 'all 0.15s'
+                                            }}
+                                        >
+                                            <input
+                                                type="radio"
+                                                checked={isSelected}
+                                                onChange={() => {}}
+                                                style={{ marginTop: '3px', cursor: 'pointer', accentColor: option.color }}
+                                            />
+                                            <div>
+                                                <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    {option.title}
+                                                    {option.value === 'ASK' && (
+                                                        <span style={{ fontSize: '0.65rem', backgroundColor: '#fef08a', color: '#854d0e', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>Rekomendasi</span>
+                                                    )}
+                                                </div>
+                                                <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '3px', lineHeight: 1.4 }}>{option.desc}</div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                <ShieldAlert size={20} color="#64748b" style={{ flexShrink: 0 }} />
+                                <div style={{ fontSize: '0.75rem', color: '#475569', lineHeight: 1.4 }}>
+                                    <strong>Uji Coba Alur Kerja:</strong> Anda dapat mensimulasikan bagaimana sistem merespons permintaan akses remote berdasarkan opsi yang dipilih di atas.
+                                </div>
+                                <button
+                                    onClick={triggerSimulatedRequest}
+                                    style={{
+                                        marginLeft: 'auto', flexShrink: 0, padding: '8px 14px', borderRadius: '8px', border: 'none',
+                                        backgroundColor: '#0f172a', color: 'white', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer'
+                                    }}
+                                >
+                                    Mulai Simulasi
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right: Info Banner */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        <div style={{ padding: '24px', backgroundColor: '#0f172a', color: 'white', borderRadius: '16px', border: '1px solid #1e293b' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                                <Sparkles size={20} color="#38bdf8" />
+                                <h4 style={{ margin: 0, fontWeight: 900, fontSize: '0.95rem', letterSpacing: '0.05em' }}>EDGE PRIVACY GUARANTEE</h4>
+                            </div>
+                            <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: '0 0 12px 0', lineHeight: 1.5 }}>
+                                Tulip Vision memproses semua data citra di tingkat <strong>Edge (Lokal)</strong>. Detektor garis tepi (Canny), pembacaan display caliper (OCR), analisis pressure gauge, dan pendeteksi barcode berjalan langsung pada perangkat komputer operator.
+                            </p>
+                            <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
+                                Selama operasional rutin, tidak ada streaming video yang diunggah ke cloud. Server pusat hanya menerima data event numerik atau string (misal: hasil baca caliper atau status Pass/Fail), sehingga privasi operator terjaga secara penuh.
+                            </p>
+                        </div>
+
+                        <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                            <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', fontWeight: 800, color: '#334155' }}>Indikator Keamanan</h4>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#22c55e' }} />
+                                    <span style={{ fontSize: '0.75rem', color: '#475569' }}>Lokal: Pemrosesan offline aman</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#38bdf8' }} />
+                                    <span style={{ fontSize: '0.75rem', color: '#475569' }}>Remote Aktif: Supervisor sedang memantau</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
+                                    <span style={{ fontSize: '0.75rem', color: '#475569' }}>Diblokir: Remote access dinonaktifkan</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Simulated Remote Access Request Pop-up */}
+            {simulatedAccessRequest && (
+                <div style={{
+                    position: 'fixed', bottom: '24px', right: '24px', width: '360px',
+                    backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0',
+                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                    padding: '16px', zIndex: 3000
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                        <div style={{ backgroundColor: '#fef08a', padding: '8px', borderRadius: '50%', color: '#854d0e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Shield size={20} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                            <h4 style={{ margin: '0 0 4px 0', fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>Permintaan Akses Kamera</h4>
+                            <p style={{ margin: 0, fontSize: '0.75rem', color: '#475569', lineHeight: 1.4 }}>
+                                <strong>{simulatedAccessRequest.supervisor}</strong> meminta akses video langsung untuk kamera <strong>{simulatedAccessRequest.camera}</strong>.
+                            </p>
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
+                        <button
+                            onClick={() => {
+                                setSimulatedAccessRequest(null);
+                                alert('Permintaan streaming dibatalkan oleh operator.');
+                            }}
+                            style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', backgroundColor: 'white', color: '#475569', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                        >
+                            Tolak (Reject)
+                        </button>
+                        <button
+                            onClick={() => {
+                                setSimulatedAccessRequest(null);
+                                alert('Akses Diberikan: Video stream remote diaktifkan.');
+                            }}
+                            style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', backgroundColor: '#3b82f6', color: 'white', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                        >
+                            Izinkan (Allow)
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
+
+// Full interactive camera preview with IP Camera support and monitored regions drawing
+function CameraPreviewer({ camera }) {
+    const videoRef = useRef(null);
+    const canvasRef = useRef(null);
+    const streamRef = useRef(null);
+    const animationFrameRef = useRef(null);
+    const [hasPermission, setHasPermission] = useState(null);
+    const [ipImageError, setIpImageError] = useState(false);
+    const [ipImageLoaded, setIpImageLoaded] = useState(false);
+    const ipImageRef = useRef(null);
+
+    const isIpCamera = camera.cameraSource === 'IP_CAMERA';
+    const isScreenCapture = camera.cameraSource === 'SCREEN_CAPTURE';
+    const ipUrl = camera.ipCameraUrl || '';
+
+    useEffect(() => {
+        if (isIpCamera) {
+            setHasPermission(true);
+            return;
+        }
+
+        let activeStream = null;
+        const startStream = async () => {
+            try {
+                let stream;
+                if (isScreenCapture) {
+                    stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                } else {
+                    stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+                }
+                setHasPermission(true);
+                activeStream = stream;
+                streamRef.current = stream;
+                if (videoRef.current) {
+                    videoRef.current.srcObject = stream;
+                    videoRef.current.play().catch(e => console.warn(e));
+                }
+            } catch (err) {
+                console.error(err);
+                setHasPermission(false);
+            }
+        };
+
+        startStream();
+
+        return () => {
+            if (activeStream) {
+                activeStream.getTracks().forEach(track => track.stop());
+            }
+            if (animationFrameRef.current) {
+                cancelAnimationFrame(animationFrameRef.current);
+            }
+        };
+    }, [isIpCamera, isScreenCapture, ipUrl]);
+
+    // Track Image load for MJPEG
+    useEffect(() => {
+        if (!isIpCamera || !ipUrl) {
+            ipImageRef.current = null;
+            setIpImageLoaded(false);
+            setIpImageError(false);
+            return;
+        }
+
+        const isRtsp = ipUrl.toLowerCase().startsWith('rtsp://');
+        if (isRtsp) {
+            ipImageRef.current = null;
+            setIpImageLoaded(true);
+            return;
+        }
+
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+            setIpImageLoaded(true);
+            setIpImageError(false);
+        };
+        img.onerror = () => {
+            setIpImageError(true);
+        };
+        img.src = ipUrl;
+        ipImageRef.current = img;
+
+        return () => {
+            img.onload = null;
+            img.onerror = null;
+        };
+    }, [isIpCamera, ipUrl]);
+
+    // Canvas drawing loop
+    useEffect(() => {
+        if (!hasPermission) return;
+
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        let tick = 0;
+        const render = () => {
+            tick = (tick + 1) % 1000;
+            const w = canvas.width;
+            const h = canvas.height;
+
+            const isRtsp = ipUrl.toLowerCase().startsWith('rtsp://');
+
+            if (isIpCamera) {
+                if (isRtsp || ipImageError || !ipUrl) {
+                    // Draw simulated IP Camera stream
+                    ctx.fillStyle = '#0f172a';
+                    ctx.fillRect(0, 0, w, h);
+                    
+                    // Grid
+                    ctx.strokeStyle = '#1e293b';
+                    ctx.lineWidth = 1;
+                    for (let i = 40; i < w; i += 40) {
+                        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke();
+                    }
+                    for (let i = 40; i < h; i += 40) {
+                        ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(w, i); ctx.stroke();
+                    }
+
+                    // Conveyor track
+                    ctx.fillStyle = '#334155';
+                    ctx.fillRect(0, h - 80, w, 20);
+                    // Rollers
+                    ctx.fillStyle = '#475569';
+                    for (let rx = (tick * 2) % 60; rx < w; rx += 60) {
+                        ctx.beginPath(); ctx.arc(rx, h - 70, 8, 0, Math.PI * 2); ctx.fill();
+                    }
+
+                    // Passing parts
+                    const px = (tick * 1.5) % (w + 120) - 60;
+                    ctx.fillStyle = '#4f46e5';
+                    ctx.fillRect(px, h - 130, 60, 50);
+
+                    // Overlay details
+                    ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+                    ctx.fillRect(10, 10, w - 20, 26);
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.strokeRect(10, 10, w - 20, 26);
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.font = 'bold 9px monospace';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(`STREAM: ${ipUrl ? ipUrl.toUpperCase() : 'RTSP STREAM NOT CONFIG'}`, 16, 26);
+                    
+                    ctx.textAlign = 'right';
+                    ctx.fillStyle = '#ef4444';
+                    ctx.beginPath(); ctx.arc(w - 24, 23, 4, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillText('LIVE-FEED SIM', w - 34, 26);
+                } else if (ipImageRef.current && ipImageLoaded) {
+                    try {
+                        ctx.drawImage(ipImageRef.current, 0, 0, w, h);
+                    } catch (e) {
+                        // fallback
+                    }
+                } else {
+                    ctx.fillStyle = '#1e293b';
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.font = '14px Inter, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('Connecting to IP Camera Stream...', w / 2, h / 2);
+                }
+            } else if (videoRef.current && videoRef.current.readyState >= 2) {
+                ctx.drawImage(videoRef.current, 0, 0, w, h);
+            }
+
+            // Draw regions monitored overlays
+            ctx.strokeStyle = '#22c55e'; // Green bounding boxes for regions
+            ctx.lineWidth = 2;
+            ctx.fillStyle = 'rgba(34, 197, 94, 0.1)';
+            
+            // Draw 2 mock regions
+            ctx.strokeRect(w * 0.15, h * 0.2, w * 0.2, h * 0.3);
+            ctx.fillRect(w * 0.15, h * 0.2, w * 0.2, h * 0.3);
+            ctx.fillStyle = '#22c55e';
+            ctx.font = 'bold 9px Inter, sans-serif';
+            ctx.fillText('REGION 1: OK', w * 0.15, h * 0.2 - 6);
+
+            ctx.strokeStyle = '#eab308'; // Yellow for region 2
+            ctx.fillStyle = 'rgba(234, 179, 8, 0.1)';
+            ctx.strokeRect(w * 0.6, h * 0.3, w * 0.25, h * 0.25);
+            ctx.fillRect(w * 0.6, h * 0.3, w * 0.25, h * 0.25);
+            ctx.fillStyle = '#eab308';
+            ctx.fillText('REGION 2: CHECKING', w * 0.6, h * 0.3 - 6);
+
+            animationFrameRef.current = requestAnimationFrame(render);
+        };
+
+        animationFrameRef.current = requestAnimationFrame(render);
+        return () => {
+            if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+        };
+    }, [hasPermission, isIpCamera, ipUrl, ipImageError, ipImageLoaded]);
+
+    return (
+        <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {!isIpCamera && (
+                <video
+                    ref={videoRef}
+                    style={{ display: 'none' }}
+                    width="640"
+                    height="480"
+                    playsInline
+                    muted
+                />
+            )}
+            {hasPermission === false && !isIpCamera ? (
+                <div style={{ textAlign: 'center', color: '#94a3b8' }}>
+                    <AlertTriangle size={36} color="#ef4444" style={{ margin: '0 auto 10px' }} />
+                    <div style={{ fontSize: '0.8rem', fontWeight: 700 }}>Kamera Tidak Tersedia</div>
+                </div>
+            ) : (
+                <canvas
+                    ref={canvasRef}
+                    width="640"
+                    height="480"
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                />
+            )}
+        </div>
+    );
+}
+
+function CameraRegionEditor({
+    camera,
+    onBack,
+    regionsByCamera,
+    setRegionsByCamera,
+    selectedRegionId,
+    setSelectedRegionId
+}) {
+    const videoRef = useRef(null);
+    const canvasRef = useRef(null);
+    const streamRef = useRef(null);
+    const animationFrameRef = useRef(null);
+    const [hasPermission, setHasPermission] = useState(null);
+
+    // Accordion expand states
+    const [changeDetectorExpanded, setChangeDetectorExpanded] = useState(false);
+    const [colorDetectorExpanded, setColorDetectorExpanded] = useState(true);
+
+    // Settings panel throttled similarity value
+    const [settingsSimilarity, setSettingsSimilarity] = useState(0);
+
+    // Interaction states
+    const [isDrawing, setIsDrawing] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
+    const [drawStart, setDrawStart] = useState({ x: 0, y: 0 });
+    const [drawCurrent, setDrawCurrent] = useState({ x: 0, y: 0 });
+    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+    // Station selection state
+    const [selectedStation, setSelectedStation] = useState('Sample Station');
+
+    // Tooltip states for help icons
+    const [hoveredHelp, setHoveredHelp] = useState(null); // 'begin' | 'end' | null
+
+    // Refs to hold live calculated values without re-rendering React
+    const similarityRef = useRef({});
+    const avgColorsRef = useRef({});
+
+    const regions = regionsByCamera[camera.id] || [];
+    const selectedRegion = regions.find(r => r.id === selectedRegionId);
+
+    // Start local camera stream
+    useEffect(() => {
+        if (camera.cameraSource !== 'DEVICE') {
+            setHasPermission(true);
+            return;
+        }
+
+        let activeStream = null;
+        navigator.mediaDevices.getUserMedia({
+            video: { width: 640, height: 480 }
+        })
+        .then((stream) => {
+            setHasPermission(true);
+            activeStream = stream;
+            streamRef.current = stream;
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                videoRef.current.play().catch(e => console.warn(e));
+            }
+        })
+        .catch((err) => {
+            console.error('Camera access error:', err);
+            setHasPermission(false);
+        });
+
+        return () => {
+            if (activeStream) {
+                activeStream.getTracks().forEach(track => track.stop());
+            }
+            if (animationFrameRef.current) {
+                cancelAnimationFrame(animationFrameRef.current);
+            }
+        };
+    }, [camera.cameraSource]);
+
+    // Throttle similarity updates for the settings panel to avoid lag
+    useEffect(() => {
+        const interval = setInterval(() => {
+            if (selectedRegionId) {
+                const sim = similarityRef.current[selectedRegionId] || 0;
+                setSettingsSimilarity(sim);
+            }
+        }, 150);
+        return () => clearInterval(interval);
+    }, [selectedRegionId]);
+
+    // Helper functions for updating state
+    const updateRegionName = (id, name) => {
+        setRegionsByCamera(prev => ({
+            ...prev,
+            [camera.id]: prev[camera.id].map(r => r.id === id ? {
+                ...r,
+                name,
+                detectors: {
+                    ...r.detectors,
+                    colorDetector: {
+                        ...r.detectors.colorDetector,
+                        name: `${name} Color`
+                    }
+                }
+            } : r)
+        }));
+    };
+
+    const updateRegionThresholds = (id, begin, end) => {
+        setRegionsByCamera(prev => ({
+            ...prev,
+            [camera.id]: prev[camera.id].map(r => r.id === id ? {
+                ...r,
+                detectors: {
+                    ...r.detectors,
+                    colorDetector: {
+                        ...r.detectors.colorDetector,
+                        beginThreshold: begin,
+                        endThreshold: end
+                    }
+                }
+            } : r)
+        }));
+    };
+
+    const updateRegionTargetColor = (id, color) => {
+        setRegionsByCamera(prev => ({
+            ...prev,
+            [camera.id]: prev[camera.id].map(r => r.id === id ? {
+                ...r,
+                detectors: {
+                    ...r.detectors,
+                    colorDetector: {
+                        ...r.detectors.colorDetector,
+                        targetColor: color
+                    }
+                }
+            } : r)
+        }));
+    };
+
+    const toggleDetector = (id, type, enabled) => {
+        setRegionsByCamera(prev => ({
+            ...prev,
+            [camera.id]: prev[camera.id].map(r => r.id === id ? {
+                ...r,
+                detectors: {
+                    ...r.detectors,
+                    [type]: {
+                        ...r.detectors[type],
+                        enabled
+                    }
+                }
+            } : r)
+        }));
+    };
+
+    const deleteRegion = (id) => {
+        setRegionsByCamera(prev => ({
+            ...prev,
+            [camera.id]: prev[camera.id].filter(r => r.id !== id)
+        }));
+        if (selectedRegionId === id) setSelectedRegionId(null);
+    };
+
+    const handleCreateDetector = (e) => {
+        e.preventDefault();
+        if (!selectedRegionId) return;
+        toggleDetector(selectedRegionId, 'colorDetector', true);
+    };
+
+    // Helper functions for parsing colors
+    const hexToRgb = (hex) => {
+        if (!hex) return { r: 0, g: 0, b: 0 };
+        const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+        const fullHex = hex.replace(shorthandRegex, (m, r, g, b) => r + r + g + g + b + b);
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(fullHex);
+        return result ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16)
+        } : { r: 0, g: 0, b: 0 };
+    };
+
+    const rgbToHex = (r, g, b) => {
+        const toHex = (c) => {
+            const hex = Math.round(c).toString(16);
+            return hex.length === 1 ? "0" + hex : hex;
+        };
+        return "#" + toHex(r) + toHex(g) + toHex(b);
+    };
+
+    const handleSetCurrentRegionColor = () => {
+        if (!selectedRegionId) return;
+        const avg = avgColorsRef.current[selectedRegionId];
+        if (avg) {
+            const hex = rgbToHex(avg.r, avg.g, avg.b);
+            updateRegionTargetColor(selectedRegionId, hex);
+        } else {
+            updateRegionTargetColor(selectedRegionId, '#cbd5e1');
+        }
+    };
+
+    const getMousePos = (e) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return { x: 0, y: 0 };
+        const rect = canvas.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width) * canvas.width;
+        const y = ((e.clientY - rect.top) / rect.height) * canvas.height;
+        return { x: Math.round(x), y: Math.round(y) };
+    };
+
+    const handleMouseDown = (e) => {
+        const pos = getMousePos(e);
+        const clickedRegion = [...regions].reverse().find(r => 
+            pos.x >= r.x && pos.x <= r.x + r.w &&
+            pos.y >= r.y && pos.y <= r.y + r.h
+        );
+
+        if (clickedRegion) {
+            setSelectedRegionId(clickedRegion.id);
+            setIsDragging(true);
+            setDragStart({
+                x: pos.x - clickedRegion.x,
+                y: pos.y - clickedRegion.y
+            });
+        } else {
+            setIsDrawing(true);
+            setDrawStart(pos);
+            setDrawCurrent(pos);
+        }
+    };
+
+    const handleMouseMove = (e) => {
+        const pos = getMousePos(e);
+        if (isDragging && selectedRegionId) {
+            const updatedRegions = regions.map(r => {
+                if (r.id === selectedRegionId) {
+                    let newX = pos.x - dragStart.x;
+                    let newY = pos.y - dragStart.y;
+                    newX = Math.max(0, Math.min(newX, 640 - r.w));
+                    newY = Math.max(0, Math.min(newY, 480 - r.h));
+                    return { ...r, x: newX, y: newY };
+                }
+                return r;
+            });
+            setRegionsByCamera(prev => ({
+                ...prev,
+                [camera.id]: updatedRegions
+            }));
+        } else if (isDrawing) {
+            setDrawCurrent(pos);
+        }
+    };
+
+    const handleMouseUp = () => {
+        if (isDragging) {
+            setIsDragging(false);
+        } else if (isDrawing) {
+            setIsDrawing(false);
+            const x = Math.min(drawStart.x, drawCurrent.x);
+            const y = Math.min(drawStart.y, drawCurrent.y);
+            const w = Math.abs(drawStart.x - drawCurrent.x);
+            const h = Math.abs(drawStart.y - drawCurrent.y);
+
+            if (w > 20 && h > 20) {
+                const nextNum = regions.length + 1;
+                const newReg = {
+                    id: `reg_${Date.now()}`,
+                    name: `Widgets Bin ${nextNum}`,
+                    x: Math.round(x),
+                    y: Math.round(y),
+                    w: Math.round(w),
+                    h: Math.round(h),
+                    detectors: {
+                        changeDetector: { enabled: false },
+                        colorDetector: {
+                            enabled: true,
+                            name: `Widgets Bin ${nextNum} Color`,
+                            beginThreshold: 72,
+                            endThreshold: 66,
+                            targetColor: '#eab308',
+                            similarity: 0
+                        }
+                    }
+                };
+                setRegionsByCamera(prev => ({
+                    ...prev,
+                    [camera.id]: [...(prev[camera.id] || []), newReg]
+                }));
+                setSelectedRegionId(newReg.id);
+            } else {
+                setSelectedRegionId(null);
+            }
+        }
+    };
+
+    // Main animation and canvas processing loop
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        let tick = 0;
+        const render = () => {
+            tick = (tick + 1) % 1000;
+            const w = canvas.width;
+            const h = canvas.height;
+
+            // 1. Draw Feed (device webcam or simulated conveyor belt)
+            if (camera.cameraSource === 'DEVICE' && videoRef.current && videoRef.current.readyState >= 2 && hasPermission) {
+                try {
+                    ctx.drawImage(videoRef.current, 0, 0, w, h);
+                } catch (e) {
+                    drawSimulatedConveyor(ctx, w, h, tick);
+                }
+            } else {
+                drawSimulatedConveyor(ctx, w, h, tick);
+            }
+
+            // 2. Process Regions (read colors, compute similarities, draw overlays)
+            regions.forEach(region => {
+                const rx = Math.max(0, Math.min(region.x, w - 2));
+                const ry = Math.max(0, Math.min(region.y, h - 2));
+                const rw = Math.max(2, Math.min(region.w, w - rx));
+                const rh = Math.max(2, Math.min(region.h, h - ry));
+
+                // Extract average color under the region
+                let avgR = 0, avgG = 0, avgB = 0;
+                try {
+                    const imgData = ctx.getImageData(rx, ry, rw, rh);
+                    const pixels = imgData.data;
+                    let rSum = 0, gSum = 0, bSum = 0, count = 0;
+                    for (let i = 0; i < pixels.length; i += 16) { // step by 16 for performance
+                        rSum += pixels[i];
+                        gSum += pixels[i+1];
+                        bSum += pixels[i+2];
+                        count++;
+                    }
+                    avgR = rSum / count;
+                    avgG = gSum / count;
+                    avgB = bSum / count;
+                    avgColorsRef.current[region.id] = { r: avgR, g: avgG, b: avgB };
+                } catch (e) {
+                    console.error('Failed to get average color', e);
+                }
+
+                // Compute color similarity
+                const colorDet = region.detectors.colorDetector;
+                let similarity = 0;
+                let isMatching = region.isMatching || false;
+
+                if (colorDet && colorDet.enabled) {
+                    const targetRGB = hexToRgb(colorDet.targetColor);
+                    const dr = avgR - targetRGB.r;
+                    const dg = avgG - targetRGB.g;
+                    const db = avgB - targetRGB.b;
+                    const dist = Math.sqrt(dr*dr + dg*dg + db*db);
+                    similarity = Math.round(Math.max(0, 100 - (dist / 441.67) * 100));
+                    similarityRef.current[region.id] = similarity;
+
+                    // Hysteresis boundary transition trigger
+                    if (similarity >= colorDet.beginThreshold) {
+                        isMatching = true;
+                    } else if (similarity < colorDet.endThreshold) {
+                        isMatching = false;
+                    }
+                    region.isMatching = isMatching; // store on mutable reference
+                }
+
+                // Draw bounding box
+                const isSelected = region.id === selectedRegionId;
+                let borderColor = '#3b82f6'; // blue
+                if (colorDet && colorDet.enabled) {
+                    borderColor = isMatching ? '#22c55e' : '#ef4444'; // green or red
+                }
+                if (isSelected) {
+                    borderColor = '#0ea5e9'; // bright sky blue
+                }
+
+                ctx.strokeStyle = borderColor;
+                ctx.lineWidth = isSelected ? 3 : 2;
+                ctx.strokeRect(region.x, region.y, region.w, region.h);
+
+                // Draw background tint inside box
+                ctx.fillStyle = isSelected 
+                    ? 'rgba(14, 165, 233, 0.05)' 
+                    : (isMatching ? 'rgba(34, 197, 94, 0.05)' : 'rgba(239, 68, 68, 0.02)');
+                ctx.fillRect(region.x, region.y, region.w, region.h);
+
+                // Draw title block
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+                ctx.fillRect(region.x, region.y, region.w, 20);
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 9px Inter, sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText(region.name, region.x + 6, region.y + 13);
+
+                // Draw similarity indicator
+                if (colorDet && colorDet.enabled) {
+                    ctx.fillStyle = isMatching ? '#22c55e' : '#ffffff';
+                    ctx.font = 'bold 10px Inter, sans-serif';
+                    ctx.fillText(`Similarity: ${similarity}%`, region.x + 6, region.y + region.h - 8);
+                }
+            });
+
+            // 3. Draw currently drawing region box
+            if (isDrawing) {
+                ctx.strokeStyle = '#0ea5e9';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([4, 4]);
+                ctx.strokeRect(
+                    drawStart.x,
+                    drawStart.y,
+                    drawCurrent.x - drawStart.x,
+                    drawCurrent.y - drawStart.y
+                );
+                ctx.setLineDash([]);
+            }
+
+            animationFrameRef.current = requestAnimationFrame(render);
+        };
+
+        animationFrameRef.current = requestAnimationFrame(render);
+        return () => {
+            if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+        };
+    }, [regions, isDrawing, drawStart, drawCurrent, selectedRegionId, hasPermission]);
+
+    // Simulated conveyor stream drawer
+    const drawSimulatedConveyor = (ctx, w, h, tick) => {
+        // Slate background
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, w, h);
+
+        // grid lines
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 1;
+        for (let i = 40; i < w; i += 40) {
+            ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke();
+        }
+        for (let i = 40; i < h; i += 40) {
+            ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(w, i); ctx.stroke();
+        }
+
+        // Draw animated conveyor belt at the bottom
+        ctx.fillStyle = '#334155';
+        ctx.fillRect(0, h - 80, w, 20); // Belt track
+        
+        // Belt rollers
+        ctx.fillStyle = '#475569';
+        for (let x = (tick * 2) % 60; x < w; x += 60) {
+            ctx.beginPath();
+            ctx.arc(x, h - 70, 8, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Draw item moving on the conveyor belt
+        const itemX = (tick * 1.5) % (w + 120) - 60;
+
+        // Color palette
+        const colorPalette = {
+            RED: '#ef4444',
+            GREEN: '#22c55e',
+            BLUE: '#3b82f6',
+            YELLOW: '#eab308',
+            BLACK: '#090d16',
+            WHITE: '#ffffff'
+        };
+        const colorsList = ['YELLOW', 'BLUE', 'RED', 'GREEN', 'WHITE', 'BLACK'];
+        const cycleIndex = Math.floor(tick / 200) % colorsList.length;
+        const currentItemColorKey = colorsList[cycleIndex];
+        const currentItemColor = colorPalette[currentItemColorKey] || '#eab308';
+
+        ctx.fillStyle = currentItemColor;
+        ctx.fillRect(itemX, h - 130, 60, 50);
+
+        // Barcode details
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(itemX + 10, h - 110, 40, 20);
+        ctx.fillStyle = '#000000';
+        for (let bx = 0; bx < 30; bx += 3) {
+            if (Math.sin(bx + tick) > -0.2) {
+                ctx.fillRect(itemX + 12 + bx, h - 110, 2, 20);
+            }
+        }
+
+        // Stream overlay details
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+        ctx.fillRect(10, 10, w - 20, 26);
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(10, 10, w - 20, 26);
+
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = 'bold 9px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(`STREAM: SIMULATED_STATION_CAMERA`, 16, 26);
+        
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.arc(w - 24, 23, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillText('LIVE-FEED SIM', w - 34, 26);
+    };
+
+    return (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc', padding: '16px 24px 24px 24px' }}>
+            {/* Header Navigation */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <div>
+                    <button
+                        onClick={onBack}
+                        style={{
+                            border: 'none', backgroundColor: 'transparent', color: '#3b82f6',
+                            fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', display: 'flex',
+                            alignItems: 'center', gap: '4px', padding: '0 0 6px 0'
+                        }}
+                    >
+                        &lsaquo; Camera Configurations
+                    </button>
+                    <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 900, color: '#0f172a' }}>{camera.name}</h2>
+                </div>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <button style={{ padding: '8px 16px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: 'white', fontWeight: 700, fontSize: '0.8rem', color: '#3b82f6', cursor: 'pointer' }}>
+                        Edit Assignment
+                    </button>
+                    <button style={{ border: 'none', backgroundColor: 'transparent', fontSize: '1.25rem', fontWeight: 'bold', cursor: 'pointer', color: '#64748b' }}>
+                        ...
+                    </button>
+                </div>
+            </div>
+
+            {/* Config workspace grid */}
+            <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px', minHeight: 0 }}>
+                {/* Left Live View */}
+                <div style={{ display: 'flex', flexDirection: 'column', backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                        <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Live Station View:</span>
+                        <select
+                            value={selectedStation}
+                            onChange={(e) => setSelectedStation(e.target.value)}
+                            style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', fontWeight: 600, backgroundColor: 'white', cursor: 'pointer' }}
+                        >
+                            <option>Sample Station</option>
+                            <option>Workstation 1</option>
+                            <option>Quality Inspection Bench</option>
+                        </select>
+                        <Info size={16} color="#64748b" style={{ cursor: 'pointer' }} />
+                    </div>
+
+                    {/* Canvas Wrapper for drawing bounding box */}
+                    <div 
+                        style={{ flex: 1, backgroundColor: '#0f172a', borderRadius: '12px', overflow: 'hidden', position: 'relative', cursor: isDragging ? 'grabbing' : 'crosshair' }}
+                        onMouseDown={handleMouseDown}
+                        onMouseMove={handleMouseMove}
+                        onMouseUp={handleMouseUp}
+                    >
+                        <canvas
+                            ref={canvasRef}
+                            width="640"
+                            height="480"
+                            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                        />
+                    </div>
+                </div>
+
+                {/* Right Settings panel */}
+                <div style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                    {!selectedRegion ? (
+                        /* Empty state when no region selected */
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px', textAlign: 'center' }}>
+                            <div style={{ width: '80px', height: '80px', border: '2.5px dashed #cbd5e1', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px', color: '#cbd5e1', position: 'relative' }}>
+                                <Maximize size={32} />
+                            </div>
+                            <h3 style={{ margin: '0 0 8px 0', fontSize: '0.95rem', fontWeight: 800, color: '#1e293b' }}>No region has been created</h3>
+                            <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b', lineHeight: 1.5, maxWidth: '240px' }}>
+                                Regions are areas of interests within which events such as color change can be detected. Drag anywhere on the Live Station View to create a new region. <a href="#learn" style={{ color: '#3b82f6', textDecoration: 'none', fontWeight: 600 }}>Learn more</a>
+                            </p>
+                        </div>
+                    ) : (
+                        /* Region details and detectors settings panel */
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+                            {/* Region metadata header */}
+                            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ flex: 1, marginRight: '12px' }}>
+                                    <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Selected Region</span>
+                                    <input
+                                        type="text"
+                                        value={selectedRegion.name}
+                                        onChange={(e) => updateRegionName(selectedRegion.id, e.target.value)}
+                                        style={{ display: 'block', width: '100%', border: 'none', borderBottom: '1.5px solid transparent', outline: 'none', padding: '2px 0', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}
+                                        onFocus={(e) => e.target.style.borderBottom = '1.5px solid #3b82f6'}
+                                        onBlur={(e) => e.target.style.borderBottom = '1.5px solid transparent'}
+                                    />
+                                </div>
+                                <button
+                                    onClick={() => deleteRegion(selectedRegion.id)}
+                                    style={{ border: 'none', backgroundColor: 'transparent', padding: '6px', borderRadius: '6px', cursor: 'pointer', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    title="Delete region"
+                                >
+                                    <Trash2 size={18} />
+                                </button>
+                            </div>
+
+                            {/* Detectors section */}
+                            <div style={{ padding: '16px 20px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                                    <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Detectors</h4>
+                                    <a
+                                        href="#create"
+                                        onClick={handleCreateDetector}
+                                        style={{ fontSize: '0.8rem', color: '#2563eb', fontWeight: 700, textDecoration: 'none' }}
+                                    >
+                                        Create Detector
+                                    </a>
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    {/* Change Detector Accordion */}
+                                    <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+                                        <div 
+                                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', backgroundColor: '#f8fafc', cursor: 'pointer' }}
+                                            onClick={() => setChangeDetectorExpanded(prev => !prev)}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                {changeDetectorExpanded ? <ChevronUp size={16} color="#64748b" /> : <ChevronDown size={16} color="#64748b" />}
+                                                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155' }}>Default Change Detector</span>
+                                            </div>
+                                            <label style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }} onClick={(e) => e.stopPropagation()}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedRegion.detectors.changeDetector.enabled}
+                                                    onChange={(e) => toggleDetector(selectedRegion.id, 'changeDetector', e.target.checked)}
+                                                    style={{ display: 'none' }}
+                                                />
+                                                <div style={{
+                                                    width: '36px', height: '18px', backgroundColor: selectedRegion.detectors.changeDetector.enabled ? '#3b82f6' : '#cbd5e1',
+                                                    borderRadius: '9px', position: 'relative', transition: 'background-color 0.2s'
+                                                }}>
+                                                    <div style={{
+                                                        width: '14px', height: '14px', backgroundColor: 'white', borderRadius: '50%',
+                                                        position: 'absolute', top: '2px', left: selectedRegion.detectors.changeDetector.enabled ? '20px' : '2px',
+                                                        transition: 'left 0.2s'
+                                                    }} />
+                                                </div>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {/* Color Detector Accordion */}
+                                    <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+                                        <div 
+                                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', backgroundColor: '#f8fafc', cursor: 'pointer' }}
+                                            onClick={() => setColorDetectorExpanded(prev => !prev)}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                {colorDetectorExpanded ? <ChevronUp size={16} color="#64748b" /> : <ChevronDown size={16} color="#64748b" />}
+                                                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155' }}>{selectedRegion.name} Color</span>
+                                            </div>
+                                            <label style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }} onClick={(e) => e.stopPropagation()}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedRegion.detectors.colorDetector.enabled}
+                                                    onChange={(e) => toggleDetector(selectedRegion.id, 'colorDetector', e.target.checked)}
+                                                    style={{ display: 'none' }}
+                                                />
+                                                <div style={{
+                                                    width: '36px', height: '18px', backgroundColor: selectedRegion.detectors.colorDetector.enabled ? '#3b82f6' : '#cbd5e1',
+                                                    borderRadius: '9px', position: 'relative', transition: 'background-color 0.2s'
+                                                }}>
+                                                    <div style={{
+                                                        width: '14px', height: '14px', backgroundColor: 'white', borderRadius: '50%',
+                                                        position: 'absolute', top: '2px', left: selectedRegion.detectors.colorDetector.enabled ? '20px' : '2px',
+                                                        transition: 'left 0.2s'
+                                                    }} />
+                                                </div>
+                                            </label>
+                                        </div>
+
+                                        {/* Color Detector Specific Parameters */}
+                                        {colorDetectorExpanded && selectedRegion.detectors.colorDetector.enabled && (
+                                            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px', borderTop: '1px solid #e2e8f0' }}>
+                                                {/* Begin Color Detection Threshold */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', position: 'relative' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Begin Color detection threshold</span>
+                                                        <div 
+                                                            style={{ position: 'relative', cursor: 'help' }}
+                                                            onMouseEnter={() => setHoveredHelp('begin')}
+                                                            onMouseLeave={() => setHoveredHelp(null)}
+                                                        >
+                                                            <HelpCircle size={14} color="#94a3b8" />
+                                                            {hoveredHelp === 'begin' && (
+                                                                <div style={{ position: 'absolute', zIndex: 10, bottom: '22px', left: '-10px', width: '220px', padding: '8px 10px', backgroundColor: '#0f172a', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+                                                                    Percentage similarity required between the detected and target color to trigger a "Color Detection Began" event.
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            max="100"
+                                                            value={selectedRegion.detectors.colorDetector.beginThreshold}
+                                                            onChange={(e) => updateRegionThresholds(selectedRegion.id, Number(e.target.value), selectedRegion.detectors.colorDetector.endThreshold)}
+                                                            style={{ flex: 1, padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem' }}
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* End Color Detection Threshold */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', position: 'relative' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>End Color detection threshold</span>
+                                                        <div 
+                                                            style={{ position: 'relative', cursor: 'help' }}
+                                                            onMouseEnter={() => setHoveredHelp('end')}
+                                                            onMouseLeave={() => setHoveredHelp(null)}
+                                                        >
+                                                            <HelpCircle size={14} color="#94a3b8" />
+                                                            {hoveredHelp === 'end' && (
+                                                                <div style={{ position: 'absolute', zIndex: 10, bottom: '22px', left: '-10px', width: '220px', padding: '8px 10px', backgroundColor: '#0f172a', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+                                                                    Percentage similarity threshold below which color detection ends, triggering "Color Detection Ended".
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            max="100"
+                                                            value={selectedRegion.detectors.colorDetector.endThreshold}
+                                                            onChange={(e) => updateRegionThresholds(selectedRegion.id, selectedRegion.detectors.colorDetector.beginThreshold, Number(e.target.value))}
+                                                            style={{ flex: 1, padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem' }}
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Set Target Color tools */}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px' }}>
+                                                    <div 
+                                                        style={{ 
+                                                            width: '36px', height: '36px', borderRadius: '6px', 
+                                                            border: '1.5px solid #cbd5e1', backgroundColor: selectedRegion.detectors.colorDetector.targetColor,
+                                                            position: 'relative', overflow: 'hidden', cursor: 'pointer',
+                                                            boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                                                        }}
+                                                        title="Click to manually specify color"
+                                                    >
+                                                        <input
+                                                            type="color"
+                                                            value={selectedRegion.detectors.colorDetector.targetColor}
+                                                            onChange={(e) => updateRegionTargetColor(selectedRegion.id, e.target.value)}
+                                                            style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }}
+                                                        />
+                                                    </div>
+                                                    <button
+                                                        onClick={handleSetCurrentRegionColor}
+                                                        style={{
+                                                            padding: '8px 14px', border: '1px solid #cbd5e1', borderRadius: '6px',
+                                                            backgroundColor: 'white', color: '#334155', fontWeight: 700,
+                                                            fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.1s'
+                                                        }}
+                                                    >
+                                                        Set current region color
+                                                    </button>
+                                                </div>
+
+                                                {/* Live Similarity Readout */}
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', padding: '10px 12px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px' }}>
+                                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#166534' }}>Current Similarity</span>
+                                                    <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#15803d' }}>{settingsSimilarity}%</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
 
 export default VisionManager;

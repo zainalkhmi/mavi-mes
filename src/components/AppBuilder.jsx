@@ -23100,6 +23100,31 @@ const AppBuilder = () => {
                                                                     </div>
                                                                 </>
                                                             )}
+                                                            {selectedComp.props.filterType === 'OCR_DETECTOR' && (
+                                                                <>
+                                                                    <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>OCR Confidence Threshold (%)</label>
+                                                                        <input
+                                                                            type="number"
+                                                                            min="0"
+                                                                            max="100"
+                                                                            value={selectedComp.props.ocrConfidenceThreshold ?? 50}
+                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { ocrConfidenceThreshold: parseInt(e.target.value) })}
+                                                                            style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                        />
+                                                                    </div>
+                                                                    <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Target Text Match (Optional)</label>
+                                                                        <input
+                                                                            type="text"
+                                                                            placeholder="e.g. APPROVED"
+                                                                            value={selectedComp.props.ocrTargetText ?? ''}
+                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { ocrTargetText: e.target.value })}
+                                                                            style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                        />
+                                                                    </div>
+                                                                </>
+                                                            )}
                                                             {selectedComp.props.filterType === 'DIAL_GAUGE' && (
                                                                 <>
                                                                     <div className="prop-group" style={{ marginBottom: '12px' }}>
@@ -23741,6 +23766,39 @@ const AppBuilder = () => {
                                                     </div>
                                                 )}
 
+                                                {/* Camera Input Source Configurations */}
+                                                {['OPENCV_CAMERA', 'CAMERA_CAPTURE'].includes(selectedComp.type) && (sidebarSearch === '' || 'camera source ip address url screen capture share'.includes(sidebarSearch.toLowerCase())) && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
+                                                        <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Camera Input Source</label>
+                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Input Source Type</label>
+                                                                <select
+                                                                    value={selectedComp.props.cameraSource || 'DEVICE'}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { cameraSource: e.target.value })}
+                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                >
+                                                                    <option value="DEVICE">Local / USB Web Camera</option>
+                                                                    <option value="IP_CAMERA">IP Camera Network Stream (RTSP/HTTP)</option>
+                                                                    <option value="SCREEN_CAPTURE">Screen Capture / Share Source</option>
+                                                                </select>
+                                                            </div>
+                                                            {selectedComp.props.cameraSource === 'IP_CAMERA' && (
+                                                                <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>IP Camera Stream URL</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="rtsp://192.168.1.100/stream"
+                                                                        value={selectedComp.props.ipCameraUrl || ''}
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { ipCameraUrl: e.target.value })}
+                                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                    />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+
                                                 {/* OPENCV_CAMERA Configurations */}
                                                 {selectedComp.type === 'OPENCV_CAMERA' && (sidebarSearch === '' || 'opencv vision filter type threshold camera'.includes(sidebarSearch.toLowerCase())) && (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
@@ -23758,7 +23816,8 @@ const AppBuilder = () => {
                                                                     <option value="THRESHOLD">Binary Threshold (Biner Hitam-Putih)</option>
                                                                     <option value="SOBEL">Sobel Gradient (Deteksi Sisi)</option>
                                                                     <option value="INSPECTION">Vision Inspection (Quality Pass/Fail)</option>
-                                                                    <option value="CALIPER_OCR">Digital Caliper Reader (OCR)</option>
+                                                                    <option value="CALIPER_OCR">Digital Caliper Reader (Caliper OCR)</option>
+                                                                    <option value="OCR_DETECTOR">OCR Detector (Text Region OCR)</option>
                                                                     <option value="DIAL_GAUGE">Dial Gauge Reader (Analisis Jarum)</option>
                                                                     <option value="COUNTING">Part Counting (Hitung Objek)</option>
                                                                     <option value="BARCODE">Barcode/QR Reader (Pemindai)</option>
@@ -31379,17 +31438,54 @@ D3:0
                                                                 }
                                                             }
                                                             const type = String(comp?.type || '');
-                                                            const events = ['ON_CLICK', 'ON_CHANGE', 'ON_SUBMIT'];
+                                                            let events = ['ON_CLICK', 'ON_CHANGE', 'ON_SUBMIT'];
+                                                            if (['OPENCV_CAMERA', 'CAMERA_CAPTURE'].includes(type)) {
+                                                                events = [
+                                                                    'ON_CHANGE',
+                                                                    'OnPass',
+                                                                    'OnFail',
+                                                                    'OnBarcodeScanned',
+                                                                    'OnDatamatrixScanned',
+                                                                    'OnPartCounted',
+                                                                    'OnColorMatch',
+                                                                    'OnColorMismatch',
+                                                                    'OnChangeDetected',
+                                                                    'OnChangeCleared',
+                                                                    'OnJigPresent',
+                                                                    'OnJigAbsent',
+                                                                    'AfterVideoRecorded',
+                                                                    'OnTextDetected'
+                                                                ];
+                                                            }
                                                             const supportsSubmit = ['FORM', 'FORM_SUBMIT', 'DATA_ENTRY_FORM'].includes(type);
                                                             const filtered = supportsSubmit ? events : events.filter(e => e !== 'ON_SUBMIT');
 
                                                             return (
                                                                 <>
-                                                                    {filtered.map(ev => (
-                                                                        <option key={ev} value={ev}>
-                                                                            {ev === 'ON_CLICK' ? 'button is pressed' : ev === 'ON_CHANGE' ? 'data changes' : 'form is submitted'}
-                                                                        </option>
-                                                                    ))}
+                                                                    {filtered.map(ev => {
+                                                                        let label = ev;
+                                                                        if (ev === 'ON_CLICK') label = 'button is pressed';
+                                                                        else if (ev === 'ON_CHANGE') label = 'data changes';
+                                                                        else if (ev === 'OnPass') label = 'inspection passed';
+                                                                        else if (ev === 'OnFail') label = 'inspection failed';
+                                                                        else if (ev === 'OnBarcodeScanned') label = 'barcode scanned';
+                                                                        else if (ev === 'OnDatamatrixScanned') label = 'datamatrix scanned';
+                                                                        else if (ev === 'OnPartCounted') label = 'part counted';
+                                                                        else if (ev === 'OnColorMatch') label = 'Color Detection Began';
+                                                                        else if (ev === 'OnColorMismatch') label = 'Color Detection Ended';
+                                                                        else if (ev === 'OnChangeDetected') label = 'motion/change detected';
+                                                                        else if (ev === 'OnChangeCleared') label = 'motion/change cleared';
+                                                                        else if (ev === 'OnJigPresent') label = 'jig present/aligned';
+                                                                        else if (ev === 'OnJigAbsent') label = 'jig absent/misaligned';
+                                                                        else if (ev === 'AfterVideoRecorded') label = 'video recording completed';
+                                                                         else if (ev === 'OnTextDetected') label = 'text detected (OCR)';
+
+                                                                        return (
+                                                                            <option key={ev} value={ev}>
+                                                                                {label}
+                                                                            </option>
+                                                                        );
+                                                                    })}
                                                                 </>
                                                             );
                                                         })()}

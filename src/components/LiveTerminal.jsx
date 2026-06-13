@@ -6466,6 +6466,35 @@ const LiveTerminal = () => {
       },
       callWidgetMethod: (compId, methodId, args = []) => {
         console.log(`[Runtime] Calling method ${methodId} on ${compId}`, args);
+
+        const baseComps = selectedApp?.config?.baseComponents || [];
+        const stepComps = currentStep?.components || [];
+        const comp = [...baseComps, ...stepComps].find(c => c.id === compId);
+
+        if (comp && ['CAMERA', 'CAMCORDER', 'OPENCV_CAMERA', 'CAMERA_CAPTURE'].includes(comp.type)) {
+          if (['TakePicture', 'RecordVideo', 'TakeSnapshot', 'StartImageCapture'].includes(methodId)) {
+            const evt = new CustomEvent('mavi-camera-method', {
+              detail: { compId, methodId, args }
+            });
+            window.dispatchEvent(evt);
+
+            setTimeout(() => {
+              const mockUri = ['TakePicture', 'TakeSnapshot', 'StartImageCapture'].includes(methodId)
+                ? 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=600&auto=format&fit=crop'
+                : 'content://mock/video.mp4';
+              
+              const eventName = ['TakePicture', 'TakeSnapshot', 'StartImageCapture'].includes(methodId)
+                ? 'AfterCapture'
+                : 'AfterRecording';
+              
+              if (typeof onWidgetInteraction === 'function') {
+                onWidgetInteraction(comp, eventName, { clip: mockUri, image: mockUri, picture: mockUri, value: mockUri });
+              }
+            }, 500);
+            return;
+          }
+        }
+
         const input = document.getElementById(`input-${compId}`);
         if (input) {
           if (methodId === 'RequestFocus') input.focus();

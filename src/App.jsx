@@ -50,6 +50,7 @@ import EdgeDeviceManager from './components/EdgeDeviceManager';
 import IoTHubManager from './components/IoTHubManager';
 import PlcSettings from './components/PlcSettings';
 import VisionManager from './components/VisionManager';
+import McpServerManager from './components/McpServerManager';
 import DataEntryFormGuide from './components/DataEntryFormGuide';
 import VariableManager from './components/VariableManager';
 import AnalysisManager from './components/AnalysisManager';
@@ -255,7 +256,7 @@ const App = () => {
     if (role === 'CONNECTOR_SUPERVISOR') {
       const allowed = [
         '/', '/builder', '/file-explorer', '/store', '/app-management', '/variables',
-        '/connectors', '/functions', '/automations', '/analytics', '/dashboards',
+        '/connectors', '/functions', '/automations', '/analytics', '/dashboards', '/mcp-server',
         '/player', '/terminal', '/plc-settings'
       ];
       return allowed.some(p => path === p || path.startsWith(p + '/'));
@@ -265,7 +266,7 @@ const App = () => {
     if (role === 'STATION_SUPERVISOR') {
       const allowed = [
         '/', '/builder', '/file-explorer', '/store', '/app-management', '/variables',
-        '/stations', '/display-devices', '/machines', '/edge-devices', '/iot-hub', '/vision',
+        '/stations', '/display-devices', '/machines', '/edge-devices', '/iot-hub', '/vision', '/mcp-server',
         '/analytics', '/dashboards', '/player', '/terminal', '/plc-settings'
       ];
       return allowed.some(p => path === p || path.startsWith(p + '/'));
@@ -383,6 +384,7 @@ const App = () => {
                     {hasAccess('/app-management') && <Link to="/app-management" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/app-management')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/app-management' ? '#f0f7ff' : 'transparent'}><AppWindow size={16} /> App Management</Link>}
                     {hasAccess('/tables') && <Link to="/tables" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/tables')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/tables' ? '#f0f7ff' : 'transparent'}><Database size={16} /> Tables</Link>}
                     {hasAccess('/connectors') && <Link to="/connectors" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/connectors')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/connectors' ? '#f0f7ff' : 'transparent'}><Link2 size={16} /> Connectors</Link>}
+                    {hasAccess('/mcp-server') && <Link to="/mcp-server" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/mcp-server')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/mcp-server' ? '#f0f7ff' : 'transparent'}><BrainCircuit size={16} /> Mavi MCP Server</Link>}
                     {hasAccess('/variables') && <Link to="/variables" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/variables')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/variables' ? '#f0f7ff' : 'transparent'}><Variable size={16} /> Variables</Link>}
                   </div>
                 )}
@@ -411,6 +413,7 @@ const App = () => {
                     {hasAccess('/display-devices') && <Link to="/display-devices" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/display-devices')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/display-devices' ? '#f0f7ff' : 'transparent'}><Tv size={16} /> Interfaces</Link>}
                     {hasAccess('/machines') && <Link to="/machines" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/machines')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/machines' ? '#f0f7ff' : 'transparent'}><Cpu size={16} /> Machines</Link>}
                     {hasAccess('/edge-devices') && <Link to="/edge-devices" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/edge-devices')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/edge-devices' ? '#f0f7ff' : 'transparent'}><Activity size={16} /> Edge Devices</Link>}
+                    {hasAccess('/vision') && <Link to="/vision" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/vision')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/vision' ? '#f0f7ff' : 'transparent'}><Eye size={16} /> Vision</Link>}
                     <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '4px 0' }} />
                     {hasAccess('/iot-hub') && <Link to="/iot-hub" onClick={() => setShopFloorMenuOpen(false)} style={{ ...dropdownItemStyle('/iot-hub'), background: location.pathname === '/iot-hub' ? 'linear-gradient(135deg,#eff6ff,#f5f3ff)' : 'transparent' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = location.pathname === '/iot-hub' ? '#eff6ff' : 'transparent'}><Radio size={16} style={{ color: '#8b5cf6' }} /> <span style={{ background: 'linear-gradient(90deg,#3b82f6,#8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontWeight: 800 }}>IoT Hub</span> <span style={{ marginLeft: 'auto', fontSize: '0.6rem', fontWeight: 800, padding: '1px 6px', backgroundColor: '#8b5cf6', color: 'white', borderRadius: '10px' }}>NEW</span></Link>}
                     {hasAccess('/plc-settings') && <Link to="/plc-settings" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/plc-settings')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/plc-settings' ? '#f0f7ff' : 'transparent'}><SlidersHorizontal size={16} /> PLC Settings</Link>}
@@ -597,6 +600,7 @@ const App = () => {
               <Route path="/app-management" element={hasAccess('/app-management') ? <AppManagement /> : <Navigate to="/" replace />} />
               <Route path="/tables" element={hasAccess('/tables') ? <TableManager /> : <Navigate to="/" replace />} />
               <Route path="/connectors" element={hasAccess('/connectors') ? <ConnectorManager /> : <Navigate to="/" replace />} />
+              <Route path="/mcp-server" element={hasAccess('/mcp-server') ? <McpServerManager /> : <Navigate to="/" replace />} />
               <Route path="/variables" element={hasAccess('/variables') ? <VariableManager /> : <Navigate to="/" replace />} />
               <Route path="/analytics" element={hasAccess('/analytics') ? <AnalysisManager /> : <Navigate to="/" replace />} />
               <Route path="/analytics/new" element={hasAccess('/analytics') ? <AnalysisEditor /> : <Navigate to="/" replace />} />
