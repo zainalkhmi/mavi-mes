@@ -235,6 +235,7 @@ const formatTimeLabel = (isoValue) => {
 };
 
 import { processDocument } from '../utils/aiService';
+import VisionCamera from './VisionCamera';
 
 import { saveFrontlineApp, getAllFrontlineApps, deleteFrontlineApp, publishApp, requestApproval, approveApp, getAllVariables, saveVariable, getAllSavedAnalyses } from '../utils/supabaseFrontlineDB';
 import {
@@ -18702,6 +18703,16 @@ const AppBuilder = () => {
                 );
 
             case 'CAMERA_CAPTURE':
+                if (viewMode === 'PREVIEW') {
+                    return (
+                        <VisionCamera 
+                            comp={comp} 
+                            syncInputDatasourceValue={syncInputDatasourceValue} 
+                            onWidgetInteraction={onWidgetInteraction} 
+                            viewMode={viewMode} 
+                        />
+                    );
+                }
                 return (
                     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '8px' }}>{comp.props.label || 'Take Photo'}</div>
@@ -18712,6 +18723,16 @@ const AppBuilder = () => {
                     </div>
                 );
             case 'OPENCV_CAMERA':
+                if (viewMode === 'PREVIEW') {
+                    return (
+                        <VisionCamera 
+                            comp={comp} 
+                            syncInputDatasourceValue={syncInputDatasourceValue} 
+                            onWidgetInteraction={onWidgetInteraction} 
+                            viewMode={viewMode} 
+                        />
+                    );
+                }
                 return (
                     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', padding: '10px', boxSizing: 'border-box' }}>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '8px' }}>{comp.props.label || 'OpenCV Live Stream'}</div>
