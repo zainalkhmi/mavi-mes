@@ -122,9 +122,9 @@ export function createKanbanInventorySystemTemplate() {
             },
             {
                 id: `md_btn_save_part_${ts}`, type: 'BUTTON',
-                x: 20, y: 155, w: 460, h: 40,
+                x: 20, y: 155, w: 140, h: 40,
                 props: {
-                    text: 'Save Part Definition', backgroundColor: '#2563eb', color: 'white', fontWeight: 'bold',
+                    text: 'Save Part', backgroundColor: '#2563eb', color: 'white', fontWeight: 'bold',
                     triggers: [
                         {
                             name: 'Save Part and Stock',
@@ -166,6 +166,56 @@ export function createKanbanInventorySystemTemplate() {
                 }
             },
             {
+                id: `md_btn_update_part_${ts}`, type: 'BUTTON',
+                x: 180, y: 155, w: 140, h: 40,
+                props: {
+                    text: 'Update Part', backgroundColor: '#d97706', color: 'white', fontWeight: 'bold',
+                    triggers: [
+                        {
+                            name: 'Update Part Record',
+                            event: 'ON_CLICK',
+                            actions: [
+                                {
+                                    type: 'TABLE_RECORD_SAVE',
+                                    payload: {
+                                        placeholderId: `r_part_${ts}`
+                                    }
+                                },
+                                {
+                                    type: 'SHOW_MESSAGE',
+                                    payload: { message: 'Part Master record updated successfully!', msgType: 'success' }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            },
+            {
+                id: `md_btn_delete_part_${ts}`, type: 'BUTTON',
+                x: 340, y: 155, w: 140, h: 40,
+                props: {
+                    text: 'Delete Part', backgroundColor: '#dc2626', color: 'white', fontWeight: 'bold',
+                    triggers: [
+                        {
+                            name: 'Delete Part Record',
+                            event: 'ON_CLICK',
+                            actions: [
+                                {
+                                    type: 'TABLE_RECORD_DELETE',
+                                    payload: {
+                                        placeholderId: `r_part_${ts}`
+                                    }
+                                },
+                                {
+                                    type: 'SHOW_MESSAGE',
+                                    payload: { message: 'Part Master record deleted!', msgType: 'success' }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            },
+            {
                 id: `md_tbl_parts_${ts}`, type: 'INTERACTIVE_TABLE',
                 x: 20, y: 210, w: 460, h: 260,
                 props: {
@@ -200,9 +250,9 @@ export function createKanbanInventorySystemTemplate() {
             },
             {
                 id: `md_btn_save_bom_${ts}`, type: 'BUTTON',
-                x: 520, y: 155, w: 460, h: 40,
+                x: 520, y: 155, w: 140, h: 40,
                 props: {
-                    text: 'Link BOM Relationship', backgroundColor: '#10b981', color: 'white', fontWeight: 'bold',
+                    text: 'Link BOM', backgroundColor: '#10b981', color: 'white', fontWeight: 'bold',
                     triggers: [{
                         name: 'Save BOM',
                         event: 'ON_CLICK',
@@ -222,6 +272,56 @@ export function createKanbanInventorySystemTemplate() {
                             }
                         ]
                     }]
+                }
+            },
+            {
+                id: `md_btn_update_bom_${ts}`, type: 'BUTTON',
+                x: 680, y: 155, w: 140, h: 40,
+                props: {
+                    text: 'Update BOM', backgroundColor: '#d97706', color: 'white', fontWeight: 'bold',
+                    triggers: [
+                        {
+                            name: 'Update BOM Record',
+                            event: 'ON_CLICK',
+                            actions: [
+                                {
+                                    type: 'TABLE_RECORD_SAVE',
+                                    payload: {
+                                        placeholderId: `r_bom_${ts}`
+                                    }
+                                },
+                                {
+                                    type: 'SHOW_MESSAGE',
+                                    payload: { message: 'BOM Record updated successfully!', msgType: 'success' }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            },
+            {
+                id: `md_btn_delete_bom_${ts}`, type: 'BUTTON',
+                x: 840, y: 155, w: 140, h: 40,
+                props: {
+                    text: 'Delete BOM', backgroundColor: '#dc2626', color: 'white', fontWeight: 'bold',
+                    triggers: [
+                        {
+                            name: 'Delete BOM Record',
+                            event: 'ON_CLICK',
+                            actions: [
+                                {
+                                    type: 'TABLE_RECORD_DELETE',
+                                    payload: {
+                                        placeholderId: `r_bom_${ts}`
+                                    }
+                                },
+                                {
+                                    type: 'SHOW_MESSAGE',
+                                    payload: { message: 'BOM Record deleted!', msgType: 'success' }
+                                }
+                            ]
+                        }
+                    ]
                 }
             },
             {

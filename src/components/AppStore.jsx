@@ -46,6 +46,7 @@ import { createWorkInstructionsTemplate } from '../utils/workInstructionsTemplat
 import { createProductDrawingInspectionTemplate } from '../utils/productDrawingInspectionTemplate';
 import { createHydraulicCylinderInspectionTemplate } from '../utils/hydraulicCylinderInspectionTemplate';
 import { createMobileScanInspectionTemplate } from '../utils/mobileScanInspectionTemplate';
+import { createQuickStartHelloWorldTemplate } from '../utils/quickStartHelloWorldTemplate';
 
 import { saveFrontlineApp, deleteFrontlineApp, getAllFrontlineApps } from '../utils/supabaseFrontlineDB';
 import {
@@ -362,6 +363,32 @@ const AppStore = () => {
 
 
     const rawTemplates = [
+        {
+            id: 'quickstart-hello-world',
+            name: 'Quick Start: Hello World',
+            category: 'App Management',
+            description: 'Tutorial 5 Menit: Membuat Aplikasi Pertama Anda. Panduan interaktif cara kerja widget Text, Button, dan Trigger di App Builder.',
+            longDescription: 'Tutorial Hello World langkah-demi-langkah. Pelajari cara menambahkan widget Text dan Button, lalu menghubungkannya menggunakan Trigger On Click untuk memperbarui teks.',
+            icon: <Sparkles size={28} color="#eab308" />,
+            bg: 'linear-gradient(135deg, #fef9c3 0%, #fef08a 100%)',
+            accent: '#eab308',
+            rating: 5.0,
+            installs: 'New',
+            features: ['Text Widget', 'Button Trigger', 'Update Widget Property', 'Interactive Tutorial'],
+            guide: {
+                operation: '1. Buka App Builder\n2. Tarik widget Text ke tengah layar, ubah nilainya jadi "Status: Belum Ditekan"\n3. Tarik widget Button di bawahnya, ubah labelnya jadi "Tekan Saya"\n4. Tambahkan Trigger ON_CLICK pada Button untuk merubah teks properti dari widget Text tadi menjadi "Status: Tombol Ditekan!"',
+                widgets: ['Text Widget', 'Button Widget'],
+                components: ['Tutorial Canvas'],
+                tables: [],
+                triggers: [
+                    { event: 'ON_CLICK', function: 'Mengubah teks status saat tombol ditekan.' }
+                ],
+                mechanism: 'Mendemonstrasikan dasar interaksi widget dan trigger dalam 5 menit.',
+                steps: [
+                    { name: 'Tutorial Step', description: 'Tarik text & button, kemudian hubungkan dengan trigger.' }
+                ]
+            }
+        },
         {
             id: 'vision-inspection-suite',
             name: 'Cognitive Vision & QC Suite',
@@ -1627,7 +1654,9 @@ const AppStore = () => {
         try {
             let templateApp;
 
-            if (templateId === 'vision-inspection-suite') {
+            if (templateId === 'quickstart-hello-world') {
+                templateApp = createQuickStartHelloWorldTemplate();
+            } else if (templateId === 'vision-inspection-suite') {
                 templateApp = createVisionInspectionTemplate();
                 try {
                     const visionTable = await getOrCreateTableAndSeed(allTables, {

@@ -30708,7 +30708,7 @@ D3:0
 
             {triggerEditor.isOpen && triggerEditor.trigger && !triggerEditor.isHidden && (
                 <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(51, 65, 85, 0.4)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, color: 'var(--text-primary)' }}>
-                    <div style={{ backgroundColor: '#e5e7eb', width: 'min(980px, 98vw)', height: '95vh', borderRadius: '4px', border: '1px solid #94a3b8', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', overflow: 'hidden' }}>
+                    <div style={{ backgroundColor: '#e5e7eb', width: triggerEditor.isMaximized ? '100vw' : 'min(980px, 98vw)', height: triggerEditor.isMaximized ? '100vh' : '95vh', borderRadius: triggerEditor.isMaximized ? '0px' : '4px', border: '1px solid #94a3b8', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', overflow: 'hidden' }}>
                         {/* Header */}
                         <div style={{ padding: '12px 24px', backgroundColor: 'var(--bg-panel)', borderBottom: '1px solid var(--border-primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flex: 1 }}>
@@ -30781,14 +30781,25 @@ D3:0
                                     </div>
                                 </div>
                             </div>
-                            <button
-                                onClick={() => setTriggerEditor({ isOpen: false, sourceType: null, sourceId: null, trigger: null })}
-                                style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-primary)', cursor: 'pointer', color: 'var(--text-quaternary)', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
-                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-                                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#f8fafc'}
-                            >
-                                <X size={18} />
-                            </button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <button
+                                    onClick={() => setTriggerEditor(prev => ({ ...prev, isMaximized: !prev.isMaximized }))}
+                                    style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-primary)', cursor: 'pointer', color: 'var(--text-quaternary)', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                                    title={triggerEditor.isMaximized ? "Minimize" : "Maximize"}
+                                >
+                                    {triggerEditor.isMaximized ? <Minimize size={15} /> : <Maximize size={15} />}
+                                </button>
+                                <button
+                                    onClick={() => setTriggerEditor({ isOpen: false, sourceType: null, sourceId: null, trigger: null })}
+                                    style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-primary)', cursor: 'pointer', color: 'var(--text-quaternary)', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
                         </div>
 
                         {/* Scrollable Body */}
