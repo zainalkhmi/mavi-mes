@@ -890,6 +890,55 @@ Apa yang bisa kamu bantu untuk widget ini?`;
     }
   };
 
+  const handleSendDirectToAntigravity = async () => {
+    const text = input.trim();
+    if (!text) return;
+
+    const userMessage = {
+      role: 'user',
+      content: `[KIRIM KE ANTIGRAVITY] ${text}`,
+      timestamp: new Date()
+    };
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+
+    if (!isSupabaseReady()) {
+      alert("Koneksi Supabase belum siap.");
+      return;
+    }
+    const supabase = getSupabaseClient();
+    const payload = {
+      instruction: text,
+      commands: []
+    };
+
+    const newMessage = {
+      sender_id: 'copilot_direct',
+      sender_name: 'Mavi Copilot Direct Input',
+      station_id: 'AppBuilder',
+      target_station_id: 'antigravity',
+      content: JSON.stringify(payload),
+      type: 'IDE_COMMAND',
+      is_read: false,
+      created_at: new Date().toISOString()
+    };
+
+    try {
+      const { error } = await supabase.from('chat_messages').insert([newMessage]);
+      if (error) throw error;
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: `📤 **Perintah terkirim langsung ke Antigravity:** "${text}"\nMenunggu Antigravity memproses...`,
+          timestamp: new Date()
+        }
+      ]);
+    } catch (err) {
+      alert("Gagal mengirim perintah ke Antigravity: " + err.message);
+    }
+  };
+
   // Enterprise Feature: Rollback to pre-Copilot state
   const handleRollback = async () => {
     if (!hasSnapshot) return;
@@ -2336,6 +2385,24 @@ Apa yang bisa kamu bantu untuk widget ini?`;
             >
               <ImageIcon size={16} />
             </button>
+            
+            <button
+              onClick={handleSendDirectToAntigravity}
+              disabled={!input.trim() || isLoading}
+              title="Kirim perintah teks ini langsung ke Antigravity IDE"
+              style={{
+                backgroundColor: 'transparent',
+                color: input.trim() && !isLoading ? '#8b5cf6' : '#94a3b8',
+                border: 'none', width: '36px', height: '36px', borderRadius: '10px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: input.trim() && !isLoading ? 'pointer' : 'default', transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { if (input.trim() && !isLoading) { e.currentTarget.style.backgroundColor = '#f3e8ff'; e.currentTarget.style.color = '#7c3aed'; }}}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = input.trim() && !isLoading ? '#8b5cf6' : '#94a3b8'; }}
+            >
+              <BrainCircuit size={16} />
+            </button>
+
             <button
               onClick={() => handleSend()}
               disabled={(!input.trim() && !selectedFile) || isLoading}

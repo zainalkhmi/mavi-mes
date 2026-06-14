@@ -430,7 +430,20 @@ const CADViewer3D = ({ appVariables, setAppVariables }) => {
   const [pitch, setPitch] = useState(0.6);
   const [zoom, setZoom] = useState(2.3);
   const [isDragging, setIsDragging] = useState(false);
+  const [isRotating, setIsRotating] = useState(false);
   const lastMousePos = useRef({ x: 0, y: 0 });
+
+  // Auto-rotation (Fly Rotate) effect
+  useEffect(() => {
+    if (!isRotating) return;
+    let animId;
+    const tick = () => {
+      setYaw(prev => prev + 0.015);
+      animId = requestAnimationFrame(tick);
+    };
+    animId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animId);
+  }, [isRotating]);
 
   // Get current visual inspection values
   const weldStatus = appVariables.find(v => v.name === 'Visual_Weld')?.value || 'PENDING';
@@ -788,9 +801,30 @@ const CADViewer3D = ({ appVariables, setAppVariables }) => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', zIndex: 10 }}>
         <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🧊 Interactive 3D CAD Twin</div>
         <div style={{ display: 'flex', gap: '6px' }}>
+          <button 
+            onClick={() => setIsRotating(prev => !prev)} 
+            style={{ 
+              height: 22, 
+              padding: '0 8px', 
+              display: 'grid', 
+              placeItems: 'center', 
+              backgroundColor: isRotating ? '#0891b2' : '#1e293b', 
+              border: `1.5px solid ${isRotating ? '#06b6d4' : '#475569'}`, 
+              borderRadius: '4px', 
+              color: 'white', 
+              cursor: 'pointer', 
+              fontSize: '8px', 
+              fontWeight: 'bold', 
+              textTransform: 'uppercase',
+              transition: 'all 0.2s'
+            }}
+            title="Toggle Auto Rotate Mode"
+          >
+            {isRotating ? '📴 Stop Fly' : '🔄 Fly Rotate'}
+          </button>
           <button onClick={() => setZoom(prev => Math.max(1, prev - 0.2))} style={{ width: 22, height: 22, display: 'grid', placeItems: 'center', backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '4px', color: 'white', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>-</button>
           <button onClick={() => setZoom(prev => Math.min(5, prev + 0.2))} style={{ width: 22, height: 22, display: 'grid', placeItems: 'center', backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '4px', color: 'white', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+</button>
-          <button onClick={() => { setYaw(0.8); setPitch(0.6); setZoom(2.3); }} style={{ height: 22, padding: '0 8px', display: 'grid', placeItems: 'center', backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '4px', color: 'white', cursor: 'pointer', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>Reset</button>
+          <button onClick={() => { setYaw(0.8); setPitch(0.6); setZoom(2.3); setIsRotating(false); }} style={{ height: 22, padding: '0 8px', display: 'grid', placeItems: 'center', backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '4px', color: 'white', cursor: 'pointer', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>Reset</button>
         </div>
       </div>
       
