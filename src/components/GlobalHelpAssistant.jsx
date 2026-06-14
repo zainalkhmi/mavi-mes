@@ -7,7 +7,7 @@ import {
   Play, Volume2, Mic, Tv, Map, Wifi, AlertTriangle, Wrench, CreditCard, Gamepad2, Grid3X3, Sun, Flame, Wind,
   Snowflake, Compass, Container, Bell, Power, ArrowRight, RotateCw, ArrowDownUp, Car, Fuel, Bug, Trash2, Wallet,
   Keyboard, Menu, Hash, Upload, ShieldCheck, Cog, AlignLeft, LayoutGrid, Palette, PlayCircle, Thermometer, Video,
-  Gauge, TrendingUp, Rocket, Route, AppWindow, Factory, Workflow, Link2
+  Gauge, TrendingUp, Rocket, Route, AppWindow, Factory, Workflow, Link2, BrainCircuit
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
@@ -483,6 +483,73 @@ Berikut adalah panduan konfigurasi (*caranya*) dan contoh penggunaan (*contohnya
   * Menampilkan gambar panduan perakitan visual terbaru di layar operator:
     * Setiap kali model produk berganti (misal dari model A ke B), HMI MAVI memanggil Canva Connector dengan mengirimkan Design ID spesifik (\`DAG12345XYZ\`).
     * Connector akan menarik versi ekspor PNG terbaru langsung dari project Canva desainer produk dan menampilkannya di stasiun kerja operator secara instan.
+`
+  },
+  {
+    id: 'mcp-guide',
+    title: 'Model Context Protocol (MCP)',
+    icon: BrainCircuit,
+    color: '#8b5cf6', // Violet
+    content: `
+**Panduan Integrasi Mavi MCP Server dengan Claude Desktop & Antigravity**
+
+Model Context Protocol (MCP) adalah standar terbuka yang memungkinkan asisten AI (LLM) terhubung secara aman ke repositori data lokal Anda. Mavi dilengkapi dengan MCP Server mandiri yang mengekspos data operasional pabrik sebagai *tools* bagi asisten AI seperti **Claude Desktop** dan **Antigravity**.
+
+---
+
+### 1. Daftar Toolset Mavi MCP
+Saat terhubung, asisten AI akan mendapatkan akses ke 6 tool berikut:
+1. \`read_mavi_table\`: Membaca baris data dari tabel kualitas, stasiun, dll.
+2. \`write_mavi_table\`: Menambahkan data log baru ke database.
+3. \`get_station_status\`: Mengambil status real-time dari stasiun kerja.
+4. \`set_station_status\`: Memperbarui status operasional stasiun kerja.
+5. \`get_machine_info\`: Membaca telemetri sensor & vibrasi mesin.
+6. \`list_active_users\`: Mendapatkan daftar operator yang aktif login di stasiun.
+
+---
+
+### 2. Panduan Koneksi ke Claude Desktop
+Untuk menghubungkan Mavi ke Claude Desktop:
+1. Pastikan Anda memiliki Node.js terinstal (versi 18+ direkomendasikan).
+2. Buka berkas konfigurasi Claude Desktop di Windows pada path:
+   \`%APPDATA%\\Claude\\claude_desktop_config.json\`
+3. Tambahkan konfigurasi berikut di bawah bagian \`mcpServers\`:
+   \`\`\`json
+   {
+     "mcpServers": {
+       "mavi-mes-mcp": {
+         "command": "node",
+         "args": [
+           "C:\\\\Users\\\\ndens\\\\mavi-core\\\\mavi-mcp-server.js"
+         ],
+         "env": {
+           "SUPABASE_URL": "https://pypjnzvsolxsddsqworw.supabase.co",
+           "SUPABASE_KEY": "KUNCI_ANON_SUPABASE_ANDA"
+         }
+       }
+     }
+   }
+   \`\`\`
+4. Simpan berkas lalu restart Claude Desktop. Ikon palu (tools) akan muncul menandakan koneksi berhasil.
+
+---
+
+### 3. Panduan Koneksi ke Antigravity
+Untuk menghubungkan Mavi ke asisten coding Antigravity Anda:
+1. Di workspace proyek Anda, pastikan terdapat berkas konfigurasi \`mavi-mcp-server.js\`.
+2. Daftarkan skrip ini ke konfigurasi client Antigravity/Gemini Anda di bawah setelan \`mcpServers\` pada berkas konfigurasi IDE Anda:
+   \`\`\`json
+   {
+     "mcpServers": {
+       "mavi-mes-mcp": {
+         "command": "node",
+         "args": ["C:/Users/ndens/mavi-core/mavi-mcp-server.js"]
+       }
+     }
+   }
+   \`\`\`
+3. Ketika Anda memulai obrolan dengan Antigravity, agen akan secara otomatis mendeteksi tools MCP yang terekspos.
+4. Anda bisa langsung menginstruksikan dalam chat: *"Antigravity, tolong periksa stasiun WS-01"* atau *"Buatkan visualisasi log kualitas dari data tabel."*
 `
   },
   {

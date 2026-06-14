@@ -17,7 +17,9 @@ import {
     RefreshCw,
     CheckCircle,
     Info,
-    ArrowRight
+    ArrowRight,
+    Copy,
+    Download
 } from 'lucide-react';
 
 export default function McpServerManager() {
@@ -25,6 +27,150 @@ export default function McpServerManager() {
     const [isRunning, setIsRunning] = useState(true);
     const [apiToken, setApiToken] = useState('mavi_mcp_live_pk_8849201974');
     const [showToken, setShowToken] = useState(false);
+    
+    // Quick Integration State
+    const [integrationTab, setIntegrationTab] = useState('claude');
+    const [copied, setCopied] = useState(false);
+
+    const claudeConfig = {
+        mcpServers: {
+            "mavi-mes-mcp": {
+                command: "node",
+                args: ["C:\\Users\\ndens\\mavi-core\\mavi-mcp-server.js"],
+                env: {
+                    SUPABASE_URL: "https://pypjnzvsolxsddsqworw.supabase.co",
+                    SUPABASE_KEY: apiToken
+                }
+            }
+        }
+    };
+
+    const antigravityConfig = {
+        mcpServers: {
+            "mavi-mes-mcp": {
+                command: "node",
+                args: ["C:\\Users\\ndens\\mavi-core\\mavi-mcp-server.js"],
+                env: {
+                    SUPABASE_URL: "https://pypjnzvsolxsddsqworw.supabase.co",
+                    SUPABASE_KEY: apiToken
+                }
+            }
+        }
+    };
+
+    const copyToClipboard = (text) => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    const downloadClaudeSetupScript = () => {
+        const scriptContent = `# PowerShell script to register Mavi MCP Server to Claude Desktop
+$mcpScriptPath = Join-Path $PSScriptRoot "mavi-mcp-server.js"
+if (!(Test-Path $mcpScriptPath)) {
+    Write-Host "Error: mavi-mcp-server.js not found in this folder." -ForegroundColor Red
+    Write-Host "Please place this script inside your mavi-core folder and run it again." -ForegroundColor Yellow
+    Read-Host "Press Enter to exit..."
+    exit
+}
+
+$configPath = "$env:APPDATA\\Claude\\claude_desktop_config.json"
+$parentDir = Split-Path -Parent $configPath
+if (!(Test-Path $parentDir)) {
+    New-Item -ItemType Directory -Force -Path $parentDir | Out-Null
+}
+
+$newMcp = [ordered]@{
+    "command" = "node"
+    "args" = @($mcpScriptPath)
+    "env" = @{
+        "SUPABASE_URL" = "https://pypjnzvsolxsddsqworw.supabase.co"
+        "SUPABASE_KEY" = "${apiToken}"
+    }
+}
+
+if (Test-Path $configPath) {
+    $config = Get-Content $configPath -Raw | ConvertFrom-Json
+    if (!$config.mcpServers) {
+        $config | Add-Member -MemberType NoteProperty -Name "mcpServers" -Value @{}
+    }
+    # Add or update property
+    if ($config.mcpServers.PSObject.Properties["mavi-mes-mcp"]) {
+        $config.mcpServers.PSObject.Properties.Remove("mavi-mes-mcp")
+    }
+    $config.mcpServers | Add-Member -MemberType NoteProperty -Name "mavi-mes-mcp" -Value $newMcp -Force
+} else {
+    $config = @{ "mcpServers" = @{ "mavi-mes-mcp" = $newMcp } }
+}
+
+$config | ConvertTo-Json -Depth 10 | Set-Content $configPath -Force
+Write-Host "Mavi MCP Server successfully registered to Claude Desktop!" -ForegroundColor Green
+Read-Host "Press Enter to exit..."
+`;
+        const blob = new Blob([scriptContent], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'setup-mcp.ps1';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
+    const downloadAntigravitySetupScript = () => {
+        const scriptContent = `# PowerShell script to register Mavi MCP Server to Antigravity IDE
+$mcpScriptPath = Join-Path $PSScriptRoot "mavi-mcp-server.js"
+if (!(Test-Path $mcpScriptPath)) {
+    Write-Host "Error: mavi-mcp-server.js not found in this folder." -ForegroundColor Red
+    Write-Host "Please place this script inside your mavi-core folder and run it again." -ForegroundColor Yellow
+    Read-Host "Press Enter to exit..."
+    exit
+}
+
+$configPath = "C:\\Users\\ndens\\.gemini\\antigravity-ide\\mcp_config.json"
+$parentDir = Split-Path -Parent $configPath
+if (!(Test-Path $parentDir)) {
+    New-Item -ItemType Directory -Force -Path $parentDir | Out-Null
+}
+
+$newMcp = [ordered]@{
+    "command" = "node"
+    "args" = @($mcpScriptPath)
+    "env" = @{
+        "SUPABASE_URL" = "https://pypjnzvsolxsddsqworw.supabase.co"
+        "SUPABASE_KEY" = "${apiToken}"
+    }
+}
+
+if (Test-Path $configPath) {
+    $config = Get-Content $configPath -Raw | ConvertFrom-Json
+    if (!$config.mcpServers) {
+        $config | Add-Member -MemberType NoteProperty -Name "mcpServers" -Value @{}
+    }
+    # Add or update property
+    if ( $config.mcpServers.PSObject.Properties["mavi-mes-mcp"] ) {
+        $config.mcpServers.PSObject.Properties.Remove("mavi-mes-mcp")
+    }
+    $config.mcpServers | Add-Member -MemberType NoteProperty -Name "mavi-mes-mcp" -Value $newMcp -Force
+} else {
+    $config = @{ "mcpServers" = @{ "mavi-mes-mcp" = $newMcp } }
+}
+
+$config | ConvertTo-Json -Depth 10 | Set-Content $configPath -Force
+Write-Host "Mavi MCP Server successfully registered to Antigravity IDE!" -ForegroundColor Green
+Read-Host "Press Enter to exit..."
+`;
+        const blob = new Blob([scriptContent], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'setup-mcp-antigravity.ps1';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
     
     // Live logs simulation
     const [logs, setLogs] = useState([
@@ -348,6 +494,75 @@ export default function McpServerManager() {
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    {/* Plug and Play Integration Card */}
+                    <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '20px' }}>
+                        <h3 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', fontWeight: 800, color: '#1e293b' }}>Integrasi Kilat AI Client</h3>
+                        <p style={{ margin: '0 0 16px 0', color: '#64748b', fontSize: '0.75rem' }}>Hubungkan Mavi MCP Server ini ke client AI Anda secara Plug-and-Play.</p>
+
+                        <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', marginBottom: '16px' }}>
+                            <button 
+                                onClick={() => setIntegrationTab('claude')}
+                                style={{ padding: '6px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700, borderBottom: integrationTab === 'claude' ? '2px solid #8b5cf6' : '2px solid transparent', color: integrationTab === 'claude' ? '#8b5cf6' : '#64748b' }}
+                            >Claude Desktop</button>
+                            <button 
+                                onClick={() => setIntegrationTab('antigravity')}
+                                style={{ padding: '6px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700, borderBottom: integrationTab === 'antigravity' ? '2px solid #8b5cf6' : '2px solid transparent', color: integrationTab === 'antigravity' ? '#8b5cf6' : '#64748b' }}
+                            >Antigravity / IDE</button>
+                        </div>
+
+                        {integrationTab === 'claude' ? (
+                            <div>
+                                <p style={{ fontSize: '0.75rem', color: '#475569', margin: '0 0 12px 0', lineHeight: 1.4 }}>
+                                    <strong>Windows Auto-Setup:</strong> Unduh skrip otomatis untuk mendaftarkan server ke berkas konfigurasi Claude Desktop dalam satu klik.
+                                </p>
+                                <button
+                                    onClick={downloadClaudeSetupScript}
+                                    style={{ width: '100%', padding: '10px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '0.75rem', marginBottom: '16px' }}
+                                >
+                                    <Download size={14} /> Unduh Windows Setup Script
+                                </button>
+                                
+                                <label style={{ display: 'block', fontSize: '0.7rem', color: '#64748b', fontWeight: 800, marginBottom: '6px' }}>Konfigurasi Manual (JSON)</label>
+                                <div style={{ position: 'relative' }}>
+                                    <pre style={{ margin: 0, padding: '12px', backgroundColor: '#0f172a', color: '#e2e8f0', borderRadius: '8px', fontSize: '0.65rem', overflowX: 'auto', fontFamily: 'monospace', maxHeight: '150px' }}>
+                                        {JSON.stringify(claudeConfig, null, 2)}
+                                    </pre>
+                                    <button
+                                        onClick={() => copyToClipboard(JSON.stringify(claudeConfig, null, 2))}
+                                        style={{ position: 'absolute', top: '8px', right: '8px', padding: '4px 8px', backgroundColor: 'rgba(255, 255, 255, 0.15)', color: 'white', border: 'none', borderRadius: '4px', fontSize: '0.65rem', cursor: 'pointer' }}
+                                    >
+                                        {copied ? 'Copied!' : 'Copy'}
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div>
+                                <p style={{ fontSize: '0.75rem', color: '#475569', margin: '0 0 12px 0', lineHeight: 1.4 }}>
+                                    <strong>Windows Auto-Setup:</strong> Unduh skrip otomatis untuk mendaftarkan server ke berkas konfigurasi Antigravity IDE dalam satu klik.
+                                </p>
+                                <button
+                                    onClick={downloadAntigravitySetupScript}
+                                    style={{ width: '100%', padding: '10px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '0.75rem', marginBottom: '16px' }}
+                                >
+                                    <Download size={14} /> Unduh Antigravity Setup Script
+                                </button>
+                                
+                                <label style={{ display: 'block', fontSize: '0.7rem', color: '#64748b', fontWeight: 800, marginBottom: '6px' }}>Konfigurasi Manual (JSON)</label>
+                                <div style={{ position: 'relative' }}>
+                                    <pre style={{ margin: 0, padding: '12px', backgroundColor: '#0f172a', color: '#e2e8f0', borderRadius: '8px', fontSize: '0.65rem', overflowX: 'auto', fontFamily: 'monospace', maxHeight: '150px' }}>
+                                        {JSON.stringify(antigravityConfig, null, 2)}
+                                    </pre>
+                                    <button
+                                        onClick={() => copyToClipboard(JSON.stringify(antigravityConfig, null, 2))}
+                                        style={{ position: 'absolute', top: '8px', right: '8px', padding: '4px 8px', backgroundColor: 'rgba(255, 255, 255, 0.15)', color: 'white', border: 'none', borderRadius: '4px', fontSize: '0.65rem', cursor: 'pointer' }}
+                                    >
+                                        {copied ? 'Copied!' : 'Copy'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Interactive NLP Playground */}

@@ -15,6 +15,7 @@ import { getPrimaryAiConnector, saveIntegrationConnector } from '../utils/databa
 import { getBuilderCopilotAdvice, getBuilderVisionAdvice, streamBuilderCopilotAdvice, diagnoseApp } from '../utils/aiService';
 import { sanitizeCopilotCommands } from '../utils/copilotSafety';
 import { getAllFrontlineApps } from '../utils/supabaseFrontlineDB';
+import { getSupabaseClient, isSupabaseReady } from '../utils/supabaseManualDB';
 
 // Widget type → icon/color mapping
 const WIDGET_META = {
@@ -348,6 +349,37 @@ const BuilderCopilot = ({
 
   useEffect(() => {
     setIsSpeechSupported(typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition));
+  }, []);
+
+  // Supabase Realtime listener for logs sent back from Antigravity IDE
+  useEffect(() => {
+    if (!isSupabaseReady()) return;
+    const supabase = getSupabaseClient();
+    
+    const channel = supabase
+      .channel('antigravity_commands_feedback')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'chat_messages'
+      }, (payload) => {
+        const msg = payload.new;
+        if (msg.sender_id === 'antigravity') {
+          setMessages(prev => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: msg.content,
+              timestamp: new Date(msg.created_at)
+            }
+          ]);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Related Apps integration states
@@ -818,6 +850,44 @@ Apa yang bisa kamu bantu untuk widget ini?`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const sendToAntigravity = async (msg) => {
+    if (!isSupabaseReady()) {
+      alert("Koneksi Supabase belum siap.");
+      return;
+    }
+    const supabase = getSupabaseClient();
+    const cleanContent = msg.content
+      .replace(/<builder_cmds>[\s\S]*?<\/builder_cmds>/gi, '')
+      .replace(/<ai_plan>[\s\S]*?<\/ai_plan>/gi, '')
+      .trim();
+
+    const commandData = parseCommands(msg.content);
+    
+    const payload = {
+      instruction: cleanContent,
+      commands: commandData?.commands || []
+    };
+
+    const newMessage = {
+      sender_id: 'copilot',
+      sender_name: 'Mavi Builder Copilot',
+      station_id: 'AppBuilder',
+      target_station_id: 'antigravity',
+      content: JSON.stringify(payload),
+      type: 'IDE_COMMAND',
+      is_read: false,
+      created_at: new Date().toISOString()
+    };
+
+    try {
+      const { error } = await supabase.from('chat_messages').insert([newMessage]);
+      if (error) throw error;
+      alert("Tugas berhasil dikirim ke Antigravity IDE!");
+    } catch (err) {
+      alert("Gagal mengirim tugas ke Antigravity: " + err.message);
+    }
   };
 
   // Enterprise Feature: Rollback to pre-Copilot state
@@ -1411,7 +1481,25 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                   : '0 2px 8px rgba(0,0,0,0.06)',
                 whiteSpace: 'pre-wrap',
               }}>
-                {cleanContent}
+                 {cleanContent}
+
+                {msg.role === 'assistant' && !msg.isError && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px', borderTop: '1px dashed #e2e8f0', paddingTop: '6px' }}>
+                    <button
+                      onClick={() => sendToAntigravity(msg)}
+                      style={{
+                        background: 'none', border: 'none', color: '#8b5cf6',
+                        fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', borderRadius: '4px',
+                        transition: 'background 0.15s'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#f3e8ff'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                    >
+                      <BrainCircuit size={11} /> Kirim ke Antigravity
+                    </button>
+                  </div>
+                )}
 
                 {/* Command actions panel */}
                 {safePack?.safeCommands && (
