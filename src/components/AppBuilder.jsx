@@ -354,6 +354,7 @@ export const COMPONENT_TYPES = {
             label: 'OpenCV Live Stream', 
             filterType: 'CANNY', 
             thresholdValue: 100, 
+            changeThreshold: 25,
             caliperMin: 25.35,
             caliperMax: 25.45,
             gaugeMin: 0.0,
@@ -23821,6 +23822,7 @@ const AppBuilder = () => {
                                                                     <option value="DIAL_GAUGE">Dial Gauge Reader (Analisis Jarum)</option>
                                                                     <option value="COUNTING">Part Counting (Hitung Objek)</option>
                                                                     <option value="BARCODE">Barcode/QR Reader (Pemindai)</option>
+                                                                    <option value="CHANGE_DETECTOR">Change Detector (Sensor Perubahan)</option>
                                                                 </select>
                                                             </div>
                                                             {(selectedComp.props.filterType === 'CANNY' || selectedComp.props.filterType === 'THRESHOLD') && (
@@ -23834,6 +23836,21 @@ const AppBuilder = () => {
                                                                         max="255"
                                                                         value={selectedComp.props.thresholdValue ?? 100}
                                                                         onChange={(e) => updateComponentProps(selectedComp.id, { thresholdValue: parseInt(e.target.value) })}
+                                                                        style={{ width: '100%', cursor: 'pointer' }}
+                                                                    />
+                                                                </div>
+                                                            )}
+                                                            {selectedComp.props.filterType === 'CHANGE_DETECTOR' && (
+                                                                <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
+                                                                        Change Threshold (%): {selectedComp.props.changeThreshold ?? 25}%
+                                                                    </label>
+                                                                    <input
+                                                                        type="range"
+                                                                        min="1"
+                                                                        max="100"
+                                                                        value={selectedComp.props.changeThreshold ?? 25}
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { changeThreshold: parseInt(e.target.value) })}
                                                                         style={{ width: '100%', cursor: 'pointer' }}
                                                                     />
                                                                 </div>

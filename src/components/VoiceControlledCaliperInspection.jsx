@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
-  Volume2, Gamepad, Sliders, Mic, MicOff, AlertCircle, RefreshCw, Languages, Info, KeyRound, Bluetooth
+  Volume2, Gamepad, Sliders, Mic, MicOff, AlertCircle, RefreshCw, Languages, Info, KeyRound, Bluetooth, X
 } from 'lucide-react';
 
 // Helper to load Tauri API
@@ -53,6 +54,33 @@ const DEFAULT_BINDINGS = [
 ];
 
 export default function VoiceControlledCaliperInspection() {
+  const navigate = useNavigate();
+
+  const handleClose = () => {
+    if (window.history.state && window.history.state.idx > 0) {
+      navigate(-1);
+    } else {
+      navigate('/');
+    }
+  };
+
+  const handleSave = () => {
+    try {
+      localStorage.setItem('mavi_gamepad_bindings', JSON.stringify(bindings));
+      localStorage.setItem('mavi_voice_language', language);
+      toast.success('Konfigurasi berhasil disimpan!');
+      setTimeout(() => {
+        if (window.history.state && window.history.state.idx > 0) {
+          navigate(-1);
+        } else {
+          navigate('/');
+        }
+      }, 800);
+    } catch (err) {
+      toast.error('Gagal menyimpan konfigurasi: ' + err.message);
+    }
+  };
+
   // Config states
   const [bindings, setBindings] = useState(DEFAULT_BINDINGS);
   const [language, setLanguage] = useState('id-ID'); // id-ID, en-US
@@ -204,20 +232,17 @@ export default function VoiceControlledCaliperInspection() {
     });
 
     setBindings(updated);
-    localStorage.setItem('mavi_gamepad_bindings', JSON.stringify(updated));
-    toast.success('Tombol dikonfigurasi (tombol konflik otomatis ditukar)!');
+    toast.success('Tombol dikonfigurasi (tombol konflik otomatis ditukar)! Klik Simpan untuk menerapkan.');
   };
 
   const updateLanguage = (langVal) => {
     setLanguage(langVal);
-    localStorage.setItem('mavi_voice_language', langVal);
-    toast.success(`Bahasa diubah ke: ${langVal === 'id-ID' ? 'Bahasa Indonesia' : 'English'}`);
+    toast.success(`Bahasa diubah ke: ${langVal === 'id-ID' ? 'Bahasa Indonesia' : 'English'}. Klik Simpan untuk menerapkan.`);
   };
 
   const handleResetToDefault = () => {
     setBindings(DEFAULT_BINDINGS);
-    localStorage.setItem('mavi_gamepad_bindings', JSON.stringify(DEFAULT_BINDINGS));
-    toast.success('Konfigurasi stick dikembalikan ke setelan pabrik.');
+    toast.success('Konfigurasi stick dikembalikan ke setelan pabrik. Klik Simpan untuk menerapkan.');
   };
 
   // Render vector controller where buttons light up on press state
@@ -338,6 +363,21 @@ export default function VoiceControlledCaliperInspection() {
               <p style={styles.subtitle}>Konfigurasi Aksesibilitas Sistem Hands-Free</p>
             </div>
           </div>
+          <button 
+            onClick={handleClose} 
+            style={styles.closeHeaderBtn}
+            title="Batal & Tutup"
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)';
+              e.currentTarget.style.color = '#ef4444';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.03)';
+              e.currentTarget.style.color = '#94a3b8';
+            }}
+          >
+            <X size={18} />
+          </button>
         </div>
 
         {/* Informative instructions banner */}
@@ -518,6 +558,40 @@ export default function VoiceControlledCaliperInspection() {
 
         </div>
 
+        {/* Footer Actions */}
+        <div style={styles.footerActions}>
+          <button
+            onClick={handleClose}
+            style={styles.cancelBtn}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+              e.currentTarget.style.color = '#cbd5e1';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.02)';
+              e.currentTarget.style.color = '#94a3b8';
+            }}
+          >
+            Batal & Tutup
+          </button>
+          <button
+            onClick={handleSave}
+            style={styles.saveBtn}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#2563eb';
+              e.currentTarget.style.transform = 'translateY(-1px)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(37, 99, 235, 0.3)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#3b82f6';
+              e.currentTarget.style.transform = 'none';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
+          >
+            Simpan Perubahan
+          </button>
+        </div>
+
       </div>
     </div>
   );
@@ -528,14 +602,16 @@ const styles = {
   container: {
     display: 'flex',
     justifyContent: 'center',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     width: '100%',
-    padding: '20px',
+    height: '100%',
+    overflowY: 'auto',
+    padding: '30px 20px',
     boxSizing: 'border-box',
   },
   card: {
     width: '100%',
-    maxWidth: '820px',
+    maxWidth: '1200px',
     background: 'linear-gradient(145deg, rgba(15, 23, 42, 0.92), rgba(8, 12, 24, 0.96))',
     backdropFilter: 'blur(20px)',
     border: '1px solid rgba(255, 255, 255, 0.08)',
@@ -545,11 +621,14 @@ const styles = {
     color: '#f8fafc',
     fontFamily: 'system-ui, -apple-system, sans-serif',
     boxSizing: 'border-box',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '20px',
   },
   header: {
     display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
     paddingBottom: '16px',
     marginBottom: '20px',
@@ -590,7 +669,7 @@ const styles = {
   },
   settingsGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))',
     gap: '24px',
   },
   sectionCard: {
@@ -789,6 +868,52 @@ const styles = {
     transition: 'all 0.25s ease',
     boxShadow: '0 0 12px rgba(59, 130, 246, 0.15)',
     boxSizing: 'border-box',
+    outline: 'none',
+  },
+  closeHeaderBtn: {
+    background: 'rgba(255, 255, 255, 0.03)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
+    color: '#94a3b8',
+    borderRadius: '50%',
+    width: '36px',
+    height: '36px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    outline: 'none',
+  },
+  footerActions: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '12px',
+    marginTop: '12px',
+    borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+    paddingTop: '20px',
+  },
+  cancelBtn: {
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+    border: '1px solid rgba(255, 255, 255, 0.06)',
+    color: '#94a3b8',
+    borderRadius: '12px',
+    fontSize: '0.85rem',
+    fontWeight: 600,
+    padding: '10px 20px',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    outline: 'none',
+  },
+  saveBtn: {
+    backgroundColor: '#3b82f6',
+    border: 'none',
+    color: '#ffffff',
+    borderRadius: '12px',
+    fontSize: '0.85rem',
+    fontWeight: 700,
+    padding: '10px 24px',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
     outline: 'none',
   }
 };

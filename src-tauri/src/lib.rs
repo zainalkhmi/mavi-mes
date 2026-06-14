@@ -138,25 +138,29 @@ async fn modbus_read(
         "COIL" => {
             let data = ctx.read_coils(address, quantity)
                 .await
-                .map_err(|e| format!("Modbus Read Coils error: {}", e))?;
+                .map_err(|e| format!("Modbus Read Coils error: {}", e))?
+                .map_err(|e| format!("Modbus Exception: {:?}", e))?;
             Ok(data.into_iter().map(|b| if b { 1 } else { 0 }).collect())
         }
         "DISCRETE_INPUT" => {
             let data = ctx.read_discrete_inputs(address, quantity)
                 .await
-                .map_err(|e| format!("Modbus Read Discrete Inputs error: {}", e))?;
+                .map_err(|e| format!("Modbus Read Discrete Inputs error: {}", e))?
+                .map_err(|e| format!("Modbus Exception: {:?}", e))?;
             Ok(data.into_iter().map(|b| if b { 1 } else { 0 }).collect())
         }
         "INPUT_REGISTER" => {
             let data = ctx.read_input_registers(address, quantity)
                 .await
-                .map_err(|e| format!("Modbus Read Input Registers error: {}", e))?;
+                .map_err(|e| format!("Modbus Read Input Registers error: {}", e))?
+                .map_err(|e| format!("Modbus Exception: {:?}", e))?;
             Ok(data)
         }
         "HOLDING_REGISTER" => {
             let data = ctx.read_holding_registers(address, quantity)
                 .await
-                .map_err(|e| format!("Modbus Read Holding Registers error: {}", e))?;
+                .map_err(|e| format!("Modbus Read Holding Registers error: {}", e))?
+                .map_err(|e| format!("Modbus Exception: {:?}", e))?;
             Ok(data)
         }
         _ => Err(format!("Unknown register type: {}", reg_type)),

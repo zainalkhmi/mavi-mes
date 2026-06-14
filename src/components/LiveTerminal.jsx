@@ -13825,6 +13825,8 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const requestRef = useRef(null);
+  const prevFrameRef = useRef(null);
+  const prevGrayMatRef = useRef(null);
 
   // DB & Logging States
   const [recentLogs, setRecentLogs] = useState([]);
@@ -14237,6 +14239,58 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
 
             calculatedVal = isPassedVal ? 'OK - PASS' : 'NG - REJECT';
             isPassed = isPassedVal;
+          } else if (filterType === 'CHANGE_DETECTOR') {
+            const size = 30; // 30x30 region
+            const sx = Math.floor((width - size) / 2);
+            const sy = Math.floor((height - size) / 2);
+            
+            try {
+              const currentFrame = ctx.getImageData(sx, sy, size, size);
+              const cData = currentFrame.data;
+
+              let changedPixels = 0;
+              const totalPixels = size * size;
+
+              if (prevFrameRef.current && prevFrameRef.current.width === size && prevFrameRef.current.height === size) {
+                const pData = prevFrameRef.current.data;
+                const diffThreshold = 30;
+
+                for (let i = 0; i < cData.length; i += 4) {
+                  const dr = Math.abs(cData[i] - pData[i]);
+                  const dg = Math.abs(cData[i+1] - pData[i+1]);
+                  const db = Math.abs(cData[i+2] - pData[i+2]);
+                  
+                  const avgDiff = (dr + dg + db) / 3;
+                  if (avgDiff > diffThreshold) {
+                    changedPixels++;
+                  }
+                }
+              }
+
+              prevFrameRef.current = currentFrame;
+
+              const changeThreshold = Number(comp?.props?.changeThreshold ?? 25);
+              const changePercent = Math.round((changedPixels / totalPixels) * 100);
+              const isChangeDetected = changePercent >= changeThreshold;
+
+              ctx.strokeStyle = isChangeDetected ? '#22c55e' : '#eab308';
+              ctx.lineWidth = 3;
+              ctx.strokeRect(sx - 10, sy - 10, size + 20, size + 20);
+
+              ctx.fillStyle = isChangeDetected ? 'rgba(34, 197, 94, 0.15)' : 'rgba(234, 179, 8, 0.15)';
+              ctx.fillRect(sx - 10, sy - 10, size + 20, size + 20);
+
+              ctx.fillStyle = '#ffffff';
+              ctx.font = 'bold 9px sans-serif';
+              ctx.fillText(`MOTION REGION (Min ${changeThreshold}%)`, width / 2, sy - 15);
+              ctx.fillStyle = isChangeDetected ? '#22c55e' : '#eab308';
+              ctx.fillText(isChangeDetected ? `MOTION DETECTED (${changePercent}%)` : `NO MOTION (${changePercent}%)`, width / 2, sy + size + 20);
+
+              calculatedVal = isChangeDetected ? 'MOTION' : 'NO MOTION';
+              isPassed = isChangeDetected;
+            } catch (e) {
+              console.error(e);
+            }
           }
         } else {
           // Regular OpenCV flow
@@ -14459,6 +14513,63 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
 
             calculatedVal = isPassedVal ? 'OK - PASS' : 'NG - REJECT';
             isPassed = isPassedVal;
+          } else if (filterType === 'CHANGE_DETECTOR') {
+            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+            
+            const size = 60; // larger bounding box for OpenCV
+            const sx = Math.floor((width - size) / 2);
+            const sy = Math.floor((height - size) / 2);
+            
+            // Define ROI (Region Of Interest)
+            const rect = new cv.Rect(sx, sy, size, size);
+            const roiGray = gray.roi(rect);
+            
+            let changePercent = 0;
+            let isChangeDetected = false;
+            
+            if (prevGrayMatRef.current && prevGrayMatRef.current.rows === size && prevGrayMatRef.current.cols === size) {
+              const diffMat = new cv.Mat();
+              cv.absdiff(roiGray, prevGrayMatRef.current, diffMat);
+              
+              const threshMat = new cv.Mat();
+              cv.threshold(diffMat, threshMat, 30, 255, cv.THRESH_BINARY);
+              
+              const nonZeroCount = cv.countNonZero(threshMat);
+              changePercent = Math.round((nonZeroCount / (size * size)) * 100);
+              
+              const changeThreshold = Number(comp?.props?.changeThreshold ?? 25);
+              isChangeDetected = changePercent >= changeThreshold;
+              
+              diffMat.delete();
+              threshMat.delete();
+            }
+            
+            // Store copy of current frame ROI for next check
+            if (prevGrayMatRef.current) {
+              prevGrayMatRef.current.delete();
+            }
+            prevGrayMatRef.current = roiGray.clone();
+            roiGray.delete();
+            
+            cv.imshow(canvas, src);
+            
+            // Draw overlays on Canvas 2D after imshow
+            const ctx = canvas.getContext('2d');
+            ctx.strokeStyle = isChangeDetected ? '#22c55e' : '#eab308';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(sx - 10, sy - 10, size + 20, size + 20);
+
+            ctx.fillStyle = isChangeDetected ? 'rgba(34, 197, 94, 0.15)' : 'rgba(234, 179, 8, 0.15)';
+            ctx.fillRect(sx - 10, sy - 10, size + 20, size + 20);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 9px sans-serif';
+            ctx.fillText(`MOTION REGION (Min ${comp?.props?.changeThreshold ?? 25}%)`, width / 2, sy - 15);
+            ctx.fillStyle = isChangeDetected ? '#22c55e' : '#eab308';
+            ctx.fillText(isChangeDetected ? `MOTION DETECTED (${changePercent}%)` : `NO MOTION (${changePercent}%)`, width / 2, sy + size + 20);
+            
+            calculatedVal = isChangeDetected ? 'MOTION' : 'NO MOTION';
+            isPassed = isChangeDetected;
           } else {
             cv.imshow(canvas, src);
           }
@@ -14485,6 +14596,12 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
           dst.delete();
           gray.delete();
           edges.delete();
+        } catch (e) {}
+      }
+      if (prevGrayMatRef.current) {
+        try {
+          prevGrayMatRef.current.delete();
+          prevGrayMatRef.current = null;
         } catch (e) {}
       }
     };

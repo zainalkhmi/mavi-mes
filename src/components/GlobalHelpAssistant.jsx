@@ -7,7 +7,7 @@ import {
   Play, Volume2, Mic, Tv, Map, Wifi, AlertTriangle, Wrench, CreditCard, Gamepad2, Grid3X3, Sun, Flame, Wind,
   Snowflake, Compass, Container, Bell, Power, ArrowRight, RotateCw, ArrowDownUp, Car, Fuel, Bug, Trash2, Wallet,
   Keyboard, Menu, Hash, Upload, ShieldCheck, Cog, AlignLeft, LayoutGrid, Palette, PlayCircle, Thermometer, Video,
-  Gauge, TrendingUp, Rocket, Route, AppWindow, Factory, Workflow
+  Gauge, TrendingUp, Rocket, Route, AppWindow, Factory, Workflow, Link2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
@@ -280,6 +280,210 @@ Kelola database produksi Anda dan bangun visualisasi visual (*real-time chart*) 
    - **Analysis Manager:** Alat perumus kueri untuk menghitung indikator performa utama seperti OEE (Overall Equipment Effectiveness), menghitung persentase downtime mesin, dan membandingkan target vs aktual produksi.
    - **Dashboards:** Papan informasi interaktif untuk supervisor dan manajemen yang menyajikan grafik tren (Line Chart, Bar Chart, Gauge) secara real-time dari data analisis.
     `
+  },
+  {
+    id: 'connectors-guide',
+    title: 'Connectors & Integrasi',
+    icon: Link2,
+    color: '#3b82f6', // Blue
+    content: `
+**Panduan Konfigurasi & Integrasi Connector MAVI**
+
+Connector adalah jembatan penghubung antara platform MAVI-MES dengan sistem eksternal, baik berupa REST API, database SQL, broker IoT (MQTT), standar industri (OPC UA & Modbus), asisten AI (LLM), maupun alat desain (Canva).
+
+Berikut adalah panduan konfigurasi (*caranya*) dan contoh penggunaan (*contohnya*) untuk masing-masing **9 tipe connector** yang tersedia di MAVI:
+
+---
+
+### 1. HTTP (REST API / Webhooks)
+* **Tujuan**: Mengambil atau mengirimkan data dari/ke layanan web eksternal (REST API, Webhook ERP, sistem cloud).
+* **Cara Konfigurasi**:
+  1. Pilih tipe **HTTP** saat membuat connector baru.
+  2. Isi **Server Address** dengan domain/endpoint tujuan (misal: \`api.weather.gov\` atau \`erp.mycompany.com\`).
+  3. Setel **TLS** ke \`Yes\` (jika URL menggunakan HTTPS) dan tentukan **Port** (default \`443\` untuk HTTPS).
+  4. Pilih **Authentication Type** sesuai kebutuhan (misal: \`No Auth\`, \`Basic Auth\`, atau \`OAuth 2.0 (Bearer Token)\`).
+  5. Tambahkan custom headers jika API eksternal membutuhkan header khusus (seperti \`Content-Type\` atau token API).
+* **Contoh Penggunaan & Payload**:
+  * **Mengambil Data Cuaca (GET)**:
+    * Endpoint: \`https://api.weather.gov/gridpoints/TOP/31,80/forecast\`
+    * Response:
+      \`\`\`json
+      {
+        "temperature": 28,
+        "humidity": 75,
+        "shortForecast": "Partly Cloudy"
+      }
+      \`\`\`
+  * **Mengirim Data Work Order ke Odoo ERP (POST)**:
+    * Endpoint: \`https://erp.mycompany.com/api/workorder/update\`
+    * Payload:
+      \`\`\`json
+      {
+        "wo_id": "WO-9988",
+        "status": "In Progress",
+        "operator": "Ahmad"
+      }
+      \`\`\`
+
+---
+
+### 2. SQL Database (Postgres, MySQL, MSSQL)
+* **Tujuan**: Menghubungkan MAVI langsung ke database relasional eksternal perusahaan untuk pertukaran data operasional.
+* **Cara Konfigurasi**:
+  1. Pilih tipe **SQL**.
+  2. Isi **Server Address** dengan IP/Domain server database (misal: \`192.168.1.100\`).
+  3. Masukkan **Database Name** (nama database target).
+  4. Masukkan kredensial berupa **Username** & **Password**.
+  5. Jika database menggunakan port khusus (non-standar), aktifkan **Use custom port** dan isi portnya (default Postgres: \`5432\`, MySQL: \`3306\`, MSSQL: \`1433\`).
+* **Contoh Kueri SQL**:
+  * **Membaca Jadwal Produksi (SELECT)**:
+    \`\`\`sql
+    SELECT id, part_no, qty_target, status 
+    FROM production_schedule 
+    WHERE line_id = 'Line-A' AND status = 'Ready';
+    \`\`\`
+  * **Menulis Aktual Output Hasil QC (UPDATE)**:
+    \`\`\`sql
+    UPDATE production_schedule 
+    SET qty_actual = qty_actual + 1, updated_at = NOW() 
+    WHERE id = 'WO-102';
+    \`\`\`
+
+---
+
+### 3. Supabase (Backend-as-a-Service)
+* **Tujuan**: Mengintegrasikan MAVI secara native ke layanan Supabase cloud database Anda untuk membaca/menulis data secara real-time.
+* **Cara Konfigurasi**:
+  1. Pilih tipe **Supabase**.
+  2. Masukkan **Supabase Project URL** (format: \`https://[project-id].supabase.co\`).
+  3. Masukkan **Supabase API Key** (Anon Key atau Service Role Key).
+* **Contoh Penggunaan**:
+  * **Mengambil Data PLC Controllers**:
+    \`\`\`javascript
+    const { data, error } = await supabase
+      .from('plc_controllers')
+      .select('*')
+      .eq('status', 'online');
+    \`\`\`
+  * **Menyimpan Laporan Defect QC Baru**:
+    \`\`\`javascript
+    const { data, error } = await supabase
+      .from('qc_inspection_logs')
+      .insert([
+        { inspector_name: 'Budi', part_no: 'C001', status: 'REJECT', defect_reason: 'Baret/Scratch' }
+      ]);
+    \`\`\`
+
+---
+
+### 4. Google Sheets (Spreadsheet Integration)
+* **Tujuan**: Membaca atau menulis data langsung ke baris-baris file Google Spreadsheet.
+* **Cara Konfigurasi**:
+  1. Pilih tipe **Google Sheets**.
+  2. Masukkan **Spreadsheet ID** (disalin dari URL browser: \`docs.google.com/spreadsheets/d/[SPREADSHEET_ID]/edit\`).
+  3. Masukkan **Default Sheet Name** (contoh: \`Sheet1\`).
+* **Contoh Penggunaan & Payload**:
+  * **Menambahkan Baris Log Baru (Append Row)** ketika operator memindai label barang yang salah pada proses supply:
+    \`\`\`json
+    {
+      "spreadsheetId": "1aBCdEfGhIjKlMnOpQrStUvWxYz_1234567890",
+      "range": "Data_QC!A:D",
+      "values": [
+        ["2026-06-14 18:00:00", "Ahmad", "C001", "Wrong Location Rack"]
+      ]
+    }
+    \`\`\`
+
+---
+
+### 5. MQTT (Machine Telemetry Broker)
+* **Tujuan**: Menghubungkan MAVI ke broker MQTT untuk mengirim atau menerima aliran data sensor dan parameter mesin (telemetri) secara real-time.
+* **Cara Konfigurasi**:
+  1. Pilih tipe **MQTT**.
+  2. Isi **Server Address** broker MQTT (misal: \`broker.emqx.io\` atau \`192.168.1.15\`).
+  3. Pilih **Protocol** (\`MQTT\` / \`MQTTs\`) dan **MQTT Version** (\`3.1.1\` atau \`5.0\`).
+  4. Tentukan parameter **QoS** (0, 1, atau 2), **Keep Alive** (default 60 detik), dan status **Clean Session**.
+  5. Masukkan sertifikat keamanan TLS pada bagian **Security** jika broker mewajibkan otentikasi SSL/TLS.
+* **Contoh Topik & Payload**:
+  * **Menerima Data Suhu Oven (Subscribe)**:
+    * Topik: \`factory/line1/oven/telemetry\`
+    * Payload masuk:
+      \`\`\`json
+      {
+        "timestamp": 1781436192,
+        "temperature_celsius": 185.3,
+        "heater_status": "ON"
+      }
+      \`\`\`
+  * **Mengaktifkan Lampu Alarm Stasiun (Publish)**:
+    * Topik: \`factory/line1/andon/control\`
+    * Payload keluar: \`{"status": "RED", "buzzer": true}\`
+
+---
+
+### 6. OPC UA (Industrial Standard)
+* **Tujuan**: Menghubungkan MAVI ke server OPC UA untuk memetakan variabel PLC secara aman dan terstruktur.
+* **Cara Konfigurasi**:
+  1. Pilih tipe **OPC UA**.
+  2. Masukkan **Endpoint URL** server OPC UA (contoh: \`opc.tcp://192.168.1.10:4840\`).
+  3. Pilih **Security Policy** (\`None\`, \`Basic256Sha256 (Sign & Encrypt)\`, atau \`Basic256 (Sign)\`).
+  4. Pilih **Authentication** (\`Anonymous\` atau \`Username & Password\`).
+* **Contoh Pemetaan Node Tag PLC**:
+  * **Membaca status Kecepatan Conveyor**:
+    * NodeId: \`ns=2;s=Line1.Conveyor1.ActualSpeed\`
+  * **Membaca Trigger Siklus Selesai**:
+    * NodeId: \`ns=2;s=Line1.Station2.CycleComplete\`
+
+---
+
+### 7. Modbus TCP (Direct PLC Register Access)
+* **Tujuan**: Membaca dan menulis secara langsung ke alamat memori register PLC (Modbus Coils / Holding Registers) melalui jaringan Ethernet.
+* **Cara Konfigurasi**:
+  1. Pilih tipe **Modbus TCP**.
+  2. Masukkan **IP Address** PLC (misal: \`192.168.1.50\`).
+  3. Tentukan **Port** (default standard Modbus: \`502\`).
+  4. Isi **Unit ID / Slave Address** (biasanya bernilai \`1\`).
+* **Contoh Pemetaan Register**:
+  * **Membaca Input Sensor Suhu (Holding Register 4x)**:
+    * Alamat Register: \`40002\`
+    * Nilai Skala: \`* 0.1\` (Jika nilai register mentah bernilai \`854\`, sistem akan membacanya sebagai \`85.4 °C\`).
+  * **Menulis Trigger Mulai Mesin (Coil Register 0x)**:
+    * Alamat Register: \`00001\`
+    * Aksi Trigger: Menulis nilai \`true\` (ON) ke register coil untuk menghidupkan relai motor.
+
+---
+
+### 8. AI Assistant (Copilot LLM Integration)
+* **Tujuan**: Mengintegrasikan model kecerdasan buatan LLM (seperti OpenAI, Anthropic, Gemini, atau server LLM lokal) ke stasiun kerja operator sebagai asisten troubleshooting atau asisten lisan.
+* **Cara Konfigurasi**:
+  1. Pilih tipe **AI Assistant (Copilot)**.
+  2. Pilih **AI Provider** (\`OpenAI\`, \`Anthropic\`, \`Google Gemini\`, atau \`Local (Ollama/LM Studio)\`).
+  3. Masukkan **API Key** yang valid dari provider bersangkutan.
+  4. Masukkan **Model ID** (contoh: \`gpt-4o\`, \`gemini-1.5-pro\`, atau \`claude-3-5-sonnet\`).
+  5. Masukkan **Base System Prompt** untuk memberikan konteks perilaku AI.
+* **Contoh Skenario Chat Asisten**:
+  * **System Prompt**: *"Anda adalah asisten operator lini manufaktur MAVI. Jawablah pertanyaan operator mengenai error mesin secara singkat, aman, dan ikuti standar keselamatan industri."*
+  * **Input Operator**: *"Mesin Press hidrolik mengeluarkan bunyi mendengung keras dan jarum tekanan bergoyang."*
+  * **Respon AI**:
+    > **Tindakan Darurat:**
+    > 1. Segera hentikan operasi mesin dengan menekan tombol **E-Stop** fisik di stasiun Anda.
+    > 2. Jangan mencoba menyentuh pipa hidrolik selagi mesin dalam kondisi panas.
+    > 3. Laporkan kegagalan sistem melalui tombol **Buat Tiket Perbaikan** di menu MAVI HMI.
+
+---
+
+### 9. Canva Connect (Mockups & SOP Visual)
+* **Tujuan**: Menghubungkan MAVI secara dinamis ke Canva API untuk menarik dokumen instruksi kerja (SOP), mockup kemasan, atau aset visual stasiun kerja secara real-time.
+* **Cara Konfigurasi**:
+  1. Pilih tipe **Canva Connect**.
+  2. Masukkan **Canva API Key / Access Token** dari portal developer Canva.
+  3. Isi **Default Design Folder ID** (opsional).
+  4. Tentukan **Export Format** (\`PNG\`, \`JPG\`, atau \`PDF\`).
+* **Contoh Penggunaan**:
+  * Menampilkan gambar panduan perakitan visual terbaru di layar operator:
+    * Setiap kali model produk berganti (misal dari model A ke B), HMI MAVI memanggil Canva Connector dengan mengirimkan Design ID spesifik (\`DAG12345XYZ\`).
+    * Connector akan menarik versi ekspor PNG terbaru langsung dari project Canva desainer produk dan menampilkannya di stasiun kerja operator secara instan.
+`
   },
   {
     id: 'widgets',

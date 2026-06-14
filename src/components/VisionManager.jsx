@@ -66,7 +66,15 @@ const VisionManager = () => {
                 name: 'Widgets Bin',
                 x: 120, y: 310, w: 90, h: 90,
                 detectors: {
-                    changeDetector: { enabled: false },
+                    changeDetector: {
+                        enabled: false,
+                        beginThreshold: 40,
+                        upperThreshold: 100,
+                        lowerThreshold: 10,
+                        adaptationSpeed: 'Medium',
+                        resetOnEnd: true,
+                        resetDuration: 0.50
+                    },
                     colorDetector: {
                         enabled: true,
                         name: 'Widgets Bin Color',
@@ -82,7 +90,15 @@ const VisionManager = () => {
                 name: 'Fidgets Bin',
                 x: 430, y: 310, w: 90, h: 90,
                 detectors: {
-                    changeDetector: { enabled: true },
+                    changeDetector: {
+                        enabled: true,
+                        beginThreshold: 40,
+                        upperThreshold: 100,
+                        lowerThreshold: 10,
+                        adaptationSpeed: 'Medium',
+                        resetOnEnd: true,
+                        resetDuration: 0.50
+                    },
                     colorDetector: {
                         enabled: false,
                         name: 'Fidgets Bin Color',
@@ -100,7 +116,15 @@ const VisionManager = () => {
                 name: 'Region 1',
                 x: 200, y: 150, w: 120, h: 120,
                 detectors: {
-                    changeDetector: { enabled: false },
+                    changeDetector: {
+                        enabled: false,
+                        beginThreshold: 40,
+                        upperThreshold: 100,
+                        lowerThreshold: 10,
+                        adaptationSpeed: 'Medium',
+                        resetOnEnd: true,
+                        resetDuration: 0.50
+                    },
                     colorDetector: {
                         enabled: false,
                         name: 'Color Detector 1',
@@ -1640,6 +1664,22 @@ function CameraRegionEditor({
         }));
     };
 
+    const updateChangeDetectorSetting = (id, key, value) => {
+        setRegionsByCamera(prev => ({
+            ...prev,
+            [camera.id]: prev[camera.id].map(r => r.id === id ? {
+                ...r,
+                detectors: {
+                    ...r.detectors,
+                    changeDetector: {
+                        ...r.detectors.changeDetector,
+                        [key]: value
+                    }
+                }
+            } : r)
+        }));
+    };
+
     const deleteRegion = (id) => {
         setRegionsByCamera(prev => ({
             ...prev,
@@ -1758,7 +1798,15 @@ function CameraRegionEditor({
                     w: Math.round(w),
                     h: Math.round(h),
                     detectors: {
-                        changeDetector: { enabled: false },
+                        changeDetector: {
+                            enabled: false,
+                            beginThreshold: 40,
+                            upperThreshold: 100,
+                            lowerThreshold: 10,
+                            adaptationSpeed: 'Medium',
+                            resetOnEnd: true,
+                            resetDuration: 0.50
+                        },
                         colorDetector: {
                             enabled: true,
                             name: `Widgets Bin ${nextNum} Color`,
@@ -2039,7 +2087,7 @@ function CameraRegionEditor({
 
                     {/* Canvas Wrapper for drawing bounding box */}
                     <div 
-                        style={{ flex: 1, backgroundColor: '#0f172a', borderRadius: '12px', overflow: 'hidden', position: 'relative', cursor: isDragging ? 'grabbing' : 'crosshair' }}
+                        style={{ width: '100%', maxHeight: 'calc(100vh - 220px)', aspectRatio: '4/3', backgroundColor: '#0f172a', borderRadius: '12px', overflow: 'hidden', position: 'relative', cursor: isDragging ? 'grabbing' : 'crosshair', margin: '0 auto' }}
                         onMouseDown={handleMouseDown}
                         onMouseMove={handleMouseMove}
                         onMouseUp={handleMouseUp}
@@ -2134,6 +2182,176 @@ function CameraRegionEditor({
                                                 </div>
                                             </label>
                                         </div>
+
+                                        {/* Change Detector Specific Parameters */}
+                                        {changeDetectorExpanded && selectedRegion.detectors?.changeDetector && (
+                                            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px', borderTop: '1px solid #e2e8f0' }}>
+                                                {!selectedRegion.detectors.changeDetector.enabled && (
+                                                    <div style={{ padding: '8px 12px', backgroundColor: '#f1f5f9', border: '1px dashed #cbd5e1', borderRadius: '6px', fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                                                        <Info size={14} color="#94a3b8" />
+                                                        <span>Detektor dinonaktifkan. Aktifkan switch di atas untuk menggunakan sensor ini.</span>
+                                                    </div>
+                                                )}
+                                                {/* Begin Changes Threshold */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', position: 'relative' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Begin changes threshold (% of region area)</span>
+                                                        <div 
+                                                            style={{ position: 'relative', cursor: 'help' }}
+                                                            onMouseEnter={() => setHoveredHelp('beginChange')}
+                                                            onMouseLeave={() => setHoveredHelp(null)}
+                                                        >
+                                                            <HelpCircle size={14} color="#94a3b8" />
+                                                            {hoveredHelp === 'beginChange' && (
+                                                                <div style={{ position: 'absolute', zIndex: 10, bottom: '22px', left: '-10px', width: '220px', padding: '8px 10px', backgroundColor: '#0f172a', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+                                                                    Percentage of the region area that is required to change for a Changes Began event to occur.
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        max="100"
+                                                        value={selectedRegion.detectors.changeDetector.beginThreshold ?? 40}
+                                                        onChange={(e) => updateChangeDetectorSetting(selectedRegion.id, 'beginThreshold', Number(e.target.value))}
+                                                        style={{ padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem' }}
+                                                    />
+                                                </div>
+
+                                                {/* Upper Threshold */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', position: 'relative' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Upper threshold (mm)</span>
+                                                        <div 
+                                                            style={{ position: 'relative', cursor: 'help' }}
+                                                            onMouseEnter={() => setHoveredHelp('upper')}
+                                                            onMouseLeave={() => setHoveredHelp(null)}
+                                                        >
+                                                            <HelpCircle size={14} color="#94a3b8" />
+                                                            {hoveredHelp === 'upper' && (
+                                                                <div style={{ position: 'absolute', zIndex: 10, bottom: '22px', left: '-10px', width: '220px', padding: '8px 10px', backgroundColor: '#0f172a', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+                                                                    Objects closer to the camera than the Upper Threshold will be ignored by the Change Detector.
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <input
+                                                        type="number"
+                                                        value={selectedRegion.detectors.changeDetector.upperThreshold ?? 100}
+                                                        onChange={(e) => updateChangeDetectorSetting(selectedRegion.id, 'upperThreshold', Number(e.target.value))}
+                                                        style={{ padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem' }}
+                                                    />
+                                                </div>
+
+                                                {/* Lower Threshold */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', position: 'relative' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Lower threshold (mm)</span>
+                                                        <div 
+                                                            style={{ position: 'relative', cursor: 'help' }}
+                                                            onMouseEnter={() => setHoveredHelp('lower')}
+                                                            onMouseLeave={() => setHoveredHelp(null)}
+                                                        >
+                                                            <HelpCircle size={14} color="#94a3b8" />
+                                                            {hoveredHelp === 'lower' && (
+                                                                <div style={{ position: 'absolute', zIndex: 10, bottom: '22px', left: '-10px', width: '220px', padding: '8px 10px', backgroundColor: '#0f172a', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+                                                                    Objects and noise farther away from the camera than the Lower Threshold will be ignored.
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <input
+                                                        type="number"
+                                                        value={selectedRegion.detectors.changeDetector.lowerThreshold ?? 10}
+                                                        onChange={(e) => updateChangeDetectorSetting(selectedRegion.id, 'lowerThreshold', Number(e.target.value))}
+                                                        style={{ padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem' }}
+                                                    />
+                                                </div>
+
+                                                {/* Adaptation Speed */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', position: 'relative' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Adaptation speed</span>
+                                                        <div 
+                                                            style={{ position: 'relative', cursor: 'help' }}
+                                                            onMouseEnter={() => setHoveredHelp('adaptation')}
+                                                            onMouseLeave={() => setHoveredHelp(null)}
+                                                        >
+                                                            <HelpCircle size={14} color="#94a3b8" />
+                                                            {hoveredHelp === 'adaptation' && (
+                                                                <div style={{ position: 'absolute', zIndex: 10, bottom: '22px', left: '-10px', width: '220px', padding: '8px 10px', backgroundColor: '#0f172a', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+                                                                    How quickly the region adapts to noise and changes which are too small to trigger Changes Began events.
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <select
+                                                        value={selectedRegion.detectors.changeDetector.adaptationSpeed ?? 'Medium'}
+                                                        onChange={(e) => updateChangeDetectorSetting(selectedRegion.id, 'adaptationSpeed', e.target.value)}
+                                                        style={{ padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem', backgroundColor: 'white' }}
+                                                    >
+                                                        <option value="None">None</option>
+                                                        <option value="Slow">Slow</option>
+                                                        <option value="Medium">Medium</option>
+                                                        <option value="Fast">Fast</option>
+                                                    </select>
+                                                </div>
+
+                                                {/* Reset When Changes End */}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        id="resetOnEnd"
+                                                        checked={selectedRegion.detectors.changeDetector.resetOnEnd ?? true}
+                                                        onChange={(e) => updateChangeDetectorSetting(selectedRegion.id, 'resetOnEnd', e.target.checked)}
+                                                        style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                                                    />
+                                                    <label htmlFor="resetOnEnd" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', fontWeight: 700, color: '#475569', cursor: 'pointer' }}>
+                                                        Reset when changes end
+                                                        <div 
+                                                            style={{ position: 'relative', cursor: 'help' }}
+                                                            onMouseEnter={() => setHoveredHelp('resetOnEnd')}
+                                                            onMouseLeave={() => setHoveredHelp(null)}
+                                                            onClick={(e) => e.preventDefault()}
+                                                        >
+                                                            <HelpCircle size={14} color="#94a3b8" />
+                                                            {hoveredHelp === 'resetOnEnd' && (
+                                                                <div style={{ position: 'absolute', zIndex: 10, bottom: '22px', left: '-10px', width: '220px', padding: '8px 10px', backgroundColor: '#0f172a', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+                                                                    When enabled, makes detecting subsequent changes more robust if the region content remains changed.
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </label>
+                                                </div>
+
+                                                {/* Reset Duration */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', position: 'relative' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Reset duration (s)</span>
+                                                        <div 
+                                                            style={{ position: 'relative', cursor: 'help' }}
+                                                            onMouseEnter={() => setHoveredHelp('resetDuration')}
+                                                            onMouseLeave={() => setHoveredHelp(null)}
+                                                        >
+                                                            <HelpCircle size={14} color="#94a3b8" />
+                                                            {hoveredHelp === 'resetDuration' && (
+                                                                <div style={{ position: 'absolute', zIndex: 10, bottom: '22px', left: '-10px', width: '220px', padding: '8px 10px', backgroundColor: '#0f172a', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+                                                                    The time in seconds it takes to reset the region. No Events can occur while resetting is in progress.
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <input
+                                                        type="number"
+                                                        step="0.05"
+                                                        value={selectedRegion.detectors.changeDetector.resetDuration ?? 0.50}
+                                                        onChange={(e) => updateChangeDetectorSetting(selectedRegion.id, 'resetDuration', Number(e.target.value))}
+                                                        style={{ padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem' }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Color Detector Accordion */}
@@ -2167,8 +2385,14 @@ function CameraRegionEditor({
                                         </div>
 
                                         {/* Color Detector Specific Parameters */}
-                                        {colorDetectorExpanded && selectedRegion.detectors.colorDetector.enabled && (
+                                        {colorDetectorExpanded && selectedRegion.detectors?.colorDetector && (
                                             <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px', borderTop: '1px solid #e2e8f0' }}>
+                                                {!selectedRegion.detectors.colorDetector.enabled && (
+                                                    <div style={{ padding: '8px 12px', backgroundColor: '#f1f5f9', border: '1px dashed #cbd5e1', borderRadius: '6px', fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                                                        <Info size={14} color="#94a3b8" />
+                                                        <span>Detektor dinonaktifkan. Aktifkan switch di atas untuk menggunakan sensor ini.</span>
+                                                    </div>
+                                                )}
                                                 {/* Begin Color Detection Threshold */}
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', position: 'relative' }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

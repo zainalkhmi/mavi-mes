@@ -372,10 +372,10 @@ export default function McpServerManager() {
                                         ) : (
                                             <div style={{ color: '#a78bfa', backgroundColor: 'rgba(139, 92, 246, 0.05)', padding: '8px', borderRadius: '6px', borderLeft: '3px solid #8b5cf6' }}>
                                                 <div style={{ color: '#22c55e', fontWeight: 800, marginBottom: '2px' }}>
-                                                    [MCP CALL] -> {res.tool}({res.args})
+                                                    [MCP CALL] {"->"} {res.tool}({res.args})
                                                 </div>
                                                 <div style={{ color: '#e2e8f0', fontStyle: 'italic', marginBottom: '4px', fontFamily: 'monospace' }}>
-                                                    [RESPONSE] -> {res.response}
+                                                    [RESPONSE] {"->"} {res.response}
                                                 </div>
                                                 <div style={{ color: '#ffffff', marginTop: '6px' }}>
                                                     <strong>AI Response:</strong> {res.aiText}

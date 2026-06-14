@@ -4,7 +4,7 @@ import {
     Search, Filter, Star, Zap, Info, Rocket, Database, ShieldCheck,
     ChevronRight, ShoppingBag, Plus, Award, Boxes, ShieldAlert, BookOpen, X, Trash2,
     List, Cpu, Settings, FileText, PlayCircle, Activity, HeartPulse, Truck,
-    Image as ImageIcon, BarChart3
+    Image as ImageIcon, BarChart3, Sliders
 } from 'lucide-react';
 
 import { useNavigate } from 'react-router-dom';
@@ -35,6 +35,7 @@ import { createMaterialLoadingReceivingTemplate } from '../utils/materialLoading
 import { createInventoryManagementTemplate } from '../utils/inventoryManagementTemplate';
 import { createInventoryDashboardTemplate } from '../utils/inventoryDashboardTemplate';
 import { createReplenishmentTemplate } from '../utils/replenishmentTemplate';
+import { createKanbanInventorySystemTemplate } from '../utils/kanbanInventorySystemTemplate';
 import { createMaterialWarehouseTemplate } from '../utils/materialWarehouseTemplate';
 import { createQualityInspectionSuiteTemplate } from '../utils/qualityInspectionSuiteTemplate';
 import { createFrontlineQmsTemplate } from '../utils/frontlineQmsTemplate';
@@ -1242,6 +1243,44 @@ const AppStore = () => {
                     { name: 'Create Kanban Card', description: 'Register a new container.' },
                     { name: 'Edit Kanban Card', description: 'Activate/Deactivate toggle.' },
                     { name: 'Print Label', description: 'Printer queue dispatch.' }
+                ]
+            }
+        },
+        {
+            id: 'kanban-inventory-system',
+            name: 'Kanban Inventory System',
+            category: 'Inventory App Suite',
+            description: 'End-to-End Kanban & Inventory Management covering Master Setup, Supply Receiving, Kanban BOM Explosion, Validation, and Production Picking.',
+            longDescription: 'This app standardizes the discrete manufacturing material flow based on a Kanban-pull system. It covers Part Definition, Bill of Material (BOM) mapping, Supply Ingestion (receiving), Kanban Card generation, live Stock Validation, material Picking, and real-time dashboard KPIs.',
+            icon: <Sliders size={28} color="#8b5cf6" />,
+            bg: 'linear-gradient(135deg, #f5f3ff 0%, #ddd6fe 100%)',
+            accent: '#8b5cf6',
+            rating: 5.0,
+            installs: 'New',
+            features: ['BOM Mapping', 'Automatic Kanban Generation', 'Picking Stock Deductions', 'KPI Inventory Dashboards'],
+            guide: {
+                operation: '1. In Master Data Setup, define Parent and Child parts and establish BOM quantities.\n2. Use Supply & Receiving to ingest materials and increment stock levels.\n3. Generate Kanban cards based on Parent Parts.\n4. Check stock status in Stock Validation and click Complete Picking to deduct inventory.\n5. View real-time logs and alerts on the Inventory Monitoring dashboard.',
+                widgets: ['Interactive Table', 'Text Input Form', 'Validation Status Indicator'],
+                components: ['Parts Setup Module', 'BOM Linker', 'Supply Dock Desk', 'Kanban Pick Runner'],
+                tables: [
+                    { name: 'Material_Definitions', description: 'Master catalog of all Parent and Child parts.' },
+                    { name: 'BOM_Relations', description: 'Mapping of child parts required to build parent parts.' },
+                    { name: 'Material_Supply', description: 'Logs of incoming supplier materials.' },
+                    { name: 'Inventory_Items', description: 'Real-time stock balance per location.' },
+                    { name: 'Kanban_Orders', description: 'Active kanban cards and required quantities.' },
+                    { name: 'Material_Picking', description: 'Audit trail of picked parts dispatched to the line.' }
+                ],
+                triggers: [
+                    { event: 'GENERATE_KANBAN', function: 'Creates multiple Kanban Card records based on BOM definition.' },
+                    { event: 'COMPLETE_PICKING', function: 'Logs picking history and decrements available inventory stock.' }
+                ],
+                mechanism: 'Implements a complete closed-loop manufacturing pull system, ensuring component availability check before picking is allowed.',
+                steps: [
+                    { name: 'Master Data Setup', description: 'Define part blueprints and BOM relations.' },
+                    { name: 'Supply & Receiving', description: 'Log incoming materials and increment stocks.' },
+                    { name: 'Kanban Generation', description: 'Trigger kanban loops based on production requirements.' },
+                    { name: 'Validation & Picking', description: 'Verify stock levels and dispatch parts.' },
+                    { name: 'Inventory Monitoring', description: 'Real-time KPI tables and alerts.' }
                 ]
             }
         },
@@ -3039,6 +3078,82 @@ const AppStore = () => {
                     }
                 } catch (imErr) {
                     console.warn('Could not create Inventory Management tables:', imErr);
+                }
+            } else if (templateId === 'kanban-inventory-system') {
+                templateApp = createKanbanInventorySystemTemplate();
+                try {
+                    const partsTable = await getOrCreateTableAndSeed(allTables, { name: 'Material_Definitions', fields: [
+                        { name: 'ID', type: 'text' },
+                        { name: 'Name', type: 'text' }, { name: 'Type', type: 'text' },
+                        { name: 'Description', type: 'text' }, { name: 'Status', type: 'text' }
+                    ]});
+                    const bomTable = await getOrCreateTableAndSeed(allTables, { name: 'BOM_Relations', fields: [
+                        { name: 'Parent_Part', type: 'text' },
+                        { name: 'Child_Part', type: 'text' },
+                        { name: 'BOM_Qty', type: 'number' }
+                    ]});
+                    const supplyTable = await getOrCreateTableAndSeed(allTables, { name: 'Material_Supply', fields: [
+                        { name: 'Part_No', type: 'text' },
+                        { name: 'Part_Name', type: 'text' },
+                        { name: 'Location_No', type: 'text' },
+                        { name: 'Qty', type: 'number' },
+                        { name: 'Datetime', type: 'datetime' }
+                    ]});
+                    const stockTable = await getOrCreateTableAndSeed(allTables, { name: 'Inventory_Items', fields: [
+                        { name: 'ID', type: 'text' },
+                        { name: 'Material_Definition_ID', type: 'text' },
+                        { name: 'Material_Definition_Type', type: 'text' },
+                        { name: 'Status', type: 'text' },
+                        { name: 'Location_ID', type: 'text' },
+                        { name: 'Location_Area', type: 'text' },
+                        { name: 'QTY', type: 'number' },
+                        { name: 'Unit_Of_Measure', type: 'text' }
+                    ]});
+                    const kanbanTable = await getOrCreateTableAndSeed(allTables, { name: 'Kanban_Orders', fields: [
+                        { name: 'Kanban_ID', type: 'text' },
+                        { name: 'Parent_Part', type: 'text' },
+                        { name: 'Sequence_No', type: 'number' },
+                        { name: 'Child_Part', type: 'text' },
+                        { name: 'BOM_Qty', type: 'number' },
+                        { name: 'Status', type: 'text' }
+                    ]});
+                    const pickingTable = await getOrCreateTableAndSeed(allTables, { name: 'Material_Picking', fields: [
+                        { name: 'Kanban_ID', type: 'text' },
+                        { name: 'Part_No', type: 'text' },
+                        { name: 'Part_Name', type: 'text' },
+                        { name: 'Qty', type: 'number' },
+                        { name: 'Datetime', type: 'datetime' }
+                    ]});
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (partsTable?.id) { appStr = appStr.replace(/tbl_kis_parts/g, partsTable.id); tIds.push(partsTable.id); }
+                    if (bomTable?.id) { appStr = appStr.replace(/tbl_kis_bom/g, bomTable.id); tIds.push(bomTable.id); }
+                    if (supplyTable?.id) { appStr = appStr.replace(/tbl_kis_supply/g, supplyTable.id); tIds.push(supplyTable.id); }
+                    if (stockTable?.id) { appStr = appStr.replace(/tbl_kis_stock/g, stockTable.id); tIds.push(stockTable.id); }
+                    if (kanbanTable?.id) { appStr = appStr.replace(/tbl_kis_kanban/g, kanbanTable.id); tIds.push(kanbanTable.id); }
+                    if (pickingTable?.id) { appStr = appStr.replace(/tbl_kis_picking/g, pickingTable.id); tIds.push(pickingTable.id); }
+
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+
+                    // Seed demo data matching user request
+                    if (partsTable?.id) {
+                        await addTableRecord({ tableId: partsTable.id, fields: { 'ID': 'P001', 'Name': 'Assy Engine', 'Type': 'Parent Part', 'Description': 'Engine Assembly Product', 'Status': 'APPROVED' } });
+                        await addTableRecord({ tableId: partsTable.id, fields: { 'ID': 'C001', 'Name': 'Bolt M10', 'Type': 'Child Part', 'Description': 'Child Part Fasteners', 'Status': 'APPROVED' } });
+                        await addTableRecord({ tableId: partsTable.id, fields: { 'ID': 'C002', 'Name': 'Nut M10', 'Type': 'Child Part', 'Description': 'Child Part Fasteners', 'Status': 'APPROVED' } });
+                    }
+                    if (bomTable?.id) {
+                        await addTableRecord({ tableId: bomTable.id, fields: { 'Parent_Part': 'P001', 'Child_Part': 'C001', 'BOM_Qty': 4 } });
+                        await addTableRecord({ tableId: bomTable.id, fields: { 'Parent_Part': 'P001', 'Child_Part': 'C002', 'BOM_Qty': 4 } });
+                    }
+                    if (stockTable?.id) {
+                        await addTableRecord({ tableId: stockTable.id, fields: { 'ID': 'C001_WH-BIN-01', 'Material_Definition_ID': 'C001', 'Material_Definition_Type': 'Child Part', 'Status': 'AVAILABLE', 'Location_ID': 'WH-BIN-01', 'Location_Area': 'Warehouse 1', 'QTY': 100, 'Unit_Of_Measure': 'pcs' } });
+                        await addTableRecord({ tableId: stockTable.id, fields: { 'ID': 'C002_WH-BIN-01', 'Material_Definition_ID': 'C002', 'Material_Definition_Type': 'Child Part', 'Status': 'AVAILABLE', 'Location_ID': 'WH-BIN-01', 'Location_Area': 'Warehouse 1', 'QTY': 80, 'Unit_Of_Measure': 'pcs' } });
+                        await addTableRecord({ tableId: stockTable.id, fields: { 'ID': 'P001_WH-BIN-01', 'Material_Definition_ID': 'P001', 'Material_Definition_Type': 'Parent Part', 'Status': 'AVAILABLE', 'Location_ID': 'WH-BIN-01', 'Location_Area': 'Warehouse 1', 'QTY': 10, 'Unit_Of_Measure': 'pcs' } });
+                    }
+                } catch (kisErr) {
+                    console.warn('Could not seed Kanban Inventory System tables:', kisErr);
                 }
             } else if (templateId === 'inventory-dashboard') {
                 templateApp = createInventoryDashboardTemplate();
