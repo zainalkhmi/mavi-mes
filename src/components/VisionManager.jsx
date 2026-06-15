@@ -1691,6 +1691,7 @@ function CameraRegionEditor({
     const similarityRef = useRef({});
     const avgColorsRef = useRef({});
     const prevIntensityRef = useRef({});
+    const lastAnalysisTimeRef = useRef(0);
     const logsRef = useRef([
         {
             id: 'init_1',
@@ -2188,117 +2189,130 @@ function CameraRegionEditor({
             }
 
             // 2. Process Regions (read colors, compute similarities, draw overlays)
+            const now = Date.now();
+            const shouldAnalyze = now - lastAnalysisTimeRef.current >= 100; // 10 FPS for heavy pixel processing
+            if (shouldAnalyze) {
+                lastAnalysisTimeRef.current = now;
+            }
+
             regions.forEach((region, regionIndex) => {
                 const rx = Math.max(0, Math.min(region.x, w - 2));
                 const ry = Math.max(0, Math.min(region.y, h - 2));
                 const rw = Math.max(2, Math.min(region.w, w - rx));
                 const rh = Math.max(2, Math.min(region.h, h - ry));
 
-                // Extract average color under the region (only if live feed)
-                let avgR = 0, avgG = 0, avgB = 0;
-                if (hasVideoFeed) {
+                // A. Extract average color under the region (only if live feed and shouldAnalyze)
+                const colorDet = region.detectors.colorDetector;
+                const changeDet = region.detectors.changeDetector;
+
+                if (hasVideoFeed && shouldAnalyze) {
                     try {
                         const imgData = ctx.getImageData(rx, ry, rw, rh);
                         const pixels = imgData.data;
                         let rSum = 0, gSum = 0, bSum = 0, count = 0;
-                        for (let i = 0; i < pixels.length; i += 16) {
+                        // Skip pixels to optimize further: skip by 24 for larger steps to save CPU
+                        for (let i = 0; i < pixels.length; i += 24) {
                             rSum += pixels[i];
                             gSum += pixels[i+1];
                             bSum += pixels[i+2];
                             count++;
                         }
-                        avgR = rSum / count;
-                        avgG = gSum / count;
-                        avgB = bSum / count;
+                        const avgR = rSum / count;
+                        const avgG = gSum / count;
+                        const avgB = bSum / count;
+                        
                         avgColorsRef.current[region.id] = { r: avgR, g: avgG, b: avgB };
+                        
+                        // Compute color similarity
+                        if (colorDet && colorDet.enabled) {
+                            const targetRGB = hexToRgb(colorDet.targetColor);
+                            const dr = avgR - targetRGB.r;
+                            const dg = avgG - targetRGB.g;
+                            const db = avgB - targetRGB.b;
+                            const dist = Math.sqrt(dr*dr + dg*dg + db*db);
+                            const colorSimilarity = Math.round(Math.max(0, 100 - (dist / 441.67) * 100));
+                            
+                            region.colorSimilarity = colorSimilarity;
+                            
+                            if (region.id === selectedRegionId) {
+                                similarityRef.current[region.id] = colorSimilarity;
+                            }
+
+                            const oldMatching = region.isMatching;
+                            let isMatching = region.isMatching || false;
+                            if (colorSimilarity >= colorDet.beginThreshold) {
+                                isMatching = true;
+                            } else if (colorSimilarity < colorDet.endThreshold) {
+                                isMatching = false;
+                            }
+                            region.isMatching = isMatching;
+
+                            // Log event on transition
+                            if (oldMatching !== undefined && oldMatching !== isMatching) {
+                                const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                                const newLog = {
+                                    id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                                    time: timestamp,
+                                    regionName: region.name,
+                                    detectorType: 'Color',
+                                    value: `Sim: ${colorSimilarity}%`,
+                                    status: isMatching ? 'MATCH' : 'NO MATCH'
+                                };
+                                logsRef.current = [newLog, ...logsRef.current].slice(0, 20);
+                            }
+                        }
+
+                        // Compute change detection
+                        if (changeDet && changeDet.enabled) {
+                            const currentIntensity = (avgR + avgG + avgB) / 3;
+                            const prevIntensity = prevIntensityRef.current[region.id];
+                            let delta = 0;
+                            if (prevIntensity !== undefined) {
+                                delta = Math.abs(currentIntensity - prevIntensity);
+                            }
+                            prevIntensityRef.current[region.id] = currentIntensity;
+
+                            // Scale delta so minor movement triggers nicely
+                            const changePercent = Math.round(Math.min(100, (delta / 12) * 100));
+                            region.changePercent = changePercent;
+                            
+                            if (region.id === selectedRegionId && (!colorDet || !colorDet.enabled)) {
+                                similarityRef.current[region.id] = changePercent;
+                            }
+
+                            const oldTriggered = region.changeTriggered;
+                            let changeTriggered = region.changeTriggered || false;
+                            if (changePercent >= changeDet.beginThreshold) {
+                                changeTriggered = true;
+                            } else if (changePercent < changeDet.lowerThreshold) {
+                                changeTriggered = false;
+                            }
+                            region.changeTriggered = changeTriggered;
+
+                            // Log event on transition
+                            if (oldTriggered !== undefined && oldTriggered !== changeTriggered) {
+                                const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                                const newLog = {
+                                    id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                                    time: timestamp,
+                                    regionName: region.name,
+                                    detectorType: 'Change',
+                                    value: `Delta: ${changePercent}%`,
+                                    status: changeTriggered ? 'TRIGGERED' : 'IDLE'
+                                };
+                                logsRef.current = [newLog, ...logsRef.current].slice(0, 20);
+                            }
+                        }
                     } catch (e) {
                         // silent
                     }
                 }
 
-                // A. Compute color similarity
-                const colorDet = region.detectors.colorDetector;
-                let colorSimilarity = 0;
-                let isMatching = region.isMatching || false;
-
-                if (colorDet && colorDet.enabled && hasVideoFeed) {
-                    const targetRGB = hexToRgb(colorDet.targetColor);
-                    const dr = avgR - targetRGB.r;
-                    const dg = avgG - targetRGB.g;
-                    const db = avgB - targetRGB.b;
-                    const dist = Math.sqrt(dr*dr + dg*dg + db*db);
-                    colorSimilarity = Math.round(Math.max(0, 100 - (dist / 441.67) * 100));
-                    
-                    if (region.id === selectedRegionId) {
-                        similarityRef.current[region.id] = colorSimilarity;
-                    }
-
-                    const oldMatching = region.isMatching;
-                    if (colorSimilarity >= colorDet.beginThreshold) {
-                        isMatching = true;
-                    } else if (colorSimilarity < colorDet.endThreshold) {
-                        isMatching = false;
-                    }
-                    region.isMatching = isMatching;
-
-                    // Log event on transition
-                    if (oldMatching !== undefined && oldMatching !== isMatching) {
-                        const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                        const newLog = {
-                            id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                            time: timestamp,
-                            regionName: region.name,
-                            detectorType: 'Color',
-                            value: `Sim: ${colorSimilarity}%`,
-                            status: isMatching ? 'MATCH' : 'NO MATCH'
-                        };
-                        logsRef.current = [newLog, ...logsRef.current].slice(0, 20);
-                    }
-                }
-
-                // B. Compute change detection
-                const changeDet = region.detectors.changeDetector;
-                let changeTriggered = region.changeTriggered || false;
-                let changePercent = 0;
-
-                if (changeDet && changeDet.enabled && hasVideoFeed) {
-                    const currentIntensity = (avgR + avgG + avgB) / 3;
-                    const prevIntensity = prevIntensityRef.current[region.id];
-                    let delta = 0;
-                    if (prevIntensity !== undefined) {
-                        delta = Math.abs(currentIntensity - prevIntensity);
-                    }
-                    prevIntensityRef.current[region.id] = currentIntensity;
-
-                    // Scale delta so minor movement triggers nicely
-                    changePercent = Math.round(Math.min(100, (delta / 12) * 100));
-                    
-                    if (region.id === selectedRegionId && (!colorDet || !colorDet.enabled)) {
-                        similarityRef.current[region.id] = changePercent;
-                    }
-
-                    const oldTriggered = region.changeTriggered;
-                    if (changePercent >= changeDet.beginThreshold) {
-                        changeTriggered = true;
-                    } else if (changePercent < changeDet.lowerThreshold) {
-                        changeTriggered = false;
-                    }
-                    region.changeTriggered = changeTriggered;
-
-                    // Log event on transition
-                    if (oldTriggered !== undefined && oldTriggered !== changeTriggered) {
-                        const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                        const newLog = {
-                            id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                            time: timestamp,
-                            regionName: region.name,
-                            detectorType: 'Change',
-                            value: `Delta: ${changePercent}%`,
-                            status: changeTriggered ? 'TRIGGERED' : 'IDLE'
-                        };
-                        logsRef.current = [newLog, ...logsRef.current].slice(0, 20);
-                    }
-                }
+                // Retrieve cached or calculated status for drawing
+                const isMatching = region.isMatching || false;
+                const changeTriggered = region.changeTriggered || false;
+                const colorSimilarity = region.colorSimilarity || 0;
+                const changePercent = region.changePercent || 0;
 
                 // Draw bounding box
                 const isSelected = region.id === selectedRegionId;
@@ -2327,14 +2341,13 @@ function CameraRegionEditor({
                     : (isMatching || changeTriggered ? 'rgba(34, 197, 94, 0.04)' : 'rgba(255, 255, 255, 0.02)');
                 ctx.fillRect(region.x + 1, region.y + 1, region.w - 2, region.h - 2);
 
-                // Region name label (Tulip-style: small label inside top area)
+                // Region name label
                 ctx.fillStyle = '#ffffff';
                 ctx.font = '600 11px Inter, system-ui, sans-serif';
                 ctx.textAlign = 'left';
                 const labelText = region.name;
                 const labelWidth = ctx.measureText(labelText).width + 12;
                 
-                // Label background pill
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
                 const labelX = region.x + 6;
                 const labelY = region.y + 6;
@@ -2343,7 +2356,7 @@ function CameraRegionEditor({
                 ctx.fillStyle = '#ffffff';
                 ctx.fillText(labelText, labelX + 6, labelY + 14);
 
-                // Selected region resize handles (small squares at corners)
+                // Selected region resize handles
                 if (isSelected) {
                     const handleSize = 6;
                     ctx.fillStyle = '#ffffff';
