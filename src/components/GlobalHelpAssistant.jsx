@@ -553,6 +553,172 @@ Untuk menghubungkan Mavi ke asisten coding Antigravity Anda:
 `
   },
   {
+    id: 'yolo-offline-guide',
+    title: 'YOLO Offline (Kustom Dataset)',
+    icon: ShieldCheck,
+    color: '#10b981', // Emerald/Green
+    content: `
+### Panduan YOLOv8 Offline (Kustom Dataset & Privasi Data)
+
+![YOLO Offline Workflow](/assets/yolo-offline.jpg)
+
+Jika data dan gambar dari pabrik Anda bersifat rahasia (**privacy/confidential dataset**), Anda wajib menggunakan alur kerja **100% Offline (Local-First)** agar gambar produk tidak terunggah ke internet.
+
+---
+
+#### 1. Pelabelan Gambar Secara Offline (Local Labeling)
+Jangan menggunakan Roboflow Cloud. Gunakan aplikasi pelabelan yang berjalan lokal di komputer Anda:
+
+**Opsi A: Menggunakan Label Studio (Modern & Lengkap)**
+1. Instal melalui pip di terminal komputer Anda:
+   \`\`\`bash
+   pip install label-studio
+   \`\`\`
+2. Jalankan aplikasi:
+   \`\`\`bash
+   label-studio
+   \`\`\`
+3. Aplikasi akan otomatis terbuka di browser lokal Anda di alamat \`http://localhost:8080\`.
+4. Buat project baru, pilih template **Object Detection**, masukkan gambar-gambar Anda, dan lakukan pelabelan.
+5. Saat selesai, klik **Export** dan pilih format **YOLO**.
+
+**Opsi B: Menggunakan LabelImg (Sangat Ringan & Klasik)**
+1. Instal lewat pip:
+   \`\`\`bash
+   pip install labelImg
+   \`\`\`
+2. Jalankan dari terminal:
+   \`\`\`bash
+   labelImg
+   \`\`\`
+3. Di dalam aplikasi LabelImg, set format penyimpanan ke **YOLO** (bukan PascalVOC). Gambar kotak deteksi pada produk Anda dan simpan.
+
+---
+
+#### 2. Mengatur Struktur Folder Offline
+Setelah selesai melabeli, susun folder di komputer Anda secara manual seperti berikut:
+
+\`\`\`text
+C:/YOLO_Projects/my_private_dataset/
+├── dataset.yaml
+├── train/
+│   ├── images/   <-- Foto latihan (.jpg)
+│   └── labels/   <-- Koordinat label latihan (.txt)
+└── val/
+    ├── images/   <-- Foto validasi (.jpg)
+    └── labels/   <-- Koordinat label validasi (.txt)
+\`\`\`
+
+Buat file \`dataset.yaml\` menggunakan notepad/VS Code, masukkan path lokal komputer Anda:
+\`\`\`yaml
+path: C:/YOLO_Projects/my_private_dataset
+train: train/images
+val: val/images
+
+names:
+  0: ok_product
+  1: scratch_defect
+  2: dent_defect
+\`\`\`
+
+---
+
+#### 3. Training Model Secara Offline (Local Training)
+Jalankan proses training model di komputer Anda sendiri menggunakan Python.
+
+Buat file Python bernama \`train_offline.py\`:
+\`\`\`python
+from ultralytics import YOLO
+
+# Load model dasar (pre-trained nano model)
+model = YOLO("yolov8n.pt") 
+
+if __name__ == '__main__':
+    model.train(
+        data="C:/YOLO_Projects/my_private_dataset/dataset.yaml", 
+        epochs=100,      # Jumlah putaran latihan
+        imgsz=640,       # Ukuran gambar input standar
+        device=0,        # Ketik 0 jika pakai GPU NVIDIA, atau ganti "cpu" jika tanpa GPU
+        workers=2
+    )
+\`\`\`
+Jalankan di terminal:
+\`\`\`bash
+python train_offline.py
+\`\`\`
+Model kustom hasil training Anda akan tersimpan di:
+\`runs/detect/train/weights/best.pt\`
+
+---
+
+#### 4. Menjalankan Server API Lokal
+Buat file \`yolo_server.py\` di folder lokal yang memuat file model kustom Anda (\`best.pt\`):
+
+\`\`\`python
+import cv2
+import numpy as np
+from fastapi import FastAPI, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+from ultralytics import YOLO
+
+app = FastAPI(title="YOLOv8 Local Inference API")
+
+# Aktifkan CORS agar browser dapat mengakses localhost
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+model = YOLO("best.pt") # Meload model kustom hasil training offline
+
+@app.post("/detect")
+async def detect_objects(file: UploadFile = File(...)):
+    try:
+        image_bytes = await file.read()
+        nparr = np.frombuffer(image_bytes, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+        results = model(img)
+        predictions = []
+        for box in results[0].boxes:
+            x1, y1, x2, y2 = box.xyxy[0].tolist()
+            cls_id = int(box.cls[0])
+            label = results[0].names[cls_id]
+            conf = float(box.conf[0]) * 100
+
+            predictions.append({
+                "x": int(x1),
+                "y": int(y1),
+                "w": int(x2 - x1),
+                "h": int(y2 - y1),
+                "label": label,
+                "confidence": round(conf, 1)
+            })
+        return {"predictions": predictions}
+    except Exception as e:
+        return {"error": str(e), "predictions": []}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+\`\`\`
+Jalankan di terminal:
+\`\`\`bash
+python yolo_server.py
+\`\`\`
+
+---
+
+#### 5. Menghubungkan ke App Builder Mavi
+1. Di **App Builder**, tambahkan atau pilih widget **OpenCV Camera**.
+2. Pada panel properti sebelah kanan, ganti **YOLO Run Mode** menjadi **Local Python API (localhost:8000)**.
+3. Masukkan URL Endpoint: \`http://localhost:8000/detect\`.
+`
+  },
+  {
     id: 'widgets',
     title: 'Daftar Widget HMI',
     icon: LayoutGrid,
@@ -573,6 +739,7 @@ export default function GlobalHelpAssistant() {
   const [aiConnector, setAiConnector] = useState(null);
   const [activeGuide, setActiveGuide] = useState(MAVI_GUIDES[0].id);
   const [knowledgeFiles, setKnowledgeFiles] = useState([]);
+  const [fullscreenImg, setFullscreenImg] = useState(null);
   const fileInputRef = useRef(null);
   const scrollRef = useRef(null);
 
@@ -715,12 +882,13 @@ export default function GlobalHelpAssistant() {
                 title={guide.title}
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  padding: '10px', borderRadius: '12px', border: isActive ? '1px solid ' + guide.color : '1px solid #cbd5e1',
+                  width: '42px', height: '42px', borderRadius: '12px', border: isActive ? '1px solid ' + guide.color : '1px solid #e2e8f0',
                   backgroundColor: isActive ? `${guide.color}15` : '#ffffff',
                   color: isActive ? guide.color : '#475569',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
-                  boxShadow: isActive ? `0 4px 12px ${guide.color}30` : 'none'
+                  boxShadow: isActive ? `0 4px 12px ${guide.color}20` : '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                  flexShrink: 0
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = 'translateY(-2px)';
@@ -728,7 +896,7 @@ export default function GlobalHelpAssistant() {
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = isActive ? `0 4px 12px ${guide.color}30` : 'none';
+                  e.currentTarget.style.boxShadow = isActive ? `0 4px 12px ${guide.color}20` : '0 1px 2px 0 rgba(0, 0, 0, 0.05)';
                 }}
               >
                 <Icon size={20} />
@@ -747,7 +915,7 @@ export default function GlobalHelpAssistant() {
           overflowY: 'auto'
         }}>
           {activeGuide === 'widgets' ? (
-            <WidgetDirectory />
+            <WidgetDirectory onImageClick={setFullscreenImg} />
           ) : (
             MAVI_GUIDES.map(guide => guide.id === activeGuide && (
               <div key={guide.id} className="markdown-body" style={{ color: '#334155', fontSize: '0.9rem', lineHeight: '1.6' }}>
@@ -759,7 +927,18 @@ export default function GlobalHelpAssistant() {
                   components={{
                     img: ({node, ...props}) => (
                       <img 
-                        style={{ maxWidth: '100%', borderRadius: '12px', border: '1px solid #cbd5e1', margin: '16px 0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }} 
+                        style={{ 
+                          maxWidth: '100%', 
+                          borderRadius: '12px', 
+                          border: '1px solid #cbd5e1', 
+                          margin: '16px 0', 
+                          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+                          cursor: 'zoom-in',
+                          transition: 'transform 0.2s ease'
+                        }} 
+                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.015)'}
+                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                        onClick={() => setFullscreenImg(props.src)}
                         {...props} 
                       />
                     )
@@ -1168,6 +1347,77 @@ export default function GlobalHelpAssistant() {
           </div>
         </div>
       </div>
+
+      {/* Fullscreen Image Modal Overlay */}
+      {fullscreenImg && (
+        <div 
+          onClick={() => setFullscreenImg(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99999,
+            cursor: 'zoom-out',
+            backdropFilter: 'blur(8px)',
+            animation: 'maviHelpFadeIn 0.2s ease-out'
+          }}
+        >
+          <button
+            onClick={(e) => { e.stopPropagation(); setFullscreenImg(null); }}
+            style={{
+              position: 'absolute',
+              top: '24px',
+              right: '24px',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: 'none',
+              borderRadius: '50%',
+              width: '44px',
+              height: '44px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#ffffff',
+              cursor: 'pointer',
+              transition: 'background-color 0.2s',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
+          >
+            <X size={24} />
+          </button>
+          <img 
+            src={fullscreenImg} 
+            alt="Fullscreen Preview" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '90%',
+              maxHeight: '90%',
+              objectFit: 'contain',
+              borderRadius: '12px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              animation: 'maviHelpZoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)'
+            }}
+          />
+          <style>{`
+            @keyframes maviHelpFadeIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+            @keyframes maviHelpZoomIn {
+              from { transform: scale(0.95); opacity: 0; }
+              to { transform: scale(1); opacity: 1; }
+            }
+          `}</style>
+        </div>
+      )}
       
     </div>
   );
@@ -2251,7 +2501,7 @@ const WIDGET_DATABASE = [
   }
 ];
 
-function WidgetDirectory() {
+function WidgetDirectory({ onImageClick }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Semua');
   const [expandedWidget, setExpandedWidget] = useState(null);
@@ -2280,7 +2530,18 @@ function WidgetDirectory() {
         <img 
           src="/assets/hmi-widget-list.jpg" 
           alt="Daftar Widget Aplikasi" 
-          style={{ maxWidth: '100%', borderRadius: '12px', border: '1px solid #cbd5e1', marginTop: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }} 
+          style={{ 
+            maxWidth: '100%', 
+            borderRadius: '12px', 
+            border: '1px solid #cbd5e1', 
+            marginTop: '16px', 
+            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+            cursor: 'zoom-in',
+            transition: 'transform 0.2s ease'
+          }} 
+          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.015)'}
+          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+          onClick={() => onImageClick?.('/assets/hmi-widget-list.jpg')}
         />
       </div>
 

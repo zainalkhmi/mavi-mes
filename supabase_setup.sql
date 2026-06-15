@@ -690,3 +690,41 @@ ALTER TABLE public.plc_tags ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all plc_tags" ON public.plc_tags;
 CREATE POLICY "Allow all plc_tags" ON public.plc_tags FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
+
+-- =====================================================
+-- VISION & DATASETS TABLES
+-- =====================================================
+
+-- 29. Table: cameras
+CREATE TABLE IF NOT EXISTS public.cameras (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    url TEXT,
+    type TEXT DEFAULT 'DEVICE',
+    settings JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+GRANT ALL ON TABLE public.cameras TO anon, authenticated;
+ALTER TABLE public.cameras ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all cameras" ON public.cameras;
+CREATE POLICY "Allow all cameras" ON public.cameras FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+-- 30. Table: datasets
+CREATE TABLE IF NOT EXISTS public.datasets (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    project_name TEXT,
+    clip_id TEXT,
+    folder_id TEXT,
+    zip_url TEXT,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+GRANT ALL ON TABLE public.datasets TO anon, authenticated;
+ALTER TABLE public.datasets ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all datasets" ON public.datasets;
+CREATE POLICY "Allow all datasets" ON public.datasets FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);

@@ -9,17 +9,33 @@ import { getSupabaseClient } from './supabaseManualDB.js';
 // ── Cameras ──────────────────────────────────────────
 
 export async function getAllCameras() {
-    const supabase = getSupabaseClient();
-    const { data, error } = await supabase
-        .from('cameras')
-        .select('*')
-        .order('name');
-    if (error) throw error;
-    return data || [];
+    try {
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase
+            .from('cameras')
+            .select('*')
+            .order('name');
+        if (error) throw error;
+        // Sync local storage cache for offline/fallback use
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('mavi_local_cameras', JSON.stringify(data || []));
+        }
+        return data || [];
+    } catch (err) {
+        console.warn('[Supabase Fallback] Failed to fetch cameras from database, loading from localStorage:', err);
+        if (typeof window !== 'undefined') {
+            try {
+                const cached = localStorage.getItem('mavi_local_cameras');
+                if (cached) return JSON.parse(cached);
+            } catch (e) {
+                console.error('[Supabase Fallback] Failed to parse local cameras cache:', e);
+            }
+        }
+        return [];
+    }
 }
 
 export async function saveCamera(camera) {
-    const supabase = getSupabaseClient();
     const payload = {
         name: camera.name,
         url: camera.url,
@@ -28,62 +44,254 @@ export async function saveCamera(camera) {
         updated_at: new Date().toISOString()
     };
 
-    let result;
-    if (camera.id) {
-        result = await supabase.from('cameras').update(payload).eq('id', camera.id).select().single();
-    } else {
-        result = await supabase.from('cameras').insert({ ...payload, created_at: new Date().toISOString() }).select().single();
+    try {
+        const supabase = getSupabaseClient();
+        let result;
+        if (camera.id && !String(camera.id).startsWith('local-')) {
+            result = await supabase.from('cameras').update(payload).eq('id', camera.id).select().single();
+        } else {
+            const insertPayload = { ...payload, created_at: new Date().toISOString() };
+            // If it was a local item, do not send the temporary local- id to Supabase
+            if (camera.id && !String(camera.id).startsWith('local-')) {
+                insertPayload.id = camera.id;
+            }
+            result = await supabase.from('cameras').insert(insertPayload).select().single();
+        }
+        if (result.error) throw result.error;
+        
+        // Sync local cache
+        if (typeof window !== 'undefined') {
+            try {
+                const cachedRaw = localStorage.getItem('mavi_local_cameras') || '[]';
+                let list = JSON.parse(cachedRaw);
+                const index = list.findIndex(c => c.id === camera.id || c.id === result.data.id);
+                if (index !== -1) {
+                    list[index] = result.data;
+                } else {
+                    list.push(result.data);
+                }
+                localStorage.setItem('mavi_local_cameras', JSON.stringify(list));
+            } catch (e) {
+                console.error('[Supabase Fallback] Failed to update local cache on save:', e);
+            }
+        }
+        return result.data;
+    } catch (err) {
+        console.warn('[Supabase Fallback] Failed to save camera to database, saving to localStorage:', err);
+        if (typeof window !== 'undefined') {
+            try {
+                const cachedRaw = localStorage.getItem('mavi_local_cameras') || '[]';
+                const list = JSON.parse(cachedRaw);
+                let savedItem;
+                
+                if (camera.id) {
+                    // Update existing
+                    const index = list.findIndex(c => c.id === camera.id);
+                    savedItem = {
+                        ...camera,
+                        ...payload,
+                        id: camera.id
+                    };
+                    if (index !== -1) {
+                        list[index] = savedItem;
+                    } else {
+                        list.push(savedItem);
+                    }
+                } else {
+                    // Insert new
+                    savedItem = {
+                        ...payload,
+                        id: 'local-' + Math.random().toString(36).substr(2, 9),
+                        created_at: payload.updated_at
+                    };
+                    list.push(savedItem);
+                }
+                
+                localStorage.setItem('mavi_local_cameras', JSON.stringify(list));
+                return savedItem;
+            } catch (e) {
+                console.error('[Supabase Fallback] Failed to save camera locally:', e);
+                throw err;
+            }
+        }
+        throw err;
     }
-    if (result.error) throw result.error;
-    return result.data;
 }
 
 export async function deleteCamera(id) {
-    const supabase = getSupabaseClient();
-    const { error } = await supabase.from('cameras').delete().eq('id', id);
-    if (error) throw error;
-    return true;
+    try {
+        const supabase = getSupabaseClient();
+        if (id && !String(id).startsWith('local-')) {
+            const { error } = await supabase.from('cameras').delete().eq('id', id);
+            if (error) throw error;
+        }
+        
+        if (typeof window !== 'undefined') {
+            const cachedRaw = localStorage.getItem('mavi_local_cameras') || '[]';
+            const list = JSON.parse(cachedRaw);
+            const newList = list.filter(c => c.id !== id);
+            localStorage.setItem('mavi_local_cameras', JSON.stringify(newList));
+        }
+        return true;
+    } catch (err) {
+        console.warn('[Supabase Fallback] Failed to delete camera from database, deleting from localStorage:', err);
+        if (typeof window !== 'undefined') {
+            try {
+                const cachedRaw = localStorage.getItem('mavi_local_cameras') || '[]';
+                const list = JSON.parse(cachedRaw);
+                const newList = list.filter(c => c.id !== id);
+                localStorage.setItem('mavi_local_cameras', JSON.stringify(newList));
+                return true;
+            } catch (e) {
+                console.error('[Supabase Fallback] Failed to delete camera locally:', e);
+                throw err;
+            }
+        }
+        throw err;
+    }
 }
 
 // ── Datasets ─────────────────────────────────────────
 
 export async function getAllDatasets() {
-    const supabase = getSupabaseClient();
-    const { data, error } = await supabase
-        .from('datasets')
-        .select('*')
-        .order('created_at', { ascending: false });
-    if (error) throw error;
-    return data || [];
+    try {
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase
+            .from('datasets')
+            .select('*')
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('mavi_local_datasets', JSON.stringify(data || []));
+        }
+        return data || [];
+    } catch (err) {
+        console.warn('[Supabase Fallback] Failed to fetch datasets from database, loading from localStorage:', err);
+        if (typeof window !== 'undefined') {
+            try {
+                const cached = localStorage.getItem('mavi_local_datasets');
+                if (cached) return JSON.parse(cached);
+            } catch (e) {
+                console.error('[Supabase Fallback] Failed to parse local datasets cache:', e);
+            }
+        }
+        return [];
+    }
 }
 
 export async function saveDataset(dataset) {
-    const supabase = getSupabaseClient();
     const payload = {
         name: dataset.name,
-        project_name: dataset.projectName,
-        clip_id: dataset.clipId,
-        folder_id: dataset.folderId,
-        zip_url: dataset.zipUrl,
+        project_name: dataset.projectName || dataset.project_name || '',
+        clip_id: dataset.clipId || dataset.clip_id || '',
+        folder_id: dataset.folderId || dataset.folder_id || '',
+        zip_url: dataset.zipUrl || dataset.zip_url || '',
         metadata: dataset.metadata || {},
         updated_at: new Date().toISOString()
     };
 
-    let result;
-    if (dataset.id) {
-        result = await supabase.from('datasets').update(payload).eq('id', dataset.id).select().single();
-    } else {
-        result = await supabase.from('datasets').insert({ ...payload, created_at: new Date().toISOString() }).select().single();
+    try {
+        const supabase = getSupabaseClient();
+        let result;
+        if (dataset.id && !String(dataset.id).startsWith('local-')) {
+            result = await supabase.from('datasets').update(payload).eq('id', dataset.id).select().single();
+        } else {
+            const insertPayload = { ...payload, created_at: new Date().toISOString() };
+            if (dataset.id && !String(dataset.id).startsWith('local-')) {
+                insertPayload.id = dataset.id;
+            }
+            result = await supabase.from('datasets').insert(insertPayload).select().single();
+        }
+        if (result.error) throw result.error;
+        
+        // Sync local cache
+        if (typeof window !== 'undefined') {
+            try {
+                const cachedRaw = localStorage.getItem('mavi_local_datasets') || '[]';
+                let list = JSON.parse(cachedRaw);
+                const index = list.findIndex(d => d.id === dataset.id || d.id === result.data.id);
+                if (index !== -1) {
+                    list[index] = result.data;
+                } else {
+                    list.push(result.data);
+                }
+                localStorage.setItem('mavi_local_datasets', JSON.stringify(list));
+            } catch (e) {
+                console.error('[Supabase Fallback] Failed to update local datasets cache on save:', e);
+            }
+        }
+        return result.data;
+    } catch (err) {
+        console.warn('[Supabase Fallback] Failed to save dataset to database, saving to localStorage:', err);
+        if (typeof window !== 'undefined') {
+            try {
+                const cachedRaw = localStorage.getItem('mavi_local_datasets') || '[]';
+                const list = JSON.parse(cachedRaw);
+                let savedItem;
+                
+                if (dataset.id) {
+                    const index = list.findIndex(d => d.id === dataset.id);
+                    savedItem = {
+                        ...dataset,
+                        ...payload,
+                        id: dataset.id
+                    };
+                    if (index !== -1) {
+                        list[index] = savedItem;
+                    } else {
+                        list.push(savedItem);
+                    }
+                } else {
+                    savedItem = {
+                        ...payload,
+                        id: 'local-' + Math.random().toString(36).substr(2, 9),
+                        created_at: payload.updated_at
+                    };
+                    list.push(savedItem);
+                }
+                
+                localStorage.setItem('mavi_local_datasets', JSON.stringify(list));
+                return savedItem;
+            } catch (e) {
+                console.error('[Supabase Fallback] Failed to save dataset locally:', e);
+                throw err;
+            }
+        }
+        throw err;
     }
-    if (result.error) throw result.error;
-    return result.data;
 }
 
 export async function deleteDataset(id) {
-    const supabase = getSupabaseClient();
-    const { error } = await supabase.from('datasets').delete().eq('id', id);
-    if (error) throw error;
-    return true;
+    try {
+        const supabase = getSupabaseClient();
+        if (id && !String(id).startsWith('local-')) {
+            const { error } = await supabase.from('datasets').delete().eq('id', id);
+            if (error) throw error;
+        }
+        
+        if (typeof window !== 'undefined') {
+            const cachedRaw = localStorage.getItem('mavi_local_datasets') || '[]';
+            const list = JSON.parse(cachedRaw);
+            const newList = list.filter(d => d.id !== id);
+            localStorage.setItem('mavi_local_datasets', JSON.stringify(newList));
+        }
+        return true;
+    } catch (err) {
+        console.warn('[Supabase Fallback] Failed to delete dataset from database, deleting from localStorage:', err);
+        if (typeof window !== 'undefined') {
+            try {
+                const cachedRaw = localStorage.getItem('mavi_local_datasets') || '[]';
+                const list = JSON.parse(cachedRaw);
+                const newList = list.filter(d => d.id !== id);
+                localStorage.setItem('mavi_local_datasets', JSON.stringify(newList));
+                return true;
+            } catch (e) {
+                console.error('[Supabase Fallback] Failed to delete dataset locally:', e);
+                throw err;
+            }
+        }
+        throw err;
+    }
 }
 
 // ── Live Terminal Measurements ───────────────────────

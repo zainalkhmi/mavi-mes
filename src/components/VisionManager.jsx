@@ -30,7 +30,8 @@ import {
     HelpCircle
 } from 'lucide-react';
 import JSZip from 'jszip';
-import { getAllDatasets, saveDataset, deleteDataset } from '../utils/supabaseUtilityDB';
+import { getAllCameras, saveCamera, deleteCamera, getAllDatasets, saveDataset, deleteDataset } from '../utils/supabaseUtilityDB';
+import { getStations } from '../utils/supabaseFrontlineDB';
 
 const VisionManager = () => {
     // Tab Management: 'cameras' | 'datasets' | 'privacy'
@@ -45,10 +46,7 @@ const VisionManager = () => {
     }, [privacyMode]);
 
     // Camera Config State
-    const [cameraConfigs, setCameraConfigs] = useState([
-        { id: 'cam_1', name: 'Workstation 1 Top View', status: 'ACTIVE', regions: 2, detectors: ['Color Detector', 'Change Detector'], cameraSource: 'DEVICE' },
-        { id: 'cam_2', name: 'Inspection Area Zoom', status: 'INACTIVE', regions: 1, detectors: ['OCR Detector'], cameraSource: 'DEVICE' }
-    ]);
+    const [cameraConfigs, setCameraConfigs] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [showCameraForm, setShowCameraForm] = useState(false);
     const [newCameraName, setNewCameraName] = useState('');
@@ -59,84 +57,7 @@ const VisionManager = () => {
     // Camera Settings/Regions state
     const [editingCameraConfig, setEditingCameraConfig] = useState(null);
     const [selectedRegionId, setSelectedRegionId] = useState(null);
-    const [regionsByCamera, setRegionsByCamera] = useState({
-        cam_1: [
-            {
-                id: 'reg_1',
-                name: 'Widgets Bin',
-                x: 120, y: 310, w: 90, h: 90,
-                detectors: {
-                    changeDetector: {
-                        enabled: false,
-                        beginThreshold: 40,
-                        upperThreshold: 100,
-                        lowerThreshold: 10,
-                        adaptationSpeed: 'Medium',
-                        resetOnEnd: true,
-                        resetDuration: 0.50
-                    },
-                    colorDetector: {
-                        enabled: true,
-                        name: 'Widgets Bin Color',
-                        beginThreshold: 72,
-                        endThreshold: 66,
-                        targetColor: '#eab308',
-                        similarity: 67
-                    }
-                }
-            },
-            {
-                id: 'reg_2',
-                name: 'Fidgets Bin',
-                x: 430, y: 310, w: 90, h: 90,
-                detectors: {
-                    changeDetector: {
-                        enabled: true,
-                        beginThreshold: 40,
-                        upperThreshold: 100,
-                        lowerThreshold: 10,
-                        adaptationSpeed: 'Medium',
-                        resetOnEnd: true,
-                        resetDuration: 0.50
-                    },
-                    colorDetector: {
-                        enabled: false,
-                        name: 'Fidgets Bin Color',
-                        beginThreshold: 75,
-                        endThreshold: 60,
-                        targetColor: '#ef4444',
-                        similarity: 12
-                    }
-                }
-            }
-        ],
-        cam_2: [
-            {
-                id: 'reg_3',
-                name: 'Region 1',
-                x: 200, y: 150, w: 120, h: 120,
-                detectors: {
-                    changeDetector: {
-                        enabled: false,
-                        beginThreshold: 40,
-                        upperThreshold: 100,
-                        lowerThreshold: 10,
-                        adaptationSpeed: 'Medium',
-                        resetOnEnd: true,
-                        resetDuration: 0.50
-                    },
-                    colorDetector: {
-                        enabled: false,
-                        name: 'Color Detector 1',
-                        beginThreshold: 50,
-                        endThreshold: 45,
-                        targetColor: '#3b82f6',
-                        similarity: 0
-                    }
-                }
-            }
-        ]
-    });
+    const [regionsByCamera, setRegionsByCamera] = useState({});
 
     // Keep camera config stats sync'd with regionsByCamera
     useEffect(() => {
@@ -161,6 +82,7 @@ const VisionManager = () => {
     const [datasets, setDatasets] = useState([]);
     const [activeDataset, setActiveDataset] = useState(null);
     const [isLoadingDatasets, setIsLoadingDatasets] = useState(false);
+    const [isLoadingCameras, setIsLoadingCameras] = useState(false);
     const [showNewDatasetModal, setShowNewDatasetModal] = useState(false);
     const [newDatasetName, setNewDatasetName] = useState('');
     const [newDatasetProject, setNewDatasetProject] = useState('');
@@ -176,10 +98,12 @@ const VisionManager = () => {
     const [isCapturing, setIsCapturing] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
 
-    // Load Datasets on mount or tab switch
+    // Load Datasets & Cameras on mount or tab switch
     useEffect(() => {
         if (activeTab === 'datasets') {
             loadDatasets();
+        } else if (activeTab === 'cameras') {
+            loadCameras();
         }
     }, [activeTab]);
 
@@ -202,6 +126,37 @@ const VisionManager = () => {
         }
     };
 
+    const loadCameras = async () => {
+        setIsLoadingCameras(true);
+        try {
+            const data = await getAllCameras();
+            const mappedConfigs = data.map(c => {
+                const settings = c.settings || {};
+                return {
+                    id: c.id,
+                    name: c.name,
+                    status: settings.status || 'ACTIVE',
+                    regions: settings.regionsCount || 0,
+                    detectors: settings.detectors || ['Change Detector'],
+                    cameraSource: c.type || 'DEVICE',
+                    ipCameraUrl: c.url || ''
+                };
+            });
+            setCameraConfigs(mappedConfigs);
+
+            const newRegionsByCamera = {};
+            data.forEach(c => {
+                const settings = c.settings || {};
+                newRegionsByCamera[c.id] = settings.regions || [];
+            });
+            setRegionsByCamera(newRegionsByCamera);
+        } catch (err) {
+            console.error('Failed to load cameras:', err);
+        } finally {
+            setIsLoadingCameras(false);
+        }
+    };
+
     // Camera list search filter
     const filteredConfigs = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
@@ -212,36 +167,113 @@ const VisionManager = () => {
         );
     }, [cameraConfigs, searchTerm]);
 
-    const toggleCameraStatus = (id) => {
+    const toggleCameraStatus = async (id) => {
+        const target = cameraConfigs.find(c => c.id === id);
+        if (!target) return;
+        const newStatus = target.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+
+        // Update local state first
         setCameraConfigs((prev) =>
             prev.map((cfg) =>
                 cfg.id === id
-                    ? { ...cfg, status: cfg.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' }
+                    ? { ...cfg, status: newStatus }
                     : cfg
             )
         );
+
+        // Save to Supabase
+        try {
+            const list = regionsByCamera[id] || [];
+            const activeDetectors = [];
+            list.forEach(r => {
+                if (r.detectors?.changeDetector?.enabled) activeDetectors.push('Change Detector');
+                if (r.detectors?.colorDetector?.enabled) activeDetectors.push('Color Detector');
+            });
+            const uniqueDets = [...new Set(activeDetectors)];
+            if (uniqueDets.length === 0) uniqueDets.push('Change Detector');
+
+            const payload = {
+                id: target.id,
+                name: target.name,
+                url: target.ipCameraUrl || '',
+                type: target.cameraSource || 'DEVICE',
+                settings: {
+                    status: newStatus,
+                    regionsCount: list.length,
+                    detectors: uniqueDets,
+                    regions: list
+                }
+            };
+            await saveCamera(payload);
+        } catch (err) {
+            console.error('Failed to toggle camera status in Supabase:', err);
+        }
     };
 
-    const addCameraConfig = () => {
+    const addCameraConfig = async () => {
         const name = newCameraName.trim();
         if (!name) {
             alert('Camera name is required.');
             return;
         }
-        const newConfig = {
-            id: `cam_${Date.now()}`,
-            name,
-            status: 'INACTIVE',
-            regions: 1,
-            detectors: ['Change Detector'],
-            cameraSource: newCameraSource,
-            ipCameraUrl: newCameraSource === 'IP_CAMERA' ? newCameraIpUrl : ''
-        };
-        setCameraConfigs((prev) => [newConfig, ...prev]);
-        setNewCameraName('');
-        setNewCameraSource('DEVICE');
-        setNewCameraIpUrl('');
-        setShowCameraForm(false);
+        
+        try {
+            const payload = {
+                name,
+                url: newCameraSource === 'IP_CAMERA' ? newCameraIpUrl : '',
+                type: newCameraSource,
+                settings: {
+                    status: 'INACTIVE',
+                    regionsCount: 0,
+                    detectors: ['Change Detector'],
+                    regions: []
+                }
+            };
+            const saved = await saveCamera(payload);
+            
+            const newConfig = {
+                id: saved.id,
+                name: saved.name,
+                status: 'INACTIVE',
+                regions: 0,
+                detectors: ['Change Detector'],
+                cameraSource: saved.type,
+                ipCameraUrl: saved.url
+            };
+            
+            setCameraConfigs(prev => [newConfig, ...prev]);
+            setRegionsByCamera(prev => ({
+                ...prev,
+                [saved.id]: []
+            }));
+            
+            setNewCameraName('');
+            setNewCameraSource('DEVICE');
+            setNewCameraIpUrl('');
+            setShowCameraForm(false);
+        } catch (err) {
+            console.error('Failed to save camera:', err);
+            alert(`Error saving camera: ${err.message}`);
+        }
+    };
+
+    const handleDeleteCamera = async (id, name) => {
+        if (!confirm(`Are you sure you want to delete camera "${name}"? This action cannot be undone.`)) {
+            return;
+        }
+        
+        try {
+            await deleteCamera(id);
+            setCameraConfigs(prev => prev.filter(c => c.id !== id));
+            setRegionsByCamera(prev => {
+                const copy = { ...prev };
+                delete copy[id];
+                return copy;
+            });
+        } catch (err) {
+            console.error('Failed to delete camera:', err);
+            alert(`Error deleting camera: ${err.message}`);
+        }
     };
 
     // Dataset logic
@@ -445,6 +477,69 @@ const VisionManager = () => {
         } catch (err) {
             console.error('ZIP generation failed:', err);
             alert(`Error creating export package: ${err.message}`);
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    // Export dataset split into train/val subfolders grouped by label for YOLOv8 Classification
+    const handleExportYolo = async () => {
+        if (!activeDataset || isExporting) return;
+        const samples = activeDataset.metadata?.samples || [];
+        if (samples.length === 0) {
+            alert('Cannot export an empty dataset. Capture some samples first!');
+            return;
+        }
+
+        setIsExporting(true);
+        try {
+            const zip = new JSZip();
+            
+            // 1. Group samples by label
+            const samplesByLabel = {};
+            samples.forEach(sample => {
+                const label = (sample.label || 'UNKNOWN').toUpperCase().replace(/\s+/g, '_');
+                if (!samplesByLabel[label]) {
+                    samplesByLabel[label] = [];
+                }
+                samplesByLabel[label].push(sample);
+            });
+
+            // 2. Split into train (80%) and val (20%) and add to ZIP
+            Object.keys(samplesByLabel).forEach(label => {
+                const list = samplesByLabel[label];
+                // Shuffle list
+                const shuffled = [...list].sort(() => 0.5 - Math.random());
+                const splitIndex = Math.floor(shuffled.length * 0.8);
+                const trainList = shuffled.slice(0, splitIndex);
+                const valList = shuffled.slice(splitIndex);
+
+                // Add train images
+                trainList.forEach((sample, i) => {
+                    const base64Data = sample.image.split(',')[1];
+                    zip.file(`train/${label}/sample_${label.toLowerCase()}_${i + 1}.jpg`, base64Data, { base64: true });
+                });
+
+                // Add val images
+                valList.forEach((sample, i) => {
+                    const base64Data = sample.image.split(',')[1];
+                    zip.file(`val/${label}/sample_${label.toLowerCase()}_${i + 1}.jpg`, base64Data, { base64: true });
+                });
+            });
+
+            // 3. Generate ZIP blob and trigger browser download
+            const blob = await zip.generateAsync({ type: 'blob' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${activeDataset.name.toLowerCase().replace(/\s+/g, '_')}_yolo_classify.zip`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('YOLO Export failed:', err);
+            alert(`Error creating YOLO export package: ${err.message}`);
         } finally {
             setIsExporting(false);
         }
@@ -667,8 +762,16 @@ const VisionManager = () => {
                                                 <button
                                                     onClick={() => setEditingCameraConfig(config)}
                                                     style={{ width: '36px', padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                                    title="Configure Regions"
                                                 >
                                                     <Settings size={16} color="#64748b" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteCamera(config.id, config.name)}
+                                                    style={{ width: '36px', padding: '8px', borderRadius: '8px', border: '1px solid #fee2e2', backgroundColor: '#fef2f2', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
+                                                    title="Delete Camera"
+                                                >
+                                                    <Trash2 size={16} color="#ef4444" />
                                                 </button>
                                             </div>
                                         </div>
@@ -803,19 +906,34 @@ const VisionManager = () => {
                                             Project: {activeDataset.project_name || 'Default'} • Created at: {new Date(activeDataset.created_at).toLocaleDateString()}
                                         </div>
                                     </div>
-                                    <button
-                                        onClick={handleExportZIP}
-                                        disabled={isExporting || stats.total === 0}
-                                        style={{
-                                            display: 'flex', alignItems: 'center', gap: '8px',
-                                            padding: '10px 18px', backgroundColor: stats.total > 0 ? '#10b981' : '#cbd5e1',
-                                            color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700,
-                                            cursor: stats.total > 0 ? 'pointer' : 'not-allowed', fontSize: '0.8rem'
-                                        }}
-                                    >
-                                        {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-                                        EXPORT DATASET (.ZIP)
-                                    </button>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button
+                                            onClick={handleExportZIP}
+                                            disabled={isExporting || stats.total === 0}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: '8px',
+                                                padding: '10px 18px', backgroundColor: stats.total > 0 ? '#64748b' : '#cbd5e1',
+                                                color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700,
+                                                cursor: stats.total > 0 ? 'pointer' : 'not-allowed', fontSize: '0.8rem'
+                                            }}
+                                        >
+                                            {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                                            EXPORT DATASET (.ZIP)
+                                        </button>
+                                        <button
+                                            onClick={handleExportYolo}
+                                            disabled={isExporting || stats.total === 0}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: '8px',
+                                                padding: '10px 18px', backgroundColor: stats.total > 0 ? '#8b5cf6' : '#cbd5e1',
+                                                color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700,
+                                                cursor: stats.total > 0 ? 'pointer' : 'not-allowed', fontSize: '0.8rem'
+                                            }}
+                                        >
+                                            {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                                            EXPORT FOR YOLO
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {/* Main Grid: Capture Workspace & Statistics */}
@@ -1523,6 +1641,10 @@ function CameraRegionEditor({
     const streamRef = useRef(null);
     const animationFrameRef = useRef(null);
     const [hasPermission, setHasPermission] = useState(null);
+    const [cameraLoading, setCameraLoading] = useState(true);
+
+    // Configure Offline toggle
+    const [configureOffline, setConfigureOffline] = useState(false);
 
     // Accordion expand states
     const [changeDetectorExpanded, setChangeDetectorExpanded] = useState(false);
@@ -1539,31 +1661,158 @@ function CameraRegionEditor({
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
     // Station selection state
-    const [selectedStation, setSelectedStation] = useState('Sample Station');
+    const [selectedStation, setSelectedStation] = useState('Station A');
+    const [stations, setStations] = useState([]);
+
+    // Fetch real stations from DB to connect vision settings with station menu
+    useEffect(() => {
+        let isMounted = true;
+        getStations().then(data => {
+            if (isMounted && data && data.length > 0) {
+                setStations(data);
+                const hasMatch = data.some(s => s.name === selectedStation || s.id === selectedStation);
+                if (!hasMatch) {
+                    setSelectedStation(data[0].name || data[0].id);
+                }
+            }
+        }).catch(err => {
+            console.error('Failed to load stations in Vision:', err);
+        });
+        return () => { isMounted = false; };
+    }, []);
 
     // Tooltip states for help icons
-    const [hoveredHelp, setHoveredHelp] = useState(null); // 'begin' | 'end' | null
+    const [hoveredHelp, setHoveredHelp] = useState(null);
+
+    // Menu open state for detector rows
+    const [openDetectorMenu, setOpenDetectorMenu] = useState(null);
 
     // Refs to hold live calculated values without re-rendering React
     const similarityRef = useRef({});
     const avgColorsRef = useRef({});
+    const prevIntensityRef = useRef({});
+    const logsRef = useRef([
+        {
+            id: 'init_1',
+            time: new Date(Date.now() - 120000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            regionName: 'System Monitor',
+            detectorType: 'System',
+            value: 'Camera connected',
+            status: 'ACTIVE'
+        },
+        {
+            id: 'init_2',
+            time: new Date(Date.now() - 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            regionName: 'System Monitor',
+            detectorType: 'System',
+            value: 'Stream started',
+            status: 'ACTIVE'
+        }
+    ]);
+
+    const [showGridOverlay, setShowGridOverlay] = useState(false);
+    const [brightness, setBrightness] = useState(100);
+    const [contrast, setContrast] = useState(100);
+    const [activityLogs, setActivityLogs] = useState([]);
+
+    // Periodic synchronization of activity logs to local state to avoid high frequency render thrashing
+    useEffect(() => {
+        setActivityLogs([...logsRef.current]);
+        const interval = setInterval(() => {
+            setActivityLogs([...logsRef.current]);
+        }, 800);
+        return () => clearInterval(interval);
+    }, []);
+
+    // Debounced auto-save camera configs and region list back to Supabase
+    useEffect(() => {
+        if (cameraLoading) return;
+
+        const delayDebounce = setTimeout(async () => {
+            try {
+                const activeDetectors = [];
+                regions.forEach(r => {
+                    if (r.detectors?.changeDetector?.enabled) activeDetectors.push('Change Detector');
+                    if (r.detectors?.colorDetector?.enabled) activeDetectors.push('Color Detector');
+                });
+                const uniqueDets = [...new Set(activeDetectors)];
+                if (uniqueDets.length === 0) uniqueDets.push('Change Detector');
+
+                const settings = {
+                    status: camera.status || 'ACTIVE',
+                    regionsCount: regions.length,
+                    detectors: uniqueDets,
+                    regions: regions
+                };
+
+                const payload = {
+                    id: camera.id,
+                    name: camera.name,
+                    url: camera.ipCameraUrl || '',
+                    type: camera.cameraSource || 'DEVICE',
+                    settings: settings
+                };
+
+                await saveCamera(payload);
+                console.log('[Supabase] Camera config and regions auto-saved successfully.');
+            } catch (err) {
+                console.error('[Supabase] Failed to auto-save camera config:', err);
+            }
+        }, 1500);
+
+        return () => clearTimeout(delayDebounce);
+    }, [regions, camera.name, camera.status, camera.cameraSource, camera.ipCameraUrl, cameraLoading]);
 
     const regions = regionsByCamera[camera.id] || [];
     const selectedRegion = regions.find(r => r.id === selectedRegionId);
 
-    // Start local camera stream
+    // Start real camera stream
     useEffect(() => {
-        if (camera.cameraSource !== 'DEVICE') {
-            setHasPermission(true);
+        if (configureOffline) {
+            setCameraLoading(false);
             return;
         }
 
+        if (camera.cameraSource === 'IP_CAMERA') {
+            setHasPermission(true);
+            setCameraLoading(false);
+            return;
+        }
+
+        if (camera.cameraSource === 'SCREEN_CAPTURE') {
+            setCameraLoading(true);
+            let activeStream = null;
+            navigator.mediaDevices.getDisplayMedia({ video: true })
+            .then((stream) => {
+                setHasPermission(true);
+                setCameraLoading(false);
+                activeStream = stream;
+                streamRef.current = stream;
+                if (videoRef.current) {
+                    videoRef.current.srcObject = stream;
+                    videoRef.current.play().catch(e => console.warn(e));
+                }
+            })
+            .catch((err) => {
+                console.error('Screen capture error:', err);
+                setHasPermission(false);
+                setCameraLoading(false);
+            });
+            return () => {
+                if (activeStream) activeStream.getTracks().forEach(track => track.stop());
+                if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+            };
+        }
+
+        // Default: DEVICE camera
+        setCameraLoading(true);
         let activeStream = null;
         navigator.mediaDevices.getUserMedia({
-            video: { width: 640, height: 480 }
+            video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'environment' }
         })
         .then((stream) => {
             setHasPermission(true);
+            setCameraLoading(false);
             activeStream = stream;
             streamRef.current = stream;
             if (videoRef.current) {
@@ -1574,6 +1823,7 @@ function CameraRegionEditor({
         .catch((err) => {
             console.error('Camera access error:', err);
             setHasPermission(false);
+            setCameraLoading(false);
         });
 
         return () => {
@@ -1584,7 +1834,7 @@ function CameraRegionEditor({
                 cancelAnimationFrame(animationFrameRef.current);
             }
         };
-    }, [camera.cameraSource]);
+    }, [camera.cameraSource, configureOffline]);
 
     // Throttle similarity updates for the settings panel to avoid lag
     useEffect(() => {
@@ -1792,7 +2042,7 @@ function CameraRegionEditor({
                 const nextNum = regions.length + 1;
                 const newReg = {
                     id: `reg_${Date.now()}`,
-                    name: `Widgets Bin ${nextNum}`,
+                    name: `Region ${nextNum}`,
                     x: Math.round(x),
                     y: Math.round(y),
                     w: Math.round(w),
@@ -1809,7 +2059,7 @@ function CameraRegionEditor({
                         },
                         colorDetector: {
                             enabled: true,
-                            name: `Widgets Bin ${nextNum} Color`,
+                            name: `Region ${nextNum} Color`,
                             beginThreshold: 72,
                             endThreshold: 66,
                             targetColor: '#eab308',
@@ -1828,6 +2078,64 @@ function CameraRegionEditor({
         }
     };
 
+    // Draw L-shaped corner markers on a region (Tulip-style)
+    const drawCornerMarkers = (ctx, x, y, w, h, color, size = 12) => {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 3;
+        // Top-left
+        ctx.beginPath();
+        ctx.moveTo(x, y + size); ctx.lineTo(x, y); ctx.lineTo(x + size, y);
+        ctx.stroke();
+        // Top-right
+        ctx.beginPath();
+        ctx.moveTo(x + w - size, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + size);
+        ctx.stroke();
+        // Bottom-left
+        ctx.beginPath();
+        ctx.moveTo(x, y + h - size); ctx.lineTo(x, y + h); ctx.lineTo(x + size, y + h);
+        ctx.stroke();
+        // Bottom-right
+        ctx.beginPath();
+        ctx.moveTo(x + w - size, y + h); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w, y + h - size);
+        ctx.stroke();
+    };
+
+    // Draw camera offline placeholder
+    const drawOfflinePlaceholder = (ctx, w, h) => {
+        ctx.fillStyle = '#111827';
+        ctx.fillRect(0, 0, w, h);
+        // Subtle grid
+        ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+        ctx.lineWidth = 1;
+        for (let i = 40; i < w; i += 40) {
+            ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke();
+        }
+        for (let i = 40; i < h; i += 40) {
+            ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(w, i); ctx.stroke();
+        }
+        // Center icon
+        ctx.fillStyle = 'rgba(255,255,255,0.08)';
+        ctx.beginPath();
+        ctx.arc(w / 2, h / 2 - 10, 30, 0, Math.PI * 2);
+        ctx.fill();
+        // Camera icon (simple rect + circle)
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.fillRect(w / 2 - 18, h / 2 - 20, 36, 24);
+        ctx.beginPath();
+        ctx.arc(w / 2, h / 2 - 8, 8, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        // Text
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.font = '600 13px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(configureOffline ? 'Configure Offline Mode' : 'Camera Offline', w / 2, h / 2 + 30);
+        ctx.font = '400 11px Inter, system-ui, sans-serif';
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        ctx.fillText('Draw regions on this area to configure detection zones', w / 2, h / 2 + 48);
+    };
+
     // Main animation and canvas processing loop
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -1835,122 +2143,257 @@ function CameraRegionEditor({
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        let tick = 0;
         const render = () => {
-            tick = (tick + 1) % 1000;
             const w = canvas.width;
             const h = canvas.height;
 
-            // 1. Draw Feed (device webcam or simulated conveyor belt)
-            if (camera.cameraSource === 'DEVICE' && videoRef.current && videoRef.current.readyState >= 2 && hasPermission) {
+            // 1. Draw Feed — real camera feed or offline placeholder
+            let hasVideoFeed = false;
+            if (!configureOffline && hasPermission && camera.cameraSource === 'DEVICE' && videoRef.current && videoRef.current.readyState >= 2) {
                 try {
+                    ctx.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
                     ctx.drawImage(videoRef.current, 0, 0, w, h);
+                    ctx.filter = 'none';
+                    hasVideoFeed = true;
                 } catch (e) {
-                    drawSimulatedConveyor(ctx, w, h, tick);
+                    ctx.filter = 'none';
+                    drawOfflinePlaceholder(ctx, w, h);
+                }
+            } else if (!configureOffline && hasPermission && camera.cameraSource === 'SCREEN_CAPTURE' && videoRef.current && videoRef.current.readyState >= 2) {
+                try {
+                    ctx.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
+                    ctx.drawImage(videoRef.current, 0, 0, w, h);
+                    ctx.filter = 'none';
+                    hasVideoFeed = true;
+                } catch (e) {
+                    ctx.filter = 'none';
+                    drawOfflinePlaceholder(ctx, w, h);
                 }
             } else {
-                drawSimulatedConveyor(ctx, w, h, tick);
+                drawOfflinePlaceholder(ctx, w, h);
+            }
+
+            // Draw fine grid lines overlay if enabled
+            if (showGridOverlay) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 4]);
+                // Vertical lines
+                ctx.beginPath(); ctx.moveTo(w / 3, 0); ctx.lineTo(w / 3, h); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo((2 * w) / 3, 0); ctx.lineTo((2 * w) / 3, h); ctx.stroke();
+                // Horizontal lines
+                ctx.beginPath(); ctx.moveTo(0, h / 3); ctx.lineTo(w, h / 3); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, (2 * h) / 3); ctx.lineTo(w, (2 * h) / 3); ctx.stroke();
+                ctx.setLineDash([]);
             }
 
             // 2. Process Regions (read colors, compute similarities, draw overlays)
-            regions.forEach(region => {
+            regions.forEach((region, regionIndex) => {
                 const rx = Math.max(0, Math.min(region.x, w - 2));
                 const ry = Math.max(0, Math.min(region.y, h - 2));
                 const rw = Math.max(2, Math.min(region.w, w - rx));
                 const rh = Math.max(2, Math.min(region.h, h - ry));
 
-                // Extract average color under the region
+                // Extract average color under the region (only if live feed)
                 let avgR = 0, avgG = 0, avgB = 0;
-                try {
-                    const imgData = ctx.getImageData(rx, ry, rw, rh);
-                    const pixels = imgData.data;
-                    let rSum = 0, gSum = 0, bSum = 0, count = 0;
-                    for (let i = 0; i < pixels.length; i += 16) { // step by 16 for performance
-                        rSum += pixels[i];
-                        gSum += pixels[i+1];
-                        bSum += pixels[i+2];
-                        count++;
+                if (hasVideoFeed) {
+                    try {
+                        const imgData = ctx.getImageData(rx, ry, rw, rh);
+                        const pixels = imgData.data;
+                        let rSum = 0, gSum = 0, bSum = 0, count = 0;
+                        for (let i = 0; i < pixels.length; i += 16) {
+                            rSum += pixels[i];
+                            gSum += pixels[i+1];
+                            bSum += pixels[i+2];
+                            count++;
+                        }
+                        avgR = rSum / count;
+                        avgG = gSum / count;
+                        avgB = bSum / count;
+                        avgColorsRef.current[region.id] = { r: avgR, g: avgG, b: avgB };
+                    } catch (e) {
+                        // silent
                     }
-                    avgR = rSum / count;
-                    avgG = gSum / count;
-                    avgB = bSum / count;
-                    avgColorsRef.current[region.id] = { r: avgR, g: avgG, b: avgB };
-                } catch (e) {
-                    console.error('Failed to get average color', e);
                 }
 
-                // Compute color similarity
+                // A. Compute color similarity
                 const colorDet = region.detectors.colorDetector;
-                let similarity = 0;
+                let colorSimilarity = 0;
                 let isMatching = region.isMatching || false;
 
-                if (colorDet && colorDet.enabled) {
+                if (colorDet && colorDet.enabled && hasVideoFeed) {
                     const targetRGB = hexToRgb(colorDet.targetColor);
                     const dr = avgR - targetRGB.r;
                     const dg = avgG - targetRGB.g;
                     const db = avgB - targetRGB.b;
                     const dist = Math.sqrt(dr*dr + dg*dg + db*db);
-                    similarity = Math.round(Math.max(0, 100 - (dist / 441.67) * 100));
-                    similarityRef.current[region.id] = similarity;
+                    colorSimilarity = Math.round(Math.max(0, 100 - (dist / 441.67) * 100));
+                    
+                    if (region.id === selectedRegionId) {
+                        similarityRef.current[region.id] = colorSimilarity;
+                    }
 
-                    // Hysteresis boundary transition trigger
-                    if (similarity >= colorDet.beginThreshold) {
+                    const oldMatching = region.isMatching;
+                    if (colorSimilarity >= colorDet.beginThreshold) {
                         isMatching = true;
-                    } else if (similarity < colorDet.endThreshold) {
+                    } else if (colorSimilarity < colorDet.endThreshold) {
                         isMatching = false;
                     }
-                    region.isMatching = isMatching; // store on mutable reference
+                    region.isMatching = isMatching;
+
+                    // Log event on transition
+                    if (oldMatching !== undefined && oldMatching !== isMatching) {
+                        const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                        const newLog = {
+                            id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                            time: timestamp,
+                            regionName: region.name,
+                            detectorType: 'Color',
+                            value: `Sim: ${colorSimilarity}%`,
+                            status: isMatching ? 'MATCH' : 'NO MATCH'
+                        };
+                        logsRef.current = [newLog, ...logsRef.current].slice(0, 20);
+                    }
+                }
+
+                // B. Compute change detection
+                const changeDet = region.detectors.changeDetector;
+                let changeTriggered = region.changeTriggered || false;
+                let changePercent = 0;
+
+                if (changeDet && changeDet.enabled && hasVideoFeed) {
+                    const currentIntensity = (avgR + avgG + avgB) / 3;
+                    const prevIntensity = prevIntensityRef.current[region.id];
+                    let delta = 0;
+                    if (prevIntensity !== undefined) {
+                        delta = Math.abs(currentIntensity - prevIntensity);
+                    }
+                    prevIntensityRef.current[region.id] = currentIntensity;
+
+                    // Scale delta so minor movement triggers nicely
+                    changePercent = Math.round(Math.min(100, (delta / 12) * 100));
+                    
+                    if (region.id === selectedRegionId && (!colorDet || !colorDet.enabled)) {
+                        similarityRef.current[region.id] = changePercent;
+                    }
+
+                    const oldTriggered = region.changeTriggered;
+                    if (changePercent >= changeDet.beginThreshold) {
+                        changeTriggered = true;
+                    } else if (changePercent < changeDet.lowerThreshold) {
+                        changeTriggered = false;
+                    }
+                    region.changeTriggered = changeTriggered;
+
+                    // Log event on transition
+                    if (oldTriggered !== undefined && oldTriggered !== changeTriggered) {
+                        const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                        const newLog = {
+                            id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                            time: timestamp,
+                            regionName: region.name,
+                            detectorType: 'Change',
+                            value: `Delta: ${changePercent}%`,
+                            status: changeTriggered ? 'TRIGGERED' : 'IDLE'
+                        };
+                        logsRef.current = [newLog, ...logsRef.current].slice(0, 20);
+                    }
                 }
 
                 // Draw bounding box
                 const isSelected = region.id === selectedRegionId;
-                let borderColor = '#3b82f6'; // blue
+                let borderColor = '#3b82f6';
                 if (colorDet && colorDet.enabled) {
-                    borderColor = isMatching ? '#22c55e' : '#ef4444'; // green or red
+                    borderColor = isMatching ? '#22c55e' : '#ef4444';
+                } else if (changeDet && changeDet.enabled) {
+                    borderColor = changeTriggered ? '#10b981' : '#f59e0b';
                 }
                 if (isSelected) {
-                    borderColor = '#0ea5e9'; // bright sky blue
+                    borderColor = '#0ea5e9';
                 }
 
+                // Thin border line
                 ctx.strokeStyle = borderColor;
-                ctx.lineWidth = isSelected ? 3 : 2;
+                ctx.lineWidth = isSelected ? 2.5 : 1.5;
                 ctx.strokeRect(region.x, region.y, region.w, region.h);
 
-                // Draw background tint inside box
+                // L-shaped corner markers (Tulip-style)
+                const cornerSize = Math.min(16, Math.min(region.w, region.h) * 0.25);
+                drawCornerMarkers(ctx, region.x, region.y, region.w, region.h, borderColor, cornerSize);
+
+                // Light tint inside region
                 ctx.fillStyle = isSelected 
-                    ? 'rgba(14, 165, 233, 0.05)' 
-                    : (isMatching ? 'rgba(34, 197, 94, 0.05)' : 'rgba(239, 68, 68, 0.02)');
-                ctx.fillRect(region.x, region.y, region.w, region.h);
+                    ? 'rgba(14, 165, 233, 0.06)' 
+                    : (isMatching || changeTriggered ? 'rgba(34, 197, 94, 0.04)' : 'rgba(255, 255, 255, 0.02)');
+                ctx.fillRect(region.x + 1, region.y + 1, region.w - 2, region.h - 2);
 
-                // Draw title block
-                ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
-                ctx.fillRect(region.x, region.y, region.w, 20);
-
+                // Region name label (Tulip-style: small label inside top area)
                 ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 9px Inter, sans-serif';
+                ctx.font = '600 11px Inter, system-ui, sans-serif';
                 ctx.textAlign = 'left';
-                ctx.fillText(region.name, region.x + 6, region.y + 13);
+                const labelText = region.name;
+                const labelWidth = ctx.measureText(labelText).width + 12;
+                
+                // Label background pill
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+                const labelX = region.x + 6;
+                const labelY = region.y + 6;
+                ctx.fillRect(labelX, labelY, labelWidth, 20);
+                
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(labelText, labelX + 6, labelY + 14);
+
+                // Selected region resize handles (small squares at corners)
+                if (isSelected) {
+                    const handleSize = 6;
+                    ctx.fillStyle = '#ffffff';
+                    ctx.strokeStyle = borderColor;
+                    ctx.lineWidth = 1.5;
+                    const handles = [
+                        [region.x - handleSize/2, region.y - handleSize/2],
+                        [region.x + region.w - handleSize/2, region.y - handleSize/2],
+                        [region.x - handleSize/2, region.y + region.h - handleSize/2],
+                        [region.x + region.w - handleSize/2, region.y + region.h - handleSize/2],
+                    ];
+                    handles.forEach(([hx, hy]) => {
+                        ctx.fillRect(hx, hy, handleSize, handleSize);
+                        ctx.strokeRect(hx, hy, handleSize, handleSize);
+                    });
+                }
 
                 // Draw similarity indicator
-                if (colorDet && colorDet.enabled) {
+                if (colorDet && colorDet.enabled && hasVideoFeed) {
                     ctx.fillStyle = isMatching ? '#22c55e' : '#ffffff';
-                    ctx.font = 'bold 10px Inter, sans-serif';
-                    ctx.fillText(`Similarity: ${similarity}%`, region.x + 6, region.y + region.h - 8);
+                    ctx.font = '600 10px Inter, system-ui, sans-serif';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(`${colorSimilarity}%`, region.x + 6, region.y + region.h - 8);
+                } else if (changeDet && changeDet.enabled && hasVideoFeed) {
+                    ctx.fillStyle = changeTriggered ? '#10b981' : '#ffffff';
+                    ctx.font = '600 10px Inter, system-ui, sans-serif';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(`${changePercent}%`, region.x + 6, region.y + region.h - 8);
                 }
             });
 
             // 3. Draw currently drawing region box
             if (isDrawing) {
+                const dx = drawStart.x;
+                const dy = drawStart.y;
+                const dw = drawCurrent.x - drawStart.x;
+                const dh = drawCurrent.y - drawStart.y;
                 ctx.strokeStyle = '#0ea5e9';
                 ctx.lineWidth = 1.5;
-                ctx.setLineDash([4, 4]);
-                ctx.strokeRect(
-                    drawStart.x,
-                    drawStart.y,
-                    drawCurrent.x - drawStart.x,
-                    drawCurrent.y - drawStart.y
-                );
+                ctx.setLineDash([6, 4]);
+                ctx.strokeRect(dx, dy, dw, dh);
                 ctx.setLineDash([]);
+                // Preview corner markers
+                if (Math.abs(dw) > 20 && Math.abs(dh) > 20) {
+                    const cx = Math.min(dx, dx + dw);
+                    const cy = Math.min(dy, dy + dh);
+                    const cw = Math.abs(dw);
+                    const ch = Math.abs(dh);
+                    drawCornerMarkers(ctx, cx, cy, cw, ch, '#0ea5e9', 10);
+                }
             }
 
             animationFrameRef.current = requestAnimationFrame(render);
@@ -1960,535 +2403,839 @@ function CameraRegionEditor({
         return () => {
             if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
         };
-    }, [regions, isDrawing, drawStart, drawCurrent, selectedRegionId, hasPermission]);
+    }, [regions, isDrawing, drawStart, drawCurrent, selectedRegionId, hasPermission, configureOffline, showGridOverlay, brightness, contrast]);
 
-    // Simulated conveyor stream drawer
-    const drawSimulatedConveyor = (ctx, w, h, tick) => {
-        // Slate background
-        ctx.fillStyle = '#0f172a';
-        ctx.fillRect(0, 0, w, h);
-
-        // grid lines
-        ctx.strokeStyle = '#1e293b';
-        ctx.lineWidth = 1;
-        for (let i = 40; i < w; i += 40) {
-            ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke();
-        }
-        for (let i = 40; i < h; i += 40) {
-            ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(w, i); ctx.stroke();
-        }
-
-        // Draw animated conveyor belt at the bottom
-        ctx.fillStyle = '#334155';
-        ctx.fillRect(0, h - 80, w, 20); // Belt track
-        
-        // Belt rollers
-        ctx.fillStyle = '#475569';
-        for (let x = (tick * 2) % 60; x < w; x += 60) {
-            ctx.beginPath();
-            ctx.arc(x, h - 70, 8, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        // Draw item moving on the conveyor belt
-        const itemX = (tick * 1.5) % (w + 120) - 60;
-
-        // Color palette
-        const colorPalette = {
-            RED: '#ef4444',
-            GREEN: '#22c55e',
-            BLUE: '#3b82f6',
-            YELLOW: '#eab308',
-            BLACK: '#090d16',
-            WHITE: '#ffffff'
-        };
-        const colorsList = ['YELLOW', 'BLUE', 'RED', 'GREEN', 'WHITE', 'BLACK'];
-        const cycleIndex = Math.floor(tick / 200) % colorsList.length;
-        const currentItemColorKey = colorsList[cycleIndex];
-        const currentItemColor = colorPalette[currentItemColorKey] || '#eab308';
-
-        ctx.fillStyle = currentItemColor;
-        ctx.fillRect(itemX, h - 130, 60, 50);
-
-        // Barcode details
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(itemX + 10, h - 110, 40, 20);
-        ctx.fillStyle = '#000000';
-        for (let bx = 0; bx < 30; bx += 3) {
-            if (Math.sin(bx + tick) > -0.2) {
-                ctx.fillRect(itemX + 12 + bx, h - 110, 2, 20);
-            }
-        }
-
-        // Stream overlay details
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
-        ctx.fillRect(10, 10, w - 20, 26);
-        ctx.strokeStyle = '#38bdf8';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(10, 10, w - 20, 26);
-
-        ctx.fillStyle = '#38bdf8';
-        ctx.font = 'bold 9px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText(`STREAM: SIMULATED_STATION_CAMERA`, 16, 26);
-        
-        ctx.textAlign = 'right';
-        ctx.fillStyle = '#ef4444';
-        ctx.beginPath();
-        ctx.arc(w - 24, 23, 4, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillText('LIVE-FEED SIM', w - 34, 26);
+    // Toggle switch component
+    const ToggleSwitch = ({ checked, onChange, size = 'normal' }) => {
+        const w = size === 'small' ? 32 : 38;
+        const h = size === 'small' ? 16 : 20;
+        const dot = size === 'small' ? 12 : 16;
+        return (
+            <label style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }} onClick={(e) => e.stopPropagation()}>
+                <input type="checkbox" checked={checked} onChange={onChange} style={{ display: 'none' }} />
+                <div style={{
+                    width: `${w}px`, height: `${h}px`,
+                    backgroundColor: checked ? '#3b82f6' : '#cbd5e1',
+                    borderRadius: `${h/2}px`, position: 'relative', transition: 'background-color 0.2s'
+                }}>
+                    <div style={{
+                        width: `${dot}px`, height: `${dot}px`, backgroundColor: 'white', borderRadius: '50%',
+                        position: 'absolute', top: `${(h - dot)/2}px`,
+                        left: checked ? `${w - dot - (h - dot)/2}px` : `${(h - dot)/2}px`,
+                        transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)'
+                    }} />
+                </div>
+            </label>
+        );
     };
 
     return (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc', padding: '16px 24px 24px 24px' }}>
-            {/* Header Navigation */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <div>
-                    <button
-                        onClick={onBack}
-                        style={{
-                            border: 'none', backgroundColor: 'transparent', color: '#3b82f6',
-                            fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', display: 'flex',
-                            alignItems: 'center', gap: '4px', padding: '0 0 6px 0'
-                        }}
-                    >
-                        &lsaquo; Camera Configurations
-                    </button>
-                    <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 900, color: '#0f172a' }}>{camera.name}</h2>
-                </div>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <button style={{ padding: '8px 16px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: 'white', fontWeight: 700, fontSize: '0.8rem', color: '#3b82f6', cursor: 'pointer' }}>
-                        Edit Assignment
-                    </button>
-                    <button style={{ border: 'none', backgroundColor: 'transparent', fontSize: '1.25rem', fontWeight: 'bold', cursor: 'pointer', color: '#64748b' }}>
-                        ...
-                    </button>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff', fontFamily: 'Inter, system-ui, sans-serif' }}>
+            {/* Tulip-style Breadcrumb Header */}
+            <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5e7eb' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                            <button
+                                onClick={onBack}
+                                style={{
+                                    border: 'none', backgroundColor: 'transparent', color: '#6b7280',
+                                    fontWeight: 500, fontSize: '0.85rem', cursor: 'pointer', padding: 0
+                                }}
+                            >
+                                Camera Configurations
+                            </button>
+                            <span style={{ color: '#9ca3af', fontSize: '0.85rem' }}>/</span>
+                            <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#111827' }}>{camera.name}</span>
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '2px' }}>
+                            For {selectedStation} • {camera.cameraSource === 'IP_CAMERA' ? 'IP Camera' : camera.cameraSource === 'SCREEN_CAPTURE' ? 'Screen Capture' : 'USB Device'}
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <button style={{ 
+                            width: '32px', height: '32px', border: '1px solid #e5e7eb', borderRadius: '6px', 
+                            backgroundColor: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', 
+                            justifyContent: 'center', color: '#6b7280', fontSize: '1.1rem' 
+                        }}>
+                            ···
+                        </button>
+                        <button 
+                            onClick={onBack}
+                            style={{ 
+                                padding: '7px 14px', border: '1px solid #e5e7eb', borderRadius: '6px', 
+                                backgroundColor: 'white', fontWeight: 600, fontSize: '0.8rem', color: '#374151', 
+                                cursor: 'pointer' 
+                            }}
+                        >
+                            Edit Assignment
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            {/* Config workspace grid */}
-            <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px', minHeight: 0 }}>
-                {/* Left Live View */}
-                <div style={{ display: 'flex', flexDirection: 'column', backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                        <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Live Station View:</span>
+            {/* Live View Toolbar */}
+            <div style={{ padding: '10px 24px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fafafa' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#374151' }}>Live View</span>
+                    <div style={{ width: '1px', height: '16px', backgroundColor: '#d1d5db' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <div style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: hasPermission && !configureOffline ? '#22c55e' : '#9ca3af' }} />
                         <select
                             value={selectedStation}
                             onChange={(e) => setSelectedStation(e.target.value)}
-                            style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', fontWeight: 600, backgroundColor: 'white', cursor: 'pointer' }}
+                            style={{ 
+                                padding: '4px 8px', borderRadius: '4px', border: '1px solid #d1d5db', 
+                                fontSize: '0.8rem', fontWeight: 600, backgroundColor: 'white', cursor: 'pointer',
+                                color: '#374151'
+                            }}
                         >
-                            <option>Sample Station</option>
-                            <option>Workstation 1</option>
-                            <option>Quality Inspection Bench</option>
+                            {stations.length > 0 ? (
+                                stations.map(s => (
+                                    <option key={s.id} value={s.name || s.id}>{s.name || s.id}</option>
+                                ))
+                            ) : (
+                                <>
+                                    <option>Station A</option>
+                                    <option>Station B</option>
+                                    <option>Workstation 1</option>
+                                    <option>Quality Inspection Bench</option>
+                                </>
+                            )}
                         </select>
-                        <Info size={16} color="#64748b" style={{ cursor: 'pointer' }} />
                     </div>
+                    <Info size={15} color="#9ca3af" style={{ cursor: 'pointer' }} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Settings size={14} color="#9ca3af" />
+                    <span style={{ fontSize: '0.78rem', color: '#6b7280', fontWeight: 500 }}>Configure Offline</span>
+                    <ToggleSwitch 
+                        checked={configureOffline} 
+                        onChange={(e) => setConfigureOffline(e.target.checked)} 
+                        size="small"
+                    />
+                </div>
+            </div>
 
-                    {/* Canvas Wrapper for drawing bounding box */}
-                    <div 
-                        style={{ width: '100%', maxHeight: 'calc(100vh - 220px)', aspectRatio: '4/3', backgroundColor: '#0f172a', borderRadius: '12px', overflow: 'hidden', position: 'relative', cursor: isDragging ? 'grabbing' : 'crosshair', margin: '0 auto' }}
+            {/* Main workspace grid */}
+            <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 360px', minHeight: 0, overflow: 'hidden' }}>
+                {/* Left: Camera Canvas + Thumbnail Strip + Activity Stream */}
+                <div className="custom-scrollbar" style={{ display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc', padding: '24px', overflowY: 'auto', gap: '20px' }}>
+                    {/* Hidden video element */}
+                    <video ref={videoRef} style={{ display: 'none' }} width="1280" height="720" playsInline muted />
+
+                    {/* Camera Monitor Card */}
+                    <div style={{
+                        backgroundColor: '#ffffff',
+                        borderRadius: '8px',
+                        border: '1px solid #e2e8f0',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.02)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        width: '100%',
+                        maxWidth: '760px',
+                        margin: '0 auto',
+                        overflow: 'hidden'
+                    }}>
+                        {/* Card Header */}
+                        <div style={{
+                            padding: '12px 16px',
+                            borderBottom: '1px solid #e2e8f0',
+                            backgroundColor: '#fafafa',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{
+                                    width: '8px', height: '8px', borderRadius: '50%',
+                                    backgroundColor: hasPermission && !configureOffline ? '#22c55e' : '#9ca3af',
+                                    boxShadow: hasPermission && !configureOffline ? '0 0 8px #22c55e' : 'none'
+                                }} />
+                                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#374151' }}>
+                                    {camera.name}
+                                </span>
+                                <span style={{
+                                    fontSize: '0.65rem',
+                                    backgroundColor: '#eff6ff',
+                                    color: '#2563eb',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    fontWeight: 600
+                                }}>
+                                    {camera.cameraSource}
+                                </span>
+                            </div>
+                            <span style={{ fontSize: '0.72rem', color: '#6b7280', fontWeight: 500 }}>
+                                1280×720 @ 30 FPS
+                            </span>
+                        </div>
+
+                        {/* Camera Screen Feed Area */}
+                        <div style={{
+                            position: 'relative',
+                            backgroundColor: '#111827',
+                            width: '100%',
+                            aspectRatio: '4 / 3',
+                            cursor: isDragging ? 'grabbing' : 'crosshair'
+                        }}
                         onMouseDown={handleMouseDown}
                         onMouseMove={handleMouseMove}
                         onMouseUp={handleMouseUp}
-                    >
-                        <canvas
-                            ref={canvasRef}
-                            width="640"
-                            height="480"
-                            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                        />
+                        >
+                            {/* Camera loading indicator */}
+                            {cameraLoading && !configureOffline && (
+                                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 5, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                                    <Loader2 size={24} color="#60a5fa" style={{ animation: 'spin 1s linear infinite' }} />
+                                    <span style={{ color: '#9ca3af', fontSize: '0.75rem' }}>Connecting stream...</span>
+                                </div>
+                            )}
+
+                            <canvas
+                                ref={canvasRef}
+                                width="640"
+                                height="480"
+                                style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain' }}
+                            />
+                        </div>
+
+                        {/* Card Toolbar/Footer */}
+                        <div style={{
+                            padding: '12px 16px',
+                            borderTop: '1px solid #e2e8f0',
+                            backgroundColor: '#ffffff',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '12px'
+                        }}>
+                            {/* Grid Overlay, Reset Buttons, etc */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ fontSize: '0.72rem', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <Info size={12} color="#9ca3af" />
+                                    <span>Drag on canvas to define active monitoring regions.</span>
+                                </div>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <button
+                                        onClick={() => setShowGridOverlay(!showGridOverlay)}
+                                        style={{
+                                            padding: '5px 10px',
+                                            borderRadius: '6px',
+                                            border: showGridOverlay ? '1px solid #3b82f6' : '1px solid #e2e8f0',
+                                            backgroundColor: showGridOverlay ? '#eff6ff' : '#ffffff',
+                                            color: showGridOverlay ? '#2563eb' : '#374151',
+                                            fontSize: '0.75rem',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            transition: 'all 0.15s'
+                                        }}
+                                        title="Toggle Calibration Grid"
+                                    >
+                                        <Grid size={13} />
+                                        Grid
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            if (confirm('Are you sure you want to clear all regions?')) {
+                                                setRegionsByCamera(prev => ({ ...prev, [camera.id]: [] }));
+                                                setSelectedRegionId(null);
+                                            }
+                                        }}
+                                        style={{
+                                            padding: '5px 10px',
+                                            borderRadius: '6px',
+                                            border: '1px solid #e2e8f0',
+                                            backgroundColor: '#ffffff',
+                                            color: '#ef4444',
+                                            fontSize: '0.75rem',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            transition: 'all 0.15s'
+                                        }}
+                                        title="Clear all configured regions"
+                                    >
+                                        <Trash2 size={13} />
+                                        Clear
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Divider line */}
+                            <div style={{ height: '1px', backgroundColor: '#f1f5f9' }} />
+
+                            {/* Simulated Parameters Sliders */}
+                            <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '150px' }}>
+                                    <span style={{ fontSize: '0.72rem', color: '#6b7280', fontWeight: 600, width: '60px' }}>Brightness:</span>
+                                    <input
+                                        type="range"
+                                        min="50"
+                                        max="150"
+                                        value={brightness}
+                                        onChange={(e) => setBrightness(Number(e.target.value))}
+                                        style={{ flex: 1, height: '4px', cursor: 'pointer' }}
+                                    />
+                                    <span style={{ fontSize: '0.72rem', color: '#374151', fontWeight: 700, width: '32px', textAlign: 'right' }}>{brightness}%</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '150px' }}>
+                                    <span style={{ fontSize: '0.72rem', color: '#6b7280', fontWeight: 600, width: '50px' }}>Contrast:</span>
+                                    <input
+                                        type="range"
+                                        min="50"
+                                        max="150"
+                                        value={contrast}
+                                        onChange={(e) => setContrast(Number(e.target.value))}
+                                        style={{ flex: 1, height: '4px', cursor: 'pointer' }}
+                                    />
+                                    <span style={{ fontSize: '0.72rem', color: '#374151', fontWeight: 700, width: '32px', textAlign: 'right' }}>{contrast}%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Region Thumbnail Strip (Tulip-style inside slate dashboard) */}
+                    {regions.length > 0 && (
+                        <div style={{ 
+                            backgroundColor: '#ffffff',
+                            borderRadius: '8px',
+                            border: '1px solid #e2e8f0',
+                            padding: '12px 16px',
+                            display: 'flex', gap: '8px', 
+                            alignItems: 'center', justifyContent: 'center', flexWrap: 'nowrap',
+                            overflowX: 'auto',
+                            width: '100%',
+                            maxWidth: '760px',
+                            margin: '0 auto'
+                        }}>
+                            {[...regions].reverse().map((region, idx) => {
+                                const isActive = region.id === selectedRegionId;
+                                const regionNum = regions.length - idx;
+                                return (
+                                    <div
+                                        key={region.id}
+                                        onClick={() => setSelectedRegionId(region.id)}
+                                        style={{
+                                            width: '56px', height: '48px', borderRadius: '6px', cursor: 'pointer',
+                                            border: isActive ? '2px solid #3b82f6' : '1px solid #e2e8f0',
+                                            backgroundColor: isActive ? 'rgba(59,130,246,0.05)' : '#ffffff',
+                                            position: 'relative', overflow: 'hidden', flexShrink: 0,
+                                            transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                        }}
+                                    >
+                                        {/* Region number badge */}
+                                        <div style={{
+                                            position: 'absolute', top: '3px', left: '3px',
+                                            width: '16px', height: '16px', borderRadius: '50%',
+                                            backgroundColor: isActive ? '#3b82f6' : '#94a3b8',
+                                            color: '#ffffff', fontSize: '0.58rem', fontWeight: 800,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                        }}>
+                                            {regionNum}
+                                        </div>
+                                        {/* Mini region preview icon */}
+                                        <Maximize size={12} color={isActive ? '#3b82f6' : '#94a3b8'} />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {/* Real-time Detection Activity Log Table */}
+                    <div style={{
+                        backgroundColor: '#ffffff',
+                        borderRadius: '8px',
+                        border: '1px solid #e2e8f0',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.02)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        width: '100%',
+                        maxWidth: '760px',
+                        margin: '0 auto',
+                        overflow: 'hidden'
+                    }}>
+                        {/* Header */}
+                        <div style={{
+                            padding: '10px 16px',
+                            borderBottom: '1px solid #e2e8f0',
+                            backgroundColor: '#fafafa',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Activity size={15} color="#3b82f6" />
+                                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#374151' }}>
+                                    Real-time Detection Activity Stream
+                                </span>
+                            </div>
+                            <span style={{ fontSize: '0.65rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                                <span style={{
+                                    width: '6px', height: '6px', borderRadius: '50%',
+                                    backgroundColor: '#10b981', display: 'inline-block',
+                                    boxShadow: '0 0 6px #10b981'
+                                }} />
+                                LIVE FEED
+                            </span>
+                        </div>
+
+                        {/* Table content */}
+                        <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b', backgroundColor: '#f8fafc' }}>
+                                        <th style={{ padding: '8px 12px', fontWeight: 600 }}>Time</th>
+                                        <th style={{ padding: '8px 12px', fontWeight: 600 }}>Region</th>
+                                        <th style={{ padding: '8px 12px', fontWeight: 600 }}>Detector</th>
+                                        <th style={{ padding: '8px 12px', fontWeight: 600 }}>Value</th>
+                                        <th style={{ padding: '8px 12px', fontWeight: 600 }}>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {activityLogs.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={5} style={{ padding: '24px 12px', textAlign: 'center', color: '#94a3b8' }}>
+                                                No detection events recorded. Adjust region boundaries or trigger states to update logs.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        activityLogs.map((log) => {
+                                            const isMatch = log.status === 'MATCH' || log.status === 'TRIGGERED' || log.status === 'ACTIVE';
+                                            return (
+                                                <tr key={log.id} style={{ borderBottom: '1px solid #f1f5f9', color: '#334155' }}>
+                                                    <td style={{ padding: '8px 12px', color: '#64748b', width: '90px' }}>{log.time}</td>
+                                                    <td style={{ padding: '8px 12px', fontWeight: 600 }}>{log.regionName}</td>
+                                                    <td style={{ padding: '8px 12px' }}>
+                                                        <span style={{
+                                                            padding: '2px 6px',
+                                                            borderRadius: '4px',
+                                                            fontSize: '0.65rem',
+                                                            fontWeight: 600,
+                                                            backgroundColor: log.detectorType === 'Color' ? '#eff6ff' : log.detectorType === 'Change' ? '#f0fdf4' : '#f1f5f9',
+                                                            color: log.detectorType === 'Color' ? '#2563eb' : log.detectorType === 'Change' ? '#16a34a' : '#475569'
+                                                        }}>
+                                                            {log.detectorType}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '8px 12px', fontFamily: 'monospace', color: '#475569' }}>{log.value}</td>
+                                                    <td style={{ padding: '8px 12px' }}>
+                                                        <span style={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px',
+                                                            fontWeight: 700,
+                                                            color: isMatch ? '#16a34a' : '#ef4444'
+                                                        }}>
+                                                            <span style={{
+                                                                width: '6px',
+                                                                height: '6px',
+                                                                borderRadius: '50%',
+                                                                backgroundColor: isMatch ? '#22c55e' : '#ef4444'
+                                                            }} />
+                                                            {log.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
-                {/* Right Settings panel */}
-                <div style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                {/* Right: Tulip-style Region Configuration Panel */}
+                <div style={{ borderLeft: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: '#ffffff' }}>
                     {!selectedRegion ? (
-                        /* Empty state when no region selected */
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px', textAlign: 'center' }}>
-                            <div style={{ width: '80px', height: '80px', border: '2.5px dashed #cbd5e1', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px', color: '#cbd5e1', position: 'relative' }}>
-                                <Maximize size={32} />
+                        /* Empty state — Tulip-style */
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 32px', textAlign: 'center' }}>
+                            <div style={{ 
+                                width: '72px', height: '72px', border: '2px dashed #d1d5db', borderRadius: '12px', 
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px', color: '#d1d5db' 
+                            }}>
+                                <Maximize size={28} />
                             </div>
-                            <h3 style={{ margin: '0 0 8px 0', fontSize: '0.95rem', fontWeight: 800, color: '#1e293b' }}>No region has been created</h3>
-                            <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b', lineHeight: 1.5, maxWidth: '240px' }}>
+                            <h3 style={{ margin: '0 0 8px 0', fontSize: '0.95rem', fontWeight: 700, color: '#111827' }}>No region has been created</h3>
+                            <p style={{ margin: 0, fontSize: '0.8rem', color: '#6b7280', lineHeight: 1.5, maxWidth: '240px' }}>
                                 Regions are areas of interests within which events such as color change can be detected. Drag anywhere on the Live Station View to create a new region. <a href="#learn" style={{ color: '#3b82f6', textDecoration: 'none', fontWeight: 600 }}>Learn more</a>
                             </p>
                         </div>
                     ) : (
-                        /* Region details and detectors settings panel */
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-                            {/* Region metadata header */}
-                            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div style={{ flex: 1, marginRight: '12px' }}>
-                                    <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Selected Region</span>
+                        /* Tulip-style Region configuration panel */
+                        <div className="custom-scrollbar" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+                            {/* Region configuration header */}
+                            <div style={{ padding: '14px 20px', borderBottom: '1px solid #e5e7eb', backgroundColor: '#fafafa' }}>
+                                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Region configuration</span>
+                            </div>
+
+                            {/* Region name row */}
+                            <div style={{ padding: '14px 20px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ fontSize: '0.78rem', color: '#6b7280', fontWeight: 500 }}>Name:</span>
                                     <input
                                         type="text"
                                         value={selectedRegion.name}
                                         onChange={(e) => updateRegionName(selectedRegion.id, e.target.value)}
-                                        style={{ display: 'block', width: '100%', border: 'none', borderBottom: '1.5px solid transparent', outline: 'none', padding: '2px 0', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}
+                                        style={{ 
+                                            border: 'none', outline: 'none', padding: '2px 0', fontSize: '0.88rem', 
+                                            fontWeight: 700, color: '#111827', backgroundColor: 'transparent', width: '100%' 
+                                        }}
                                         onFocus={(e) => e.target.style.borderBottom = '1.5px solid #3b82f6'}
-                                        onBlur={(e) => e.target.style.borderBottom = '1.5px solid transparent'}
+                                        onBlur={(e) => e.target.style.borderBottom = 'none'}
                                     />
                                 </div>
                                 <button
                                     onClick={() => deleteRegion(selectedRegion.id)}
-                                    style={{ border: 'none', backgroundColor: 'transparent', padding: '6px', borderRadius: '6px', cursor: 'pointer', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                    title="Delete region"
+                                    style={{ 
+                                        border: 'none', backgroundColor: 'transparent', padding: '4px', 
+                                        cursor: 'pointer', color: '#9ca3af', display: 'flex', alignItems: 'center' 
+                                    }}
+                                    title="More options"
                                 >
-                                    <Trash2 size={18} />
+                                    ···
                                 </button>
                             </div>
 
-                            {/* Detectors section */}
-                            <div style={{ padding: '16px 20px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                                    <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Detectors</h4>
-                                    <a
-                                        href="#create"
-                                        onClick={handleCreateDetector}
-                                        style={{ fontSize: '0.8rem', color: '#2563eb', fontWeight: 700, textDecoration: 'none' }}
-                                    >
-                                        Create Detector
-                                    </a>
+                            {/* Detectors header */}
+                            <div style={{ padding: '14px 20px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#374151' }}>Detectors</span>
+                                <a
+                                    href="#create"
+                                    onClick={handleCreateDetector}
+                                    style={{ fontSize: '0.78rem', color: '#3b82f6', fontWeight: 600, textDecoration: 'none' }}
+                                >
+                                    Create Detector
+                                </a>
+                            </div>
+
+                            {/* Grouped Detectors — Tulip-style */}
+                            <div style={{ padding: '0' }}>
+                                {/* Color Detectors Section */}
+                                <div style={{ padding: '12px 20px 6px 20px' }}>
+                                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Color Detectors</span>
                                 </div>
 
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                    {/* Change Detector Accordion */}
-                                    <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
-                                        <div 
-                                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', backgroundColor: '#f8fafc', cursor: 'pointer' }}
-                                            onClick={() => setChangeDetectorExpanded(prev => !prev)}
-                                        >
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                {changeDetectorExpanded ? <ChevronUp size={16} color="#64748b" /> : <ChevronDown size={16} color="#64748b" />}
-                                                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155' }}>Default Change Detector</span>
-                                            </div>
-                                            <label style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }} onClick={(e) => e.stopPropagation()}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedRegion.detectors.changeDetector.enabled}
-                                                    onChange={(e) => toggleDetector(selectedRegion.id, 'changeDetector', e.target.checked)}
-                                                    style={{ display: 'none' }}
-                                                />
-                                                <div style={{
-                                                    width: '36px', height: '18px', backgroundColor: selectedRegion.detectors.changeDetector.enabled ? '#3b82f6' : '#cbd5e1',
-                                                    borderRadius: '9px', position: 'relative', transition: 'background-color 0.2s'
-                                                }}>
-                                                    <div style={{
-                                                        width: '14px', height: '14px', backgroundColor: 'white', borderRadius: '50%',
-                                                        position: 'absolute', top: '2px', left: selectedRegion.detectors.changeDetector.enabled ? '20px' : '2px',
-                                                        transition: 'left 0.2s'
-                                                    }} />
-                                                </div>
-                                            </label>
+                                {/* Color Detector Row */}
+                                <div style={{ borderBottom: '1px solid #f3f4f6' }}>
+                                    <div 
+                                        style={{ 
+                                            display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                                            padding: '10px 20px', cursor: 'pointer', transition: 'background-color 0.1s'
+                                        }}
+                                        onClick={() => setColorDetectorExpanded(prev => !prev)}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            {colorDetectorExpanded ? <ChevronDown size={14} color="#6b7280" /> : <ChevronDown size={14} color="#6b7280" style={{ transform: 'rotate(-90deg)', transition: 'transform 0.15s' }} />}
+                                            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#374151' }}>{selectedRegion.detectors.colorDetector.name || `${selectedRegion.name} Color`}</span>
                                         </div>
-
-                                        {/* Change Detector Specific Parameters */}
-                                        {changeDetectorExpanded && selectedRegion.detectors?.changeDetector && (
-                                            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px', borderTop: '1px solid #e2e8f0' }}>
-                                                {!selectedRegion.detectors.changeDetector.enabled && (
-                                                    <div style={{ padding: '8px 12px', backgroundColor: '#f1f5f9', border: '1px dashed #cbd5e1', borderRadius: '6px', fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                                                        <Info size={14} color="#94a3b8" />
-                                                        <span>Detektor dinonaktifkan. Aktifkan switch di atas untuk menggunakan sensor ini.</span>
-                                                    </div>
-                                                )}
-                                                {/* Begin Changes Threshold */}
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', position: 'relative' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Begin changes threshold (% of region area)</span>
-                                                        <div 
-                                                            style={{ position: 'relative', cursor: 'help' }}
-                                                            onMouseEnter={() => setHoveredHelp('beginChange')}
-                                                            onMouseLeave={() => setHoveredHelp(null)}
-                                                        >
-                                                            <HelpCircle size={14} color="#94a3b8" />
-                                                            {hoveredHelp === 'beginChange' && (
-                                                                <div style={{ position: 'absolute', zIndex: 10, bottom: '22px', left: '-10px', width: '220px', padding: '8px 10px', backgroundColor: '#0f172a', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-                                                                    Percentage of the region area that is required to change for a Changes Began event to occur.
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        max="100"
-                                                        value={selectedRegion.detectors.changeDetector.beginThreshold ?? 40}
-                                                        onChange={(e) => updateChangeDetectorSetting(selectedRegion.id, 'beginThreshold', Number(e.target.value))}
-                                                        style={{ padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem' }}
-                                                    />
-                                                </div>
-
-                                                {/* Upper Threshold */}
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', position: 'relative' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Upper threshold (mm)</span>
-                                                        <div 
-                                                            style={{ position: 'relative', cursor: 'help' }}
-                                                            onMouseEnter={() => setHoveredHelp('upper')}
-                                                            onMouseLeave={() => setHoveredHelp(null)}
-                                                        >
-                                                            <HelpCircle size={14} color="#94a3b8" />
-                                                            {hoveredHelp === 'upper' && (
-                                                                <div style={{ position: 'absolute', zIndex: 10, bottom: '22px', left: '-10px', width: '220px', padding: '8px 10px', backgroundColor: '#0f172a', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-                                                                    Objects closer to the camera than the Upper Threshold will be ignored by the Change Detector.
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    <input
-                                                        type="number"
-                                                        value={selectedRegion.detectors.changeDetector.upperThreshold ?? 100}
-                                                        onChange={(e) => updateChangeDetectorSetting(selectedRegion.id, 'upperThreshold', Number(e.target.value))}
-                                                        style={{ padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem' }}
-                                                    />
-                                                </div>
-
-                                                {/* Lower Threshold */}
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', position: 'relative' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Lower threshold (mm)</span>
-                                                        <div 
-                                                            style={{ position: 'relative', cursor: 'help' }}
-                                                            onMouseEnter={() => setHoveredHelp('lower')}
-                                                            onMouseLeave={() => setHoveredHelp(null)}
-                                                        >
-                                                            <HelpCircle size={14} color="#94a3b8" />
-                                                            {hoveredHelp === 'lower' && (
-                                                                <div style={{ position: 'absolute', zIndex: 10, bottom: '22px', left: '-10px', width: '220px', padding: '8px 10px', backgroundColor: '#0f172a', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-                                                                    Objects and noise farther away from the camera than the Lower Threshold will be ignored.
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    <input
-                                                        type="number"
-                                                        value={selectedRegion.detectors.changeDetector.lowerThreshold ?? 10}
-                                                        onChange={(e) => updateChangeDetectorSetting(selectedRegion.id, 'lowerThreshold', Number(e.target.value))}
-                                                        style={{ padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem' }}
-                                                    />
-                                                </div>
-
-                                                {/* Adaptation Speed */}
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', position: 'relative' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Adaptation speed</span>
-                                                        <div 
-                                                            style={{ position: 'relative', cursor: 'help' }}
-                                                            onMouseEnter={() => setHoveredHelp('adaptation')}
-                                                            onMouseLeave={() => setHoveredHelp(null)}
-                                                        >
-                                                            <HelpCircle size={14} color="#94a3b8" />
-                                                            {hoveredHelp === 'adaptation' && (
-                                                                <div style={{ position: 'absolute', zIndex: 10, bottom: '22px', left: '-10px', width: '220px', padding: '8px 10px', backgroundColor: '#0f172a', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-                                                                    How quickly the region adapts to noise and changes which are too small to trigger Changes Began events.
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    <select
-                                                        value={selectedRegion.detectors.changeDetector.adaptationSpeed ?? 'Medium'}
-                                                        onChange={(e) => updateChangeDetectorSetting(selectedRegion.id, 'adaptationSpeed', e.target.value)}
-                                                        style={{ padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem', backgroundColor: 'white' }}
-                                                    >
-                                                        <option value="None">None</option>
-                                                        <option value="Slow">Slow</option>
-                                                        <option value="Medium">Medium</option>
-                                                        <option value="Fast">Fast</option>
-                                                    </select>
-                                                </div>
-
-                                                {/* Reset When Changes End */}
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    <input
-                                                        type="checkbox"
-                                                        id="resetOnEnd"
-                                                        checked={selectedRegion.detectors.changeDetector.resetOnEnd ?? true}
-                                                        onChange={(e) => updateChangeDetectorSetting(selectedRegion.id, 'resetOnEnd', e.target.checked)}
-                                                        style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                                                    />
-                                                    <label htmlFor="resetOnEnd" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', fontWeight: 700, color: '#475569', cursor: 'pointer' }}>
-                                                        Reset when changes end
-                                                        <div 
-                                                            style={{ position: 'relative', cursor: 'help' }}
-                                                            onMouseEnter={() => setHoveredHelp('resetOnEnd')}
-                                                            onMouseLeave={() => setHoveredHelp(null)}
-                                                            onClick={(e) => e.preventDefault()}
-                                                        >
-                                                            <HelpCircle size={14} color="#94a3b8" />
-                                                            {hoveredHelp === 'resetOnEnd' && (
-                                                                <div style={{ position: 'absolute', zIndex: 10, bottom: '22px', left: '-10px', width: '220px', padding: '8px 10px', backgroundColor: '#0f172a', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-                                                                    When enabled, makes detecting subsequent changes more robust if the region content remains changed.
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </label>
-                                                </div>
-
-                                                {/* Reset Duration */}
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', position: 'relative' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Reset duration (s)</span>
-                                                        <div 
-                                                            style={{ position: 'relative', cursor: 'help' }}
-                                                            onMouseEnter={() => setHoveredHelp('resetDuration')}
-                                                            onMouseLeave={() => setHoveredHelp(null)}
-                                                        >
-                                                            <HelpCircle size={14} color="#94a3b8" />
-                                                            {hoveredHelp === 'resetDuration' && (
-                                                                <div style={{ position: 'absolute', zIndex: 10, bottom: '22px', left: '-10px', width: '220px', padding: '8px 10px', backgroundColor: '#0f172a', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-                                                                    The time in seconds it takes to reset the region. No Events can occur while resetting is in progress.
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    <input
-                                                        type="number"
-                                                        step="0.05"
-                                                        value={selectedRegion.detectors.changeDetector.resetDuration ?? 0.50}
-                                                        onChange={(e) => updateChangeDetectorSetting(selectedRegion.id, 'resetDuration', Number(e.target.value))}
-                                                        style={{ padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem' }}
-                                                    />
-                                                </div>
-                                            </div>
-                                        )}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <ToggleSwitch 
+                                                checked={selectedRegion.detectors.colorDetector.enabled}
+                                                onChange={(e) => toggleDetector(selectedRegion.id, 'colorDetector', e.target.checked)}
+                                                size="small"
+                                            />
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setOpenDetectorMenu(openDetectorMenu === 'color' ? null : 'color'); }}
+                                                style={{ border: 'none', backgroundColor: 'transparent', cursor: 'pointer', color: '#9ca3af', padding: '2px', fontSize: '0.85rem' }}
+                                            >
+                                                ···
+                                            </button>
+                                        </div>
                                     </div>
 
-                                    {/* Color Detector Accordion */}
-                                    <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
-                                        <div 
-                                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', backgroundColor: '#f8fafc', cursor: 'pointer' }}
-                                            onClick={() => setColorDetectorExpanded(prev => !prev)}
-                                        >
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                {colorDetectorExpanded ? <ChevronUp size={16} color="#64748b" /> : <ChevronDown size={16} color="#64748b" />}
-                                                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155' }}>{selectedRegion.name} Color</span>
+                                    {/* Color Detector Expanded Settings */}
+                                    {colorDetectorExpanded && selectedRegion.detectors?.colorDetector && (
+                                        <div style={{ padding: '4px 20px 16px 38px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                            {!selectedRegion.detectors.colorDetector.enabled && (
+                                                <div style={{ padding: '8px 12px', backgroundColor: '#f9fafb', border: '1px dashed #d1d5db', borderRadius: '6px', fontSize: '0.75rem', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <Info size={13} color="#9ca3af" />
+                                                    <span>Detector disabled. Enable the toggle above to activate.</span>
+                                                </div>
+                                            )}
+
+                                            {/* Begin threshold */}
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151' }}>Begin Color detection threshold</span>
+                                                    <div style={{ position: 'relative', cursor: 'help' }}
+                                                        onMouseEnter={() => setHoveredHelp('begin')}
+                                                        onMouseLeave={() => setHoveredHelp(null)}
+                                                    >
+                                                        <HelpCircle size={13} color="#9ca3af" />
+                                                        {hoveredHelp === 'begin' && (
+                                                            <div style={{ position: 'absolute', zIndex: 10, bottom: '20px', left: '-10px', width: '200px', padding: '8px 10px', backgroundColor: '#1f2937', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+                                                                Percentage similarity required between the detected and target color to trigger a "Color Detection Began" event.
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <input
+                                                    type="number" min="0" max="100"
+                                                    value={selectedRegion.detectors.colorDetector.beginThreshold}
+                                                    onChange={(e) => updateRegionThresholds(selectedRegion.id, Number(e.target.value), selectedRegion.detectors.colorDetector.endThreshold)}
+                                                    style={{ padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.82rem', width: '100%' }}
+                                                />
                                             </div>
-                                            <label style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }} onClick={(e) => e.stopPropagation()}>
+
+                                            {/* End threshold */}
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151' }}>End Color detection threshold</span>
+                                                    <div style={{ position: 'relative', cursor: 'help' }}
+                                                        onMouseEnter={() => setHoveredHelp('end')}
+                                                        onMouseLeave={() => setHoveredHelp(null)}
+                                                    >
+                                                        <HelpCircle size={13} color="#9ca3af" />
+                                                        {hoveredHelp === 'end' && (
+                                                            <div style={{ position: 'absolute', zIndex: 10, bottom: '20px', left: '-10px', width: '200px', padding: '8px 10px', backgroundColor: '#1f2937', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+                                                                Percentage similarity threshold below which color detection ends.
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <input
+                                                    type="number" min="0" max="100"
+                                                    value={selectedRegion.detectors.colorDetector.endThreshold}
+                                                    onChange={(e) => updateRegionThresholds(selectedRegion.id, selectedRegion.detectors.colorDetector.beginThreshold, Number(e.target.value))}
+                                                    style={{ padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.82rem', width: '100%' }}
+                                                />
+                                            </div>
+
+                                            {/* Target color */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '4px' }}>
+                                                <div style={{ 
+                                                    width: '32px', height: '32px', borderRadius: '6px', 
+                                                    border: '1.5px solid #d1d5db', backgroundColor: selectedRegion.detectors.colorDetector.targetColor,
+                                                    position: 'relative', overflow: 'hidden', cursor: 'pointer',
+                                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                                }}>
+                                                    <input
+                                                        type="color"
+                                                        value={selectedRegion.detectors.colorDetector.targetColor}
+                                                        onChange={(e) => updateRegionTargetColor(selectedRegion.id, e.target.value)}
+                                                        style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }}
+                                                    />
+                                                </div>
+                                                <button
+                                                    onClick={handleSetCurrentRegionColor}
+                                                    style={{
+                                                        padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: '6px',
+                                                        backgroundColor: 'white', color: '#374151', fontWeight: 600,
+                                                        fontSize: '0.75rem', cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    Set current region color
+                                                </button>
+                                            </div>
+
+                                            {/* Live Similarity */}
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px' }}>
+                                                <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#166534' }}>Current Similarity</span>
+                                                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#15803d' }}>{settingsSimilarity}%</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Change Detectors Section */}
+                                <div style={{ padding: '12px 20px 6px 20px' }}>
+                                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Change Detectors</span>
+                                </div>
+
+                                {/* Change Detector Row */}
+                                <div style={{ borderBottom: '1px solid #f3f4f6' }}>
+                                    <div 
+                                        style={{ 
+                                            display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                                            padding: '10px 20px', cursor: 'pointer', transition: 'background-color 0.1s'
+                                        }}
+                                        onClick={() => setChangeDetectorExpanded(prev => !prev)}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            {changeDetectorExpanded ? <ChevronDown size={14} color="#6b7280" /> : <ChevronDown size={14} color="#6b7280" style={{ transform: 'rotate(-90deg)', transition: 'transform 0.15s' }} />}
+                                            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#374151' }}>Default Change Detector</span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <ToggleSwitch 
+                                                checked={selectedRegion.detectors.changeDetector.enabled}
+                                                onChange={(e) => toggleDetector(selectedRegion.id, 'changeDetector', e.target.checked)}
+                                                size="small"
+                                            />
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setOpenDetectorMenu(openDetectorMenu === 'change' ? null : 'change'); }}
+                                                style={{ border: 'none', backgroundColor: 'transparent', cursor: 'pointer', color: '#9ca3af', padding: '2px', fontSize: '0.85rem' }}
+                                            >
+                                                ···
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Change Detector Expanded Settings */}
+                                    {changeDetectorExpanded && selectedRegion.detectors?.changeDetector && (
+                                        <div style={{ padding: '4px 20px 16px 38px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                            {!selectedRegion.detectors.changeDetector.enabled && (
+                                                <div style={{ padding: '8px 12px', backgroundColor: '#f9fafb', border: '1px dashed #d1d5db', borderRadius: '6px', fontSize: '0.75rem', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <Info size={13} color="#9ca3af" />
+                                                    <span>Detector disabled. Enable the toggle above to activate.</span>
+                                                </div>
+                                            )}
+
+                                            {/* Begin changes threshold */}
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151' }}>Begin changes threshold (% of region area)</span>
+                                                    <div style={{ position: 'relative', cursor: 'help' }}
+                                                        onMouseEnter={() => setHoveredHelp('beginChange')}
+                                                        onMouseLeave={() => setHoveredHelp(null)}
+                                                    >
+                                                        <HelpCircle size={13} color="#9ca3af" />
+                                                        {hoveredHelp === 'beginChange' && (
+                                                            <div style={{ position: 'absolute', zIndex: 10, bottom: '20px', left: '-10px', width: '200px', padding: '8px 10px', backgroundColor: '#1f2937', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+                                                                Percentage of the region area that must change for a Changes Began event to occur.
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <input
+                                                    type="number" min="0" max="100"
+                                                    value={selectedRegion.detectors.changeDetector.beginThreshold ?? 40}
+                                                    onChange={(e) => updateChangeDetectorSetting(selectedRegion.id, 'beginThreshold', Number(e.target.value))}
+                                                    style={{ padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.82rem', width: '100%' }}
+                                                />
+                                            </div>
+
+                                            {/* Upper threshold */}
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151' }}>Upper threshold (mm)</span>
+                                                    <div style={{ position: 'relative', cursor: 'help' }}
+                                                        onMouseEnter={() => setHoveredHelp('upper')}
+                                                        onMouseLeave={() => setHoveredHelp(null)}
+                                                    >
+                                                        <HelpCircle size={13} color="#9ca3af" />
+                                                        {hoveredHelp === 'upper' && (
+                                                            <div style={{ position: 'absolute', zIndex: 10, bottom: '20px', left: '-10px', width: '200px', padding: '8px 10px', backgroundColor: '#1f2937', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+                                                                Objects closer to the camera than the Upper Threshold will be ignored.
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <input
+                                                    type="number"
+                                                    value={selectedRegion.detectors.changeDetector.upperThreshold ?? 100}
+                                                    onChange={(e) => updateChangeDetectorSetting(selectedRegion.id, 'upperThreshold', Number(e.target.value))}
+                                                    style={{ padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.82rem', width: '100%' }}
+                                                />
+                                            </div>
+
+                                            {/* Lower threshold */}
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151' }}>Lower threshold (mm)</span>
+                                                    <div style={{ position: 'relative', cursor: 'help' }}
+                                                        onMouseEnter={() => setHoveredHelp('lower')}
+                                                        onMouseLeave={() => setHoveredHelp(null)}
+                                                    >
+                                                        <HelpCircle size={13} color="#9ca3af" />
+                                                        {hoveredHelp === 'lower' && (
+                                                            <div style={{ position: 'absolute', zIndex: 10, bottom: '20px', left: '-10px', width: '200px', padding: '8px 10px', backgroundColor: '#1f2937', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+                                                                Objects farther away than the Lower Threshold will be ignored.
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <input
+                                                    type="number"
+                                                    value={selectedRegion.detectors.changeDetector.lowerThreshold ?? 10}
+                                                    onChange={(e) => updateChangeDetectorSetting(selectedRegion.id, 'lowerThreshold', Number(e.target.value))}
+                                                    style={{ padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.82rem', width: '100%' }}
+                                                />
+                                            </div>
+
+                                            {/* Adaptation speed */}
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151' }}>Adaptation speed</span>
+                                                    <div style={{ position: 'relative', cursor: 'help' }}
+                                                        onMouseEnter={() => setHoveredHelp('adaptation')}
+                                                        onMouseLeave={() => setHoveredHelp(null)}
+                                                    >
+                                                        <HelpCircle size={13} color="#9ca3af" />
+                                                        {hoveredHelp === 'adaptation' && (
+                                                            <div style={{ position: 'absolute', zIndex: 10, bottom: '20px', left: '-10px', width: '200px', padding: '8px 10px', backgroundColor: '#1f2937', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+                                                                How quickly the region adapts to noise and small changes.
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <select
+                                                    value={selectedRegion.detectors.changeDetector.adaptationSpeed ?? 'Medium'}
+                                                    onChange={(e) => updateChangeDetectorSetting(selectedRegion.id, 'adaptationSpeed', e.target.value)}
+                                                    style={{ padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.82rem', backgroundColor: 'white', width: '100%' }}
+                                                >
+                                                    <option value="None">None</option>
+                                                    <option value="Slow">Slow</option>
+                                                    <option value="Medium">Medium</option>
+                                                    <option value="Fast">Fast</option>
+                                                </select>
+                                            </div>
+
+                                            {/* Reset when changes end */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                 <input
                                                     type="checkbox"
-                                                    checked={selectedRegion.detectors.colorDetector.enabled}
-                                                    onChange={(e) => toggleDetector(selectedRegion.id, 'colorDetector', e.target.checked)}
-                                                    style={{ display: 'none' }}
+                                                    id="resetOnEnd"
+                                                    checked={selectedRegion.detectors.changeDetector.resetOnEnd ?? true}
+                                                    onChange={(e) => updateChangeDetectorSetting(selectedRegion.id, 'resetOnEnd', e.target.checked)}
+                                                    style={{ width: '15px', height: '15px', cursor: 'pointer', accentColor: '#3b82f6' }}
                                                 />
-                                                <div style={{
-                                                    width: '36px', height: '18px', backgroundColor: selectedRegion.detectors.colorDetector.enabled ? '#3b82f6' : '#cbd5e1',
-                                                    borderRadius: '9px', position: 'relative', transition: 'background-color 0.2s'
-                                                }}>
-                                                    <div style={{
-                                                        width: '14px', height: '14px', backgroundColor: 'white', borderRadius: '50%',
-                                                        position: 'absolute', top: '2px', left: selectedRegion.detectors.colorDetector.enabled ? '20px' : '2px',
-                                                        transition: 'left 0.2s'
-                                                    }} />
-                                                </div>
-                                            </label>
-                                        </div>
-
-                                        {/* Color Detector Specific Parameters */}
-                                        {colorDetectorExpanded && selectedRegion.detectors?.colorDetector && (
-                                            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px', borderTop: '1px solid #e2e8f0' }}>
-                                                {!selectedRegion.detectors.colorDetector.enabled && (
-                                                    <div style={{ padding: '8px 12px', backgroundColor: '#f1f5f9', border: '1px dashed #cbd5e1', borderRadius: '6px', fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                                                        <Info size={14} color="#94a3b8" />
-                                                        <span>Detektor dinonaktifkan. Aktifkan switch di atas untuk menggunakan sensor ini.</span>
-                                                    </div>
-                                                )}
-                                                {/* Begin Color Detection Threshold */}
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', position: 'relative' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Begin Color detection threshold</span>
-                                                        <div 
-                                                            style={{ position: 'relative', cursor: 'help' }}
-                                                            onMouseEnter={() => setHoveredHelp('begin')}
-                                                            onMouseLeave={() => setHoveredHelp(null)}
-                                                        >
-                                                            <HelpCircle size={14} color="#94a3b8" />
-                                                            {hoveredHelp === 'begin' && (
-                                                                <div style={{ position: 'absolute', zIndex: 10, bottom: '22px', left: '-10px', width: '220px', padding: '8px 10px', backgroundColor: '#0f172a', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-                                                                    Percentage similarity required between the detected and target color to trigger a "Color Detection Began" event.
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                        <input
-                                                            type="number"
-                                                            min="0"
-                                                            max="100"
-                                                            value={selectedRegion.detectors.colorDetector.beginThreshold}
-                                                            onChange={(e) => updateRegionThresholds(selectedRegion.id, Number(e.target.value), selectedRegion.detectors.colorDetector.endThreshold)}
-                                                            style={{ flex: 1, padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem' }}
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                {/* End Color Detection Threshold */}
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', position: 'relative' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>End Color detection threshold</span>
-                                                        <div 
-                                                            style={{ position: 'relative', cursor: 'help' }}
-                                                            onMouseEnter={() => setHoveredHelp('end')}
-                                                            onMouseLeave={() => setHoveredHelp(null)}
-                                                        >
-                                                            <HelpCircle size={14} color="#94a3b8" />
-                                                            {hoveredHelp === 'end' && (
-                                                                <div style={{ position: 'absolute', zIndex: 10, bottom: '22px', left: '-10px', width: '220px', padding: '8px 10px', backgroundColor: '#0f172a', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-                                                                    Percentage similarity threshold below which color detection ends, triggering "Color Detection Ended".
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                        <input
-                                                            type="number"
-                                                            min="0"
-                                                            max="100"
-                                                            value={selectedRegion.detectors.colorDetector.endThreshold}
-                                                            onChange={(e) => updateRegionThresholds(selectedRegion.id, selectedRegion.detectors.colorDetector.beginThreshold, Number(e.target.value))}
-                                                            style={{ flex: 1, padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem' }}
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                {/* Set Target Color tools */}
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px' }}>
-                                                    <div 
-                                                        style={{ 
-                                                            width: '36px', height: '36px', borderRadius: '6px', 
-                                                            border: '1.5px solid #cbd5e1', backgroundColor: selectedRegion.detectors.colorDetector.targetColor,
-                                                            position: 'relative', overflow: 'hidden', cursor: 'pointer',
-                                                            boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-                                                        }}
-                                                        title="Click to manually specify color"
+                                                <label htmlFor="resetOnEnd" style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.75rem', fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
+                                                    Reset when changes end
+                                                    <div style={{ position: 'relative', cursor: 'help' }}
+                                                        onMouseEnter={() => setHoveredHelp('resetOnEnd')}
+                                                        onMouseLeave={() => setHoveredHelp(null)}
+                                                        onClick={(e) => e.preventDefault()}
                                                     >
-                                                        <input
-                                                            type="color"
-                                                            value={selectedRegion.detectors.colorDetector.targetColor}
-                                                            onChange={(e) => updateRegionTargetColor(selectedRegion.id, e.target.value)}
-                                                            style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }}
-                                                        />
+                                                        <HelpCircle size={13} color="#9ca3af" />
+                                                        {hoveredHelp === 'resetOnEnd' && (
+                                                            <div style={{ position: 'absolute', zIndex: 10, bottom: '20px', left: '-10px', width: '200px', padding: '8px 10px', backgroundColor: '#1f2937', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+                                                                Makes detecting subsequent changes more robust if the region content remains changed.
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    <button
-                                                        onClick={handleSetCurrentRegionColor}
-                                                        style={{
-                                                            padding: '8px 14px', border: '1px solid #cbd5e1', borderRadius: '6px',
-                                                            backgroundColor: 'white', color: '#334155', fontWeight: 700,
-                                                            fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.1s'
-                                                        }}
-                                                    >
-                                                        Set current region color
-                                                    </button>
-                                                </div>
-
-                                                {/* Live Similarity Readout */}
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', padding: '10px 12px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px' }}>
-                                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#166534' }}>Current Similarity</span>
-                                                    <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#15803d' }}>{settingsSimilarity}%</span>
-                                                </div>
+                                                </label>
                                             </div>
-                                        )}
-                                    </div>
+
+                                            {/* Reset duration */}
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151' }}>Reset duration (s)</span>
+                                                    <div style={{ position: 'relative', cursor: 'help' }}
+                                                        onMouseEnter={() => setHoveredHelp('resetDuration')}
+                                                        onMouseLeave={() => setHoveredHelp(null)}
+                                                    >
+                                                        <HelpCircle size={13} color="#9ca3af" />
+                                                        {hoveredHelp === 'resetDuration' && (
+                                                            <div style={{ position: 'absolute', zIndex: 10, bottom: '20px', left: '-10px', width: '200px', padding: '8px 10px', backgroundColor: '#1f2937', color: 'white', borderRadius: '6px', fontSize: '0.65rem', lineHeight: 1.4, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+                                                                Time in seconds it takes to reset the region. No events can occur while resetting.
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <input
+                                                    type="number" step="0.05"
+                                                    value={selectedRegion.detectors.changeDetector.resetDuration ?? 0.50}
+                                                    onChange={(e) => updateChangeDetectorSetting(selectedRegion.id, 'resetDuration', Number(e.target.value))}
+                                                    style={{ padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.82rem', width: '100%' }}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

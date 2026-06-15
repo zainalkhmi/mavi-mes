@@ -1,7 +1,7 @@
 import { getSupabaseClient } from './supabaseManualDB.js';
 import { deleteTable } from './supabaseTablesDB.js';
 
-async function getStations() {
+export async function getStations() {
     const supabase = getSupabaseClient();
     const { data, error } = await supabase.from('stations').select('*').order('name');
     if (error) return [];

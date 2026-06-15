@@ -15,6 +15,9 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
     const lastMatchRef = useRef(null);
     const prevFrameRef = useRef(null);
     const lastTextRef = useRef('');
+    const isFetchingCloudRef = useRef(false);
+    const lastCloudFetchTimeRef = useRef(0);
+    const cloudDetectionsRef = useRef([]);
 
     const [hasPermission, setHasPermission] = useState(null);
     const [capturedImage, setCapturedImage] = useState(null);
@@ -711,6 +714,322 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                         } catch (e) {
                             console.error('OCR detection processing error:', e);
                         }
+                    } else if (filterType === 'YOLO_DETECTOR') {
+                        try {
+                            const modelType = comp?.props?.yoloModelType || 'yolov8n_general';
+                            const confMin = comp?.props?.yoloConfidence ?? 50;
+                            const targetClassFilter = (comp?.props?.yoloTargetClass || '').toLowerCase().trim();
+
+                            let calculatedVal = '';
+                            let isPassed = true;
+                            let detections = [];
+
+                            // Generate dynamic or simulated tracking objects
+                            const w = canvas.width;
+                            const h = canvas.height;
+                            const yoloRunMode = comp?.props?.yoloRunMode || 'SIMULATED';
+
+                            if (yoloRunMode === 'ULTRALYTICS_CLOUD' || yoloRunMode === 'LOCAL_API') {
+                                const apiKey = comp?.props?.yoloApiKey || '';
+                                const modelId = comp?.props?.yoloModelId || '';
+                                const localUrl = comp?.props?.yoloLocalUrl || 'http://localhost:8000/detect';
+
+                                // Draw last received cloud detections
+                                detections = cloudDetectionsRef.current || [];
+
+                                // Throttling call: only fetch once every 1000ms
+                                const now = Date.now();
+                                const canFetch = yoloRunMode === 'ULTRALYTICS_CLOUD' ? (apiKey && modelId) : true;
+                                
+                                if (canFetch && !isFetchingCloudRef.current && (now - lastCloudFetchTimeRef.current > 1000)) {
+                                    isFetchingCloudRef.current = true;
+                                    lastCloudFetchTimeRef.current = now;
+
+                                    canvas.toBlob((blob) => {
+                                        if (blob) {
+                                            const formData = new FormData();
+                                            const endpoint = yoloRunMode === 'ULTRALYTICS_CLOUD'
+                                                ? `https://api.ultralytics.com/v1/predict/${modelId}`
+                                                : localUrl;
+
+                                            const headers = yoloRunMode === 'ULTRALYTICS_CLOUD'
+                                                ? { "x-api-key": apiKey }
+                                                : {};
+
+                                            if (yoloRunMode === 'ULTRALYTICS_CLOUD') {
+                                                formData.append("image", blob, "frame.jpg");
+                                            } else {
+                                                formData.append("file", blob, "frame.jpg");
+                                            }
+
+                                            fetch(endpoint, {
+                                                method: "POST",
+                                                headers: headers,
+                                                body: formData
+                                            })
+                                            .then(res => {
+                                                if (!res.ok) throw new Error(`Status: ${res.status}`);
+                                                return res.json();
+                                            })
+                                            .then(data => {
+                                                if (data) {
+                                                    if (data.data) {
+                                                        cloudDetectionsRef.current = data.data.map(item => ({
+                                                            x: Math.round(item.box.x1),
+                                                            y: Math.round(item.box.y1),
+                                                            w: Math.round(item.box.x2 - item.box.x1),
+                                                            h: Math.round(item.box.y2 - item.box.y1),
+                                                            label: item.name,
+                                                            conf: Math.round(item.confidence * 100)
+                                                        }));
+                                                    } else if (data.predictions) {
+                                                        cloudDetectionsRef.current = data.predictions.map(item => ({
+                                                            x: Math.round(item.x),
+                                                            y: Math.round(item.y),
+                                                            w: Math.round(item.w),
+                                                            h: Math.round(item.h),
+                                                            label: item.label,
+                                                            conf: Math.round(item.confidence)
+                                                        }));
+                                                    }
+                                                }
+                                            })
+                                            .catch(err => console.error("YOLO API error:", err))
+                                            .finally(() => {
+                                                isFetchingCloudRef.current = false;
+                                            });
+                                        } else {
+                                            isFetchingCloudRef.current = false;
+                                        }
+                                    }, 'image/jpeg', 0.85);
+                                }
+
+                                // Apply confidence and target class filters to cloud detections
+                                detections = detections.filter(d => d.conf >= confMin);
+                                if (targetClassFilter) {
+                                    detections = detections.filter(d => d.label.toLowerCase().includes(targetClassFilter));
+                                }
+
+                                // Calculate calculatedVal & isPassed for cloud predictions
+                                const helmetDetected = detections.some(d => d.label.toLowerCase().includes('helmet') || d.label.toLowerCase().includes('helm'));
+                                const vestDetected = detections.some(d => d.label.toLowerCase().includes('vest') || d.label.toLowerCase().includes('rompi'));
+                                const personDetected = detections.some(d => d.label.toLowerCase().includes('person') || d.label.toLowerCase().includes('orang'));
+                                const defectDetected = detections.some(d => d.label.toLowerCase().includes('defect') || d.label.toLowerCase().includes('cacat') || d.label.toLowerCase().includes('scratch') || d.label.toLowerCase().includes('crack') || d.label.toLowerCase().includes('dent'));
+
+                                if (personDetected) {
+                                    if (helmetDetected && vestDetected) {
+                                        calculatedVal = 'SAFE: APD LENGKAP (CLOUD)';
+                                        isPassed = true;
+                                    } else {
+                                        const missing = [];
+                                        if (!helmetDetected) missing.push('Helmet');
+                                        if (!vestDetected) missing.push('Vest');
+                                        calculatedVal = `UNSAFE: MISSING ${missing.join(' & ')} (CLOUD)`;
+                                        isPassed = false;
+                                    }
+                                } else if (defectDetected) {
+                                    const defects = detections.filter(d => d.label.toLowerCase().includes('defect') || d.label.toLowerCase().includes('cacat') || d.label.toLowerCase().includes('scratch') || d.label.toLowerCase().includes('crack') || d.label.toLowerCase().includes('dent'));
+                                    calculatedVal = `FAIL: CACAT ${defects.map(d => d.label.toUpperCase()).join(', ')} (CLOUD)`;
+                                    isPassed = false;
+                                } else {
+                                    const detectedLabels = detections.map(d => `${d.label} (${d.conf}%)`);
+                                    calculatedVal = detectedLabels.length > 0 ? `DETECTED (CLOUD): ${detectedLabels.join(', ')}` : 'No Objects Detected (CLOUD)';
+                                    isPassed = detections.length > 0;
+                                }
+                            } else {
+                                if (modelType === 'yolov8n_safety') {
+                                    // APD / PPE Safety Check
+                                    const time = Date.now() / 1000;
+                                    // Simulasikan orang
+                                    const personBox = { x: 140, y: 70, w: 220, h: 330, label: 'person', conf: 96 };
+                                    
+                                    // Deteksi helm: Helm hilang setiap beberapa detik untuk simulasi pelanggaran APD
+                                    const hasHelmet = (Math.floor(time / 6) % 2) === 0;
+                                    const helmetBox = hasHelmet ? { x: 215, y: 75, w: 70, h: 55, label: 'safety helmet', conf: 92 } : null;
+                                    
+                                    // Deteksi rompi
+                                    const vestBox = { x: 180, y: 140, w: 140, h: 160, label: 'reflective vest', conf: 89 };
+                                    
+                                    // Deteksi sarung tangan: conf 45%, bisa difilter oleh slider confidence
+                                    const glovesBox = { x: 130, y: 280, w: 40, h: 45, label: 'gloves', conf: 45 };
+
+                                    const candidates = [personBox, helmetBox, vestBox, glovesBox].filter(Boolean);
+                                    // Saring berdasarkan threshold slider
+                                    detections = candidates.filter(d => d.conf >= confMin);
+
+                                    // Cek apakah APD lengkap (memerlukan helmet dan vest jika person terdeteksi)
+                                    const helmetDetected = detections.some(d => d.label === 'safety helmet');
+                                    const vestDetected = detections.some(d => d.label === 'reflective vest');
+                                    
+                                    if (helmetDetected && vestDetected) {
+                                        calculatedVal = 'SAFE: APD LENGKAP';
+                                        isPassed = true;
+                                    } else {
+                                        const missing = [];
+                                        if (!helmetDetected) missing.push('Helmet');
+                                        if (!vestDetected) missing.push('Vest');
+                                        calculatedVal = `UNSAFE: MISSING ${missing.join(' & ')}`;
+                                        isPassed = false;
+                                    }
+                                } else if (modelType === 'yolov8n_qc') {
+                                    // Conveyor Belt Quality Inspection
+                                    const cycleTime = 8000; // 8 detik per cycle
+                                    const tick = Date.now() % cycleTime;
+                                    const progress = tick / cycleTime; // 0.0 sampai 1.0
+
+                                    // Objek casing masuk dari kiri ke kanan
+                                    const objW = 160;
+                                    const objH = 160;
+                                    const objX = -120 + progress * (w + 240);
+                                    const objY = Math.floor(h * 0.35);
+
+                                    // Tentukan apakah siklus ini cacat (misal cycle ganjil atau genap)
+                                    const cycleNum = Math.floor(Date.now() / cycleTime);
+                                    const isDefectCycle = cycleNum % 2 !== 0;
+
+                                    const productBox = { x: Math.round(objX), y: Math.round(objY), w: objW, h: objH, label: 'ok product', conf: 95 };
+                                    detections.push(productBox);
+
+                                    if (isDefectCycle) {
+                                        // Deteksi cacat di dalam casing produk
+                                        const scratchX = objX + 45;
+                                        const scratchY = objY + 60;
+                                        const defectBox = { x: Math.round(scratchX), y: Math.round(scratchY), w: 35, h: 25, label: 'scratch defect', conf: 84 };
+                                        detections.push(defectBox);
+                                    }
+
+                                    // Filter berdasarkan threshold
+                                    detections = detections.filter(d => d.conf >= confMin);
+
+                                    const defectDetected = detections.some(d => d.label.includes('defect'));
+                                    if (defectDetected) {
+                                        calculatedVal = 'FAIL: CACAT SCRATCH';
+                                        isPassed = false;
+                                        // Ubah label produk utama jadi 'ng product' atau tetap 'ok product' tapi warnai merah
+                                        const prod = detections.find(d => d.label === 'ok product');
+                                        if (prod) prod.label = 'ng product';
+                                    } else {
+                                        calculatedVal = 'PASS: PRODUK OK';
+                                        isPassed = true;
+                                    }
+                                } else {
+                                    // General COCO Object Detection
+                                    const time = Date.now() / 1000;
+                                    // sedikit goyang agar dinamis
+                                    const jitterX = Math.sin(time) * 3;
+                                    const jitterY = Math.cos(time * 1.5) * 2;
+
+                                    const person = { x: Math.round(40 + jitterX), y: Math.round(60 + jitterY), w: 160, h: 340, label: 'person', conf: 92 };
+                                    const laptop = { x: Math.round(220 + jitterX * 0.5), y: Math.round(180 + jitterY * 0.5), w: 160, h: 110, label: 'laptop', conf: 87 };
+                                    const phone = { x: Math.round(250 - jitterX), y: Math.round(150 + jitterY), w: 35, h: 55, label: 'cell phone', conf: 76 };
+                                    const cup = { x: Math.round(390 + jitterX), y: Math.round(200 - jitterY), w: 45, h: 50, label: 'cup', conf: 48 };
+                                    const chair = { x: Math.round(430 + jitterX * 0.3), y: Math.round(160 + jitterY * 0.3), w: 170, h: 260, label: 'chair', conf: 64 };
+
+                                    const candidates = [person, laptop, phone, cup, chair];
+                                    detections = candidates.filter(d => d.conf >= confMin);
+
+                                    // Filter berdasarkan targetClass jika ada
+                                    if (targetClassFilter) {
+                                        detections = detections.filter(d => d.label.toLowerCase().includes(targetClassFilter));
+                                    }
+
+                                    const detectedLabels = detections.map(d => `${d.label} (${d.conf}%)`);
+                                    calculatedVal = detectedLabels.length > 0 ? detectedLabels.join(', ') : 'No Objects Detected';
+                                    isPassed = detections.length > 0;
+                                }
+                            }
+
+                            // Event triggers dan sync
+                            if (lastMatchRef.current !== calculatedVal) {
+                                lastMatchRef.current = calculatedVal;
+                                onWidgetInteraction(comp, 'OnYoloDetect', {
+                                    model: modelType,
+                                    objects: detections.map(d => d.label),
+                                    summary: calculatedVal,
+                                    isPassed: isPassed
+                                });
+                                syncInputDatasourceValue(comp, calculatedVal, `${comp.type}_YOLO_RESULT`);
+                            }
+
+                            // ── DRAW OVERLAYS ──
+                            // 1. Draw bounding boxes
+                            detections.forEach(det => {
+                                let boxColor = '#3b82f6'; // default Blue
+                                if (det.label === 'safety helmet') boxColor = '#eab308'; // Yellow
+                                else if (det.label === 'reflective vest') boxColor = '#84cc16'; // Lime
+                                else if (det.label === 'gloves') boxColor = '#06b6d4'; // Cyan
+                                else if (det.label === 'ok product') boxColor = '#10b981'; // Green
+                                else if (det.label === 'scratch defect' || det.label === 'ng product') boxColor = '#ef4444'; // Red
+                                else if (['laptop', 'cell phone', 'cup', 'chair'].includes(det.label)) boxColor = '#a855f7'; // Purple
+
+                                // Draw Box border
+                                ctx.strokeStyle = boxColor;
+                                ctx.lineWidth = 2;
+                                ctx.strokeRect(det.x, det.y, det.w, det.h);
+
+                                // Draw Box background fill (semi-transparent)
+                                ctx.fillStyle = boxColor + '15'; // 8% opacity
+                                ctx.fillRect(det.x, det.y, det.w, det.h);
+
+                                // Draw Corner brackets on box for premium look
+                                ctx.strokeStyle = boxColor;
+                                ctx.lineWidth = 3.5;
+                                const len = Math.min(det.w, det.h) * 0.15; // bracket length
+                                // Top-Left
+                                ctx.beginPath(); ctx.moveTo(det.x, det.y + len); ctx.lineTo(det.x, det.y); ctx.lineTo(det.x + len, det.y); ctx.stroke();
+                                // Top-Right
+                                ctx.beginPath(); ctx.moveTo(det.x + det.w - len, det.y); ctx.lineTo(det.x + det.w, det.y); ctx.lineTo(det.x + det.w, det.y + len); ctx.stroke();
+                                // Bottom-Left
+                                ctx.beginPath(); ctx.moveTo(det.x, det.y + det.h - len); ctx.lineTo(det.x, det.y + det.h); ctx.lineTo(det.x + len, det.y + det.h); ctx.stroke();
+                                // Bottom-Right
+                                ctx.beginPath(); ctx.moveTo(det.x + det.w - len, det.y + det.h); ctx.lineTo(det.x + det.w, det.y + det.h); ctx.lineTo(det.x + det.w, det.y + det.h - len); ctx.stroke();
+
+                                // Draw Label text background tag
+                                ctx.fillStyle = boxColor;
+                                const textStr = `${det.label} ${det.conf}%`;
+                                ctx.font = 'bold 9px Inter, sans-serif';
+                                const textWidth = ctx.measureText(textStr).width + 10;
+                                ctx.fillRect(det.x, det.y - 14, textWidth, 14);
+
+                                // Draw Label text
+                                ctx.fillStyle = '#ffffff';
+                                ctx.textAlign = 'left';
+                                ctx.fillText(textStr, det.x + 5, det.y - 4);
+                            });
+
+                            // 2. HUD Info Panel (Top Right)
+                            ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+                            ctx.fillRect(w - 180, 10, 170, 75);
+                            ctx.strokeStyle = 'rgba(124, 58, 237, 0.4)';
+                            ctx.lineWidth = 1;
+                            ctx.strokeRect(w - 180, 10, 170, 75);
+
+                            ctx.fillStyle = '#c084fc';
+                            ctx.font = 'bold 9px Inter, sans-serif';
+                            ctx.textAlign = 'left';
+                            ctx.fillText('ULTRALYTICS YOLOv8 ACTIVE', w - 170, 24);
+
+                            ctx.fillStyle = '#94a3b8';
+                            ctx.font = '8px monospace';
+                            const infTime = (12.2 + Math.sin(Date.now() / 400) * 1.5).toFixed(1);
+                            ctx.fillText(`Model: ${modelType.toUpperCase()}`, w - 170, 38);
+                            ctx.fillText(`Inference: ${infTime} ms (GPU)`, w - 170, 50);
+                            ctx.fillText(`Conf Min: ${confMin}%`, w - 170, 62);
+                            ctx.fillText(`Objects: ${detections.length} detected`, w - 170, 74);
+
+                            // 3. Status readout overlay at the bottom center of viewfinder
+                            ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+                            ctx.fillRect(10, h - 35, w - 20, 26);
+                            ctx.strokeStyle = isPassed ? '#22c55e' : '#ef4444';
+                            ctx.strokeRect(10, h - 35, w - 20, 26);
+                            
+                            ctx.fillStyle = isPassed ? '#22c55e' : '#ef4444';
+                            ctx.font = 'bold 10px Inter, sans-serif';
+                            ctx.fillText(calculatedVal, 20, h - 18);
+
+                        } catch (err) {
+                            console.error('YOLO detector processing error:', err);
+                        }
                     }
                 } catch (e) {
                     console.error('Filter processing error:', e);
@@ -768,7 +1087,7 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                 cancelAnimationFrame(animationFrameRef.current);
             }
         };
-    }, [viewMode, filterType, thresholdValue, capturedImage, isCameraCapture, hasPermission, cameraSource, ipCameraUrl, ipImageLoaded, ipImageError, showVideoPreview]);
+    }, [viewMode, filterType, thresholdValue, capturedImage, isCameraCapture, hasPermission, cameraSource, ipCameraUrl, ipImageLoaded, ipImageError, showVideoPreview, comp?.props?.yoloModelType, comp?.props?.yoloConfidence, comp?.props?.yoloTargetClass, comp?.props?.yoloRunMode, comp?.props?.yoloApiKey, comp?.props?.yoloModelId, comp?.props?.yoloLocalUrl]);
 
     // Handle standard camera capture
     const handleCapture = useCallback(() => {
@@ -1003,6 +1322,15 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
             val = (40.0 + Math.random() * 5.0).toFixed(1) + ' PSI';
         } else if (filterType === 'OCR_DETECTOR') {
             val = comp?.props?.ocrTargetText || 'BATCH-' + Math.floor(1000 + Math.random() * 9000);
+        } else if (filterType === 'YOLO_DETECTOR') {
+            const modelType = comp?.props?.yoloModelType || 'yolov8n_general';
+            if (modelType === 'yolov8n_safety') {
+                val = 'SAFE: APD LENGKAP';
+            } else if (modelType === 'yolov8n_qc') {
+                val = 'PASS: PRODUK OK';
+            } else {
+                val = 'person (92%), laptop (87%)';
+            }
         } else {
             // Generic inspection PASS
             val = 'PASS';
@@ -1065,11 +1393,21 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                 }
             };
 
-            const systemPrompt = `You are a machine vision interpreter. Read the image and extract the numeric value or text shown on the digital caliper, dial gauge, or specified OCR region. 
-            If a target text is specified (${comp?.props?.ocrTargetText || 'none'}), check if it is present.
+            let specificInstruction = '';
+            if (filterType === 'YOLO_DETECTOR') {
+                const modelType = comp?.props?.yoloModelType || 'yolov8n_general';
+                specificInstruction = `Perform YOLO object detection on the image. Model type is: ${modelType}. 
+                - If safety model: detect if there's a person and if they wear helmet and vest. Return SAFE: APD LENGKAP or UNSAFE: MISSING Helmet/Vest.
+                - If qc model: detect ok product or defects like scratch, crack, dent. Return PASS: PRODUK OK or FAIL: CACAT SCRATCH/CRACK/DENT.
+                - If general: list the detected objects.`;
+            } else {
+                specificInstruction = `Read the image and extract the numeric value or text shown on the digital caliper, dial gauge, or specified OCR region. If a target text is specified (${comp?.props?.ocrTargetText || 'none'}), check if it is present.`;
+            }
+
+            const systemPrompt = `You are a machine vision interpreter. ${specificInstruction}
             Return ONLY a valid JSON object matching this schema:
             {
-              "reading": "string (the reading value, e.g. 25.40 mm, 42.1 PSI, PASS/FAIL, or detected text like ${comp?.props?.ocrTargetText || 'APPROVED'})",
+              "reading": "string (the reading value, e.g. SAFE: APD LENGKAP, FAIL: CACAT SCRATCH, 25.40 mm, 42.1 PSI, PASS/FAIL, or detected text)",
               "success": boolean,
               "confidence": number
             }`;
@@ -1394,7 +1732,7 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                         )}
 
                         {/* OCR dial/caliper controls */}
-                        {['CALIPER_OCR', 'DIAL_GAUGE', 'OCR_DETECTOR'].includes(filterType) && (
+                        {['CALIPER_OCR', 'DIAL_GAUGE', 'OCR_DETECTOR', 'YOLO_DETECTOR'].includes(filterType) && (
                             <>
                                 <button
                                     onClick={handleSimulateReading}
@@ -1408,12 +1746,12 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                                 </button>
                                 <button
                                     onClick={handleReadWithAI}
-                                    disabled={isReadingAI}
                                     style={{
-                                        padding: '8px 12px', borderRadius: '8px', border: 'none',
-                                        backgroundColor: '#7c3aed', color: '#ffffff', fontSize: '0.75rem', fontWeight: 700,
+                                        flex: 1, padding: '8px', borderRadius: '8px', border: 'none',
+                                        background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)', color: '#fff', fontSize: '0.75rem', fontWeight: 700,
                                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer'
                                     }}
+                                    disabled={isReadingAI}
                                 >
                                     {isReadingAI ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
                                     AI Baca

@@ -23801,7 +23801,7 @@ const AppBuilder = () => {
                                                 )}
 
                                                 {/* OPENCV_CAMERA Configurations */}
-                                                {selectedComp.type === 'OPENCV_CAMERA' && (sidebarSearch === '' || 'opencv vision filter type threshold camera'.includes(sidebarSearch.toLowerCase())) && (
+                                                {selectedComp.type === 'OPENCV_CAMERA' && (sidebarSearch === '' || 'opencv vision filter type threshold camera yolo model confidence'.includes(sidebarSearch.toLowerCase())) && (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
                                                             <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>OpenCV Vision Properties</label>
@@ -23823,8 +23823,98 @@ const AppBuilder = () => {
                                                                     <option value="COUNTING">Part Counting (Hitung Objek)</option>
                                                                     <option value="BARCODE">Barcode/QR Reader (Pemindai)</option>
                                                                     <option value="CHANGE_DETECTOR">Change Detector (Sensor Perubahan)</option>
+                                                                    <option value="YOLO_DETECTOR">YOLO Object Detection (Ultralytics)</option>
                                                                 </select>
                                                             </div>
+                                                            {selectedComp.props.filterType === 'YOLO_DETECTOR' && (
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+                                                                    <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>YOLO Run Mode</label>
+                                                                        <select
+                                                                            value={selectedComp.props.yoloRunMode || 'SIMULATED'}
+                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { yoloRunMode: e.target.value })}
+                                                                            style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                        >
+                                                                            <option value="SIMULATED">Simulasi Lokal (Zero Latency)</option>
+                                                                            <option value="ULTRALYTICS_CLOUD">Ultralytics HUB API (Cloud Live)</option>
+                                                                            <option value="LOCAL_API">Local Python API (localhost:8000)</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    {selectedComp.props.yoloRunMode === 'ULTRALYTICS_CLOUD' && (
+                                                                        <>
+                                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>HUB API Key</label>
+                                                                                <input
+                                                                                    type="password"
+                                                                                    placeholder="Paste x-api-key here"
+                                                                                    value={selectedComp.props.yoloApiKey || ''}
+                                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { yoloApiKey: e.target.value })}
+                                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                                />
+                                                                            </div>
+                                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Model ID</label>
+                                                                                <input
+                                                                                    type="text"
+                                                                                    placeholder="e.g. model_12345abcdef"
+                                                                                    value={selectedComp.props.yoloModelId || ''}
+                                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { yoloModelId: e.target.value })}
+                                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                                />
+                                                                            </div>
+                                                                        </>
+                                                                    )}
+                                                                    {selectedComp.props.yoloRunMode === 'LOCAL_API' && (
+                                                                        <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Server Endpoint URL</label>
+                                                                            <input
+                                                                                type="text"
+                                                                                placeholder="e.g. http://localhost:8000/detect"
+                                                                                value={selectedComp.props.yoloLocalUrl || 'http://localhost:8000/detect'}
+                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { yoloLocalUrl: e.target.value })}
+                                                                                style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                            />
+                                                                        </div>
+                                                                    )}
+                                                                    {selectedComp.props.yoloRunMode === 'SIMULATED' && (
+                                                                        <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>YOLO Model Class</label>
+                                                                            <select
+                                                                                value={selectedComp.props.yoloModelType || 'yolov8n_general'}
+                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { yoloModelType: e.target.value })}
+                                                                                style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                            >
+                                                                                <option value="yolov8n_general">YOLOv8 Nano (General Objects - COCO)</option>
+                                                                                <option value="yolov8n_safety">YOLOv8 Safety APD (Helmet, Vest, Gloves)</option>
+                                                                                <option value="yolov8n_qc">YOLOv8 QC Inspection (Defect, Scratch)</option>
+                                                                            </select>
+                                                                        </div>
+                                                                    )}
+                                                                    <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
+                                                                            Confidence Threshold: {selectedComp.props.yoloConfidence ?? 50}%
+                                                                        </label>
+                                                                        <input
+                                                                            type="range"
+                                                                            min="10"
+                                                                            max="100"
+                                                                            value={selectedComp.props.yoloConfidence ?? 50}
+                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { yoloConfidence: parseInt(e.target.value) })}
+                                                                            style={{ width: '100%', cursor: 'pointer' }}
+                                                                        />
+                                                                    </div>
+                                                                    <div className="prop-group">
+                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Target Class Filter (Optional)</label>
+                                                                        <input
+                                                                            type="text"
+                                                                            placeholder="e.g. helmet, vest, person"
+                                                                            value={selectedComp.props.yoloTargetClass || ''}
+                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { yoloTargetClass: e.target.value })}
+                                                                            style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                             {(selectedComp.props.filterType === 'CANNY' || selectedComp.props.filterType === 'THRESHOLD') && (
                                                                 <div className="prop-group" style={{ marginBottom: '12px' }}>
                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>

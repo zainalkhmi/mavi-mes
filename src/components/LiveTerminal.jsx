@@ -13861,6 +13861,9 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
   const requestRef = useRef(null);
   const prevFrameRef = useRef(null);
   const prevGrayMatRef = useRef(null);
+  const isFetchingCloudRef = useRef(false);
+  const lastCloudFetchTimeRef = useRef(0);
+  const cloudDetectionsRef = useRef([]);
 
   // DB & Logging States
   const [recentLogs, setRecentLogs] = useState([]);
@@ -13998,7 +14001,8 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
         measurements: {
           filterType: modeName,
           value: currentVal,
-          threshold: comp.props.thresholdValue ?? 100
+          threshold: modeName === 'YOLO_DETECTOR' ? (comp.props.yoloConfidence ?? 50) : (comp.props.thresholdValue ?? 100),
+          yoloModelType: comp.props.yoloModelType || 'yolov8n_general'
         },
         cycle_data: [],
         quality_data: {
@@ -14079,6 +14083,263 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
         return;
       }
     }
+
+    const runYoloDetector = (ctx, canvas, w, h) => {
+      const modelType = comp?.props?.yoloModelType || 'yolov8n_general';
+      const confMin = comp?.props?.yoloConfidence ?? 50;
+      const targetClassFilter = (comp?.props?.yoloTargetClass || '').toLowerCase().trim();
+      const yoloRunMode = comp?.props?.yoloRunMode || 'SIMULATED';
+
+      let calculatedVal = '';
+      let isPassed = true;
+      let detections = [];
+
+      if (yoloRunMode === 'ULTRALYTICS_CLOUD' || yoloRunMode === 'LOCAL_API') {
+        const apiKey = comp?.props?.yoloApiKey || '';
+        const modelId = comp?.props?.yoloModelId || '';
+        const localUrl = comp?.props?.yoloLocalUrl || 'http://localhost:8000/detect';
+
+        // Draw last received cloud detections
+        detections = cloudDetectionsRef.current || [];
+
+        // Throttling call: only fetch once every 1000ms
+        const now = Date.now();
+        const canFetch = yoloRunMode === 'ULTRALYTICS_CLOUD' ? (apiKey && modelId) : true;
+        
+        if (canFetch && !isFetchingCloudRef.current && (now - lastCloudFetchTimeRef.current > 1000)) {
+          isFetchingCloudRef.current = true;
+          lastCloudFetchTimeRef.current = now;
+
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const formData = new FormData();
+              const endpoint = yoloRunMode === 'ULTRALYTICS_CLOUD'
+                ? `https://api.ultralytics.com/v1/predict/${modelId}`
+                : localUrl;
+
+              const headers = yoloRunMode === 'ULTRALYTICS_CLOUD'
+                ? { "x-api-key": apiKey }
+                : {};
+
+              if (yoloRunMode === 'ULTRALYTICS_CLOUD') {
+                formData.append("image", blob, "frame.jpg");
+              } else {
+                formData.append("file", blob, "frame.jpg");
+              }
+
+              fetch(endpoint, {
+                method: "POST",
+                headers: headers,
+                body: formData
+              })
+              .then(res => {
+                if (!res.ok) throw new Error(`Status: ${res.status}`);
+                return res.json();
+              })
+              .then(data => {
+                if (data) {
+                  if (data.data) {
+                    cloudDetectionsRef.current = data.data.map(item => ({
+                      x: Math.round(item.box.x1),
+                      y: Math.round(item.box.y1),
+                      w: Math.round(item.box.x2 - item.box.x1),
+                      h: Math.round(item.box.y2 - item.box.y1),
+                      label: item.name,
+                      conf: Math.round(item.confidence * 100)
+                    }));
+                  } else if (data.predictions) {
+                    cloudDetectionsRef.current = data.predictions.map(item => ({
+                      x: Math.round(item.x),
+                      y: Math.round(item.y),
+                      w: Math.round(item.w),
+                      h: Math.round(item.h),
+                      label: item.label,
+                      conf: Math.round(item.confidence)
+                    }));
+                  }
+                }
+              })
+              .catch(err => console.error("YOLO API error:", err))
+              .finally(() => {
+                isFetchingCloudRef.current = false;
+              });
+            } else {
+              isFetchingCloudRef.current = false;
+            }
+          }, 'image/jpeg', 0.85);
+        }
+
+        // Apply confidence and target class filters to cloud detections
+        detections = detections.filter(d => d.conf >= confMin);
+        if (targetClassFilter) {
+          detections = detections.filter(d => d.label.toLowerCase().includes(targetClassFilter));
+        }
+
+        // Calculate calculatedVal & isPassed for cloud predictions
+        const helmetDetected = detections.some(d => d.label.toLowerCase().includes('helmet') || d.label.toLowerCase().includes('helm'));
+        const vestDetected = detections.some(d => d.label.toLowerCase().includes('vest') || d.label.toLowerCase().includes('rompi'));
+        const personDetected = detections.some(d => d.label.toLowerCase().includes('person') || d.label.toLowerCase().includes('orang'));
+        const defectDetected = detections.some(d => d.label.toLowerCase().includes('defect') || d.label.toLowerCase().includes('cacat') || d.label.toLowerCase().includes('scratch') || d.label.toLowerCase().includes('crack') || d.label.toLowerCase().includes('dent'));
+
+        if (personDetected) {
+          if (helmetDetected && vestDetected) {
+            calculatedVal = 'SAFE: APD LENGKAP (CLOUD)';
+            isPassed = true;
+          } else {
+            const missing = [];
+            if (!helmetDetected) missing.push('Helmet');
+            if (!vestDetected) missing.push('Vest');
+            calculatedVal = `UNSAFE: MISSING ${missing.join(' & ')} (CLOUD)`;
+            isPassed = false;
+          }
+        } else if (defectDetected) {
+          const defects = detections.filter(d => d.label.toLowerCase().includes('defect') || d.label.toLowerCase().includes('cacat') || d.label.toLowerCase().includes('scratch') || d.label.toLowerCase().includes('crack') || d.label.toLowerCase().includes('dent'));
+          calculatedVal = `FAIL: CACAT ${defects.map(d => d.label.toUpperCase()).join(', ')} (CLOUD)`;
+          isPassed = false;
+        } else {
+          const detectedLabels = detections.map(d => `${d.label} (${d.conf}%)`);
+          calculatedVal = detectedLabels.length > 0 ? `DETECTED (CLOUD): ${detectedLabels.join(', ')}` : 'No Objects Detected (CLOUD)';
+          isPassed = detections.length > 0;
+        }
+      } else {
+        if (modelType === 'yolov8n_safety') {
+          const time = Date.now() / 1000;
+          const personBox = { x: 80, y: 30, w: 160, h: 200, label: 'person', conf: 96 };
+          const hasHelmet = (Math.floor(time / 6) % 2) === 0;
+          const helmetBox = hasHelmet ? { x: 130, y: 32, w: 50, h: 35, label: 'safety helmet', conf: 92 } : null;
+          const vestBox = { x: 105, y: 70, w: 100, h: 100, label: 'reflective vest', conf: 89 };
+          const glovesBox = { x: 75, y: 160, w: 30, h: 30, label: 'gloves', conf: 45 };
+
+          const candidates = [personBox, helmetBox, vestBox, glovesBox].filter(Boolean);
+          detections = candidates.filter(d => d.conf >= confMin);
+
+          const helmetDetected = detections.some(d => d.label === 'safety helmet');
+          const vestDetected = detections.some(d => d.label === 'reflective vest');
+          
+          if (helmetDetected && vestDetected) {
+            calculatedVal = 'SAFE: APD LENGKAP';
+            isPassed = true;
+          } else {
+            const missing = [];
+            if (!helmetDetected) missing.push('Helmet');
+            if (!vestDetected) missing.push('Vest');
+            calculatedVal = `UNSAFE: MISSING ${missing.join(' & ')}`;
+            isPassed = false;
+          }
+        } else if (modelType === 'yolov8n_qc') {
+          const cycleTime = 8000;
+          const tick = Date.now() % cycleTime;
+          const progress = tick / cycleTime;
+
+          const objW = 100;
+          const objH = 100;
+          const objX = -80 + progress * (w + 160);
+          const objY = Math.floor(h * 0.35);
+
+          const cycleNum = Math.floor(Date.now() / cycleTime);
+          const isDefectCycle = cycleNum % 2 !== 0;
+
+          const productBox = { x: Math.round(objX), y: Math.round(objY), w: objW, h: objH, label: 'ok product', conf: 95 };
+          detections.push(productBox);
+
+          if (isDefectCycle) {
+            const scratchX = objX + 30;
+            const scratchY = objY + 40;
+            const defectBox = { x: Math.round(scratchX), y: Math.round(scratchY), w: 25, h: 18, label: 'scratch defect', conf: 84 };
+            detections.push(defectBox);
+          }
+
+          detections = detections.filter(d => d.conf >= confMin);
+
+          const defectDetected = detections.some(d => d.label.includes('defect'));
+          if (defectDetected) {
+            calculatedVal = 'FAIL: CACAT SCRATCH';
+            isPassed = false;
+            const prod = detections.find(d => d.label === 'ok product');
+            if (prod) prod.label = 'ng product';
+          } else {
+            calculatedVal = 'PASS: PRODUK OK';
+            isPassed = true;
+          }
+        } else {
+          const time = Date.now() / 1000;
+          const jitterX = Math.sin(time) * 3;
+          const jitterY = Math.cos(time * 1.5) * 2;
+
+          const person = { x: Math.round(20 + jitterX), y: Math.round(40 + jitterY), w: 100, h: 180, label: 'person', conf: 92 };
+          const laptop = { x: Math.round(130 + jitterX * 0.5), y: Math.round(110 + jitterY * 0.5), w: 90, h: 70, label: 'laptop', conf: 87 };
+          const phone = { x: Math.round(150 - jitterX), y: Math.round(90 + jitterY), w: 20, h: 35, label: 'cell phone', conf: 76 };
+          const cup = { x: Math.round(230 + jitterX), y: Math.round(120 - jitterY), w: 25, h: 30, label: 'cup', conf: 48 };
+          const chair = { x: Math.round(250 + jitterX * 0.3), y: Math.round(100 + jitterY * 0.3), w: 100, h: 140, label: 'chair', conf: 64 };
+
+          const candidates = [person, laptop, phone, cup, chair];
+          detections = candidates.filter(d => d.conf >= confMin);
+
+          if (targetClassFilter) {
+            detections = detections.filter(d => d.label.toLowerCase().includes(targetClassFilter));
+          }
+
+          const detectedLabels = detections.map(d => `${d.label} (${d.conf}%)`);
+          calculatedVal = detectedLabels.length > 0 ? detectedLabels.join(', ') : 'No Objects Detected';
+          isPassed = detections.length > 0;
+        }
+      }
+
+      // Draw bounding boxes
+      detections.forEach(det => {
+        let boxColor = '#3b82f6';
+        if (det.label === 'safety helmet') boxColor = '#eab308';
+        else if (det.label === 'reflective vest') boxColor = '#84cc16';
+        else if (det.label === 'gloves') boxColor = '#06b6d4';
+        else if (det.label === 'ok product') boxColor = '#10b981';
+        else if (det.label === 'scratch defect' || det.label === 'ng product') boxColor = '#ef4444';
+        else if (['laptop', 'cell phone', 'cup', 'chair'].includes(det.label)) boxColor = '#a855f7';
+
+        ctx.strokeStyle = boxColor;
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(det.x, det.y, det.w, det.h);
+        ctx.fillStyle = boxColor + '10';
+        ctx.fillRect(det.x, det.y, det.w, det.h);
+
+        // Corner brackets
+        ctx.strokeStyle = boxColor;
+        ctx.lineWidth = 2.5;
+        const len = Math.min(det.w, det.h) * 0.15;
+        ctx.beginPath(); ctx.moveTo(det.x, det.y + len); ctx.lineTo(det.x, det.y); ctx.lineTo(det.x + len, det.y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(det.x + det.w - len, det.y); ctx.lineTo(det.x + det.w, det.y); ctx.lineTo(det.x + det.w, det.y + len); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(det.x, det.y + det.h - len); ctx.lineTo(det.x, det.y + det.h); ctx.lineTo(det.x + len, det.y + det.h); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(det.x + det.w - len, det.y + det.h); ctx.lineTo(det.x + det.w, det.y + det.h); ctx.lineTo(det.x + det.w, det.y + det.h - len); ctx.stroke();
+
+        // Tag
+        ctx.fillStyle = boxColor;
+        const textStr = `${det.label} ${det.conf}%`;
+        ctx.font = 'bold 8px sans-serif';
+        const textWidth = ctx.measureText(textStr).width + 6;
+        ctx.fillRect(det.x, det.y - 11, textWidth, 11);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(textStr, det.x + 3, det.y - 3);
+      });
+
+      // HUD
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+      ctx.fillRect(w - 110, 8, 102, 50);
+      ctx.strokeStyle = 'rgba(124, 58, 237, 0.4)';
+      ctx.strokeRect(w - 110, 8, 102, 50);
+
+      ctx.fillStyle = '#c084fc';
+      ctx.font = 'bold 6.5px sans-serif';
+      ctx.fillText('YOLOv8 ACTIVE', w - 104, 17);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '6px monospace';
+      const infTime = (12.2 + Math.sin(Date.now() / 400) * 1.5).toFixed(1);
+      ctx.fillText(`Model: ${modelType.substring(0, 12)}`, w - 104, 27);
+      ctx.fillText(`Inference: ${infTime} ms`, w - 104, 36);
+      ctx.fillText(`Objects: ${detections.length}`, w - 104, 45);
+
+      return { calculatedVal, isPassed };
+    };
 
     let isProcessing = true;
 
@@ -14325,6 +14586,12 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
             } catch (e) {
               console.error(e);
             }
+          } else if (filterType === 'YOLO_DETECTOR') {
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, width, height);
+            const res = runYoloDetector(ctx, canvas, width, height);
+            calculatedVal = res.calculatedVal;
+            isPassed = res.isPassed;
           }
         } else {
           // Regular OpenCV flow
@@ -14604,6 +14871,12 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
             
             calculatedVal = isChangeDetected ? 'MOTION' : 'NO MOTION';
             isPassed = isChangeDetected;
+          } else if (filterType === 'YOLO_DETECTOR') {
+            cv.imshow(canvas, src);
+            const ctx = canvas.getContext('2d');
+            const res = runYoloDetector(ctx, canvas, width, height);
+            calculatedVal = res.calculatedVal;
+            isPassed = res.isPassed;
           } else {
             cv.imshow(canvas, src);
           }
@@ -14639,7 +14912,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
         } catch (e) {}
       }
     };
-  }, [cameraActive, cvLoaded, isSimulatedCv, comp.props.filterType, comp.props.thresholdValue]);
+  }, [cameraActive, cvLoaded, isSimulatedCv, comp.props.filterType, comp.props.thresholdValue, comp.props.yoloModelType, comp.props.yoloConfidence, comp.props.yoloTargetClass]);
 
   const isDark = selectedApp?.config?.appThemeMode === 'DARK';
   const textColor = isDark ? '#f8fafc' : '#0f172a';
