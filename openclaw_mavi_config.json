@@ -1,0 +1,16 @@
+{
+  "mcp": {
+    "servers": {
+      "mavi-mes-mcp": {
+        "command": "node",
+        "args": [
+          "c:/Users/ndens/mavi-core/mavi-mcp-server.js"
+        ],
+        "env": {
+          "SUPABASE_URL": "https://pypjnzvsolxsddsqworw.supabase.co",
+          "SUPABASE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB5cGpuenZzb2x4c2Rkc3F3b3J3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMTQ1MDQsImV4cCI6MjA5MjY5MDUwNH0.kjKlJu336ZqIOEk4SV7WhPrhsHzQv-rrKDh-oPasbAc"
+        }
+      }
+    }
+  }
+}

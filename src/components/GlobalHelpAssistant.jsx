@@ -13,7 +13,10 @@ import toast from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
 import { getPrimaryAiConnector } from '../utils/database';
 import { getChatCompletion } from '../utils/aiService';
-import { Link } from 'react-router-dom'; // For internal linking if needed, though markdown links handle href well
+import { Link } from 'react-router-dom';
+import { getStations, getTables } from '../utils/supabaseFrontlineDB';
+import { getTableRecords, addTableRecord } from '../utils/supabaseTablesDB'; // For internal linking if needed, though markdown links handle href well
+import { getSupabaseClient } from '../utils/supabaseManualDB';
 
 const SYSTEM_PROMPT = `
 Anda adalah **Mavi Global AI Assistant**, pakar utama dari platform **Mavi MES (Manufacturing Execution System)**.
@@ -743,6 +746,34 @@ export default function GlobalHelpAssistant() {
   const fileInputRef = useRef(null);
   const scrollRef = useRef(null);
 
+  // MCP Tab States & Refs
+  const [activeTab, setActiveTab] = useState('assistant'); // 'assistant' | 'mcp_console'
+  const [mcpStations, setMcpStations] = useState([]);
+  const [mcpLogs, setMcpLogs] = useState([]);
+  const [mcpMessages, setMcpMessages] = useState([
+    {
+      role: 'assistant',
+      content: 'Antigravity Live MCP Console Ready. Anda bisa menanyakan status stasiun, membaca tabel database, atau memonitor sensor mesin secara langsung.'
+    }
+  ]);
+  const [isMcpLoading, setIsMcpLoading] = useState(false);
+
+  // Load stations on activeTab = 'mcp_console'
+  useEffect(() => {
+    if (activeTab === 'mcp_console') {
+      loadMcpStations();
+    }
+  }, [activeTab]);
+
+  const loadMcpStations = async () => {
+    try {
+      const data = await getStations();
+      setMcpStations(data || []);
+    } catch (e) {
+      console.error('Failed to load MCP stations:', e);
+    }
+  };
+
   useEffect(() => {
     const saved = localStorage.getItem('mavi_global_knowledge_files');
     if (saved) {
@@ -851,501 +882,829 @@ export default function GlobalHelpAssistant() {
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      if (activeTab === 'mcp_console') {
+        handleMcpSend();
+      } else {
+        handleSend();
+      }
+    }
+  };
+
+  const handleMcpSend = async (messageText = null) => {
+    const textToSend = messageText !== null ? messageText : input;
+    if (!textToSend.trim() || isMcpLoading) return;
+
+    const userMessage = { role: 'user', content: textToSend };
+    setMcpMessages(prev => [...prev, userMessage]);
+    if (messageText === null) setInput('');
+    setIsMcpLoading(true);
+
+    // Append to live developer terminal logs
+    setMcpLogs(prev => [...prev, {
+      timestamp: new Date().toLocaleTimeString(),
+      type: 'INFO',
+      message: `User: "${textToSend}"`
+    }]);
+
+    try {
+      if (!aiConnector || !aiConnector.config?.apiKey) {
+        throw new Error('AI Connector belum dikonfigurasi. Silakan setting AI di halaman Integrasi terlebih dahulu.');
+      }
+
+      const history = mcpMessages.slice(-10).map(m => ({ role: m.role, content: m.content }));
+      
+      const systemPrompt = `
+Anda adalah **Antigravity Live MCP Agent** yang terintegrasi di dalam dashboard Mavi MES.
+Tugas Anda adalah memantau dan mengendalikan stasiun kerja, membaca database, dan mengambil telemetri sensor lokal.
+Anda memiliki akses ke 5 tools lokal. Jika pengguna meminta informasi yang memerlukan tools tersebut, Anda WAJIB merespons dengan menyertakan tag XML \`<mcp_call tool="tool_name" params='{"key": "val"}' />\` di akhir pesan Anda dan jangan menulis apapun setelah tag tersebut agar sistem dapat mengeksekusinya.
+
+Daftar tools:
+1. **get_station_status**: Membaca status stasiun manufaktur saat ini. Params: \`{"stationId": "string"}\`.
+2. **set_station_status**: Memperbarui status stasiun manufaktur (RUNNING / IDLE / STOPPED / SETUP). Params: \`{"stationId": "string", "status": "string"}\`.
+3. **read_mavi_table**: Membaca baris data dari tabel kualitas/produksi. Params: \`{"tableName": "string"}\`.
+4. **write_mavi_table**: Menambahkan baris log/downtime baru ke database. Params: \`{"tableName": "string", "row": object}\`.
+5. **get_machine_info**: Mengambil telemetri sensor (suhu, getaran, rpm) mesin pabrik. Params: \`{"machineId": "string"}\`.
+
+Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kontaktor stasiun telah di-update secara fisik.
+`;
+
+      const payload = [
+        { role: 'system', content: systemPrompt },
+        ...history,
+        { role: 'user', content: userMessage.content }
+      ];
+
+      const response = await getChatCompletion(payload, aiConnector);
+      
+      setMcpMessages(prev => [...prev, { role: 'assistant', content: response }]);
+
+      // Check for MCP call tags
+      const mcpCallRegex = /<mcp_call\s+tool="([^"]+)"\s+params='([^']+)'\s*\/>/gi;
+      const match = mcpCallRegex.exec(response);
+      if (match) {
+        const toolName = match[1];
+        const paramsStr = match[2];
+        let params = {};
+        try {
+          params = JSON.parse(paramsStr);
+        } catch (e) {}
+
+        // Log execution to terminal console
+        setMcpLogs(prev => [...prev, {
+          timestamp: new Date().toLocaleTimeString(),
+          type: 'MCP_CALL',
+          message: `Executing tool ${toolName} with params: ${paramsStr}`
+        }]);
+
+        let toolOutput = "";
+        try {
+          if (toolName === 'get_station_status') {
+            const supabase = getSupabaseClient();
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params.stationId);
+            let query = supabase.from('stations').select('*');
+            if (isUuid) {
+              query = query.or(`id.eq.${params.stationId},name.ilike.%${params.stationId}%`);
+            } else {
+              query = query.ilike('name', `%${params.stationId}%`);
+            }
+            const { data: stations, error: stationError } = await query.limit(1);
+
+            if (stationError) {
+              toolOutput = JSON.stringify({ error: `Gagal membaca database: ${stationError.message}` });
+            } else if (stations && stations.length > 0) {
+              const station = stations[0];
+              toolOutput = JSON.stringify({ id: station.id, name: station.name, status: station.status || 'RUNNING', operator: station.active_operator || 'None' });
+            } else {
+              toolOutput = JSON.stringify({ error: `Stasiun '${params.stationId}' tidak ditemukan.` });
+            }
+          } 
+          else if (toolName === 'set_station_status') {
+            const supabase = getSupabaseClient();
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params.stationId);
+            let query = supabase.from('stations').select('*');
+            if (isUuid) {
+              query = query.or(`id.eq.${params.stationId},name.ilike.%${params.stationId}%`);
+            } else {
+              query = query.ilike('name', `%${params.stationId}%`);
+            }
+            const { data: stations, error: stationError } = await query.limit(1);
+
+            if (stationError || !stations || stations.length === 0) {
+              toolOutput = JSON.stringify({ error: `Stasiun '${params.stationId}' tidak ditemukan.` });
+            } else {
+              const station = stations[0];
+              const statusUpper = params.status.toUpperCase();
+              
+              const { data: updateData, error: updateError } = await supabase
+                .from('stations')
+                .update({ status: statusUpper, updated_at: new Date().toISOString() })
+                .eq('id', station.id)
+                .select();
+                
+              if (updateError) {
+                toolOutput = JSON.stringify({ error: `Gagal mengupdate database: ${updateError.message}` });
+              } else {
+                // Update local state simulator
+                setMcpStations(prev => prev.map(s => {
+                  if (s.id === station.id) {
+                    return { ...s, status: statusUpper };
+                  }
+                  return s;
+                }));
+                toolOutput = JSON.stringify({ 
+                  success: true, 
+                  stationId: station.id, 
+                  status: statusUpper, 
+                  message: `Relai kontaktor PLC di stasiun ${station.name} berhasil dipicu ke status ${statusUpper} (Database berhasil diupdate).` 
+                });
+              }
+            }
+          } 
+          else if (toolName === 'read_mavi_table') {
+            const tables = await getTables();
+            const table = tables.find(t => t.name?.toLowerCase() === params.tableName?.toLowerCase());
+            if (table) {
+              const records = await getTableRecords(table.id);
+              toolOutput = JSON.stringify({ tableName: table.name, recordCount: records.length, records: records.slice(0, 3) });
+            } else {
+              toolOutput = JSON.stringify({ error: `Tabel '${params.tableName}' tidak ditemukan.` });
+            }
+          } 
+          else if (toolName === 'write_mavi_table') {
+            const tables = await getTables();
+            const table = tables.find(t => t.name?.toLowerCase() === params.tableName?.toLowerCase());
+            if (table) {
+              const res = await addTableRecord(table.id, params.row || {});
+              toolOutput = JSON.stringify({ success: true, insertedRow: res });
+            } else {
+              toolOutput = JSON.stringify({ error: `Tabel '${params.tableName}' tidak ditemukan.` });
+            }
+          } 
+          else if (toolName === 'get_machine_info') {
+            const supabase = getSupabaseClient();
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params.machineId);
+            let query = supabase.from('machines').select('*');
+            if (isUuid) {
+              query = query.or(`id.eq.${params.machineId},name.ilike.%${params.machineId}%`);
+            } else {
+              query = query.ilike('name', `%${params.machineId}%`);
+            }
+            const { data: machines, error: machineError } = await query.limit(1);
+
+            if (machineError) {
+              toolOutput = JSON.stringify({ error: `Gagal membaca database: ${machineError.message}` });
+            } else if (machines && machines.length > 0) {
+              toolOutput = JSON.stringify(machines[0]);
+            } else {
+              toolOutput = JSON.stringify({ error: `Mesin '${params.machineId}' tidak ditemukan.` });
+            }
+          } else {
+            toolOutput = JSON.stringify({ error: `Tool ${toolName} tidak dikenal.` });
+          }
+        } catch (err) {
+          toolOutput = JSON.stringify({ error: err.message });
+        }
+
+        // Add tool response to terminal logs
+        setMcpLogs(prev => [...prev, {
+          timestamp: new Date().toLocaleTimeString(),
+          type: 'MCP_RESP',
+          message: `Tool ${toolName} returned: ${toolOutput.substring(0, 100)}...`
+        }]);
+
+        // Add system log block in chat
+        setMcpMessages(prev => [...prev, {
+          role: 'system',
+          content: `⚙️ MCP Tool Call: ${toolName}`,
+          mcpLog: { toolName, params, output: toolOutput }
+        }]);
+
+        // Trigger follow-up to explain the tool output
+        const followUpPayload = [
+          { role: 'system', content: systemPrompt },
+          ...history,
+          { role: 'user', content: userMessage.content },
+          { role: 'assistant', content: response },
+          { role: 'user', content: `[SYSTEM: Tool execution output for ${toolName} is: ${toolOutput}. Jelaskan hasil ini kepada pengguna dalam bahasa Indonesia.]` }
+        ];
+
+        const finalResponse = await getChatCompletion(followUpPayload, aiConnector);
+        setMcpMessages(prev => [...prev, { role: 'assistant', content: finalResponse }]);
+      }
+    } catch (err) {
+      setMcpMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: `❌ Error: ${err.message}`, 
+        isError: true 
+      }]);
+    } finally {
+      setIsMcpLoading(false);
     }
   };
 
   return (
-    <div style={{ display: 'flex', gap: '24px', padding: '24px', height: 'calc(100vh - 56px)', boxSizing: 'border-box', backgroundColor: '#f8fafc', flexDirection: 'row' }}>
+    <div style={{ display: 'flex', gap: '24px', padding: '24px', height: 'calc(100vh - 56px)', boxSizing: 'border-box', backgroundColor: '#f8fafc', flexDirection: 'column' }}>
       
-      {/* ─── LEFT COLUMN: DOCUMENTATION ──────────────────────────── */}
-      <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ padding: '10px', backgroundColor: 'rgba(59, 130, 246, 0.1)', borderRadius: '12px' }}>
-            <BookOpen size={24} color="#3b82f6" />
-          </div>
-          <div>
-            <h2 style={{ margin: 0, fontSize: '1.2rem', color: '#0f172a' }}>Panduan Aplikasi Mavi</h2>
-            <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>Pilih topik untuk melihat dokumentasi fungsional Mavi.</p>
-          </div>
-        </div>
-
-        {/* Protocol Selector Tabs/Pills */}
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {MAVI_GUIDES.map(guide => {
-            const isActive = activeGuide === guide.id;
-            const Icon = guide.icon;
-            return (
-              <button
-                key={guide.id}
-                onClick={() => setActiveGuide(guide.id)}
-                title={guide.title}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  width: '42px', height: '42px', borderRadius: '12px', border: isActive ? '1px solid ' + guide.color : '1px solid #e2e8f0',
-                  backgroundColor: isActive ? `${guide.color}15` : '#ffffff',
-                  color: isActive ? guide.color : '#475569',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  boxShadow: isActive ? `0 4px 12px ${guide.color}20` : '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-                  flexShrink: 0
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = `0 4px 12px ${guide.color}40`;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = isActive ? `0 4px 12px ${guide.color}20` : '0 1px 2px 0 rgba(0, 0, 0, 0.05)';
-                }}
-              >
-                <Icon size={20} />
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Content Viewer */}
-        <div style={{ 
-          flex: 1, 
-          backgroundColor: '#ffffff', 
-          border: '1px solid #cbd5e1', 
-          borderRadius: '16px', 
-          padding: '24px',
-          overflowY: 'auto'
-        }}>
-          {activeGuide === 'widgets' ? (
-            <WidgetDirectory onImageClick={setFullscreenImg} />
-          ) : (
-            MAVI_GUIDES.map(guide => guide.id === activeGuide && (
-              <div key={guide.id} className="markdown-body" style={{ color: '#334155', fontSize: '0.9rem', lineHeight: '1.6' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px' }}>
-                  <guide.icon size={28} color={guide.color} />
-                  <h3 style={{ margin: 0, fontSize: '1.4rem', color: '#0f172a' }}>{guide.title}</h3>
-                </div>
-                <ReactMarkdown
-                  components={{
-                    img: ({node, ...props}) => (
-                      <img 
-                        style={{ 
-                          maxWidth: '100%', 
-                          borderRadius: '12px', 
-                          border: '1px solid #cbd5e1', 
-                          margin: '16px 0', 
-                          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
-                          cursor: 'zoom-in',
-                          transition: 'transform 0.2s ease'
-                        }} 
-                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.015)'}
-                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                        onClick={() => setFullscreenImg(props.src)}
-                        {...props} 
-                      />
-                    )
-                  }}
-                >
-                  {guide.content}
-                </ReactMarkdown>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* ─── RIGHT COLUMN: AI CHATBOT ────────────────────────────── */}
-      <div style={{ 
-        flex: '1', 
-        display: 'flex', 
-        flexDirection: 'column', 
-        backgroundColor: '#0f172a',
-        borderRadius: '16px',
-        overflow: 'hidden',
-        boxShadow: '0 20px 60px -15px rgba(0,0,0,0.3)',
-        position: 'relative'
-      }}>
-        {/* Inline CSS for animations */}
-        <style>{`
-          @keyframes chatPulseGlow {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-            50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
-          }
-          @keyframes chatTypingDot {
-            0%, 80%, 100% { transform: scale(0.4); opacity: 0.4; }
-            40% { transform: scale(1); opacity: 1; }
-          }
-          @keyframes chatFadeSlideIn {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
-          @keyframes chatShimmer {
-            0% { background-position: -200% 0; }
-            100% { background-position: 200% 0; }
-          }
-          .mavi-chat-msg { animation: chatFadeSlideIn 0.3s ease-out forwards; }
-          .mavi-chat-input:focus { border-color: #6366f1 !important; box-shadow: 0 0 0 3px rgba(99,102,241,0.15) !important; }
-          .mavi-chat-suggestion:hover { background: rgba(99,102,241,0.15) !important; border-color: #6366f1 !important; transform: translateY(-1px); }
-          .mavi-chat-send:hover:not(:disabled) { transform: scale(1.05); box-shadow: 0 4px 15px rgba(99,102,241,0.4); }
-          .mavi-chat-attach:hover { background: rgba(255,255,255,0.1) !important; border-color: rgba(148,163,184,0.4) !important; color: #a5b4fc !important; }
-          .mavi-chat-scroll::-webkit-scrollbar { width: 4px; }
-          .mavi-chat-scroll::-webkit-scrollbar-track { background: transparent; }
-          .mavi-chat-scroll::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.25); border-radius: 4px; }
-          .mavi-chat-scroll::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,0.4); }
-        `}</style>
-
-        {/* ── Chat Header ── */}
-        <div style={{ 
-          padding: '16px 20px', 
-          background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-          borderBottom: '1px solid rgba(148,163,184,0.1)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          position: 'relative',
-          zIndex: 2
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ 
-              width: '40px', height: '40px', borderRadius: '12px', 
-              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 15px rgba(99,102,241,0.35)',
-              position: 'relative'
-            }}>
-              <Sparkles size={20} color="#fff" />
-            </div>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '1rem', color: '#f1f5f9', fontWeight: 700, letterSpacing: '-0.01em' }}>Mavi AI Assistant</h3>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
-                <span style={{ 
-                  width: '7px', height: '7px', borderRadius: '50%', 
-                  backgroundColor: aiConnector ? '#10b981' : '#ef4444',
-                  animation: aiConnector ? 'chatPulseGlow 2s ease-in-out infinite' : 'none'
-                }} />
-                <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500 }}>
-                  {aiConnector ? 'Online • Ready to assist' : 'Offline • Configure AI'}
-                </span>
-              </div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <div style={{ 
-              padding: '5px 10px', borderRadius: '8px', 
-              background: 'rgba(99,102,241,0.12)', 
-              fontSize: '0.65rem', color: '#a5b4fc', fontWeight: 600,
-              letterSpacing: '0.05em', textTransform: 'uppercase'
-            }}>
-              AI Chat
-            </div>
-          </div>
-        </div>
-
-        {/* ── Chat Messages Area ── */}
-        <div 
-          ref={scrollRef}
-          className="mavi-chat-scroll"
-          style={{ 
-            flex: 1, 
-            padding: '20px', 
-            overflowY: 'auto', 
-            display: 'flex', 
-            flexDirection: 'column', 
-            gap: '16px',
-            background: 'linear-gradient(180deg, #0f172a 0%, #111827 100%)',
-            position: 'relative'
+      {/* ─── MAIN HEADER TAB SELECTION ───────────────────────────── */}
+      <div style={{ display: 'flex', borderBottom: '1px solid #cbd5e1', backgroundColor: '#ffffff', borderRadius: '12px', padding: '4px', border: '1px solid #e2e8f0', gap: '6px' }}>
+        <button
+          onClick={() => setActiveTab('assistant')}
+          style={{
+            flex: 1, padding: '10px 16px', border: 'none', borderRadius: '8px',
+            backgroundColor: activeTab === 'assistant' ? '#6366f1' : 'transparent',
+            color: activeTab === 'assistant' ? 'white' : '#64748b', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem',
+            transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
           }}
         >
-          {/* Subtle background grid */}
-          <div style={{
-            position: 'absolute', inset: 0, opacity: 0.03,
-            backgroundImage: 'radial-gradient(circle at 1px 1px, #94a3b8 1px, transparent 0)',
-            backgroundSize: '24px 24px',
-            pointerEvents: 'none'
-          }} />
+          <BookOpen size={16} />
+          Mavi Guide Assistant
+        </button>
+        <button
+          onClick={() => setActiveTab('mcp_console')}
+          style={{
+            flex: 1, padding: '10px 16px', border: 'none', borderRadius: '8px',
+            backgroundColor: activeTab === 'mcp_console' ? '#8b5cf6' : 'transparent',
+            color: activeTab === 'mcp_console' ? 'white' : '#64748b', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem',
+            transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+          }}
+        >
+          <BrainCircuit size={16} />
+          Antigravity MCP Live Console
+        </button>
+      </div>
 
-          {/* Welcome State — only shown if no user messages yet */}
-          {messages.length <= 1 && !isLoading && (
-            <div className="mavi-chat-msg" style={{ 
-              display: 'flex', flexDirection: 'column', alignItems: 'center', 
-              justifyContent: 'center', flex: 1, gap: '20px', position: 'relative', zIndex: 1,
-              paddingTop: '24px'
-            }}>
-              {/* Brand Logo */}
-              <div style={{ 
-                width: '64px', height: '64px', borderRadius: '20px', 
-                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 8px 30px rgba(99,102,241,0.3)',
-                marginBottom: '4px'
-              }}>
-                <Sparkles size={30} color="#fff" />
+      {/* ─── TWO COLUMN MAIN CONTENT WORKSPACE ────────────────────── */}
+      <div style={{ flex: 1, display: 'flex', gap: '24px', minHeight: 0 }}>
+        
+        {/* Left Column depending on Active Tab */}
+        {activeTab === 'assistant' ? (
+          /* Assistant Left Column: Guides and Docs */
+          <div style={{ flex: '1.2', display: 'flex', flexDirection: 'column', gap: '16px', minHeight: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ padding: '10px', backgroundColor: 'rgba(59, 130, 246, 0.1)', borderRadius: '12px' }}>
+                <BookOpen size={24} color="#3b82f6" />
               </div>
-              <div style={{ textAlign: 'center' }}>
-                <h3 style={{ margin: '0 0 6px', fontSize: '1.25rem', color: '#f1f5f9', fontWeight: 700 }}>
-                  Ada yang bisa saya bantu?
-                </h3>
-                <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b', maxWidth: '320px', lineHeight: '1.5' }}>
-                  Tanyakan apapun tentang Mavi — dari cara membuat aplikasi hingga konfigurasi PLC.
-                </p>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '1.2rem', color: '#0f172a' }}>Panduan Aplikasi Mavi</h2>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>Pilih topik untuk melihat dokumentasi fungsional Mavi.</p>
               </div>
+            </div>
 
-              {/* Quick Suggestion Chips */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', maxWidth: '400px', marginTop: '4px' }}>
-                {[
-                  { icon: Layout, text: 'Cara membuat App baru' },
-                  { icon: Cpu, text: 'Koneksi PLC Modbus' },
-                  { icon: Zap, text: 'Setup Automation' },
-                  { icon: BarChart3, text: 'Buat Dashboard OEE' }
-                ].map((suggestion, i) => (
-                  <button 
-                    key={i}
-                    className="mavi-chat-suggestion"
-                    onClick={() => { setInput(suggestion.text); }}
+            {/* Protocol Selector Tabs/Pills */}
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {MAVI_GUIDES.map(guide => {
+                const isActive = activeGuide === guide.id;
+                const Icon = guide.icon;
+                return (
+                  <button
+                    key={guide.id}
+                    onClick={() => setActiveGuide(guide.id)}
+                    title={guide.title}
                     style={{
-                      display: 'flex', alignItems: 'center', gap: '7px',
-                      padding: '8px 14px', borderRadius: '12px',
-                      background: 'rgba(51,65,85,0.4)',
-                      border: '1px solid rgba(148,163,184,0.15)',
-                      color: '#cbd5e1', fontSize: '0.78rem', fontWeight: 500,
-                      cursor: 'pointer', transition: 'all 0.2s ease',
-                      backdropFilter: 'blur(8px)'
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      width: '42px', height: '42px', borderRadius: '12px', border: isActive ? '1px solid ' + guide.color : '1px solid #e2e8f0',
+                      backgroundColor: isActive ? `${guide.color}15` : '#ffffff',
+                      color: isActive ? guide.color : '#475569',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      boxShadow: isActive ? `0 4px 12px ${guide.color}20` : '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                      flexShrink: 0
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = `0 4px 12px ${guide.color}40`;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = isActive ? `0 4px 12px ${guide.color}20` : '0 1px 2px 0 rgba(0, 0, 0, 0.05)';
                     }}
                   >
-                    <suggestion.icon size={14} style={{ color: '#a5b4fc', flexShrink: 0 }} />
-                    {suggestion.text}
+                    <Icon size={20} />
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          )}
 
-          {/* Message Bubbles */}
-          {messages.map((msg, idx) => {
-            const isUser = msg.role === 'user';
-            // Skip the initial welcome from the assistant if we're showing the welcome UI
-            if (idx === 0 && messages.length <= 1 && !isLoading) return null;
-            return (
-              <div key={idx} className="mavi-chat-msg" style={{ 
-                display: 'flex', 
-                gap: '10px', 
-                alignSelf: isUser ? 'flex-end' : 'flex-start',
-                maxWidth: '85%',
-                position: 'relative',
-                zIndex: 1
-              }}>
-                {!isUser && (
-                  <div style={{ 
-                    width: '30px', height: '30px', borderRadius: '10px', 
-                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                    flexShrink: 0, marginTop: '2px',
-                    boxShadow: '0 2px 8px rgba(99,102,241,0.25)'
-                  }}>
-                    <Sparkles size={14} color="#fff" />
-                  </div>
-                )}
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <div style={{ 
-                    backgroundColor: isUser 
-                      ? 'linear-gradient(135deg, #4f46e5, #6366f1)' 
-                      : msg.isError 
-                        ? 'rgba(239,68,68,0.1)' 
-                        : 'rgba(30, 41, 59, 0.8)',
-                    background: isUser 
-                      ? 'linear-gradient(135deg, #4f46e5, #6366f1)' 
-                      : msg.isError 
-                        ? 'rgba(239,68,68,0.15)' 
-                        : 'rgba(30, 41, 59, 0.8)',
-                    border: msg.isError 
-                      ? '1px solid rgba(239,68,68,0.25)' 
-                      : '1px solid rgba(148,163,184,0.08)',
-                    padding: '12px 16px',
-                    borderRadius: '16px',
-                    borderTopRightRadius: isUser ? '4px' : '16px',
-                    borderTopLeftRadius: !isUser ? '4px' : '16px',
-                    color: isUser ? '#ffffff' : msg.isError ? '#fca5a5' : '#e2e8f0',
-                    fontSize: '0.88rem',
-                    lineHeight: '1.6',
-                    backdropFilter: 'blur(12px)',
-                    boxShadow: isUser 
-                      ? '0 4px 15px rgba(79,70,229,0.3)' 
-                      : '0 2px 8px rgba(0,0,0,0.15)'
-                  }}>
-                    <div className="markdown-body" style={{ color: 'inherit' }}>
-                      <ReactMarkdown>{msg.content}</ReactMarkdown>
-                    </div>
-                  </div>
-                </div>
-
-                {isUser && (
-                  <div style={{ 
-                    width: '30px', height: '30px', borderRadius: '10px', 
-                    background: 'linear-gradient(135deg, #4f46e5, #6366f1)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                    flexShrink: 0, marginTop: '2px',
-                    boxShadow: '0 2px 8px rgba(79,70,229,0.3)'
-                  }}>
-                    <User size={14} color="#ffffff" />
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          
-          {/* Typing Indicator */}
-          {isLoading && (
-            <div className="mavi-chat-msg" style={{ display: 'flex', gap: '10px', alignSelf: 'flex-start', position: 'relative', zIndex: 1 }}>
-              <div style={{ 
-                width: '30px', height: '30px', borderRadius: '10px', 
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                flexShrink: 0, marginTop: '2px',
-                boxShadow: '0 2px 8px rgba(99,102,241,0.25)'
-              }}>
-                <Sparkles size={14} color="#fff" />
-              </div>
-              <div style={{ 
-                background: 'rgba(30, 41, 59, 0.8)', 
-                border: '1px solid rgba(148,163,184,0.08)',
-                padding: '14px 20px', borderRadius: '16px', borderTopLeftRadius: '4px', 
-                display: 'flex', alignItems: 'center', gap: '5px',
-                backdropFilter: 'blur(12px)'
-              }}>
-                {[0, 1, 2].map(i => (
-                  <span key={i} style={{
-                    width: '7px', height: '7px', borderRadius: '50%',
-                    backgroundColor: '#a5b4fc',
-                    display: 'inline-block',
-                    animation: `chatTypingDot 1.4s ease-in-out ${i * 0.2}s infinite`
-                  }} />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ── Input Area ── */}
-        <div style={{ 
-          padding: '16px 16px 16px 16px', 
-          background: 'linear-gradient(0deg, #0f172a 0%, rgba(15,23,42,0.95) 100%)',
-          borderTop: '1px solid rgba(148,163,184,0.08)',
-          position: 'relative', zIndex: 2
-        }}>
-          
-          {/* Knowledge Base Chips */}
-          {knowledgeFiles.length > 0 && (
+            {/* Content Viewer */}
             <div style={{ 
-              padding: '8px 12px', 
-              backgroundColor: 'rgba(30,41,59,0.6)', 
-              borderRadius: '12px 12px 0 0', 
-              display: 'flex', gap: '8px', flexWrap: 'wrap', 
-              border: '1px solid rgba(148,163,184,0.1)', 
-              borderBottom: 'none',
-              marginBottom: '-1px'
+              flex: 1, 
+              backgroundColor: '#ffffff', 
+              border: '1px solid #cbd5e1', 
+              borderRadius: '16px', 
+              padding: '24px',
+              overflowY: 'auto'
             }}>
-              <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'flex', alignItems: 'center', marginRight: '4px', fontWeight: 600 }}>
-                <BookOpen size={12} style={{ marginRight: '4px' }}/> Referensi:
-              </span>
-              {knowledgeFiles.map(f => (
-                <div key={f.id} style={{ 
-                  display: 'flex', alignItems: 'center', gap: '4px', 
-                  padding: '3px 8px', 
-                  backgroundColor: 'rgba(99,102,241,0.1)', 
-                  border: '1px solid rgba(99,102,241,0.2)', 
-                  borderRadius: '8px', fontSize: '0.72rem', color: '#a5b4fc' 
-                }}>
-                  <span style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.name}>{f.name}</span>
-                  <button onClick={() => handleDeleteFile(f.id)} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0 2px' }}>
-                    <X size={11} />
-                  </button>
-                </div>
-              ))}
+              {activeGuide === 'widgets' ? (
+                <WidgetDirectory onImageClick={setFullscreenImg} />
+              ) : (
+                MAVI_GUIDES.map(guide => guide.id === activeGuide && (
+                  <div key={guide.id} className="markdown-body" style={{ color: '#334155', fontSize: '0.9rem', lineHeight: '1.6' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px' }}>
+                      <guide.icon size={28} color={guide.color} />
+                      <h3 style={{ margin: 0, fontSize: '1.4rem', color: '#0f172a' }}>{guide.title}</h3>
+                    </div>
+                    <ReactMarkdown
+                      components={{
+                        img: ({node, ...props}) => (
+                          <img 
+                            style={{ 
+                              maxWidth: '100%', 
+                              borderRadius: '12px', 
+                              border: '1px solid #cbd5e1', 
+                              margin: '16px 0', 
+                              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+                              cursor: 'zoom-in',
+                              transition: 'transform 0.2s ease'
+                            }} 
+                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.015)'}
+                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                            onClick={() => setFullscreenImg(props.src)}
+                            {...props} 
+                          />
+                        )
+                      }}
+                    >
+                      {guide.content}
+                    </ReactMarkdown>
+                  </div>
+                ))
+              )}
             </div>
-          )}
+          </div>
+        ) : (
+          /* MCP Console Left Column: Local Shop Floor & Terminal Dashboard */
+          <div style={{ flex: '1.2', display: 'flex', flexDirection: 'column', gap: '16px', minHeight: 0 }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ padding: '10px', backgroundColor: 'rgba(139, 92, 246, 0.1)', borderRadius: '12px' }}>
+                  <BrainCircuit size={24} color="#8b5cf6" />
+                </div>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '1.1rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    Shop Floor Live MCP Monitor
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', animation: 'chatPulseGlow 2s infinite' }} />
+                  </h2>
+                  <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748b' }}>Status stasiun & telemetri sensor local terintegrasi.</p>
+                </div>
+              </div>
+              <button 
+                onClick={loadMcpStations}
+                style={{ padding: '6px 12px', fontSize: '0.75rem', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', color: '#475569', fontWeight: 600 }}
+              >
+                <RotateCw size={12} /> REFRESH
+              </button>
+            </div>
 
+            {/* Live Stations list */}
+            <div style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Stasiun Kerja Aktif</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px' }}>
+                {mcpStations.length === 0 ? (
+                  <div style={{ gridColumn: '1/-1', fontSize: '0.8rem', color: '#94a3b8', textAlign: 'center', padding: '12px' }}>Tidak ada stasiun ditemukan.</div>
+                ) : (
+                  mcpStations.slice(0, 4).map(station => {
+                    const statusColors = {
+                      RUNNING: { bg: '#ecfdf5', text: '#10b981', light: '#10b981' },
+                      IDLE: { bg: '#fffbeb', text: '#d97706', light: '#f59e0b' },
+                      STOPPED: { bg: '#fef2f2', text: '#ef4444', light: '#ef4444' },
+                      SETUP: { bg: '#f0f9ff', text: '#0284c7', light: '#0ea5e9' }
+                    };
+                    const color = statusColors[station.status] || statusColors.RUNNING;
+                    return (
+                      <div key={station.id} style={{ padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{station.name}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', color: '#64748b' }}>
+                          <span style={{ fontSize: '0.9rem' }}>👤</span>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{station.active_operator || 'None'}</span>
+                        </div>
+                        <div style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 6px', borderRadius: '4px', backgroundColor: color.bg, color: color.text, fontSize: '0.6rem', fontWeight: 800 }}>
+                          <span style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: color.light }} />
+                          {station.status || 'RUNNING'}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Live Terminal Log Viewer */}
+            <div style={{ flex: 1, backgroundColor: '#090d16', borderRadius: '16px', border: '1px solid #1e293b', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', overflow: 'hidden', fontFamily: 'monospace' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e293b', paddingBottom: '8px' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#38bdf8' }}>console@antigravity-mcp-server:~</span>
+                <span style={{ fontSize: '0.65rem', color: '#475569' }}>v1.0.0 (Localhost)</span>
+              </div>
+              <div className="mavi-chat-scroll" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.7rem' }}>
+                <div style={{ color: '#64748b' }}>[System] Initializing Antigravity local collaboration pipeline...</div>
+                <div style={{ color: '#10b981' }}>[Success] Connection established with Supabase Frontline DB.</div>
+                <div style={{ color: '#a855f7' }}>[Ready] Listening to AI Agent tool calls via Model Context Protocol.</div>
+                
+                {mcpLogs.map((log, idx) => {
+                  let color = '#94a3b8';
+                  if (log.type === 'MCP_CALL') color = '#c084fc'; // Violet
+                  if (log.type === 'MCP_RESP') color = '#22c55e'; // Green
+                  if (log.type === 'ERROR') color = '#ef4444'; // Red
+                  return (
+                    <div key={idx} style={{ display: 'flex', gap: '8px' }}>
+                      <span style={{ color: '#475569' }}>[{log.timestamp}]</span>
+                      <span style={{ color, fontWeight: 'bold' }}>[{log.type}]</span>
+                      <span style={{ color: '#e2e8f0', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{log.message}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Right Column: AI Chat Panel (Switched style based on Active Tab) */}
+        <div style={{ 
+          flex: '1', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          backgroundColor: activeTab === 'mcp_console' ? '#090d16' : '#0f172a',
+          borderRadius: '16px',
+          overflow: 'hidden',
+          boxShadow: '0 20px 60px -15px rgba(0,0,0,0.3)',
+          position: 'relative',
+          border: activeTab === 'mcp_console' ? '1px solid #1e293b' : 'none'
+        }}>
+          {/* Inline CSS for animations */}
+          <style>{`
+            @keyframes chatPulseGlow {
+              0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+              50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+            }
+            @keyframes chatTypingDot {
+              0%, 80%, 100% { transform: scale(0.4); opacity: 0.4; }
+              40% { transform: scale(1); opacity: 1; }
+            }
+            @keyframes chatFadeSlideIn {
+              from { opacity: 0; transform: translateY(8px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
+            @keyframes chatShimmer {
+              0% { background-position: -200% 0; }
+              100% { background-position: 200% 0; }
+            }
+            .mavi-chat-msg { animation: chatFadeSlideIn 0.3s ease-out forwards; }
+            .mavi-chat-input:focus { border-color: #6366f1 !important; box-shadow: 0 0 0 3px rgba(99,102,241,0.15) !important; }
+            .mavi-chat-suggestion:hover { background: rgba(99,102,241,0.15) !important; border-color: #6366f1 !important; transform: translateY(-1px); }
+            .mavi-chat-send:hover:not(:disabled) { transform: scale(1.05); box-shadow: 0 4px 15px rgba(99,102,241,0.4); }
+            .mavi-chat-attach:hover { background: rgba(255,255,255,0.1) !important; border-color: rgba(148,163,184,0.4) !important; color: #a5b4fc !important; }
+            .mavi-chat-scroll::-webkit-scrollbar { width: 4px; }
+            .mavi-chat-scroll::-webkit-scrollbar-track { background: transparent; }
+            .mavi-chat-scroll::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.25); border-radius: 4px; }
+            .mavi-chat-scroll::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,0.4); }
+          `}</style>
+
+          {/* ── Chat Header ── */}
+          <div style={{ 
+            padding: '16px 20px', 
+            background: activeTab === 'mcp_console' 
+              ? 'linear-gradient(135deg, #0f172a 0%, #090d16 100%)'
+              : 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+            borderBottom: '1px solid rgba(148,163,184,0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            zIndex: 2
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ 
+                width: '38px', height: '38px', borderRadius: '12px',
+                background: activeTab === 'mcp_console'
+                  ? 'linear-gradient(135deg, #a855f7, #8b5cf6)'
+                  : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(99,102,241,0.2)'
+              }}>
+                {activeTab === 'mcp_console' ? <BrainCircuit size={18} color="#fff" /> : <Bot size={18} color="#fff" />}
+              </div>
+              <div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#ffffff', letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {activeTab === 'mcp_console' ? 'Antigravity MCP Agent' : 'Mavi AI Assistant'}
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', animation: 'chatPulseGlow 2s infinite' }} />
+                </div>
+                <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '1px' }}>
+                  {activeTab === 'mcp_console' ? 'Interactive local tool calls active' : 'Panduan instan & tanya jawab sistem Mavi'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Chat Message List View ── */}
           <div 
-            className="mavi-chat-input"
+            ref={scrollRef}
+            className="mavi-chat-scroll"
             style={{ 
+              flex: 1, 
+              padding: '24px 20px', 
+              overflowY: 'auto', 
               display: 'flex', 
-              alignItems: 'flex-end', 
-              gap: '8px', 
-              backgroundColor: 'rgba(30,41,59,0.6)',
-              borderRadius: knowledgeFiles.length > 0 ? '0 0 14px 14px' : '14px',
-              border: '1px solid rgba(148,163,184,0.12)',
-              padding: '8px 8px 8px 16px',
-              transition: 'all 0.25s ease',
-              backdropFilter: 'blur(12px)'
+              flexDirection: 'column', 
+              gap: '20px',
+              backgroundColor: activeTab === 'mcp_console' ? 'rgba(9, 13, 22, 0.4)' : 'transparent',
+              minHeight: 0
             }}
           >
-            <textarea
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Tanya apapun tentang cara kerja Mavi..."
-              rows={1}
-              style={{
-                flex: 1,
-                backgroundColor: 'transparent',
-                border: 'none',
-                color: '#e2e8f0',
-                fontSize: '0.9rem',
-                outline: 'none',
-                resize: 'none',
-                maxHeight: '120px',
-                paddingTop: '7px',
-                fontFamily: 'inherit',
-                lineHeight: '1.4'
-              }}
-              onInput={(e) => {
-                e.target.style.height = 'auto';
-                e.target.style.height = (e.target.scrollHeight <= 120 ? e.target.scrollHeight : 120) + 'px';
-              }}
-            />
-            <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".txt,.csv,.json,.md,.js" style={{ display: 'none' }} />
-            <button
-              className="mavi-chat-attach"
-              onClick={() => fileInputRef.current?.click()}
-              title="Unggah Dokumen Referensi"
-              style={{
-                width: '36px', height: '36px', borderRadius: '10px',
-                backgroundColor: 'transparent', color: '#64748b',
-                border: '1px solid rgba(148,163,184,0.15)', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'all 0.2s ease', flexShrink: 0
-              }}
-            >
-              <Paperclip size={16} />
-            </button>
-            <button
-              className="mavi-chat-send"
-              onClick={handleSend}
-              disabled={isLoading || !input.trim()}
-              style={{
-                width: '36px', height: '36px', borderRadius: '10px',
-                background: (isLoading || !input.trim()) 
-                  ? 'rgba(51,65,85,0.5)' 
-                  : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                color: (isLoading || !input.trim()) ? '#475569' : '#ffffff',
-                border: 'none', 
-                cursor: (isLoading || !input.trim()) ? 'not-allowed' : 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'all 0.25s ease', flexShrink: 0,
-                boxShadow: (isLoading || !input.trim()) ? 'none' : '0 2px 10px rgba(99,102,241,0.3)'
-              }}
-            >
-              {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-            </button>
+            {/* Suggestions on Empty History */}
+            {((activeTab === 'assistant' ? messages.length : mcpMessages.length) <= 1 && !(activeTab === 'assistant' ? isLoading : isMcpLoading)) && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '20px', animation: 'chatFadeSlideIn 0.4s ease-out' }}>
+                <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Pertanyaan Populer</div>
+                {(activeTab === 'assistant' 
+                  ? [
+                      'Bagaimana cara mendeploy aplikasi ke stasiun?',
+                      'Bagaimana cara kerja PLC tag binding?',
+                      'Apa perbedaan record placeholder dengan variables?'
+                    ]
+                  : [
+                      'Cek status stasiun manufaktur saat ini',
+                      'Baca tabel inspeksi data kualitas',
+                      'Bagaimana telemetri suhu mesin Press-03?',
+                      'Matikan stasiun Line 1'
+                    ]
+                ).map((sug, idx) => (
+                  <button 
+                    key={idx}
+                    className="mavi-chat-suggestion"
+                    onClick={() => {
+                      if (activeTab === 'mcp_console') {
+                        handleMcpSend(sug);
+                      } else {
+                        setInput(sug);
+                      }
+                    }}
+                    style={{
+                      padding: '10px 14px', borderRadius: '10px',
+                      backgroundColor: 'rgba(255,255,255,0.02)',
+                      border: '1px solid rgba(148,163,184,0.08)',
+                      color: '#a5b4fc', fontSize: '0.78rem', textAlign: 'left',
+                      cursor: 'pointer', transition: 'all 0.2s', fontWeight: 500
+                    }}
+                  >
+                    💡 {sug}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Render loop based on active Tab */}
+            {(activeTab === 'assistant' ? messages : mcpMessages).map((msg, idx) => {
+              const isUser = msg.role === 'user';
+              if (idx === 0 && (activeTab === 'assistant' ? messages.length : mcpMessages.length) <= 1 && !(activeTab === 'assistant' ? isLoading : isMcpLoading)) return null;
+              return (
+                <div key={idx} className="mavi-chat-msg" style={{ 
+                  display: 'flex', 
+                  gap: '10px', 
+                  alignSelf: isUser ? 'flex-end' : 'flex-start',
+                  maxWidth: '85%',
+                  position: 'relative',
+                  zIndex: 1,
+                  flexDirection: 'row'
+                }}>
+                  {!isUser && (
+                    <div style={{ 
+                      width: '30px', height: '30px', borderRadius: '10px', 
+                      background: activeTab === 'mcp_console'
+                        ? 'linear-gradient(135deg, #a855f7, #8b5cf6)'
+                        : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                      flexShrink: 0, marginTop: '2px',
+                      boxShadow: '0 2px 8px rgba(99,102,241,0.25)'
+                    }}>
+                      {activeTab === 'mcp_console' ? <BrainCircuit size={14} color="#fff" /> : <Sparkles size={14} color="#fff" />}
+                    </div>
+                  )}
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ 
+                      backgroundColor: isUser 
+                        ? 'linear-gradient(135deg, #4f46e5, #6366f1)' 
+                        : msg.isError 
+                          ? 'rgba(239,68,68,0.1)' 
+                          : 'rgba(30, 41, 59, 0.8)',
+                      background: isUser 
+                        ? 'linear-gradient(135deg, #4f46e5, #6366f1)' 
+                        : msg.isError 
+                          ? 'rgba(239,68,68,0.15)' 
+                          : 'rgba(30, 41, 59, 0.8)',
+                      border: msg.isError 
+                        ? '1px solid rgba(239,68,68,0.25)' 
+                        : '1px solid rgba(148,163,184,0.08)',
+                      padding: '12px 16px',
+                      borderRadius: '16px',
+                      borderTopRightRadius: isUser ? '4px' : '16px',
+                      borderTopLeftRadius: !isUser ? '4px' : '16px',
+                      color: isUser ? '#ffffff' : msg.isError ? '#fca5a5' : '#e2e8f0',
+                      fontSize: '0.88rem',
+                      lineHeight: '1.6',
+                      backdropFilter: 'blur(12px)',
+                      boxShadow: isUser 
+                        ? '0 4px 15px rgba(79,70,229,0.3)' 
+                        : '0 2px 8px rgba(0,0,0,0.15)'
+                    }}>
+                      <div className="markdown-body" style={{ color: 'inherit' }}>
+                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      </div>
+
+                      {/* Tool call card details */}
+                      {msg.mcpLog && (
+                        <div style={{ marginTop: '10px', padding: '12px', backgroundColor: '#090d16', border: '1px solid #1e293b', borderRadius: '8px', color: '#38bdf8', fontSize: '0.7rem', fontFamily: 'monospace' }}>
+                          <div style={{ fontWeight: 'bold', color: '#c084fc', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#c084fc' }} />
+                            ⚙️ MCP CALL: {msg.mcpLog.toolName}
+                          </div>
+                          <div style={{ color: '#64748b', marginBottom: '6px' }}>Params: {JSON.stringify(msg.mcpLog.params)}</div>
+                          <div style={{ color: '#4ade80', borderTop: '1px solid #1e293b', paddingTop: '6px', overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
+                            Response: {msg.mcpLog.output}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {isUser && (
+                    <div style={{ 
+                      width: '30px', height: '30px', borderRadius: '10px', 
+                      background: 'linear-gradient(135deg, #4f46e5, #6366f1)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                      flexShrink: 0, marginTop: '2px',
+                      boxShadow: '0 2px 8px rgba(79,70,229,0.3)'
+                    }}>
+                      <User size={14} color="#ffffff" />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            
+            {/* Typing Indicator */}
+            {(activeTab === 'assistant' ? isLoading : isMcpLoading) && (
+              <div className="mavi-chat-msg" style={{ display: 'flex', gap: '10px', alignSelf: 'flex-start', position: 'relative', zIndex: 1 }}>
+                <div style={{ 
+                  width: '30px', height: '30px', borderRadius: '10px', 
+                  background: activeTab === 'mcp_console'
+                    ? 'linear-gradient(135deg, #a855f7, #8b5cf6)'
+                    : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                  flexShrink: 0, marginTop: '2px',
+                  boxShadow: '0 2px 8px rgba(99,102,241,0.25)'
+                }}>
+                  {activeTab === 'mcp_console' ? <BrainCircuit size={14} color="#fff" /> : <Sparkles size={14} color="#fff" />}
+                </div>
+                <div style={{ 
+                  background: 'rgba(30, 41, 59, 0.8)', 
+                  border: '1px solid rgba(148,163,184,0.08)',
+                  padding: '14px 20px', borderRadius: '16px', borderTopLeftRadius: '4px', 
+                  display: 'flex', alignItems: 'center', gap: '5px',
+                  backdropFilter: 'blur(12px)'
+                }}>
+                  {[0, 1, 2].map(i => (
+                    <span key={i} style={{
+                      width: '7px', height: '7px', borderRadius: '50%',
+                      backgroundColor: '#a5b4fc',
+                      display: 'inline-block',
+                      animation: `chatTypingDot 1.4s ease-in-out ${i * 0.2}s infinite`
+                    }} />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Powered by label */}
+          {/* ── Input Area ── */}
           <div style={{ 
-            textAlign: 'center', marginTop: '8px', 
-            fontSize: '0.62rem', color: '#475569', fontWeight: 500,
-            letterSpacing: '0.03em'
+            padding: '16px 16px 16px 16px', 
+            background: activeTab === 'mcp_console'
+              ? 'linear-gradient(0deg, #090d16 0%, rgba(9,13,22,0.95) 100%)'
+              : 'linear-gradient(0deg, #0f172a 0%, rgba(15,23,42,0.95) 100%)',
+            borderTop: '1px solid rgba(148,163,184,0.08)',
+            position: 'relative', zIndex: 2
           }}>
-            Powered by Mavi AI Engine
+            
+            {/* Knowledge Base Chips (only in assistant mode) */}
+            {(activeTab === 'assistant' && knowledgeFiles.length > 0) && (
+              <div style={{ 
+                padding: '8px 12px', 
+                backgroundColor: 'rgba(30,41,59,0.6)', 
+                borderRadius: '12px 12px 0 0', 
+                display: 'flex', gap: '8px', flexWrap: 'wrap', 
+                border: '1px solid rgba(148,163,184,0.1)', 
+                borderBottom: 'none',
+                marginBottom: '-1px'
+              }}>
+                <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'flex', alignItems: 'center', marginRight: '4px', fontWeight: 600 }}>
+                  <BookOpen size={12} style={{ marginRight: '4px' }}/> Referensi:
+                </span>
+                {knowledgeFiles.map(f => (
+                  <div key={f.id} style={{ 
+                    display: 'flex', alignItems: 'center', gap: '4px', 
+                    padding: '3px 8px', 
+                    backgroundColor: 'rgba(99,102,241,0.1)', 
+                    border: '1px solid rgba(99,102,241,0.2)', 
+                    borderRadius: '8px', fontSize: '0.72rem', color: '#a5b4fc' 
+                  }}>
+                    <span style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.name}>{f.name}</span>
+                    <button onClick={() => handleDeleteFile(f.id)} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0 2px' }}>
+                      <X size={11} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div 
+              className="mavi-chat-input"
+              style={{ 
+                display: 'flex', 
+                alignItems: 'flex-end', 
+                gap: '8px', 
+                backgroundColor: 'rgba(30,41,59,0.6)',
+                borderRadius: (activeTab === 'assistant' && knowledgeFiles.length > 0) ? '0 0 14px 14px' : '14px',
+                border: '1px solid rgba(148,163,184,0.12)',
+                padding: '8px 8px 8px 16px',
+                transition: 'all 0.25s ease',
+                backdropFilter: 'blur(12px)'
+              }}
+            >
+              <textarea
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={activeTab === 'mcp_console' ? "Perintahkan pencarian status, log, atau set PLC..." : "Tanya apapun tentang cara kerja Mavi..."}
+                rows={1}
+                style={{
+                  flex: 1,
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  color: '#e2e8f0',
+                  fontSize: '0.9rem',
+                  outline: 'none',
+                  resize: 'none',
+                  maxHeight: '120px',
+                  paddingTop: '7px',
+                  fontFamily: activeTab === 'mcp_console' ? 'monospace' : 'inherit',
+                  lineHeight: '1.4'
+                }}
+                onInput={(e) => {
+                  e.target.style.height = 'auto';
+                  e.target.style.height = (e.target.scrollHeight <= 120 ? e.target.scrollHeight : 120) + 'px';
+                }}
+              />
+              {activeTab === 'assistant' && (
+                <>
+                  <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".txt,.csv,.json,.md,.js" style={{ display: 'none' }} />
+                  <button
+                    className="mavi-chat-attach"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Unggah Dokumen Referensi"
+                    style={{
+                      width: '36px', height: '36px', borderRadius: '10px',
+                      backgroundColor: 'transparent', color: '#64748b',
+                      border: '1px solid rgba(148,163,184,0.15)', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transition: 'all 0.25s ease', flexShrink: 0
+                    }}
+                  >
+                    <Paperclip size={16} />
+                  </button>
+                </>
+              )}
+              <button
+                className="mavi-chat-send"
+                onClick={activeTab === 'mcp_console' ? () => handleMcpSend() : handleSend}
+                disabled={(activeTab === 'assistant' ? isLoading : isMcpLoading) || !input.trim()}
+                style={{
+                  width: '36px', height: '36px', borderRadius: '10px',
+                  background: ((activeTab === 'assistant' ? isLoading : isMcpLoading) || !input.trim()) 
+                    ? 'rgba(51,65,85,0.5)' 
+                    : activeTab === 'mcp_console'
+                      ? 'linear-gradient(135deg, #a855f7, #8b5cf6)'
+                      : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                  color: ((activeTab === 'assistant' ? isLoading : isMcpLoading) || !input.trim()) ? '#475569' : '#ffffff',
+                  border: 'none', 
+                  cursor: ((activeTab === 'assistant' ? isLoading : isMcpLoading) || !input.trim()) ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'all 0.25s ease', flexShrink: 0,
+                  boxShadow: ((activeTab === 'assistant' ? isLoading : isMcpLoading) || !input.trim()) ? 'none' : '0 2px 10px rgba(99,102,241,0.3)'
+                }}
+              >
+                {(activeTab === 'assistant' ? isLoading : isMcpLoading) ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+              </button>
+            </div>
+
+            <div style={{ 
+              textAlign: 'center', marginTop: '8px', 
+              fontSize: '0.62rem', color: '#475569', fontWeight: 500,
+              letterSpacing: '0.03em'
+            }}>
+              Powered by Mavi AI Engine & Antigravity MCP
+            </div>
           </div>
         </div>
+
       </div>
 
       {/* Fullscreen Image Modal Overlay */}
