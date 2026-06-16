@@ -94,6 +94,7 @@ import {
   HardDrive,
   Lock,
   Unlock,
+  Maximize2,
   Volume2,
   BatteryCharging,
   Power,
@@ -3022,11 +3023,17 @@ const LiveTerminal = () => {
 
   const launchOperator = (launchParams.get('operator') || '').trim();
   const launchStation = (launchParams.get('station') || '').trim();
+  const launchScaleMode = launchParams.get('scaleMode') === 'FIT_WIDTH' ? 'FIT_WIDTH' : 'FIT_SCREEN';
+  const [runtimeScaleMode, setRuntimeScaleMode] = useState(launchScaleMode);
 
   useEffect(() => {
     const isDev = launchParams.get('devMode') === 'true' || launchParams.get('dev') === 'true';
     setDevMode(isDev);
   }, [launchParams]);
+
+  useEffect(() => {
+    setRuntimeScaleMode(launchScaleMode);
+  }, [launchScaleMode]);
 
   // Dashboard states
   const [searchQuery, setSearchQuery] = useState('');
@@ -3505,24 +3512,26 @@ const LiveTerminal = () => {
   const isResponsiveMode = presetKey === 'RESPONSIVE';
   const isDark = selectedApp?.config?.appThemeMode === 'DARK';
   const scalingMode = selectedApp?.config?.scalingMode || 'FIT_SCREEN';
+  const runtimeSelectionActive = Boolean(selectedApp || selectedManual);
+  const effectiveScalingMode = runtimeSelectionActive ? runtimeScaleMode : scalingMode;
 
   const scaleX = useMemo(() => {
     if (containerWidth <= 0 || layoutWidth <= 0) return 1;
     const sX = containerWidth / layoutWidth;
-    if (scalingMode === 'FIT_WIDTH') return sX;
+    if (effectiveScalingMode === 'FIT_WIDTH') return sX;
     if (containerHeight <= 0 || layoutHeight <= 0) return sX;
     const sY = containerHeight / layoutHeight;
     return Math.min(sX, sY);
-  }, [containerWidth, containerHeight, layoutWidth, layoutHeight, scalingMode]);
+  }, [containerWidth, containerHeight, layoutWidth, layoutHeight, effectiveScalingMode]);
 
   const scaleY = useMemo(() => {
     if (containerWidth <= 0 || layoutWidth <= 0) return 1;
     const sX = containerWidth / layoutWidth;
-    if (scalingMode === 'FIT_WIDTH') return sX;
+    if (effectiveScalingMode === 'FIT_WIDTH') return sX;
     if (containerHeight <= 0 || layoutHeight <= 0) return 1;
     const sY = containerHeight / layoutHeight;
     return Math.min(sX, sY);
-  }, [containerWidth, containerHeight, layoutWidth, layoutHeight, scalingMode]);
+  }, [containerWidth, containerHeight, layoutWidth, layoutHeight, effectiveScalingMode]);
 
   const canvasFrameRadius = useMemo(() => {
     if (!isPreset) return '0px';
@@ -12364,24 +12373,24 @@ const LiveTerminal = () => {
         <div 
           ref={setCanvasWrapper}
           style={{
-            flex: 1, overflowY: 'auto', padding: (isResponsiveMode || scalingMode === 'FIT_WIDTH') ? '0px' : '16px',
+            flex: 1, overflowY: 'auto', padding: (isResponsiveMode || effectiveScalingMode === 'FIT_WIDTH') ? '0px' : '16px',
             display: 'flex', flexDirection: 'column', 
-            alignItems: (scalingMode === 'FIT_WIDTH') ? 'stretch' : 'center',
-            justifyContent: (scalingMode === 'FIT_WIDTH') ? 'flex-start' : 'center',
+            alignItems: (effectiveScalingMode === 'FIT_WIDTH') ? 'stretch' : 'center',
+            justifyContent: (effectiveScalingMode === 'FIT_WIDTH') ? 'flex-start' : 'center',
             backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc')
           }}
         >
           <div style={{
-            width: (scalingMode === 'FIT_WIDTH') ? '100%' : `${layoutWidth * scaleX}px`,
+            width: (effectiveScalingMode === 'FIT_WIDTH') ? '100%' : `${layoutWidth * scaleX}px`,
             height: `${layoutHeight * scaleY}px`,
             position: 'relative',
             overflow: 'hidden',
             flexShrink: 0,
             flex: 'none',
             backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff',
-            borderRadius: (isPreset && scalingMode === 'FIT_SCREEN') ? canvasFrameRadius : '0px',
-            boxShadow: (isPreset && scalingMode === 'FIT_SCREEN') ? canvasFrameShadow : 'none',
-            border: (isPreset && scalingMode === 'FIT_SCREEN') ? canvasFrameBorder : 'none'
+            borderRadius: (isPreset && effectiveScalingMode === 'FIT_SCREEN') ? canvasFrameRadius : '0px',
+            boxShadow: (isPreset && effectiveScalingMode === 'FIT_SCREEN') ? canvasFrameShadow : 'none',
+            border: (isPreset && effectiveScalingMode === 'FIT_SCREEN') ? canvasFrameBorder : 'none'
           }}>
             <div style={{
               width: `${layoutWidth}px`,
@@ -12439,7 +12448,7 @@ const LiveTerminal = () => {
           </div>
           
           {/* Padding for bottom buttons */}
-          <div style={{ height: '80px', flexShrink: 0 }} />
+          <div style={{ height: (selectedApp || selectedManual) ? '0px' : '80px', flexShrink: 0 }} />
         </div>
 
         {/* Mobile Footer Controls */}
@@ -12647,7 +12656,31 @@ const LiveTerminal = () => {
             </div>
 
             {/* Right side: Consolidated Actions Dropdown Menu */}
-            <div style={{ position: 'relative' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {(selectedApp || selectedManual) && (
+                <button
+                  onClick={() => setRuntimeScaleMode(prev => prev === 'FIT_SCREEN' ? 'FIT_WIDTH' : 'FIT_SCREEN')}
+                  title={runtimeScaleMode === 'FIT_SCREEN' ? 'Switch to Fit Width' : 'Switch to Fit Screen'}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    backgroundColor: runtimeScaleMode === 'FIT_SCREEN' ? 'rgba(34,197,94,0.18)' : 'rgba(255,255,255,0.05)',
+                    color: runtimeScaleMode === 'FIT_SCREEN' ? '#86efac' : 'white',
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  <Maximize2 size={12} />
+                  {runtimeScaleMode === 'FIT_SCREEN' ? 'Fit Screen' : 'Fit Width'}
+                </button>
+              )}
+              <div style={{ position: 'relative' }}>
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
                 style={{
@@ -12803,13 +12836,14 @@ const LiveTerminal = () => {
                   </button>
                 </div>
               )}
+              </div>
             </div>
           </div>
         </div>
       )}
 
       {/* MAIN CONTENT AREA */}
-      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+      <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
 
 
 
@@ -12862,14 +12896,14 @@ const LiveTerminal = () => {
               ref={setCanvasWrapper}
               style={{
                 flex: 1,
-                padding: (isResponsiveMode || scalingMode === 'FIT_WIDTH') ? '0px' : '20px',
+                padding: (isResponsiveMode || effectiveScalingMode === 'FIT_WIDTH') ? '0px' : '20px',
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: (scalingMode === 'FIT_WIDTH') ? 'stretch' : 'center',
-                justifyContent: (scalingMode === 'FIT_WIDTH') ? 'flex-start' : 'center',
+                alignItems: (effectiveScalingMode === 'FIT_WIDTH') ? 'stretch' : 'center',
+                justifyContent: (effectiveScalingMode === 'FIT_WIDTH') ? 'flex-start' : 'center',
                 position: 'relative',
                 overflowX: 'hidden',
-                overflowY: (scalingMode === 'FIT_WIDTH') ? 'auto' : 'hidden',
+                overflowY: 'hidden',
                 backgroundColor: isResponsiveMode
                   ? (activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#ffffff'))
                   : (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f1f5f9')
@@ -12877,16 +12911,16 @@ const LiveTerminal = () => {
             >
               {/* Scaled Layout Wrapper */}
               <div style={{
-                width: (scalingMode === 'FIT_WIDTH') ? '100%' : `${layoutWidth * scaleX}px`,
+                width: (effectiveScalingMode === 'FIT_WIDTH') ? '100%' : `${layoutWidth * scaleX}px`,
                 height: `${layoutHeight * scaleY}px`,
                 position: 'relative',
                 overflow: 'hidden',
                 flexShrink: 0,
                 flex: 'none',
                 backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff',
-                borderRadius: (isPreset && scalingMode === 'FIT_SCREEN') ? canvasFrameRadius : '0px',
-                boxShadow: (isPreset && scalingMode === 'FIT_SCREEN') ? canvasFrameShadow : 'none',
-                border: (isPreset && scalingMode === 'FIT_SCREEN') ? canvasFrameBorder : 'none'
+                borderRadius: (isPreset && effectiveScalingMode === 'FIT_SCREEN') ? canvasFrameRadius : '0px',
+                boxShadow: (isPreset && effectiveScalingMode === 'FIT_SCREEN') ? canvasFrameShadow : 'none',
+                border: (isPreset && effectiveScalingMode === 'FIT_SCREEN') ? canvasFrameBorder : 'none'
               }}>
                 {/* App Components Render */}
                 <div id="terminal-canvas-content" style={{

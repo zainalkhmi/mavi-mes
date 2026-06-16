@@ -2659,7 +2659,7 @@ function CameraRegionEditor({
                         display: 'flex',
                         flexDirection: 'column',
                         width: '100%',
-                        maxWidth: '760px',
+                        maxWidth: '840px',
                         margin: '0 auto',
                         overflow: 'hidden'
                     }}>
@@ -2697,128 +2697,145 @@ function CameraRegionEditor({
                             </span>
                         </div>
 
-                        {/* Camera Screen Feed Area */}
+                        {/* Card Body: Video and Sidebar side-by-side */}
                         <div style={{
-                            position: 'relative',
-                            backgroundColor: '#111827',
-                            width: '100%',
-                            aspectRatio: '4 / 3',
-                            cursor: isDragging ? 'grabbing' : 'crosshair'
-                        }}
-                        onMouseDown={handleMouseDown}
-                        onMouseMove={handleMouseMove}
-                        onMouseUp={handleMouseUp}
-                        >
-                            {/* Camera loading indicator */}
-                            {cameraLoading && !configureOffline && (
-                                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 5, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                                    <Loader2 size={24} color="#60a5fa" style={{ animation: 'spin 1s linear infinite' }} />
-                                    <span style={{ color: '#9ca3af', fontSize: '0.75rem' }}>Connecting stream...</span>
-                                </div>
-                            )}
-
-                            <canvas
-                                ref={canvasRef}
-                                width="640"
-                                height="480"
-                                style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain' }}
-                            />
-                        </div>
-
-                        {/* Card Toolbar/Footer */}
-                        <div style={{
-                            padding: '12px 16px',
-                            borderTop: '1px solid #e2e8f0',
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 240px',
                             backgroundColor: '#ffffff',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '12px'
+                            width: '100%',
                         }}>
-                            {/* Grid Overlay, Reset Buttons, etc */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div style={{ fontSize: '0.72rem', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    <Info size={12} color="#9ca3af" />
-                                    <span>Drag on canvas to define active monitoring regions.</span>
-                                </div>
-                                <div style={{ display: 'flex', gap: '8px' }}>
-                                    <button
-                                        onClick={() => setShowGridOverlay(!showGridOverlay)}
-                                        style={{
-                                            padding: '5px 10px',
-                                            borderRadius: '6px',
-                                            border: showGridOverlay ? '1px solid #3b82f6' : '1px solid #e2e8f0',
-                                            backgroundColor: showGridOverlay ? '#eff6ff' : '#ffffff',
-                                            color: showGridOverlay ? '#2563eb' : '#374151',
-                                            fontSize: '0.75rem',
-                                            fontWeight: 600,
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '4px',
-                                            transition: 'all 0.15s'
-                                        }}
-                                        title="Toggle Calibration Grid"
-                                    >
-                                        <Grid size={13} />
-                                        Grid
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            if (confirm('Are you sure you want to clear all regions?')) {
-                                                setRegionsByCamera(prev => ({ ...prev, [camera.id]: [] }));
-                                                setSelectedRegionId(null);
-                                            }
-                                        }}
-                                        style={{
-                                            padding: '5px 10px',
-                                            borderRadius: '6px',
-                                            border: '1px solid #e2e8f0',
-                                            backgroundColor: '#ffffff',
-                                            color: '#ef4444',
-                                            fontSize: '0.75rem',
-                                            fontWeight: 600,
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '4px',
-                                            transition: 'all 0.15s'
-                                        }}
-                                        title="Clear all configured regions"
-                                    >
-                                        <Trash2 size={13} />
-                                        Clear
-                                    </button>
-                                </div>
+                            {/* Left: Camera Screen Feed Area */}
+                            <div style={{
+                                position: 'relative',
+                                backgroundColor: '#111827',
+                                width: '100%',
+                                aspectRatio: '4 / 3',
+                                cursor: isDragging ? 'grabbing' : 'crosshair'
+                            }}
+                            onMouseDown={handleMouseDown}
+                            onMouseMove={handleMouseMove}
+                            onMouseUp={handleMouseUp}
+                            >
+                                {/* Camera loading indicator */}
+                                {cameraLoading && !configureOffline && (
+                                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 5, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                                        <Loader2 size={24} color="#60a5fa" style={{ animation: 'spin 1s linear infinite' }} />
+                                        <span style={{ color: '#9ca3af', fontSize: '0.75rem' }}>Connecting stream...</span>
+                                    </div>
+                                )}
+
+                                <canvas
+                                    ref={canvasRef}
+                                    width="640"
+                                    height="480"
+                                    style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain' }}
+                                />
                             </div>
 
-                            {/* Divider line */}
-                            <div style={{ height: '1px', backgroundColor: '#f1f5f9' }} />
+                            {/* Right: Sidebar controls */}
+                            <div style={{
+                                borderLeft: '1px solid #e2e8f0',
+                                backgroundColor: '#ffffff',
+                                padding: '16px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '16px',
+                                justifyContent: 'space-between'
+                            }}>
+                                {/* Top portion of sidebar */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                    <div style={{ fontSize: '0.72rem', color: '#6b7280', display: 'flex', alignItems: 'flex-start', gap: '4px', lineHeight: '1.4' }}>
+                                        <Info size={14} color="#9ca3af" style={{ flexShrink: 0, marginTop: '1px' }} />
+                                        <span>Drag on canvas to define active monitoring regions.</span>
+                                    </div>
 
-                            {/* Simulated Parameters Sliders */}
-                            <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '150px' }}>
-                                    <span style={{ fontSize: '0.72rem', color: '#6b7280', fontWeight: 600, width: '60px' }}>Brightness:</span>
-                                    <input
-                                        type="range"
-                                        min="50"
-                                        max="150"
-                                        value={brightness}
-                                        onChange={(e) => setBrightness(Number(e.target.value))}
-                                        style={{ flex: 1, height: '4px', cursor: 'pointer' }}
-                                    />
-                                    <span style={{ fontSize: '0.72rem', color: '#374151', fontWeight: 700, width: '32px', textAlign: 'right' }}>{brightness}%</span>
+                                    {/* Action Buttons */}
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button
+                                            onClick={() => setShowGridOverlay(!showGridOverlay)}
+                                            style={{
+                                                flex: 1,
+                                                padding: '6px 10px',
+                                                borderRadius: '6px',
+                                                border: showGridOverlay ? '1px solid #3b82f6' : '1px solid #e2e8f0',
+                                                backgroundColor: showGridOverlay ? '#eff6ff' : '#ffffff',
+                                                color: showGridOverlay ? '#2563eb' : '#374151',
+                                                fontSize: '0.75rem',
+                                                fontWeight: 600,
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '4px',
+                                                transition: 'all 0.15s'
+                                            }}
+                                            title="Toggle Calibration Grid"
+                                        >
+                                            <Grid size={13} />
+                                            Grid
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                if (confirm('Are you sure you want to clear all regions?')) {
+                                                    setRegionsByCamera(prev => ({ ...prev, [camera.id]: [] }));
+                                                    setSelectedRegionId(null);
+                                                }
+                                            }}
+                                            style={{
+                                                flex: 1,
+                                                padding: '6px 10px',
+                                                borderRadius: '6px',
+                                                border: '1px solid #e2e8f0',
+                                                backgroundColor: '#ffffff',
+                                                color: '#ef4444',
+                                                fontSize: '0.75rem',
+                                                fontWeight: 600,
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '4px',
+                                                transition: 'all 0.15s'
+                                            }}
+                                            title="Clear all configured regions"
+                                        >
+                                            <Trash2 size={13} />
+                                            Clear
+                                        </button>
+                                    </div>
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '150px' }}>
-                                    <span style={{ fontSize: '0.72rem', color: '#6b7280', fontWeight: 600, width: '50px' }}>Contrast:</span>
-                                    <input
-                                        type="range"
-                                        min="50"
-                                        max="150"
-                                        value={contrast}
-                                        onChange={(e) => setContrast(Number(e.target.value))}
-                                        style={{ flex: 1, height: '4px', cursor: 'pointer' }}
-                                    />
-                                    <span style={{ fontSize: '0.72rem', color: '#374151', fontWeight: 700, width: '32px', textAlign: 'right' }}>{contrast}%</span>
+
+                                {/* Bottom portion of sidebar (Sliders) */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '0.72rem', color: '#6b7280', fontWeight: 600 }}>Brightness</span>
+                                            <span style={{ fontSize: '0.72rem', color: '#374151', fontWeight: 700 }}>{brightness}%</span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="50"
+                                            max="150"
+                                            value={brightness}
+                                            onChange={(e) => setBrightness(Number(e.target.value))}
+                                            style={{ width: '100%', height: '4px', cursor: 'pointer' }}
+                                        />
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '0.72rem', color: '#6b7280', fontWeight: 600 }}>Contrast</span>
+                                            <span style={{ fontSize: '0.72rem', color: '#374151', fontWeight: 700 }}>{contrast}%</span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="50"
+                                            max="150"
+                                            value={contrast}
+                                            onChange={(e) => setContrast(Number(e.target.value))}
+                                            style={{ width: '100%', height: '4px', cursor: 'pointer' }}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -2835,7 +2852,7 @@ function CameraRegionEditor({
                             alignItems: 'center', justifyContent: 'center', flexWrap: 'nowrap',
                             overflowX: 'auto',
                             width: '100%',
-                            maxWidth: '760px',
+                            maxWidth: '840px',
                             margin: '0 auto'
                         }}>
                             {[...regions].reverse().map((region, idx) => {
@@ -2880,7 +2897,7 @@ function CameraRegionEditor({
                         display: 'flex',
                         flexDirection: 'column',
                         width: '100%',
-                        maxWidth: '760px',
+                        maxWidth: '840px',
                         margin: '0 auto',
                         overflow: 'hidden'
                     }}>

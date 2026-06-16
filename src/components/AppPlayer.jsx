@@ -19,6 +19,7 @@ import { logout } from '../utils/auth';
 const LS_FAVORITES = 'mavi_player_favorites';
 const LS_RECENT = 'mavi_player_recent';
 const LS_DEV_MODE = 'mavi_player_dev_mode';
+const LS_APP_SCALE_MODE = 'mavi_player_app_scale_mode_v2';
 const RECENT_MAX = 5;
 
 function loadLS(key, fallback) {
@@ -836,6 +837,7 @@ const AppPlayer = () => {
     // Player states
     const [isPaused, setIsPaused] = useState(false);
     const [devMode, setDevMode] = useState(() => loadLS(LS_DEV_MODE, false));
+    const [appScaleMode, setAppScaleMode] = useState(() => loadLS(LS_APP_SCALE_MODE, 'FIT_WIDTH'));
     const [showComments, setShowComments] = useState(false);
     const [newComment, setNewComment] = useState('');
     const [sessionComments, setSessionComments] = useState([]);
@@ -893,10 +895,11 @@ const AppPlayer = () => {
         const params = new URLSearchParams({ 
             station: stationIdFilter || 'Station-01', 
             operator: operator || 'Operator',
-            devMode: devMode ? 'true' : 'false'
+            devMode: devMode ? 'true' : 'false',
+            scaleMode: appScaleMode
         });
         return `/#/terminal/${activeAppId}?${params.toString()}`;
-    }, [activeAppId, stationIdFilter, operator, devMode]);
+    }, [activeAppId, stationIdFilter, operator, devMode, appScaleMode]);
 
     // ── Load data ────────────────────────────────────────────────────────────
     const loadData = async () => {
@@ -965,6 +968,10 @@ const AppPlayer = () => {
     useEffect(() => {
         saveLS(LS_DEV_MODE, devMode);
     }, [devMode]);
+
+    useEffect(() => {
+        saveLS(LS_APP_SCALE_MODE, appScaleMode);
+    }, [appScaleMode]);
 
     // ── Timer ────────────────────────────────────────────────────────────────
     useEffect(() => {
@@ -1608,7 +1615,29 @@ const AppPlayer = () => {
                                 </div>
 
                                 {/* Right side: Consolidated Menu Button */}
-                                <div style={{ position: 'relative', flexShrink: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                    <button
+                                        onClick={() => setAppScaleMode(prev => prev === 'FIT_SCREEN' ? 'FIT_WIDTH' : 'FIT_SCREEN')}
+                                        title={appScaleMode === 'FIT_SCREEN' ? 'Switch to Fit Width' : 'Switch to Fit Screen'}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            padding: '6px 12px',
+                                            borderRadius: '6px',
+                                            border: '1px solid rgba(255,255,255,0.2)',
+                                            backgroundColor: appScaleMode === 'FIT_SCREEN' ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.05)',
+                                            color: appScaleMode === 'FIT_SCREEN' ? '#86efac' : 'white',
+                                            fontWeight: 700,
+                                            fontSize: '0.75rem',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.15s'
+                                        }}
+                                    >
+                                        <Maximize2 size={12} />
+                                        {appScaleMode === 'FIT_SCREEN' ? 'Fit Screen' : 'Fit Width'}
+                                    </button>
+                                    <div style={{ position: 'relative', flexShrink: 0 }}>
                                     <button
                                         onClick={() => setMenuOpen(!menuOpen)}
                                         style={{
@@ -1837,6 +1866,7 @@ const AppPlayer = () => {
                                             </button>
                                         </div>
                                     )}
+                                    </div>
                                 </div>
                             </div>
                         </>
