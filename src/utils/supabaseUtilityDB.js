@@ -294,6 +294,153 @@ export async function deleteDataset(id) {
     }
 }
 
+// ── Vision Models ──────────────────────────────────────
+
+export async function getAllVisionModels() {
+    try {
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase
+            .from('vision_models')
+            .select('*')
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('mavi_local_vision_models', JSON.stringify(data || []));
+        }
+        return data || [];
+    } catch (err) {
+        console.warn('[Supabase Fallback] Failed to fetch vision models from database, loading from localStorage:', err);
+        if (typeof window !== 'undefined') {
+            try {
+                const cached = localStorage.getItem('mavi_local_vision_models');
+                if (cached) return JSON.parse(cached);
+            } catch (e) {
+                console.error('[Supabase Fallback] Failed to parse local vision models cache:', e);
+            }
+        }
+        return [];
+    }
+}
+
+export async function saveVisionModel(model) {
+    const payload = {
+        name: model.name,
+        description: model.description || '',
+        provider: model.provider || 'Landing AI',
+        type: model.type || 'Classification',
+        dataset_id: model.dataset_id || model.datasetId || null,
+        dataset_name: model.dataset_name || model.datasetName || '',
+        status: model.status || 'Uploading',
+        classes: model.classes || [],
+        metadata: model.metadata || {},
+        updated_at: new Date().toISOString()
+    };
+
+    try {
+        const supabase = getSupabaseClient();
+        let result;
+        if (model.id && !String(model.id).startsWith('local-')) {
+            result = await supabase.from('vision_models').update(payload).eq('id', model.id).select().single();
+        } else {
+            const insertPayload = { ...payload, created_at: new Date().toISOString() };
+            if (model.id && !String(model.id).startsWith('local-')) {
+                insertPayload.id = model.id;
+            }
+            result = await supabase.from('vision_models').insert(insertPayload).select().single();
+        }
+        if (result.error) throw result.error;
+        
+        // Sync local cache
+        if (typeof window !== 'undefined') {
+            try {
+                const cachedRaw = localStorage.getItem('mavi_local_vision_models') || '[]';
+                let list = JSON.parse(cachedRaw);
+                const index = list.findIndex(m => m.id === model.id || m.id === result.data.id);
+                if (index !== -1) {
+                    list[index] = result.data;
+                } else {
+                    list.push(result.data);
+                }
+                localStorage.setItem('mavi_local_vision_models', JSON.stringify(list));
+            } catch (e) {
+                console.error('[Supabase Fallback] Failed to update local vision models cache on save:', e);
+            }
+        }
+        return result.data;
+    } catch (err) {
+        console.warn('[Supabase Fallback] Failed to save vision model to database, saving to localStorage:', err);
+        if (typeof window !== 'undefined') {
+            try {
+                const cachedRaw = localStorage.getItem('mavi_local_vision_models') || '[]';
+                const list = JSON.parse(cachedRaw);
+                let savedItem;
+                
+                if (model.id) {
+                    const index = list.findIndex(m => m.id === model.id);
+                    savedItem = {
+                        ...model,
+                        ...payload,
+                        id: model.id
+                    };
+                    if (index !== -1) {
+                        list[index] = savedItem;
+                    } else {
+                        list.push(savedItem);
+                    }
+                } else {
+                    savedItem = {
+                        ...payload,
+                        id: 'local-' + Math.random().toString(36).substr(2, 9),
+                        created_at: payload.updated_at
+                    };
+                    list.push(savedItem);
+                }
+                
+                localStorage.setItem('mavi_local_vision_models', JSON.stringify(list));
+                return savedItem;
+            } catch (e) {
+                console.error('[Supabase Fallback] Failed to save vision model locally:', e);
+                throw err;
+            }
+        }
+        throw err;
+    }
+}
+
+export async function deleteVisionModel(id) {
+    try {
+        const supabase = getSupabaseClient();
+        if (id && !String(id).startsWith('local-')) {
+            const { error } = await supabase.from('vision_models').delete().eq('id', id);
+            if (error) throw error;
+        }
+        
+        if (typeof window !== 'undefined') {
+            const cachedRaw = localStorage.getItem('mavi_local_vision_models') || '[]';
+            const list = JSON.parse(cachedRaw);
+            const newList = list.filter(m => m.id !== id);
+            localStorage.setItem('mavi_local_vision_models', JSON.stringify(newList));
+        }
+        return true;
+    } catch (err) {
+        console.warn('[Supabase Fallback] Failed to delete vision model from database, deleting from localStorage:', err);
+        if (typeof window !== 'undefined') {
+            try {
+                const cachedRaw = localStorage.getItem('mavi_local_vision_models') || '[]';
+                const list = JSON.parse(cachedRaw);
+                const newList = list.filter(m => m.id !== id);
+                localStorage.setItem('mavi_local_vision_models', JSON.stringify(newList));
+                return true;
+            } catch (e) {
+                console.error('[Supabase Fallback] Failed to delete vision model locally:', e);
+                throw err;
+            }
+        }
+        throw err;
+    }
+}
+
+
 // ── Live Terminal Measurements ───────────────────────
 
 export async function saveLiveMeasurement(data) {

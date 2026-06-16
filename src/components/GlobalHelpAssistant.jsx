@@ -33,6 +33,24 @@ Pengetahuan dasar Mavi meliputi:
 4. **Analytics:** Mavi memiliki Dashboard dan Analysis Manager untuk visualisasi data produksi (OEE, Downtime, dll).
 5. **Logic & Automations:** Mavi mendukung otomatisasi berbasis node logic (Event-Condition-Action) dan Functions/API eksternal.
 6. **Console:** Aplikasi dijalankan oleh operator melalui Live Terminal atau App Player.
+7. **Mavi Vision & Detector Integrations (Landing AI & Local Model):**
+   - **Manage Providers:** Operator/Admin mendaftarkan API Key Landing AI di drawer *Manage Providers* di menu Vision -> Models.
+   - **Create Model:** Membuat model klasifikasi melalui provider **Landing AI** (butuh Tulip Table, min 2 kelas, min 10 gambar per kelas, opsi filter kueri) atau **Local model** (mengunggah file model biner/XML kustom secara offline: .xml, .bin, .json).
+   - **Visual Detectors**: Ditambahkan pada region sensor kamera di editor penampang kamera/region. Terdiri dari 5 jenis detektor:
+     - *Color Detectors*: Memantau kesesuaian nilai target warna.
+     - *Change Detectors*: Mendeteksi gerakan / perubahan piksel pada region.
+     - *Jig Detectors*: Melacak fixture perakitan via ArUco marker. Dikoneksikan dengan **Jig Builder** khusus (dukungan area constraint dan fixture registration table).
+     - *Classifier Model Detectors*: Menjalankan klasifikasi objek AI real-time dengan model Landing AI / Local.
+     - *Hand Detectors*: Mendeteksi kehadiran tangan operator (memasuki/meninggalkan zona).
+   - **OpenCV Camera Widget (Filter Types)**: Widget kamera real-time berbasis OpenCV.js mendukung berbagai filter vision:
+     - *Canny / Sobel / Threshold*: Edge detection dan segmentasi dasar.
+     - *Caliper OCR*: Membaca angka digital caliper secara otomatis.
+     - *Dial Gauge*: Membaca posisi jarum indikator analog.
+     - *Part Counting*: Menghitung jumlah objek menggunakan findContours.
+     - *Barcode/QR*: Pemindaian barcode.
+     - *Change Detector*: Deteksi motion/perubahan piksel.
+     - *YOLO Detector*: Object detection (safety APD, defect QC).
+     - *Dimension Measurement*: **FITUR BARU** — Pengukuran dimensi objek secara real-time menggunakan kontur OpenCV. Memerlukan kalibrasi mm/pixel dari objek referensi (misal blok ukur 20mm). Mendukung pengukuran Width, Height, Diagonal, dan Area dengan pass/fail berdasarkan toleransi LSL/USL.
 Berikan panduan yang komprehensif, langkah demi langkah, dan mudah dipahami.
 Gunakan format markdown yang rapi (bullet points, bold, code block).
 `;
@@ -719,6 +737,96 @@ python yolo_server.py
 1. Di **App Builder**, tambahkan atau pilih widget **OpenCV Camera**.
 2. Pada panel properti sebelah kanan, ganti **YOLO Run Mode** menjadi **Local Python API (localhost:8000)**.
 3. Masukkan URL Endpoint: \`http://localhost:8000/detect\`.
+`
+  },
+  {
+    id: 'mavi-vision',
+    title: 'Mavi Vision & Landing AI',
+    icon: Eye,
+    color: '#3b82f6', // Blue
+    content: `
+### Panduan Mavi Vision & Integrasi Detektor (Landing AI & Local Model)
+
+Modul **Vision** pada Mavi dirancang untuk mengotomatisasi inspeksi kualitas produk, melacak fixture/assembly jig, memantau posisi tangan operator (pick-to-light/safety), serta mengklasifikasi objek secara cerdas secara real-time.
+
+---
+
+#### 1. Konfigurasi Kredensial Provider (Landing AI API Key)
+Untuk mengaktifkan training model klasifikasi berbasis cloud:
+1. Masuk ke halaman **Vision** -> **Models**.
+2. Klik tombol **Manage providers** di pojok kanan atas.
+3. Pada panel drawer yang meluncur keluar dari kanan, masukkan **API key** Landing AI Anda.
+4. Klik **Save** untuk menyimpan perubahan.
+
+---
+
+#### 2. Membuat & Melatih Model Baru
+Anda dapat menginisialisasi pembuatan model klasifikasi dengan mengklik tombol **+ Create model** di halaman **Models**:
+
+* **Opsi A: Landing AI (Cloud LVM)**
+  1. Pilih provider **Landing AI**.
+  2. Buka bagian **Configure**, pilih dataset **Tulip Table** berisi contoh gambar yang telah diklasifikasikan.
+     > ⚠️ **Persyaratan Minimum**: Dataset harus memiliki minimal **2 kelas** yang berbeda dengan setidaknya **10 gambar per kelas** agar training Landing AI dapat berjalan.
+  3. Setel **Image field** dan **Annotation field** yang sesuai.
+  4. (Opsional) Pilih kueri filter **Query** untuk membatasi data rekam yang dikirim.
+  5. Klik **Create model** untuk mengirimkan permintaan ke server Landing AI.
+* **Opsi B: Local Model (Offline / On-Premise)**
+  1. Pilih provider **Local model**.
+  2. Gunakan pemilih berkas untuk mengunggah file model biner/XML hasil training kustom offline Anda (\`.xml\`, \`.bin\`, atau \`.json\`).
+  3. Klik **Create model** untuk langsung mendaftarkannya ke sistem Mavi local.
+
+---
+
+#### 3. Menggunakan Visual Detector pada Region Kamera
+Untuk menerapkan model atau logika deteksi di stasiun kerja, gambar **Region** penampang pada kamera, lalu tambahkan detektor yang sesuai di sidebar setelan region:
+
+1. **Color Detector (Detektor Warna)**
+   - Mendeteksi kecocokan warna objek dengan warna target reference.
+   - Parameter: *Similarity* (sensitivitas kecocokan), *Target color* (color picker / capture rata-rata warna saat ini).
+
+2. **Change Detector (Detektor Perubahan)**
+   - Mendeteksi perubahan piksel akibat adanya gerakan atau perbedaan kontur di area region.
+   - Parameter: *Change threshold*, *depth range* (rentang kedalaman mm), dan *adaptation speed*.
+
+3. **Jig Detector (Detektor Fixture / Assembly Jig)**
+   - Melacak orientasi dan keberadaan jig perakitan memakai ArUco marker.
+   - Klik **Configure Jig** untuk membuka **Jig Builder**:
+     - Aktifkan **Use Area Constraint** untuk membatasi deteksi di area kotak putus-putus merah.
+     - Daftarkan marker dan fixture yang valid ke tabel registrasi stasiun.
+
+4. **Classifier Model Detector (Detektor Klasifikasi AI)**
+   - Menggunakan model Landing AI atau Local Model untuk mengklasifikasi objek secara real-time.
+   - Parameter: Pilih model klasifikasi yang telah dibuat dan tentukan *Confidence threshold* minimum.
+
+5. **Hand Detector (Detektor Tangan)**
+   - Mendeteksi tangan operator memasuki (*Entering*) atau meninggalkan (*Leaving*) area region stasiun.
+   - Parameter: Toggles *Entering* / *Leaving* dan filter arah tangan (*Left Hand* / *Right Hand*).
+
+---
+
+#### 4. Pengukuran Dimensi Otomatis (OpenCV Dimension Measurement)
+Filter **Dimension Measurement** pada widget **OpenCV Camera** memungkinkan pengukuran panjang, lebar, diagonal, dan luas objek secara real-time menggunakan kamera.
+
+##### Cara Kerja:
+1. **Tambahkan Widget OpenCV Camera** di App Builder.
+2. Pada panel properti, pilih **Vision Filter Type** \\u2192 **Dimension Measurement (Pengukuran Dimensi)**.
+3. **Kalibrasi kamera** menggunakan objek referensi:
+   - Masukkan ukuran referensi (contoh: \`20 mm\`) pada input "Reference Object Size".
+   - Klik **Start Calibration** \\u2014 sistem akan menampilkan guide overlay.
+   - Letakkan objek referensi (blok ukur / penggaris presisi) di tengah frame kamera.
+   - Sistem menghitung rasio **mm/pixel** secara otomatis, atau Anda bisa memasukkan nilai manual.
+4. **Atur parameter pengukuran**:
+   - *Measure Mode*: Pilih dimensi yang diukur (Width, Height, Diagonal, Area).
+   - *Edge Threshold*: Sensitivitas deteksi tepi Canny (default: 80).
+   - *Min Contour Area*: Area minimum kontur yang diproses (filter noise).
+5. **Atur toleransi (LSL/USL)** untuk judgment otomatis Pass/Fail.
+
+##### Tips Akurasi Tinggi:
+- Gunakan **pencahayaan konstan** (hindari bayangan berubah-ubah).
+- Pastikan **kontras tinggi** antara objek dan background (gunakan background putih/hitam solid).
+- Posisikan kamera **tegak lurus** terhadap permukaan objek.
+- Gunakan **resolusi tinggi** dan pastikan fokus tajam.
+- Untuk presisi \\u003C 0.05 mm, pertimbangkan penggunaan **telecentric lens**.
 `
   },
   {

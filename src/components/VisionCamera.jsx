@@ -15,6 +15,8 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
     const lastMatchRef = useRef(null);
     const prevFrameRef = useRef(null);
     const lastTextRef = useRef('');
+    const lastRegionMatchStatesRef = useRef({});
+    const prevIntensityRef = useRef({});
     const isFetchingCloudRef = useRef(false);
     const lastCloudFetchTimeRef = useRef(0);
     const cloudDetectionsRef = useRef([]);
@@ -32,13 +34,35 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
     const [showVideoPreview, setShowVideoPreview] = useState(false);
     const [isUploadingSnapshot, setIsUploadingSnapshot] = useState(false);
 
+    const [cameraConfig, setCameraConfig] = useState(null);
+
+    useEffect(() => {
+        const fetchConfig = async () => {
+            if (comp?.props?.cameraConfigId) {
+                try {
+                    const { getAllCameras } = await import('../utils/supabaseUtilityDB');
+                    const allCams = await getAllCameras();
+                    const found = allCams.find(c => c.id === comp.props.cameraConfigId);
+                    if (found) {
+                        setCameraConfig(found);
+                    }
+                } catch (e) {
+                    console.error('Failed to load camera configuration in VisionCamera:', e);
+                }
+            } else {
+                setCameraConfig(null);
+            }
+        };
+        fetchConfig();
+    }, [comp?.props?.cameraConfigId]);
+
     const filterType = comp?.props?.filterType || 'NONE';
     const label = comp?.props?.label || (comp?.type === 'OPENCV_CAMERA' ? 'OpenCV Live Stream' : 'Take Photo');
     const thresholdValue = Number(comp?.props?.thresholdValue ?? 100);
     const isCameraCapture = comp?.type === 'CAMERA_CAPTURE';
 
-    const cameraSource = comp?.props?.cameraSource || 'DEVICE';
-    const ipCameraUrl = comp?.props?.ipCameraUrl || '';
+    const cameraSource = cameraConfig?.type || comp?.props?.cameraSource || 'DEVICE';
+    const ipCameraUrl = cameraConfig?.url || comp?.props?.ipCameraUrl || '';
 
     // Image element ref and loaded state for MJPEG IP Camera stream
     const ipImageRef = useRef(null);
@@ -1077,6 +1101,165 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                     ctx.fillText('POSISIKAN TEKS DI SINI', x + 10, y - 10);
                 }
 
+            // ── Monitored Regions Processing ────────────────────────
+            const regions = cameraConfig?.settings?.regions || [];
+            const showOverlay = comp?.props?.showOverlay !== false;
+            const nowTime = Date.now();
+            const shouldAnalyze = nowTime - lastAnalysisTimeRef.current >= 100; // 10 FPS
+            if (shouldAnalyze) {
+                lastAnalysisTimeRef.current = nowTime;
+            }
+
+            regions.forEach((region) => {
+                const scale = canvas.width / 640;
+                const rx = Math.max(0, Math.min(region.x * scale, canvas.width - 2));
+                const ry = Math.max(0, Math.min(region.y * scale, canvas.height - 2));
+                const rw = Math.max(2, Math.min(region.w * scale, canvas.width - rx));
+                const rh = Math.max(2, Math.min(region.h * scale, canvas.height - ry));
+
+                const colorDet = region.detectors?.colorDetector;
+                const changeDet = region.detectors?.changeDetector;
+
+                let isMatching = false;
+                let changeTriggered = false;
+                let colorSimilarity = 0;
+                let changePercent = 0;
+
+                if (shouldAnalyze) {
+                    try {
+                        const imgData = ctx.getImageData(rx, ry, rw, rh);
+                        const pixels = imgData.data;
+                        let rSum = 0, gSum = 0, bSum = 0, count = 0;
+                        for (let i = 0; i < pixels.length; i += 16) {
+                            rSum += pixels[i];
+                            gSum += pixels[i+1];
+                            bSum += pixels[i+2];
+                            count++;
+                        }
+                        const avgR = rSum / count;
+                        const avgG = gSum / count;
+                        const avgB = bSum / count;
+
+                        // Color detector
+                        if (colorDet && colorDet.enabled) {
+                            const hexToRgb = (hex) => {
+                                if (!hex) return { r: 0, g: 0, b: 0 };
+                                const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+                                const fullHex = hex.replace(shorthandRegex, (m, r, g, b) => r + r + g + g + b + b);
+                                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(fullHex);
+                                return result ? {
+                                    r: parseInt(result[1], 16),
+                                    g: parseInt(result[2], 16),
+                                    b: parseInt(result[3], 16)
+                                } : { r: 0, g: 0, b: 0 };
+                            };
+                            const targetRGB = hexToRgb(colorDet.targetColor);
+                            const dr = avgR - targetRGB.r;
+                            const dg = avgG - targetRGB.g;
+                            const db = avgB - targetRGB.b;
+                            const dist = Math.sqrt(dr*dr + dg*dg + db*db);
+                            colorSimilarity = Math.round(Math.max(0, 100 - (dist / 441.67) * 100));
+
+                            const lastState = lastRegionMatchStatesRef.current[region.id + '_color'] || false;
+                            isMatching = lastState;
+                            if (colorSimilarity >= colorDet.beginThreshold) {
+                                isMatching = true;
+                            } else if (colorSimilarity < colorDet.endThreshold) {
+                                isMatching = false;
+                            }
+                            lastRegionMatchStatesRef.current[region.id + '_color'] = isMatching;
+
+                            if (lastState !== isMatching) {
+                                onWidgetInteraction(comp, 'ON_CHANGE', {
+                                    deviceId: comp.props.cameraConfigId,
+                                    deviceEvent: isMatching ? 'CHANGES_BEGAN' : 'CHANGES_ENDED',
+                                    value: isMatching ? 'MATCH' : 'NO_MATCH',
+                                    regionId: region.id,
+                                    regionName: region.name
+                                });
+                            }
+                        }
+
+                        // Change detector
+                        if (changeDet && changeDet.enabled) {
+                            const currentIntensity = (avgR + avgG + avgB) / 3;
+                            const prevIntensity = prevIntensityRef.current[region.id];
+                            let delta = 0;
+                            if (prevIntensity !== undefined) {
+                                delta = Math.abs(currentIntensity - prevIntensity);
+                            }
+                            prevIntensityRef.current[region.id] = currentIntensity;
+
+                            changePercent = Math.round(Math.min(100, (delta / 12) * 100));
+                            
+                            const lastState = lastRegionMatchStatesRef.current[region.id + '_change'] || false;
+                            changeTriggered = lastState;
+                            if (changePercent >= changeDet.beginThreshold) {
+                                changeTriggered = true;
+                            } else if (changePercent < changeDet.lowerThreshold) {
+                                changeTriggered = false;
+                            }
+                            lastRegionMatchStatesRef.current[region.id + '_change'] = changeTriggered;
+
+                            if (lastState !== changeTriggered) {
+                                onWidgetInteraction(comp, 'ON_CHANGE', {
+                                    deviceId: comp.props.cameraConfigId,
+                                    deviceEvent: changeTriggered ? 'CHANGES_BEGAN' : 'CHANGES_ENDED',
+                                    value: changeTriggered ? 'CHANGE' : 'NO_CHANGE',
+                                    regionId: region.id,
+                                    regionName: region.name
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        // ignore startup errors
+                    }
+                } else {
+                    isMatching = lastRegionMatchStatesRef.current[region.id + '_color'] || false;
+                    changeTriggered = lastRegionMatchStatesRef.current[region.id + '_change'] || false;
+                }
+
+                if (showOverlay) {
+                    let borderColor = '#3b82f6';
+                    if (colorDet && colorDet.enabled) {
+                        borderColor = isMatching ? '#22c55e' : '#ef4444';
+                    } else if (changeDet && changeDet.enabled) {
+                        borderColor = changeTriggered ? '#10b981' : '#f59e0b';
+                    }
+
+                    ctx.strokeStyle = borderColor;
+                    ctx.lineWidth = 1.5;
+                    ctx.strokeRect(rx, ry, rw, rh);
+
+                    // Corner Markers
+                    ctx.lineWidth = 2.5;
+                    const markerSize = Math.min(8, Math.min(rw, rh) * 0.25);
+                    // Top-left
+                    ctx.beginPath(); ctx.moveTo(rx, ry + markerSize); ctx.lineTo(rx, ry); ctx.lineTo(rx + markerSize, ry); ctx.stroke();
+                    // Top-right
+                    ctx.beginPath(); ctx.moveTo(rx + rw - markerSize, ry); ctx.lineTo(rx + rw, ry); ctx.lineTo(rx + rw, ry + markerSize); ctx.stroke();
+                    // Bottom-left
+                    ctx.beginPath(); ctx.moveTo(rx, ry + rh - markerSize); ctx.lineTo(rx, ry + rh); ctx.lineTo(rx + markerSize, ry + rh); ctx.stroke();
+                    // Bottom-right
+                    ctx.beginPath(); ctx.moveTo(rx + rw - markerSize, ry + rh); ctx.lineTo(rx + rw, ry + rh); ctx.lineTo(rx + rw, ry + rh - markerSize); ctx.stroke();
+
+                    // Label
+                    ctx.fillStyle = borderColor;
+                    ctx.font = 'bold 8px sans-serif';
+                    let labelText = region.name;
+                    if (colorDet && colorDet.enabled) {
+                        labelText += ` (${colorSimilarity}%)`;
+                    } else if (changeDet && changeDet.enabled) {
+                        labelText += ` (${changePercent}%)`;
+                    }
+                    const textWidth = ctx.measureText(labelText).width + 6;
+                    ctx.fillRect(rx, ry - 11, textWidth, 11);
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillText(labelText, rx + 3, ry - 3);
+                }
+            });
+
             animationFrameRef.current = requestAnimationFrame(processFrame);
         };
 
@@ -1087,7 +1270,7 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                 cancelAnimationFrame(animationFrameRef.current);
             }
         };
-    }, [viewMode, filterType, thresholdValue, capturedImage, isCameraCapture, hasPermission, cameraSource, ipCameraUrl, ipImageLoaded, ipImageError, showVideoPreview, comp?.props?.yoloModelType, comp?.props?.yoloConfidence, comp?.props?.yoloTargetClass, comp?.props?.yoloRunMode, comp?.props?.yoloApiKey, comp?.props?.yoloModelId, comp?.props?.yoloLocalUrl]);
+    }, [viewMode, filterType, thresholdValue, capturedImage, isCameraCapture, hasPermission, cameraSource, ipCameraUrl, ipImageLoaded, ipImageError, showVideoPreview, comp?.props?.yoloModelType, comp?.props?.yoloConfidence, comp?.props?.yoloTargetClass, comp?.props?.yoloRunMode, comp?.props?.yoloApiKey, comp?.props?.yoloModelId, comp?.props?.yoloLocalUrl, cameraConfig]);
 
     // Handle standard camera capture
     const handleCapture = useCallback(() => {

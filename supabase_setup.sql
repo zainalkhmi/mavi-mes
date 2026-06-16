@@ -728,3 +728,26 @@ GRANT ALL ON TABLE public.datasets TO anon, authenticated;
 ALTER TABLE public.datasets ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all datasets" ON public.datasets;
 CREATE POLICY "Allow all datasets" ON public.datasets FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+
+-- 31. Table: vision_models
+CREATE TABLE IF NOT EXISTS public.vision_models (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    description TEXT,
+    provider TEXT NOT NULL DEFAULT 'Landing AI',
+    type TEXT NOT NULL DEFAULT 'Classification',
+    dataset_id UUID REFERENCES public.datasets(id) ON DELETE SET NULL,
+    dataset_name TEXT,
+    status TEXT NOT NULL DEFAULT 'Uploading',
+    classes JSONB DEFAULT '[]',
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+GRANT ALL ON TABLE public.vision_models TO anon, authenticated;
+ALTER TABLE public.vision_models ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all vision_models" ON public.vision_models;
+CREATE POLICY "Allow all vision_models" ON public.vision_models FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+

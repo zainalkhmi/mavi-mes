@@ -4345,6 +4345,22 @@ const LiveTerminal = () => {
     lastStepIndexRef.current = currentStepIndex;
   }, [currentStepIndex, selectedApp?.id]);
 
+  const fireDeviceInputTriggers = async (deviceId, deviceEvent, payload = {}) => {
+    if (selectedApp) {
+      const activeSteps = selectedApp.config?.steps || [];
+      const currentStep = activeSteps[currentStepIndex];
+      const deviceTriggers = (selectedApp.config?.appTriggers || [])
+        .concat(currentStep?.triggers || [])
+        .filter(t => t.event === 'ON_DEVICE_INPUT' && t.deviceId === deviceId && t.deviceEvent === deviceEvent);
+
+      if (deviceTriggers.length > 0) {
+        for (const trig of deviceTriggers) {
+          await executeTrigger(trig, payload);
+        }
+      }
+    }
+  };
+
   const handleBarcodeScan = async (code) => {
     console.log('Barcode Scanned:', code);
 
@@ -4363,18 +4379,7 @@ const LiveTerminal = () => {
     }
 
     // 2. If an App is running, fire ON_DEVICE_INPUT triggers for barcode scanner
-    if (selectedApp) {
-      const currentStep = selectedApp.config.steps[currentStepIndex];
-      const deviceTriggers = (selectedApp.config.appTriggers || [])
-        .concat(currentStep?.triggers || [])
-        .filter(t => t.event === 'ON_DEVICE_INPUT' && t.deviceId === 'STATION_BARCODE' && t.deviceEvent === 'BARCODE_SCANNED');
-
-      if (deviceTriggers.length > 0) {
-        for (const trig of deviceTriggers) {
-          await executeTrigger(trig);
-        }
-      }
-    }
+    await fireDeviceInputTriggers('STATION_BARCODE', 'BARCODE_SCANNED', { value: code });
   };
 
   useEffect(() => {
@@ -7569,6 +7574,7 @@ const LiveTerminal = () => {
               currentWorkOrder={currentWorkOrder} 
               appVariables={appVariables}
               setAppVariables={setAppVariables} 
+              fireDeviceInputTriggers={fireDeviceInputTriggers}
             />
           </div>
         );
@@ -13850,7 +13856,7 @@ const LiveTerminal = () => {
   );
 };
 
-const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables = [], setAppVariables }) => {
+const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables = [], setAppVariables, fireDeviceInputTriggers }) => {
   const [cvLoaded, setCvLoaded] = useState(false);
   const [isSimulatedCv, setIsSimulatedCv] = useState(false);
   const [loadingError, setLoadingError] = useState('');
@@ -13862,6 +13868,31 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
   const prevFrameRef = useRef(null);
   const prevGrayMatRef = useRef(null);
   const isFetchingCloudRef = useRef(false);
+
+  const lastMatchStatesRef = useRef({});
+  const prevIntensityRef = useRef({});
+  const lastAnalysisTimeRef = useRef(0);
+  const [cameraConfig, setCameraConfig] = useState(null);
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      if (comp?.props?.cameraConfigId) {
+        try {
+          const { getAllCameras } = await import('../utils/supabaseUtilityDB');
+          const allCams = await getAllCameras();
+          const found = allCams.find(c => c.id === comp.props.cameraConfigId);
+          if (found) {
+            setCameraConfig(found);
+          }
+        } catch (e) {
+          console.error('Failed to load camera configuration in OpenCvCameraWidget:', e);
+        }
+      } else {
+        setCameraConfig(null);
+      }
+    };
+    fetchConfig();
+  }, [comp?.props?.cameraConfigId]);
   const lastCloudFetchTimeRef = useRef(0);
   const cloudDetectionsRef = useRef([]);
 
@@ -13951,9 +13982,89 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
     };
   }, []);
 
+  const cameraSource = cameraConfig?.type || comp?.props?.cameraSource || 'DEVICE';
+  const ipCameraUrl = cameraConfig?.url || comp?.props?.ipCameraUrl || '';
+
+  const animationTickRef = useRef(0);
+  const drawSimulatedIPStream = (ctx, w, h) => {
+    animationTickRef.current = (animationTickRef.current + 1) % 1000;
+    const tick = animationTickRef.current;
+
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1;
+    for (let i = 20; i < w; i += 20) {
+      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke();
+    }
+    for (let i = 20; i < h; i += 20) {
+      ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(w, i); ctx.stroke();
+    }
+
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(0, h - 40, w, 10);
+    ctx.fillStyle = '#475569';
+    for (let x = (tick * 2) % 30; x < w; x += 30) {
+      ctx.beginPath(); ctx.arc(x, h - 35, 4, 0, Math.PI * 2); ctx.fill();
+    }
+
+    const itemX = (tick * 1.5) % (w + 60) - 30;
+
+    const colorPalette = {
+      RED: '#ef4444',
+      GREEN: '#22c55e',
+      BLUE: '#3b82f6',
+      YELLOW: '#eab308',
+      BLACK: '#090d16',
+      WHITE: '#ffffff'
+    };
+    const colorsList = ['RED', 'GREEN', 'BLUE', 'YELLOW', 'WHITE', 'BLACK'];
+    const cycleIndex = Math.floor(tick / 150) % colorsList.length;
+    const currentItemColorKey = colorsList[cycleIndex];
+    const currentItemColor = colorPalette[currentItemColorKey] || '#3b82f6';
+
+    ctx.fillStyle = currentItemColor;
+    ctx.fillRect(itemX, h - 65, 30, 25);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(itemX + 5, h - 55, 20, 10);
+    ctx.fillStyle = '#000000';
+    for (let bx = 0; bx < 15; bx += 2) {
+      if (Math.sin(bx + tick) > -0.2) {
+        ctx.fillRect(itemX + 6 + bx, h - 55, 1, 10);
+      }
+    }
+
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+    ctx.fillRect(5, 5, w - 10, 18);
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(5, 5, w - 10, 18);
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 7px monospace';
+    ctx.textAlign = 'left';
+    const displayUrl = ipCameraUrl ? (ipCameraUrl.length > 35 ? ipCameraUrl.substring(0, 32) + '...' : ipCameraUrl) : 'RTSP STREAM NOT CONFIG';
+    ctx.fillText(`STREAM: ${displayUrl.toUpperCase()}`, 10, 16);
+    
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(w - 12, 14, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillText('LIVE-FEED SIM', w - 18, 16);
+    ctx.textAlign = 'left';
+  };
+
   // Camera stream and loop control
   useEffect(() => {
     if (!cvLoaded) return;
+
+    if (cameraSource === 'IP_CAMERA') {
+      setCameraActive(true);
+      return;
+    }
 
     let localStream = null;
     const startCamera = async () => {
@@ -13985,7 +14096,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
         localStream.getTracks().forEach(t => t.stop());
       }
     };
-  }, [cvLoaded]);
+  }, [cvLoaded, cameraSource]);
 
   // Real-time Database Saving Function
   const saveLogToDb = async (currentVal, isPassed) => {
@@ -14347,7 +14458,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
       if (!isProcessing) return;
 
       try {
-        if (video.paused || video.ended) {
+        if (cameraSource !== 'IP_CAMERA' && (video.paused || video.ended)) {
           requestRef.current = requestAnimationFrame(processFrame);
           return;
         }
@@ -14367,10 +14478,14 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
         let calculatedVal = '-';
         let isPassed = true;
 
-        if (isSimulatedCv) {
-          // Fast Canvas 2D fallback rendering (when OpenCV is downloading or offline)
+        if (isSimulatedCv || cameraSource === 'IP_CAMERA') {
+          // Fast Canvas 2D fallback rendering (when OpenCV is downloading or offline or IP Camera)
           const ctx = canvas.getContext('2d');
-          ctx.drawImage(video, 0, 0, width, height);
+          if (cameraSource === 'IP_CAMERA') {
+            drawSimulatedIPStream(ctx, width, height);
+          } else {
+            ctx.drawImage(video, 0, 0, width, height);
+          }
 
           if (filterType === 'GRAY') {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
@@ -14592,6 +14707,147 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
             const res = runYoloDetector(ctx, canvas, width, height);
             calculatedVal = res.calculatedVal;
             isPassed = res.isPassed;
+          } else if (filterType === 'DIMENSION') {
+            // ── DIMENSION MEASUREMENT (Simulated Canvas 2D fallback) ──
+            const ctx = canvas.getContext('2d');
+            if (cameraSource === 'IP_CAMERA') {
+              drawSimulatedIPStream(ctx, width, height);
+            } else {
+              ctx.drawImage(video, 0, 0, width, height);
+            }
+
+            const mmPx = comp.props.mmPerPixel || 0;
+            const isCalibrated = mmPx > 0;
+            const inCalibMode = comp.props.calibrationMode === true;
+            const measureMode = comp.props.dimMeasureMode || 'WIDTH';
+            const dimUnit = comp.props.dimUnit || 'mm';
+
+            if (inCalibMode) {
+              // Calibration guide overlay
+              const guideW = width * 0.4;
+              const guideH = height * 0.25;
+              const gx = (width - guideW) / 2;
+              const gy = (height - guideH) / 2;
+
+              ctx.setLineDash([6, 4]);
+              ctx.strokeStyle = '#f59e0b';
+              ctx.lineWidth = 2;
+              ctx.strokeRect(gx, gy, guideW, guideH);
+              ctx.setLineDash([]);
+
+              // Crosshairs
+              ctx.strokeStyle = 'rgba(245, 158, 11, 0.5)';
+              ctx.lineWidth = 1;
+              ctx.beginPath(); ctx.moveTo(width / 2, gy - 10); ctx.lineTo(width / 2, gy + guideH + 10); ctx.stroke();
+              ctx.beginPath(); ctx.moveTo(gx - 10, height / 2); ctx.lineTo(gx + guideW + 10, height / 2); ctx.stroke();
+
+              // Label
+              ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+              ctx.fillRect(gx, gy - 22, guideW, 18);
+              ctx.fillStyle = '#fbbf24';
+              ctx.font = 'bold 9px sans-serif';
+              ctx.textAlign = 'center';
+              ctx.fillText(`Place reference object (${comp.props.dimRefSizeMm || 20} ${dimUnit})`, width / 2, gy - 8);
+              ctx.textAlign = 'start';
+
+              // Pulsing border
+              const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 300);
+              ctx.strokeStyle = `rgba(245, 158, 11, ${pulse})`;
+              ctx.lineWidth = 3;
+              ctx.strokeRect(gx - 2, gy - 2, guideW + 4, guideH + 4);
+
+              calculatedVal = 'CALIBRATING...';
+              isPassed = false;
+            } else {
+              // Simulate detected parts with dimension annotations
+              const t = Date.now() / 2000;
+              const parts = [
+                { x: width * 0.2, y: height * 0.3, pw: 120 + Math.sin(t) * 2, ph: 60 + Math.cos(t) * 1 },
+                { x: width * 0.55, y: height * 0.45, pw: 80 + Math.cos(t) * 1.5, ph: 95 + Math.sin(t) * 1 }
+              ];
+
+              parts.forEach((p, idx) => {
+                const wMm = isCalibrated ? (p.pw * mmPx).toFixed(2) : '?';
+                const hMm = isCalibrated ? (p.ph * mmPx).toFixed(2) : '?';
+                const areaMm = isCalibrated ? (p.pw * mmPx * p.ph * mmPx).toFixed(1) : '?';
+
+                // Bounding box
+                ctx.strokeStyle = '#10b981';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(p.x, p.y, p.pw, p.ph);
+
+                // Corner brackets
+                const len = 10;
+                ctx.strokeStyle = '#10b981';
+                ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.moveTo(p.x, p.y + len); ctx.lineTo(p.x, p.y); ctx.lineTo(p.x + len, p.y); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(p.x + p.pw - len, p.y); ctx.lineTo(p.x + p.pw, p.y); ctx.lineTo(p.x + p.pw, p.y + len); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(p.x, p.y + p.ph - len); ctx.lineTo(p.x, p.y + p.ph); ctx.lineTo(p.x + len, p.y + p.ph); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(p.x + p.pw - len, p.y + p.ph); ctx.lineTo(p.x + p.pw, p.y + p.ph); ctx.lineTo(p.x + p.pw, p.y + p.ph - len); ctx.stroke();
+
+                // Width annotation (top)
+                ctx.fillStyle = 'rgba(16, 185, 129, 0.85)';
+                const wLabel = `W: ${wMm} ${dimUnit}`;
+                ctx.font = 'bold 9px sans-serif';
+                const wTw = ctx.measureText(wLabel).width + 8;
+                ctx.fillRect(p.x + (p.pw - wTw) / 2, p.y - 16, wTw, 14);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(wLabel, p.x + (p.pw - wTw) / 2 + 4, p.y - 5);
+
+                // Height annotation (right)
+                ctx.fillStyle = 'rgba(16, 185, 129, 0.85)';
+                const hLabel = `H: ${hMm}`;
+                const hTw = ctx.measureText(hLabel).width + 8;
+                ctx.fillRect(p.x + p.pw + 4, p.y + (p.ph - 14) / 2, hTw, 14);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(hLabel, p.x + p.pw + 8, p.y + (p.ph - 14) / 2 + 11);
+
+                // Area label (center)
+                if (isCalibrated) {
+                  ctx.fillStyle = 'rgba(15, 23, 42, 0.6)';
+                  const aLabel = `${areaMm} ${dimUnit}²`;
+                  const aTw = ctx.measureText(aLabel).width + 8;
+                  ctx.fillRect(p.x + (p.pw - aTw) / 2, p.y + p.ph / 2 - 7, aTw, 14);
+                  ctx.fillStyle = '#94a3b8';
+                  ctx.fillText(aLabel, p.x + (p.pw - aTw) / 2 + 4, p.y + p.ph / 2 + 4);
+                }
+              });
+
+              // Determine measured value for pass/fail
+              if (isCalibrated && parts.length > 0) {
+                const p0 = parts[0];
+                let measVal = 0;
+                if (measureMode === 'WIDTH') measVal = p0.pw * mmPx;
+                else if (measureMode === 'HEIGHT') measVal = p0.ph * mmPx;
+                else if (measureMode === 'DIAGONAL') measVal = Math.sqrt(p0.pw * p0.pw + p0.ph * p0.ph) * mmPx;
+                else if (measureMode === 'AREA') measVal = p0.pw * mmPx * p0.ph * mmPx;
+
+                calculatedVal = `${measVal.toFixed(3)} ${dimUnit}`;
+                const dMin = comp.props.dimMinMm;
+                const dMax = comp.props.dimMaxMm;
+                isPassed = (dMin == null || measVal >= dMin) && (dMax == null || measVal <= dMax);
+              } else {
+                calculatedVal = isCalibrated ? '2 parts detected' : 'UNCALIBRATED';
+                isPassed = isCalibrated;
+              }
+            }
+
+            // HUD badge
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+            ctx.fillRect(10, 10, 200, 55);
+            ctx.strokeStyle = isCalibrated ? 'rgba(16, 185, 129, 0.5)' : 'rgba(245, 158, 11, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(10, 10, 200, 55);
+
+            ctx.fillStyle = isCalibrated ? '#34d399' : '#fbbf24';
+            ctx.font = 'bold 9px sans-serif';
+            ctx.fillText('DIMENSION MEASUREMENT', 18, 24);
+
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '7px monospace';
+            ctx.fillText(`Mode: ${measureMode}`, 18, 35);
+            ctx.fillText(isCalibrated ? `Calibrated: ${mmPx.toFixed(4)} ${dimUnit}/px` : 'NOT CALIBRATED', 18, 45);
+            ctx.fillText(`Tolerance: ${comp.props.dimMinMm ?? '—'} ~ ${comp.props.dimMaxMm ?? '—'} ${dimUnit}`, 18, 55);
           }
         } else {
           // Regular OpenCV flow
@@ -14877,10 +15133,359 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
             const res = runYoloDetector(ctx, canvas, width, height);
             calculatedVal = res.calculatedVal;
             isPassed = res.isPassed;
+          } else if (filterType === 'DIMENSION') {
+            // ── DIMENSION MEASUREMENT (Full OpenCV flow) ──
+            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+            const blurred = new cv.Mat();
+            const ksize = new cv.Size(5, 5);
+            cv.GaussianBlur(gray, blurred, ksize, 0);
+
+            const dimThresh = comp.props.dimThreshold ?? 80;
+            cv.Canny(blurred, edges, dimThresh, dimThresh * 2, 3, false);
+
+            // Dilate to close gaps in edges
+            const kernel = cv.Mat.ones(3, 3, cv.CV_8U);
+            const dilated = new cv.Mat();
+            cv.dilate(edges, dilated, kernel, new cv.Point(-1, -1), 1);
+
+            const contours = new cv.MatVector();
+            const hierarchy = new cv.Mat();
+            cv.findContours(dilated, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+            // Show original frame
+            cv.imshow(canvas, src);
+            const ctx = canvas.getContext('2d');
+
+            const mmPx = comp.props.mmPerPixel || 0;
+            const isCalibrated = mmPx > 0;
+            const inCalibMode = comp.props.calibrationMode === true;
+            const measureMode = comp.props.dimMeasureMode || 'WIDTH';
+            const dimUnit = comp.props.dimUnit || 'mm';
+            const minArea = comp.props.dimMinArea ?? 500;
+
+            let partCount = 0;
+            let primaryMeasVal = 0;
+            let largestArea = 0;
+
+            for (let i = 0; i < contours.size(); ++i) {
+              const cnt = contours.get(i);
+              const area = cv.contourArea(cnt);
+              if (area < minArea) continue;
+              partCount++;
+
+              const rect = cv.boundingRect(cnt);
+
+              // Draw green bounding box
+              ctx.strokeStyle = '#10b981';
+              ctx.lineWidth = 2;
+              ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+
+              // Corner brackets
+              const len = Math.min(rect.width, rect.height) * 0.15;
+              ctx.strokeStyle = '#10b981';
+              ctx.lineWidth = 3;
+              ctx.beginPath(); ctx.moveTo(rect.x, rect.y + len); ctx.lineTo(rect.x, rect.y); ctx.lineTo(rect.x + len, rect.y); ctx.stroke();
+              ctx.beginPath(); ctx.moveTo(rect.x + rect.width - len, rect.y); ctx.lineTo(rect.x + rect.width, rect.y); ctx.lineTo(rect.x + rect.width, rect.y + len); ctx.stroke();
+              ctx.beginPath(); ctx.moveTo(rect.x, rect.y + rect.height - len); ctx.lineTo(rect.x, rect.y + rect.height); ctx.lineTo(rect.x + len, rect.y + rect.height); ctx.stroke();
+              ctx.beginPath(); ctx.moveTo(rect.x + rect.width - len, rect.y + rect.height); ctx.lineTo(rect.x + rect.width, rect.y + rect.height); ctx.lineTo(rect.x + rect.width, rect.y + rect.height - len); ctx.stroke();
+
+              if (isCalibrated) {
+                const wMm = (rect.width * mmPx).toFixed(2);
+                const hMm = (rect.height * mmPx).toFixed(2);
+                const areaMm = (rect.width * mmPx * rect.height * mmPx).toFixed(1);
+
+                // Width annotation (top)
+                ctx.fillStyle = 'rgba(16, 185, 129, 0.85)';
+                const wLabel = `W: ${wMm} ${dimUnit}`;
+                ctx.font = 'bold 9px sans-serif';
+                const wTw = ctx.measureText(wLabel).width + 8;
+                ctx.fillRect(rect.x + (rect.width - wTw) / 2, rect.y - 16, wTw, 14);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(wLabel, rect.x + (rect.width - wTw) / 2 + 4, rect.y - 5);
+
+                // Height annotation (right)
+                ctx.fillStyle = 'rgba(16, 185, 129, 0.85)';
+                const hLabel = `H: ${hMm}`;
+                const hTw = ctx.measureText(hLabel).width + 8;
+                ctx.fillRect(rect.x + rect.width + 4, rect.y + (rect.height - 14) / 2, hTw, 14);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(hLabel, rect.x + rect.width + 8, rect.y + (rect.height - 14) / 2 + 11);
+
+                // Area label (center of box)
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.6)';
+                const aLabel = `${areaMm} ${dimUnit}²`;
+                ctx.font = '8px sans-serif';
+                const aTw = ctx.measureText(aLabel).width + 8;
+                ctx.fillRect(rect.x + (rect.width - aTw) / 2, rect.y + rect.height / 2 - 7, aTw, 14);
+                ctx.fillStyle = '#94a3b8';
+                ctx.fillText(aLabel, rect.x + (rect.width - aTw) / 2 + 4, rect.y + rect.height / 2 + 4);
+
+                // Track largest for primary measurement
+                if (area > largestArea) {
+                  largestArea = area;
+                  if (measureMode === 'WIDTH') primaryMeasVal = rect.width * mmPx;
+                  else if (measureMode === 'HEIGHT') primaryMeasVal = rect.height * mmPx;
+                  else if (measureMode === 'DIAGONAL') primaryMeasVal = Math.sqrt(rect.width * rect.width + rect.height * rect.height) * mmPx;
+                  else if (measureMode === 'AREA') primaryMeasVal = rect.width * mmPx * rect.height * mmPx;
+                }
+              } else {
+                // Not calibrated — show pixel dimensions
+                ctx.fillStyle = 'rgba(245, 158, 11, 0.85)';
+                const pxLabel = `${rect.width}×${rect.height} px`;
+                ctx.font = 'bold 8px sans-serif';
+                const pxTw = ctx.measureText(pxLabel).width + 8;
+                ctx.fillRect(rect.x + (rect.width - pxTw) / 2, rect.y - 14, pxTw, 12);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(pxLabel, rect.x + (rect.width - pxTw) / 2 + 4, rect.y - 4);
+              }
+            }
+
+            // Calibration mode overlay
+            if (inCalibMode) {
+              const guideW = width * 0.4;
+              const guideH = height * 0.25;
+              const gx = (width - guideW) / 2;
+              const gy = (height - guideH) / 2;
+
+              ctx.setLineDash([6, 4]);
+              ctx.strokeStyle = '#f59e0b';
+              ctx.lineWidth = 2;
+              ctx.strokeRect(gx, gy, guideW, guideH);
+              ctx.setLineDash([]);
+
+              // Crosshairs
+              ctx.strokeStyle = 'rgba(245, 158, 11, 0.4)';
+              ctx.lineWidth = 1;
+              ctx.beginPath(); ctx.moveTo(width / 2, gy - 10); ctx.lineTo(width / 2, gy + guideH + 10); ctx.stroke();
+              ctx.beginPath(); ctx.moveTo(gx - 10, height / 2); ctx.lineTo(gx + guideW + 10, height / 2); ctx.stroke();
+
+              ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+              const refLabel = `Place reference (${comp.props.dimRefSizeMm || 20} ${dimUnit})`;
+              ctx.font = 'bold 9px sans-serif';
+              const refTw = ctx.measureText(refLabel).width + 12;
+              ctx.fillRect((width - refTw) / 2, gy - 22, refTw, 16);
+              ctx.fillStyle = '#fbbf24';
+              ctx.textAlign = 'center';
+              ctx.fillText(refLabel, width / 2, gy - 9);
+              ctx.textAlign = 'start';
+
+              const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 300);
+              ctx.strokeStyle = `rgba(245, 158, 11, ${pulse})`;
+              ctx.lineWidth = 3;
+              ctx.strokeRect(gx - 2, gy - 2, guideW + 4, guideH + 4);
+            }
+
+            // Pass/fail & calculated value
+            if (isCalibrated && partCount > 0) {
+              calculatedVal = `${primaryMeasVal.toFixed(3)} ${dimUnit}`;
+              const dMin = comp.props.dimMinMm;
+              const dMax = comp.props.dimMaxMm;
+              isPassed = (dMin == null || primaryMeasVal >= dMin) && (dMax == null || primaryMeasVal <= dMax);
+            } else {
+              calculatedVal = partCount > 0 ? `${partCount} parts (${isCalibrated ? 'OK' : 'uncalibrated'})` : 'No parts detected';
+              isPassed = isCalibrated && partCount > 0;
+            }
+
+            // HUD badge
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+            ctx.fillRect(10, 10, 210, 60);
+            ctx.strokeStyle = isCalibrated ? 'rgba(16, 185, 129, 0.5)' : 'rgba(245, 158, 11, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(10, 10, 210, 60);
+
+            ctx.fillStyle = isCalibrated ? '#34d399' : '#fbbf24';
+            ctx.font = 'bold 9px sans-serif';
+            ctx.fillText('DIMENSION MEASUREMENT', 18, 24);
+
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '7px monospace';
+            ctx.fillText(`Parts: ${partCount} | Mode: ${measureMode}`, 18, 35);
+            ctx.fillText(isCalibrated ? `Cal: ${mmPx.toFixed(4)} ${dimUnit}/px` : 'NOT CALIBRATED — Set reference', 18, 45);
+            ctx.fillText(`Spec: ${comp.props.dimMinMm ?? '—'} ~ ${comp.props.dimMaxMm ?? '—'} ${dimUnit}`, 18, 55);
+
+            if (isCalibrated && partCount > 0) {
+              ctx.fillStyle = isPassed ? '#10b981' : '#ef4444';
+              ctx.font = 'bold 10px sans-serif';
+              ctx.fillText(isPassed ? '✓ PASS' : '✗ FAIL', 18, 65);
+            }
+
+            // Cleanup
+            blurred.delete();
+            kernel.delete();
+            dilated.delete();
+            contours.delete();
+            hierarchy.delete();
           } else {
             cv.imshow(canvas, src);
           }
         }
+
+        // ── Monitored Regions Processing ────────────────────────
+        const regions = cameraConfig?.settings?.regions || [];
+        const showOverlay = comp?.props?.showOverlay !== false;
+        const nowTime = Date.now();
+        const shouldAnalyze = nowTime - lastAnalysisTimeRef.current >= 100; // 10 FPS
+        if (shouldAnalyze) {
+          lastAnalysisTimeRef.current = nowTime;
+        }
+
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width;
+        const h = canvas.height;
+
+        regions.forEach((region) => {
+          const scale = w / 640;
+          const rx = Math.max(0, Math.min(region.x * scale, w - 2));
+          const ry = Math.max(0, Math.min(region.y * scale, h - 2));
+          const rw = Math.max(2, Math.min(region.w * scale, w - rx));
+          const rh = Math.max(2, Math.min(region.h * scale, h - ry));
+
+          const colorDet = region.detectors?.colorDetector;
+          const changeDet = region.detectors?.changeDetector;
+
+          let isMatching = false;
+          let changeTriggered = false;
+          let colorSimilarity = 0;
+          let changePercent = 0;
+
+          if (shouldAnalyze) {
+            try {
+              const imgData = ctx.getImageData(rx, ry, rw, rh);
+              const pixels = imgData.data;
+              let rSum = 0, gSum = 0, bSum = 0, count = 0;
+              for (let i = 0; i < pixels.length; i += 16) {
+                rSum += pixels[i];
+                gSum += pixels[i+1];
+                bSum += pixels[i+2];
+                count++;
+              }
+              const avgR = rSum / count;
+              const avgG = gSum / count;
+              const avgB = bSum / count;
+
+              // Color detector
+              if (colorDet && colorDet.enabled) {
+                const hexToRgb = (hex) => {
+                  if (!hex) return { r: 0, g: 0, b: 0 };
+                  const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+                  const fullHex = hex.replace(shorthandRegex, (m, r, g, b) => r + r + g + g + b + b);
+                  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(fullHex);
+                  return result ? {
+                    r: parseInt(result[1], 16),
+                    g: parseInt(result[2], 16),
+                    b: parseInt(result[3], 16)
+                  } : { r: 0, g: 0, b: 0 };
+                };
+                const targetRGB = hexToRgb(colorDet.targetColor);
+                const dr = avgR - targetRGB.r;
+                const dg = avgG - targetRGB.g;
+                const db = avgB - targetRGB.b;
+                const dist = Math.sqrt(dr*dr + dg*dg + db*db);
+                colorSimilarity = Math.round(Math.max(0, 100 - (dist / 441.67) * 100));
+
+                const lastState = lastMatchStatesRef.current[region.id + '_color'] || false;
+                isMatching = lastState;
+                if (colorSimilarity >= colorDet.beginThreshold) {
+                  isMatching = true;
+                } else if (colorSimilarity < colorDet.endThreshold) {
+                  isMatching = false;
+                }
+                lastMatchStatesRef.current[region.id + '_color'] = isMatching;
+
+                if (lastState !== isMatching) {
+                  const deviceEventName = isMatching ? 'CHANGES_BEGAN' : 'CHANGES_ENDED';
+                  if (typeof fireDeviceInputTriggers === 'function') {
+                    fireDeviceInputTriggers(cameraConfig.id, deviceEventName, {
+                      regionId: region.id,
+                      regionName: region.name,
+                      similarity: colorSimilarity,
+                      value: isMatching ? 'MATCH' : 'NO_MATCH'
+                    });
+                  }
+                }
+              }
+
+              // Change detector
+              if (changeDet && changeDet.enabled) {
+                const currentIntensity = (avgR + avgG + avgB) / 3;
+                const prevIntensity = prevIntensityRef.current[region.id];
+                let delta = 0;
+                if (prevIntensity !== undefined) {
+                  delta = Math.abs(currentIntensity - prevIntensity);
+                }
+                prevIntensityRef.current[region.id] = currentIntensity;
+
+                changePercent = Math.round(Math.min(100, (delta / 12) * 100));
+                
+                const lastState = lastMatchStatesRef.current[region.id + '_change'] || false;
+                changeTriggered = lastState;
+                if (changePercent >= changeDet.beginThreshold) {
+                  changeTriggered = true;
+                } else if (changePercent < changeDet.lowerThreshold) {
+                  changeTriggered = false;
+                }
+                lastMatchStatesRef.current[region.id + '_change'] = changeTriggered;
+
+                if (lastState !== changeTriggered) {
+                  const deviceEventName = changeTriggered ? 'CHANGES_BEGAN' : 'CHANGES_ENDED';
+                  if (typeof fireDeviceInputTriggers === 'function') {
+                    fireDeviceInputTriggers(cameraConfig.id, deviceEventName, {
+                      regionId: region.id,
+                      regionName: region.name,
+                      changePercent: changePercent,
+                      value: changeTriggered ? 'CHANGE' : 'NO_CHANGE'
+                    });
+                  }
+                }
+              }
+            } catch (e) {
+              // ignore startup errors
+            }
+          } else {
+            isMatching = lastMatchStatesRef.current[region.id + '_color'] || false;
+            changeTriggered = lastMatchStatesRef.current[region.id + '_change'] || false;
+          }
+
+          if (showOverlay) {
+            let borderColor = '#3b82f6';
+            if (colorDet && colorDet.enabled) {
+              borderColor = isMatching ? '#22c55e' : '#ef4444';
+            } else if (changeDet && changeDet.enabled) {
+              borderColor = changeTriggered ? '#10b981' : '#f59e0b';
+            }
+
+            ctx.strokeStyle = borderColor;
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(rx, ry, rw, rh);
+
+            // Corner Markers
+            ctx.lineWidth = 2.5;
+            const markerSize = Math.min(8, Math.min(rw, rh) * 0.25);
+            // Top-left
+            ctx.beginPath(); ctx.moveTo(rx, ry + markerSize); ctx.lineTo(rx, ry); ctx.lineTo(rx + markerSize, ry); ctx.stroke();
+            // Top-right
+            ctx.beginPath(); ctx.moveTo(rx + rw - markerSize, ry); ctx.lineTo(rx + rw, ry); ctx.lineTo(rx + rw, ry + markerSize); ctx.stroke();
+            // Bottom-left
+            ctx.beginPath(); ctx.moveTo(rx, ry + rh - markerSize); ctx.lineTo(rx, ry + rh); ctx.lineTo(rx + markerSize, ry + rh); ctx.stroke();
+            // Bottom-right
+            ctx.beginPath(); ctx.moveTo(rx + rw - markerSize, ry + rh); ctx.lineTo(rx + rw, ry + rh); ctx.lineTo(rx + rw, ry + rh - markerSize); ctx.stroke();
+
+            // Label
+            ctx.fillStyle = borderColor;
+            ctx.font = 'bold 8px sans-serif';
+            let labelText = region.name;
+            if (colorDet && colorDet.enabled) {
+              labelText += ` (${colorSimilarity}%)`;
+            } else if (changeDet && changeDet.enabled) {
+              labelText += ` (${changePercent}%)`;
+            }
+            const textWidth = ctx.measureText(labelText).width + 6;
+            ctx.fillRect(rx, ry - 11, textWidth, 11);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(labelText, rx + 3, ry - 3);
+          }
+        });
 
         currentReadoutRef.current = { val: calculatedVal, isPassed: isPassed };
       } catch (err) {
