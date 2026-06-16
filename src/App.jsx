@@ -4,6 +4,7 @@ import {
   Settings,
   Zap,
   ClipboardList,
+  Camera,
   Home as HomeIcon,
   Cpu,
   ChevronDown,
@@ -51,6 +52,7 @@ import EdgeDeviceManager from './components/EdgeDeviceManager';
 import IoTHubManager from './components/IoTHubManager';
 import PlcSettings from './components/PlcSettings';
 import VisionManager from './components/VisionManager';
+import CameraCalibration from './components/CameraCalibration';
 import McpServerManager from './components/McpServerManager';
 import DataEntryFormGuide from './components/DataEntryFormGuide';
 import VariableManager from './components/VariableManager';
@@ -417,6 +419,7 @@ const App = () => {
                     {hasAccess('/machines') && <Link to="/machines" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/machines')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/machines' ? '#f0f7ff' : 'transparent'}><Cpu size={16} /> Machines</Link>}
                     {hasAccess('/edge-devices') && <Link to="/edge-devices" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/edge-devices')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/edge-devices' ? '#f0f7ff' : 'transparent'}><Activity size={16} /> Edge Devices</Link>}
                     {hasAccess('/vision') && <Link to="/vision" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/vision')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/vision' ? '#f0f7ff' : 'transparent'}><Eye size={16} /> Vision</Link>}
+                    {hasAccess('/vision') && <Link to="/vision/calibration" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/vision/calibration')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/vision/calibration' ? '#f0f7ff' : 'transparent'}><Camera size={16} /> Camera Calibration</Link>}
                     {hasAccess('/voice-inspection') && <Link to="/voice-inspection" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/voice-inspection')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/voice-inspection' ? '#f0f7ff' : 'transparent'}><Volume2 size={16} /> Voice Inspection</Link>}
                     <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '4px 0' }} />
                     {hasAccess('/iot-hub') && <Link to="/iot-hub" onClick={() => setShopFloorMenuOpen(false)} style={{ ...dropdownItemStyle('/iot-hub'), background: location.pathname === '/iot-hub' ? 'linear-gradient(135deg,#eff6ff,#f5f3ff)' : 'transparent' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = location.pathname === '/iot-hub' ? '#eff6ff' : 'transparent'}><Radio size={16} style={{ color: '#8b5cf6' }} /> <span style={{ background: 'linear-gradient(90deg,#3b82f6,#8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontWeight: 800 }}>IoT Hub</span> <span style={{ marginLeft: 'auto', fontSize: '0.6rem', fontWeight: 800, padding: '1px 6px', backgroundColor: '#8b5cf6', color: 'white', borderRadius: '10px' }}>NEW</span></Link>}
@@ -596,6 +599,7 @@ const App = () => {
               <Route path="/machines" element={hasAccess('/machines') ? <MachineManager /> : <Navigate to="/" replace />} />
               <Route path="/edge-devices" element={hasAccess('/edge-devices') ? <EdgeDeviceManager /> : <Navigate to="/" replace />} />
               <Route path="/vision" element={hasAccess('/vision') ? <VisionManager /> : <Navigate to="/" replace />} />
+              <Route path="/vision/calibration" element={hasAccess('/vision') ? <CameraCalibration /> : <Navigate to="/" replace />} />
               <Route path="/iot-hub" element={hasAccess('/iot-hub') ? <IoTHubManager /> : <Navigate to="/" replace />} />
               <Route path="/plc-settings" element={hasAccess('/plc-settings') ? <PlcSettings /> : <Navigate to="/" replace />} />
               <Route path="/builder" element={hasAccess('/builder') ? <AppBuilder /> : <Navigate to="/" replace />} />

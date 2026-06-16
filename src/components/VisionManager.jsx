@@ -2388,6 +2388,120 @@ function CameraRegionEditor({
                                 logsRef.current = [newLog, ...logsRef.current].slice(0, 20);
                             }
                         }
+
+                        // Dimension Detector
+                        if (dimDet && dimDet.enabled) {
+                             const totalPixels = rw * rh;
+                             const intensities = new Float32Array(totalPixels);
+                             for (let i = 0; i < totalPixels; i++) {
+                                 const idx = i * 4;
+                                 intensities[i] = 0.299 * pixels[idx] + 0.587 * pixels[idx+1] + 0.114 * pixels[idx+2];
+                             }
+                             
+                             const threshold = dimDet.cannyThreshold ?? 100;
+                             const minArea = dimDet.minArea ?? 100;
+                             
+                             let minX = rw;
+                             let maxX = 0;
+                             let minY = rh;
+                             let maxY = 0;
+                             let edgeCount = 0;
+                             
+                             for (let y = 1; y < rh - 1; y++) {
+                                 for (let x = 1; x < rw - 1; x++) {
+                                     const val00 = intensities[(y-1)*rw + (x-1)];
+                                     const val01 = intensities[(y-1)*rw + x];
+                                     const val02 = intensities[(y-1)*rw + (x+1)];
+                                     
+                                     const val10 = intensities[y*rw + (x-1)];
+                                     const val12 = intensities[y*rw + (x+1)];
+                                     
+                                     const val20 = intensities[(y+1)*rw + (x-1)];
+                                     const val21 = intensities[(y+1)*rw + x];
+                                     const val22 = intensities[(y+1)*rw + (x+1)];
+                                     
+                                     const gx = (val02 + 2*val12 + val22) - (val00 + 2*val10 + val20);
+                                     const gy = (val20 + 2*val21 + val22) - (val00 + 2*val01 + val02);
+                                     const g = Math.sqrt(gx*gx + gy*gy);
+                                     
+                                     if (g > threshold) {
+                                         if (x < minX) minX = x;
+                                         if (x > maxX) maxX = x;
+                                         if (y < minY) minY = y;
+                                         if (y > maxY) maxY = y;
+                                         edgeCount++;
+                                     }
+                                 }
+                             }
+                             
+                             const detectedW = (maxX >= minX) ? (maxX - minX + 1) : 0;
+                             const detectedH = (maxY >= minY) ? (maxY - minY + 1) : 0;
+                             const detectedArea = detectedW * detectedH;
+                             
+                             let measuredValue = 0;
+                             let isPass = false;
+                             
+                             if (edgeCount >= 5 && detectedW > 0 && detectedH > 0 && detectedArea >= minArea) {
+                                 const mode = dimDet.measureMode || 'Width';
+                                 const unit = dimDet.unit || 'mm';
+                                 const referenceSize = dimDet.referenceSize ?? 20;
+                                 let scale = 1;
+                                 
+                                 if (unit === 'px') {
+                                     if (mode === 'Width') measuredValue = detectedW;
+                                     else if (mode === 'Height') measuredValue = detectedH;
+                                     else if (mode === 'Diagonal') measuredValue = Number(Math.sqrt(detectedW*detectedW + detectedH*detectedH).toFixed(1));
+                                     else if (mode === 'Area') measuredValue = detectedArea;
+                                 } else {
+                                     if (mode === 'Width') {
+                                         scale = referenceSize / rw;
+                                         measuredValue = Number((detectedW * scale).toFixed(2));
+                                     } else if (mode === 'Height') {
+                                         scale = referenceSize / rh;
+                                         measuredValue = Number((detectedH * scale).toFixed(2));
+                                     } else if (mode === 'Diagonal') {
+                                         scale = referenceSize / Math.sqrt(rw * rw + rh * rh);
+                                         const diagPixels = Math.sqrt(detectedW * detectedW + detectedH * detectedH);
+                                         measuredValue = Number((diagPixels * scale).toFixed(2));
+                                     } else if (mode === 'Area') {
+                                         scale = referenceSize / (rw * rh);
+                                         measuredValue = Number((detectedArea * scale).toFixed(2));
+                                     }
+                                 }
+                                 
+                                 isPass = measuredValue >= (dimDet.lsl ?? 19.5) && measuredValue <= (dimDet.usl ?? 20.5);
+                                 region.objectBox = {
+                                     ox: rx + minX,
+                                     oy: ry + minY,
+                                     ow: detectedW,
+                                     oh: detectedH
+                                 };
+                             } else {
+                                 measuredValue = 0;
+                                 isPass = false;
+                                 region.objectBox = null;
+                             }
+                             
+                             region.measuredValue = measuredValue;
+                             
+                             const oldPass = region.lastPassStatus;
+                             region.lastPassStatus = isPass;
+                             
+                             if (oldPass !== undefined && oldPass !== isPass) {
+                                 const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                                 const newLog = {
+                                     id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                                     time: timestamp,
+                                     regionName: region.name,
+                                     detectorType: 'Dimension',
+                                     value: `${measuredValue} ${dimDet.unit || 'mm'}`,
+                                     status: isPass ? 'PASS' : 'FAIL'
+                                 };
+                                 logsRef.current = [newLog, ...logsRef.current].slice(0, 20);
+                             }
+                        } else {
+                             region.objectBox = null;
+                        }
                     } catch (e) {
                         // silent
                     }
@@ -2417,8 +2531,9 @@ function CameraRegionEditor({
                     borderColor = '#ec4899'; // Pink
                     fillStyle = 'rgba(236, 72, 153, 0.04)';
                 } else if (dimDet && dimDet.enabled) {
-                    borderColor = '#14b8a6'; // Teal
-                    fillStyle = 'rgba(20, 184, 166, 0.04)';
+                    const isPass = region.lastPassStatus ?? false;
+                    borderColor = isPass ? '#10b981' : '#ef4444';
+                    fillStyle = isPass ? 'rgba(16, 185, 129, 0.04)' : 'rgba(239, 68, 68, 0.03)';
                 }
 
                 if (isSelected) {
@@ -2430,6 +2545,17 @@ function CameraRegionEditor({
                 ctx.strokeStyle = borderColor;
                 ctx.lineWidth = isSelected ? 2.5 : 1.5;
                 ctx.strokeRect(region.x, region.y, region.w, region.h);
+
+                // Draw detected object bounding box inside the region
+                if (dimDet && dimDet.enabled && region.objectBox && hasVideoFeed) {
+                    const { ox, oy, ow, oh } = region.objectBox;
+                    const isPass = region.lastPassStatus ?? false;
+                    ctx.strokeStyle = isPass ? '#10b981' : '#ef4444';
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([3, 3]);
+                    ctx.strokeRect(ox, oy, ow, oh);
+                    ctx.setLineDash([]);
+                }
 
                 // L-shaped corner markers (Tulip-style)
                 const cornerSize = Math.min(16, Math.min(region.w, region.h) * 0.25);
@@ -2494,10 +2620,13 @@ function CameraRegionEditor({
                     ctx.textAlign = 'left';
                     ctx.fillText(`OCR Active`, region.x + 6, region.y + region.h - 8);
                 } else if (dimDet && dimDet.enabled && hasVideoFeed) {
-                    ctx.fillStyle = '#14b8a6';
-                    ctx.font = '600 10px Inter, system-ui, sans-serif';
+                    const isPass = region.lastPassStatus ?? false;
+                    ctx.fillStyle = isPass ? '#10b981' : '#ef4444';
+                    ctx.font = '700 10px Inter, system-ui, sans-serif';
                     ctx.textAlign = 'left';
-                    ctx.fillText(`Dim: ${dimDet.referenceSize ?? 20} ${dimDet.unit ?? 'mm'}`, region.x + 6, region.y + region.h - 8);
+                    const mode = dimDet.measureMode || 'Width';
+                    const val = region.measuredValue !== undefined ? region.measuredValue : 0;
+                    ctx.fillText(`${mode}: ${val} ${dimDet.unit ?? 'mm'} (${isPass ? 'PASS' : 'FAIL'})`, region.x + 6, region.y + region.h - 8);
                 }
             });
 
@@ -3600,6 +3729,27 @@ function CameraRegionEditor({
 
                                                 {dimensionDetectorExpanded && (
                                                     <div style={{ padding: '12px 20px 18px 44px', display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: '#f8fafc' }}>
+                                                        {/* Current Measurement Value Preview */}
+                                                        <div style={{
+                                                            display: 'flex',
+                                                            justifyContent: 'space-between',
+                                                            alignItems: 'center',
+                                                            padding: '8px 12px',
+                                                            backgroundColor: selectedRegion.lastPassStatus ? '#f0fdf4' : '#fef2f2',
+                                                            border: selectedRegion.lastPassStatus ? '1px solid #bbf7d0' : '1px solid #fecaca',
+                                                            borderRadius: '6px',
+                                                            marginBottom: '2px'
+                                                        }}>
+                                                            <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569' }}>Measured:</span>
+                                                            <span style={{
+                                                                fontSize: '0.82rem',
+                                                                fontWeight: 800,
+                                                                color: selectedRegion.lastPassStatus ? '#16a34a' : '#dc2626'
+                                                            }}>
+                                                                {selectedRegion.measuredValue !== undefined ? selectedRegion.measuredValue : 0} {selectedRegion.detectors.dimensionDetector.unit || 'mm'} ({selectedRegion.lastPassStatus ? 'PASS' : 'FAIL'})
+                                                            </span>
+                                                        </div>
+
                                                         {/* Reference Size */}
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                                                             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Calibration Reference Size (mm)</span>

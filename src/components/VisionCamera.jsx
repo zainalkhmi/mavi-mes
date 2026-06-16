@@ -56,7 +56,36 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
         fetchConfig();
     }, [comp?.props?.cameraConfigId]);
 
-    const filterType = comp?.props?.filterType || 'NONE';
+    let filterType = comp?.props?.filterType || 'NONE';
+    if (cameraConfig && comp?.props?.enableDetector !== false) {
+        const regions = cameraConfig.settings?.regions || [];
+        let activeFilter = null;
+        for (const region of regions) {
+            if (region.detectors?.colorDetector?.enabled) {
+                activeFilter = 'COLOR_DETECTOR';
+                break;
+            }
+            if (region.detectors?.changeDetector?.enabled) {
+                activeFilter = 'CHANGE_DETECTOR';
+                break;
+            }
+            if (region.detectors?.jigDetector?.enabled) {
+                activeFilter = 'JIG_DETECTOR';
+                break;
+            }
+            if (region.detectors?.ocrDetector?.enabled) {
+                activeFilter = 'OCR_DETECTOR';
+                break;
+            }
+            if (region.detectors?.dimensionDetector?.enabled) {
+                activeFilter = 'INSPECTION';
+                break;
+            }
+        }
+        if (activeFilter) {
+            filterType = activeFilter;
+        }
+    }
     const label = comp?.props?.label || (comp?.type === 'OPENCV_CAMERA' ? 'OpenCV Live Stream' : 'Take Photo');
     const thresholdValue = Number(comp?.props?.thresholdValue ?? 100);
     const isCameraCapture = comp?.type === 'CAMERA_CAPTURE';
@@ -1102,7 +1131,7 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                 }
 
             // ── Monitored Regions Processing ────────────────────────
-            const regions = cameraConfig?.settings?.regions || [];
+            const regions = (comp?.props?.enableDetector !== false) ? (cameraConfig?.settings?.regions || []) : [];
             const showOverlay = comp?.props?.showOverlay !== false;
             const nowTime = Date.now();
             const shouldAnalyze = nowTime - lastAnalysisTimeRef.current >= 100; // 10 FPS
@@ -1270,7 +1299,7 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                 cancelAnimationFrame(animationFrameRef.current);
             }
         };
-    }, [viewMode, filterType, thresholdValue, capturedImage, isCameraCapture, hasPermission, cameraSource, ipCameraUrl, ipImageLoaded, ipImageError, showVideoPreview, comp?.props?.yoloModelType, comp?.props?.yoloConfidence, comp?.props?.yoloTargetClass, comp?.props?.yoloRunMode, comp?.props?.yoloApiKey, comp?.props?.yoloModelId, comp?.props?.yoloLocalUrl, cameraConfig]);
+    }, [viewMode, filterType, thresholdValue, capturedImage, isCameraCapture, hasPermission, cameraSource, ipCameraUrl, ipImageLoaded, ipImageError, showVideoPreview, comp?.props?.yoloModelType, comp?.props?.yoloConfidence, comp?.props?.yoloTargetClass, comp?.props?.yoloRunMode, comp?.props?.yoloApiKey, comp?.props?.yoloModelId, comp?.props?.yoloLocalUrl, cameraConfig, comp?.props?.enableDetector]);
 
     // Handle standard camera capture
     const handleCapture = useCallback(() => {

@@ -23867,6 +23867,16 @@ const AppBuilder = () => {
                                                                 />
                                                                 <label htmlFor="showOverlayCheckbox" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>Show Overlay (Monitored Regions)</label>
                                                             </div>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    id="enableDetectorCheckbox"
+                                                                    checked={selectedComp.props.enableDetector !== false}
+                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { enableDetector: e.target.checked })}
+                                                                    style={{ cursor: 'pointer' }}
+                                                                />
+                                                                <label htmlFor="enableDetectorCheckbox" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>Enable Visual Detector (Vision Setup)</label>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 )}
@@ -23876,29 +23886,52 @@ const AppBuilder = () => {
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
                                                             <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Camera Input Source</label>
-                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Input Source Type</label>
-                                                                <select
-                                                                    value={selectedComp.props.cameraSource || 'DEVICE'}
-                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { cameraSource: e.target.value })}
-                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
-                                                                >
-                                                                    <option value="DEVICE">Local / USB Web Camera</option>
-                                                                    <option value="IP_CAMERA">IP Camera Network Stream (RTSP/HTTP)</option>
-                                                                    <option value="SCREEN_CAPTURE">Screen Capture / Share Source</option>
-                                                                </select>
-                                                            </div>
-                                                            {selectedComp.props.cameraSource === 'IP_CAMERA' && (
-                                                                <div className="prop-group" style={{ marginBottom: '12px' }}>
-                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>IP Camera Stream URL</label>
-                                                                    <input
-                                                                        type="text"
-                                                                        placeholder="rtsp://192.168.1.100/stream"
-                                                                        value={selectedComp.props.ipCameraUrl || ''}
-                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { ipCameraUrl: e.target.value })}
-                                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
-                                                                    />
-                                                                </div>
+                                                            {selectedComp.props.cameraConfigId ? (() => {
+                                                                const activeCam = builderCameras.find(c => c.id === selectedComp.props.cameraConfigId);
+                                                                const sourceVal = activeCam?.type || selectedComp.props.cameraSource || 'DEVICE';
+                                                                const sourceText = sourceVal === 'IP_CAMERA' ? 'IP Camera Network Stream (RTSP/HTTP)' : sourceVal === 'SCREEN_CAPTURE' ? 'Screen Capture / Share Source' : 'Local / USB Web Camera';
+                                                                const urlText = activeCam?.url || selectedComp.props.ipCameraUrl || '';
+                                                                return (
+                                                                    <div style={{ padding: '10px', backgroundColor: 'var(--bg-panel)', borderRadius: '6px', border: '1px solid var(--border-primary)', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                                                        <div style={{ marginBottom: '8px' }}>
+                                                                            <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '2px' }}>Source Type</span>
+                                                                            <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{sourceText}</span>
+                                                                        </div>
+                                                                        {sourceVal === 'IP_CAMERA' && (
+                                                                            <div style={{ wordBreak: 'break-all' }}>
+                                                                                <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '2px' }}>Stream URL</span>
+                                                                                <code style={{ color: '#60a5fa', fontFamily: 'monospace' }}>{urlText}</code>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })() : (
+                                                                <>
+                                                                    <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Input Source Type</label>
+                                                                        <select
+                                                                            value={selectedComp.props.cameraSource || 'DEVICE'}
+                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { cameraSource: e.target.value })}
+                                                                            style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                        >
+                                                                            <option value="DEVICE">Local / USB Web Camera</option>
+                                                                            <option value="IP_CAMERA">IP Camera Network Stream (RTSP/HTTP)</option>
+                                                                            <option value="SCREEN_CAPTURE">Screen Capture / Share Source</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    {selectedComp.props.cameraSource === 'IP_CAMERA' && (
+                                                                        <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>IP Camera Stream URL</label>
+                                                                            <input
+                                                                                type="text"
+                                                                                placeholder="rtsp://192.168.1.100/stream"
+                                                                                value={selectedComp.props.ipCameraUrl || ''}
+                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { ipCameraUrl: e.target.value })}
+                                                                                style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                            />
+                                                                        </div>
+                                                                    )}
+                                                                </>
                                                             )}
                                                         </div>
                                                     </div>
@@ -23909,277 +23942,307 @@ const AppBuilder = () => {
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
                                                             <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>OpenCV Vision Properties</label>
-                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
-                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Vision Filter Type</label>
-                                                                <select
-                                                                    value={selectedComp.props.filterType || 'CANNY'}
-                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { filterType: e.target.value })}
-                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
-                                                                >
-                                                                    <option value="GRAY">Grayscale (Filter Dasar)</option>
-                                                                    <option value="CANNY">Canny Edge Detection (Garis Tepi)</option>
-                                                                    <option value="THRESHOLD">Binary Threshold (Biner Hitam-Putih)</option>
-                                                                    <option value="SOBEL">Sobel Gradient (Deteksi Sisi)</option>
-                                                                    <option value="INSPECTION">Vision Inspection (Quality Pass/Fail)</option>
-                                                                    <option value="CALIPER_OCR">Digital Caliper Reader (Caliper OCR)</option>
-                                                                    <option value="OCR_DETECTOR">OCR Detector (Text Region OCR)</option>
-                                                                    <option value="DIAL_GAUGE">Dial Gauge Reader (Analisis Jarum)</option>
-                                                                    <option value="COUNTING">Part Counting (Hitung Objek)</option>
-                                                                    <option value="BARCODE">Barcode/QR Reader (Pemindai)</option>
-                                                                    <option value="CHANGE_DETECTOR">Change Detector (Sensor Perubahan)</option>
-                                                                    <option value="YOLO_DETECTOR">YOLO Object Detection (Ultralytics)</option>
-                                                                    <option value="DIMENSION">Dimension Measurement (Pengukuran Dimensi)</option>
-                                                                </select>
-                                                            </div>
-                                                            {selectedComp.props.filterType === 'YOLO_DETECTOR' && (
-                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+                                                            {selectedComp.props.cameraConfigId ? (() => {
+                                                                const activeCam = builderCameras.find(c => c.id === selectedComp.props.cameraConfigId);
+                                                                const detectors = activeCam?.settings?.detectors || [];
+                                                                const regionsCount = activeCam?.settings?.regionsCount || activeCam?.settings?.regions?.length || 0;
+                                                                return (
+                                                                    <div style={{ padding: '10px', backgroundColor: 'var(--bg-panel)', borderRadius: '6px', border: '1px solid var(--border-primary)', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                                                        <div style={{ marginBottom: '8px' }}>
+                                                                            <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '2px' }}>Monitored Regions</span>
+                                                                            <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{regionsCount} Region(s) Registered</span>
+                                                                        </div>
+                                                                        <div>
+                                                                            <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>Active Detectors (Vision Setup)</span>
+                                                                            {detectors.length > 0 ? (
+                                                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
+                                                                                    {detectors.map((det, idx) => (
+                                                                                        <span key={idx} style={{ padding: '2px 6px', backgroundColor: 'rgba(33, 112, 235, 0.1)', border: '1px solid rgba(33, 112, 235, 0.3)', borderRadius: '4px', fontSize: '0.7rem', color: '#60a5fa', fontWeight: 600 }}>
+                                                                                            {det}
+                                                                                        </span>
+                                                                                    ))}
+                                                                                </div>
+                                                                            ) : (
+                                                                                <span style={{ fontStyle: 'italic', color: 'var(--text-tertiary)' }}>No Active Detectors</span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })() : (
+                                                                <>
                                                                     <div className="prop-group" style={{ marginBottom: '12px' }}>
-                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>YOLO Run Mode</label>
+                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Vision Filter Type</label>
                                                                         <select
-                                                                            value={selectedComp.props.yoloRunMode || 'SIMULATED'}
-                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { yoloRunMode: e.target.value })}
+                                                                            value={selectedComp.props.filterType || 'CANNY'}
+                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { filterType: e.target.value })}
                                                                             style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
                                                                         >
-                                                                            <option value="SIMULATED">Simulasi Lokal (Zero Latency)</option>
-                                                                            <option value="ULTRALYTICS_CLOUD">Ultralytics HUB API (Cloud Live)</option>
-                                                                            <option value="LOCAL_API">Local Python API (localhost:8000)</option>
+                                                                            <option value="GRAY">Grayscale (Filter Dasar)</option>
+                                                                            <option value="CANNY">Canny Edge Detection (Garis Tepi)</option>
+                                                                            <option value="THRESHOLD">Binary Threshold (Biner Hitam-Putih)</option>
+                                                                            <option value="SOBEL">Sobel Gradient (Deteksi Sisi)</option>
+                                                                            <option value="INSPECTION">Vision Inspection (Quality Pass/Fail)</option>
+                                                                            <option value="CALIPER_OCR">Digital Caliper Reader (Caliper OCR)</option>
+                                                                            <option value="OCR_DETECTOR">OCR Detector (Text Region OCR)</option>
+                                                                            <option value="DIAL_GAUGE">Dial Gauge Reader (Analisis Jarum)</option>
+                                                                            <option value="COUNTING">Part Counting (Hitung Objek)</option>
+                                                                            <option value="BARCODE">Barcode/QR Reader (Pemindai)</option>
+                                                                            <option value="CHANGE_DETECTOR">Change Detector (Sensor Perubahan)</option>
+                                                                            <option value="YOLO_DETECTOR">YOLO Object Detection (Ultralytics)</option>
+                                                                            <option value="DIMENSION">Dimension Measurement (Pengukuran Dimensi)</option>
                                                                         </select>
                                                                     </div>
-                                                                    {selectedComp.props.yoloRunMode === 'ULTRALYTICS_CLOUD' && (
-                                                                        <>
+                                                                    {selectedComp.props.filterType === 'YOLO_DETECTOR' && (
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
                                                                             <div className="prop-group" style={{ marginBottom: '12px' }}>
-                                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>HUB API Key</label>
-                                                                                <input
-                                                                                    type="password"
-                                                                                    placeholder="Paste x-api-key here"
-                                                                                    value={selectedComp.props.yoloApiKey || ''}
-                                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { yoloApiKey: e.target.value })}
+                                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>YOLO Run Mode</label>
+                                                                                <select
+                                                                                    value={selectedComp.props.yoloRunMode || 'SIMULATED'}
+                                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { yoloRunMode: e.target.value })}
                                                                                     style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                                >
+                                                                                    <option value="SIMULATED">Simulasi Lokal (Zero Latency)</option>
+                                                                                    <option value="ULTRALYTICS_CLOUD">Ultralytics HUB API (Cloud Live)</option>
+                                                                                    <option value="LOCAL_API">Local Python API (localhost:8000)</option>
+                                                                                </select>
+                                                                            </div>
+                                                                            {selectedComp.props.yoloRunMode === 'ULTRALYTICS_CLOUD' && (
+                                                                                <>
+                                                                                    <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>HUB API Key</label>
+                                                                                        <input
+                                                                                            type="password"
+                                                                                            placeholder="Paste x-api-key here"
+                                                                                            value={selectedComp.props.yoloApiKey || ''}
+                                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { yoloApiKey: e.target.value })}
+                                                                                            style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                                        />
+                                                                                    </div>
+                                                                                    <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Model ID</label>
+                                                                                        <input
+                                                                                            type="text"
+                                                                                            placeholder="e.g. model_12345abcdef"
+                                                                                            value={selectedComp.props.yoloModelId || ''}
+                                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { yoloModelId: e.target.value })}
+                                                                                            style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                                        />
+                                                                                    </div>
+                                                                                </>
+                                                                            )}
+                                                                            {selectedComp.props.yoloRunMode === 'LOCAL_API' && (
+                                                                                <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Server Endpoint URL</label>
+                                                                                    <input
+                                                                                        type="text"
+                                                                                        placeholder="e.g. http://localhost:8000/detect"
+                                                                                        value={selectedComp.props.yoloLocalUrl || 'http://localhost:8000/detect'}
+                                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { yoloLocalUrl: e.target.value })}
+                                                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                                    />
+                                                                                </div>
+                                                                            )}
+                                                                            {selectedComp.props.yoloRunMode === 'SIMULATED' && (
+                                                                                <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>YOLO Model Class</label>
+                                                                                    <select
+                                                                                        value={selectedComp.props.yoloModelType || 'yolov8n_general'}
+                                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { yoloModelType: e.target.value })}
+                                                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                                    >
+                                                                                        <option value="yolov8n_general">YOLOv8 Nano (General Objects - COCO)</option>
+                                                                                        <option value="yolov8n_safety">YOLOv8 Safety APD (Helmet, Vest, Gloves)</option>
+                                                                                        <option value="yolov8n_qc">YOLOv8 QC Inspection (Defect, Scratch)</option>
+                                                                                    </select>
+                                                                                </div>
+                                                                            )}
+                                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
+                                                                                    Confidence Threshold: {selectedComp.props.yoloConfidence ?? 50}%
+                                                                                </label>
+                                                                                <input
+                                                                                    type="range"
+                                                                                    min="10"
+                                                                                    max="100"
+                                                                                    value={selectedComp.props.yoloConfidence ?? 50}
+                                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { yoloConfidence: parseInt(e.target.value) })}
+                                                                                    style={{ width: '100%', cursor: 'pointer' }}
                                                                                 />
                                                                             </div>
-                                                                            <div className="prop-group" style={{ marginBottom: '12px' }}>
-                                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Model ID</label>
+                                                                            <div className="prop-group">
+                                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Target Class Filter (Optional)</label>
                                                                                 <input
                                                                                     type="text"
-                                                                                    placeholder="e.g. model_12345abcdef"
-                                                                                    value={selectedComp.props.yoloModelId || ''}
-                                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { yoloModelId: e.target.value })}
+                                                                                    placeholder="e.g. helmet, vest, person"
+                                                                                    value={selectedComp.props.yoloTargetClass || ''}
+                                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { yoloTargetClass: e.target.value })}
                                                                                     style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
                                                                                 />
                                                                             </div>
-                                                                        </>
+                                                                        </div>
                                                                     )}
-                                                                    {selectedComp.props.yoloRunMode === 'LOCAL_API' && (
+                                                                    {(selectedComp.props.filterType === 'CANNY' || selectedComp.props.filterType === 'THRESHOLD') && (
                                                                         <div className="prop-group" style={{ marginBottom: '12px' }}>
-                                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Server Endpoint URL</label>
+                                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
+                                                                                Threshold Value: {selectedComp.props.thresholdValue ?? 100}
+                                                                            </label>
                                                                             <input
-                                                                                type="text"
-                                                                                placeholder="e.g. http://localhost:8000/detect"
-                                                                                value={selectedComp.props.yoloLocalUrl || 'http://localhost:8000/detect'}
-                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { yoloLocalUrl: e.target.value })}
-                                                                                style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
-                                                                            />
-                                                                        </div>
-                                                                    )}
-                                                                    {selectedComp.props.yoloRunMode === 'SIMULATED' && (
-                                                                        <div className="prop-group" style={{ marginBottom: '12px' }}>
-                                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>YOLO Model Class</label>
-                                                                            <select
-                                                                                value={selectedComp.props.yoloModelType || 'yolov8n_general'}
-                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { yoloModelType: e.target.value })}
-                                                                                style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
-                                                                            >
-                                                                                <option value="yolov8n_general">YOLOv8 Nano (General Objects - COCO)</option>
-                                                                                <option value="yolov8n_safety">YOLOv8 Safety APD (Helmet, Vest, Gloves)</option>
-                                                                                <option value="yolov8n_qc">YOLOv8 QC Inspection (Defect, Scratch)</option>
-                                                                            </select>
-                                                                        </div>
-                                                                    )}
-                                                                    <div className="prop-group" style={{ marginBottom: '12px' }}>
-                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
-                                                                            Confidence Threshold: {selectedComp.props.yoloConfidence ?? 50}%
-                                                                        </label>
-                                                                        <input
-                                                                            type="range"
-                                                                            min="10"
-                                                                            max="100"
-                                                                            value={selectedComp.props.yoloConfidence ?? 50}
-                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { yoloConfidence: parseInt(e.target.value) })}
-                                                                            style={{ width: '100%', cursor: 'pointer' }}
-                                                                        />
-                                                                    </div>
-                                                                    <div className="prop-group">
-                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Target Class Filter (Optional)</label>
-                                                                        <input
-                                                                            type="text"
-                                                                            placeholder="e.g. helmet, vest, person"
-                                                                            value={selectedComp.props.yoloTargetClass || ''}
-                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { yoloTargetClass: e.target.value })}
-                                                                            style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
-                                                                        />
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                            {(selectedComp.props.filterType === 'CANNY' || selectedComp.props.filterType === 'THRESHOLD') && (
-                                                                <div className="prop-group" style={{ marginBottom: '12px' }}>
-                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
-                                                                        Threshold Value: {selectedComp.props.thresholdValue ?? 100}
-                                                                    </label>
-                                                                    <input
-                                                                        type="range"
-                                                                        min="0"
-                                                                        max="255"
-                                                                        value={selectedComp.props.thresholdValue ?? 100}
-                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { thresholdValue: parseInt(e.target.value) })}
-                                                                        style={{ width: '100%', cursor: 'pointer' }}
-                                                                    />
-                                                                </div>
-                                                            )}
-                                                            {selectedComp.props.filterType === 'CHANGE_DETECTOR' && (
-                                                                <div className="prop-group" style={{ marginBottom: '12px' }}>
-                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
-                                                                        Change Threshold (%): {selectedComp.props.changeThreshold ?? 25}%
-                                                                    </label>
-                                                                    <input
-                                                                        type="range"
-                                                                        min="1"
-                                                                        max="100"
-                                                                        value={selectedComp.props.changeThreshold ?? 25}
-                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { changeThreshold: parseInt(e.target.value) })}
-                                                                        style={{ width: '100%', cursor: 'pointer' }}
-                                                                    />
-                                                                </div>
-                                                            )}
-                                                            {selectedComp.props.filterType === 'DIMENSION' && (
-                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
-                                                                    {/* Calibration Section */}
-                                                                    <div style={{ padding: '10px', backgroundColor: 'rgba(245, 158, 11, 0.06)', border: '1px solid rgba(245, 158, 11, 0.2)', borderRadius: '8px' }}>
-                                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#f59e0b', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>📐 Calibration</label>
-                                                                        <div className="prop-group" style={{ marginBottom: '10px' }}>
-                                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Reference Object Size (mm)</label>
-                                                                            <input
-                                                                                type="number"
-                                                                                step="0.1"
-                                                                                min="0.1"
-                                                                                value={selectedComp.props.dimRefSizeMm ?? 20}
-                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { dimRefSizeMm: parseFloat(e.target.value) || 20 })}
-                                                                                style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
-                                                                            />
-                                                                        </div>
-                                                                        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                                                                            <button
-                                                                                onClick={() => updateComponentProps(selectedComp.id, { calibrationMode: !selectedComp.props.calibrationMode })}
-                                                                                style={{ flex: 1, padding: '8px', borderRadius: '6px', border: selectedComp.props.calibrationMode ? '1px solid #f59e0b' : '1px solid var(--border-primary)', backgroundColor: selectedComp.props.calibrationMode ? 'rgba(245, 158, 11, 0.15)' : 'var(--bg-panel)', color: selectedComp.props.calibrationMode ? '#f59e0b' : 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
-                                                                            >
-                                                                                {selectedComp.props.calibrationMode ? '⏳ Calibrating...' : '🎯 Start Calibration'}
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => updateComponentProps(selectedComp.id, { mmPerPixel: 0, calibrationMode: false })}
-                                                                                style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-panel)', color: '#ef4444', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
-                                                                            >
-                                                                                Clear
-                                                                            </button>
-                                                                        </div>
-                                                                        <div style={{ padding: '6px 10px', borderRadius: '6px', backgroundColor: selectedComp.props.mmPerPixel > 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(100, 116, 139, 0.1)', border: `1px solid ${selectedComp.props.mmPerPixel > 0 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(100, 116, 139, 0.2)'}`, fontSize: '0.7rem', color: selectedComp.props.mmPerPixel > 0 ? '#10b981' : '#94a3b8', fontWeight: 600 }}>
-                                                                            {selectedComp.props.mmPerPixel > 0
-                                                                                ? `✓ Calibrated: ${selectedComp.props.mmPerPixel.toFixed(4)} mm/px`
-                                                                                : '○ Not calibrated — place reference object & press Start'}
-                                                                        </div>
-                                                                        <div className="prop-group" style={{ marginTop: '8px' }}>
-                                                                            <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>Manual mm/pixel (override)</label>
-                                                                            <input
-                                                                                type="number"
-                                                                                step="0.0001"
+                                                                                type="range"
                                                                                 min="0"
-                                                                                value={selectedComp.props.mmPerPixel ?? 0}
-                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { mmPerPixel: parseFloat(e.target.value) || 0 })}
-                                                                                placeholder="e.g. 0.0250"
-                                                                                style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.8rem' }}
+                                                                                max="255"
+                                                                                value={selectedComp.props.thresholdValue ?? 100}
+                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { thresholdValue: parseInt(e.target.value) })}
+                                                                                style={{ width: '100%', cursor: 'pointer' }}
                                                                             />
                                                                         </div>
-                                                                    </div>
+                                                                    )}
+                                                                    {selectedComp.props.filterType === 'CHANGE_DETECTOR' && (
+                                                                        <div className="prop-group" style={{ marginBottom: '12px' }}>
+                                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
+                                                                                Change Threshold (%): {selectedComp.props.changeThreshold ?? 25}%
+                                                                            </label>
+                                                                            <input
+                                                                                type="range"
+                                                                                min="1"
+                                                                                max="100"
+                                                                                value={selectedComp.props.changeThreshold ?? 25}
+                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { changeThreshold: parseInt(e.target.value) })}
+                                                                                style={{ width: '100%', cursor: 'pointer' }}
+                                                                            />
+                                                                        </div>
+                                                                    )}
+                                                                    {selectedComp.props.filterType === 'DIMENSION' && (
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+                                                                            {/* Calibration Section */}
+                                                                            <div style={{ padding: '10px', backgroundColor: 'rgba(245, 158, 11, 0.06)', border: '1px solid rgba(245, 158, 11, 0.2)', borderRadius: '8px' }}>
+                                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#f59e0b', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>📐 Calibration</label>
+                                                                                <div className="prop-group" style={{ marginBottom: '10px' }}>
+                                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Reference Object Size (mm)</label>
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        step="0.1"
+                                                                                        min="0.1"
+                                                                                        value={selectedComp.props.dimRefSizeMm ?? 20}
+                                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { dimRefSizeMm: parseFloat(e.target.value) || 20 })}
+                                                                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                                    />
+                                                                                </div>
+                                                                                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                                                                                    <button
+                                                                                        onClick={() => updateComponentProps(selectedComp.id, { calibrationMode: !selectedComp.props.calibrationMode })}
+                                                                                        style={{ flex: 1, padding: '8px', borderRadius: '6px', border: selectedComp.props.calibrationMode ? '1px solid #f59e0b' : '1px solid var(--border-primary)', backgroundColor: selectedComp.props.calibrationMode ? 'rgba(245, 158, 11, 0.15)' : 'var(--bg-panel)', color: selectedComp.props.calibrationMode ? '#f59e0b' : 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                                                                                    >
+                                                                                        {selectedComp.props.calibrationMode ? '⏳ Calibrating...' : '🎯 Start Calibration'}
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={() => updateComponentProps(selectedComp.id, { mmPerPixel: 0, calibrationMode: false })}
+                                                                                        style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-panel)', color: '#ef4444', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                                                                                    >
+                                                                                        Clear
+                                                                                    </button>
+                                                                                </div>
+                                                                                <div style={{ padding: '6px 10px', borderRadius: '6px', backgroundColor: selectedComp.props.mmPerPixel > 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(100, 116, 139, 0.1)', border: `1px solid ${selectedComp.props.mmPerPixel > 0 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(100, 116, 139, 0.2)'}`, fontSize: '0.7rem', color: selectedComp.props.mmPerPixel > 0 ? '#10b981' : '#94a3b8', fontWeight: 600 }}>
+                                                                                    {selectedComp.props.mmPerPixel > 0
+                                                                                        ? `✓ Calibrated: ${selectedComp.props.mmPerPixel.toFixed(4)} mm/px`
+                                                                                        : '○ Not calibrated — place reference object & press Start'}
+                                                                                </div>
+                                                                                <div className="prop-group" style={{ marginTop: '8px' }}>
+                                                                                    <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>Manual mm/pixel (override)</label>
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        step="0.0001"
+                                                                                        min="0"
+                                                                                        value={selectedComp.props.mmPerPixel ?? 0}
+                                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { mmPerPixel: parseFloat(e.target.value) || 0 })}
+                                                                                        placeholder="e.g. 0.0250"
+                                                                                        style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.8rem' }}
+                                                                                    />
+                                                                                </div>
+                                                                            </div>
 
-                                                                    {/* Measurement Settings */}
-                                                                    <div className="prop-group" style={{ marginBottom: '4px' }}>
-                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Measure Mode</label>
-                                                                        <select
-                                                                            value={selectedComp.props.dimMeasureMode || 'WIDTH'}
-                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { dimMeasureMode: e.target.value })}
-                                                                            style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
-                                                                        >
-                                                                            <option value="WIDTH">Width (Lebar)</option>
-                                                                            <option value="HEIGHT">Height (Tinggi)</option>
-                                                                            <option value="DIAGONAL">Diagonal</option>
-                                                                            <option value="AREA">Area (Luas mm²)</option>
-                                                                        </select>
-                                                                    </div>
-                                                                    <div className="prop-group" style={{ marginBottom: '4px' }}>
-                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Display Unit</label>
-                                                                        <input
-                                                                            type="text"
-                                                                            value={selectedComp.props.dimUnit || 'mm'}
-                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { dimUnit: e.target.value })}
-                                                                            placeholder="mm"
-                                                                            style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
-                                                                        />
-                                                                    </div>
-                                                                    <div className="prop-group" style={{ marginBottom: '4px' }}>
-                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
-                                                                            Min Contour Area (px²): {selectedComp.props.dimMinArea ?? 500}
-                                                                        </label>
-                                                                        <input
-                                                                            type="range"
-                                                                            min="50"
-                                                                            max="5000"
-                                                                            step="50"
-                                                                            value={selectedComp.props.dimMinArea ?? 500}
-                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { dimMinArea: parseInt(e.target.value) })}
-                                                                            style={{ width: '100%', cursor: 'pointer' }}
-                                                                        />
-                                                                    </div>
-                                                                    <div className="prop-group" style={{ marginBottom: '4px' }}>
-                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
-                                                                            Edge Threshold: {selectedComp.props.dimThreshold ?? 80}
-                                                                        </label>
-                                                                        <input
-                                                                            type="range"
-                                                                            min="10"
-                                                                            max="255"
-                                                                            value={selectedComp.props.dimThreshold ?? 80}
-                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { dimThreshold: parseInt(e.target.value) })}
-                                                                            style={{ width: '100%', cursor: 'pointer' }}
-                                                                        />
-                                                                    </div>
-
-                                                                    {/* Tolerance / Spec Limits */}
-                                                                    <div style={{ padding: '10px', backgroundColor: 'rgba(59, 130, 246, 0.05)', border: '1px solid rgba(59, 130, 246, 0.15)', borderRadius: '8px' }}>
-                                                                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#3b82f6', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>📏 Specification Limits (Pass/Fail)</label>
-                                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                                                                            <div className="prop-group">
-                                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>LSL (Min mm)</label>
+                                                                            {/* Measurement Settings */}
+                                                                            <div className="prop-group" style={{ marginBottom: '4px' }}>
+                                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Measure Mode</label>
+                                                                                <select
+                                                                                    value={selectedComp.props.dimMeasureMode || 'WIDTH'}
+                                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { dimMeasureMode: e.target.value })}
+                                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                                >
+                                                                                    <option value="WIDTH">Width (Lebar)</option>
+                                                                                    <option value="HEIGHT">Height (Tinggi)</option>
+                                                                                    <option value="DIAGONAL">Diagonal</option>
+                                                                                    <option value="AREA">Area (Luas mm²)</option>
+                                                                                </select>
+                                                                            </div>
+                                                                            <div className="prop-group" style={{ marginBottom: '4px' }}>
+                                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Display Unit</label>
                                                                                 <input
-                                                                                    type="number"
-                                                                                    step="0.01"
-                                                                                    value={selectedComp.props.dimMinMm ?? ''}
-                                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { dimMinMm: e.target.value === '' ? null : parseFloat(e.target.value) })}
-                                                                                    placeholder="—"
-                                                                                    style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                                    type="text"
+                                                                                    value={selectedComp.props.dimUnit || 'mm'}
+                                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { dimUnit: e.target.value })}
+                                                                                    placeholder="mm"
+                                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
                                                                                 />
                                                                             </div>
-                                                                            <div className="prop-group">
-                                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>USL (Max mm)</label>
+                                                                            <div className="prop-group" style={{ marginBottom: '4px' }}>
+                                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
+                                                                                    Min Contour Area (px²): {selectedComp.props.dimMinArea ?? 500}
+                                                                                </label>
                                                                                 <input
-                                                                                    type="number"
-                                                                                    step="0.01"
-                                                                                    value={selectedComp.props.dimMaxMm ?? ''}
-                                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { dimMaxMm: e.target.value === '' ? null : parseFloat(e.target.value) })}
-                                                                                    placeholder="—"
-                                                                                    style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                                    type="range"
+                                                                                    min="50"
+                                                                                    max="5000"
+                                                                                    step="50"
+                                                                                    value={selectedComp.props.dimMinArea ?? 500}
+                                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { dimMinArea: parseInt(e.target.value) })}
+                                                                                    style={{ width: '100%', cursor: 'pointer' }}
                                                                                 />
+                                                                            </div>
+                                                                            <div className="prop-group" style={{ marginBottom: '4px' }}>
+                                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
+                                                                                    Edge Threshold: {selectedComp.props.dimThreshold ?? 80}
+                                                                                </label>
+                                                                                <input
+                                                                                    type="range"
+                                                                                    min="10"
+                                                                                    max="255"
+                                                                                    value={selectedComp.props.dimThreshold ?? 80}
+                                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { dimThreshold: parseInt(e.target.value) })}
+                                                                                    style={{ width: '100%', cursor: 'pointer' }}
+                                                                                />
+                                                                            </div>
+
+                                                                            {/* Tolerance / Spec Limits */}
+                                                                            <div style={{ padding: '10px', backgroundColor: 'rgba(59, 130, 246, 0.05)', border: '1px solid rgba(59, 130, 246, 0.15)', borderRadius: '8px' }}>
+                                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#3b82f6', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>📏 Specification Limits (Pass/Fail)</label>
+                                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                                                                    <div className="prop-group">
+                                                                                        <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>LSL (Min mm)</label>
+                                                                                        <input
+                                                                                            type="number"
+                                                                                            step="0.01"
+                                                                                            value={selectedComp.props.dimMinMm ?? ''}
+                                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { dimMinMm: e.target.value === '' ? null : parseFloat(e.target.value) })}
+                                                                                            placeholder="—"
+                                                                                            style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                                        />
+                                                                                    </div>
+                                                                                    <div className="prop-group">
+                                                                                        <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>USL (Max mm)</label>
+                                                                                        <input
+                                                                                            type="number"
+                                                                                            step="0.01"
+                                                                                            value={selectedComp.props.dimMaxMm ?? ''}
+                                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { dimMaxMm: e.target.value === '' ? null : parseFloat(e.target.value) })}
+                                                                                            placeholder="—"
+                                                                                            style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                                        />
+                                                                                    </div>
+                                                                                </div>
                                                                             </div>
                                                                         </div>
-                                                                    </div>
-                                                                </div>
+                                                                    )}
+                                                                </>
                                                             )}
                                                         </div>
                                                     </div>
