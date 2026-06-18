@@ -12,20 +12,20 @@ import {
 import toast, { Toaster } from 'react-hot-toast';
 import { getAllCameras, saveCamera } from '../utils/supabaseUtilityDB';
 
-// Styling constants for the premium dark industrial theme (2026 aesthetics)
+// Styling constants for Odoo-style light theme (2026 aesthetics)
 const COLORS = {
-  bgDark: '#090d16',      // Deepest black-blue background
-  sidebarDark: '#0d131f', // Deep sidebar background
-  cardDark: '#141b2d',    // Gray-blue card background
-  cardHeader: '#1b253b',  // Card header background
-  border: '#202b42',      // Border color
-  textLight: '#f8fafc',   // Off-white text
-  textMuted: '#94a3b8',   // Cool gray text
-  blueAccent: '#2170eb',  // Vibrant industrial blue
-  blueHover: '#165ecb',
-  greenAccent: '#10b981', // Emerald green
-  redAccent: '#f43f5e',   // Rose red
-  yellowAccent: '#f59e0b',// Amber warning
+  bgDark: '#f8fafc',      // Light workspace background (Odoo style)
+  sidebarDark: '#ffffff', // White sidebar background
+  cardDark: '#ffffff',    // White card background
+  cardHeader: '#f1f5f9',  // Subtle light card header
+  border: '#e2e8f0',      // Thin light border
+  textLight: '#1f2937',   // Dark charcoal text for readability
+  textMuted: '#6b7280',   // Cool gray muted text
+  blueAccent: '#714b67',  // Odoo Purple primary brand accent
+  blueHover: '#5c3c54',   // Odoo Purple hover
+  greenAccent: '#008784', // Odoo Teal success accent
+  redAccent: '#dc2626',   // Warning red
+  yellowAccent: '#eab308',// Amber warning
 };
 
 export default function CameraCalibration() {
@@ -144,11 +144,113 @@ export default function CameraCalibration() {
     { id: 'CAL-03', date: '2026-05-30 11:45', operator: 'S. Raharjo', camera: 'USB Camera', type: 'Full OpenCV', rms: '0.24 px', scale: '0.1172 mm/px', status: 'SUPERSEDED' },
   ]);
 
+  // Refs for Live Camera Streaming
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const setupCanvasRef = useRef(null);
+  const ipImageRef = useRef(null);
+
   // Simulation Refs for Canvases
   const cameraCanvasRef = useRef(null);
   const scaleCanvasRef = useRef(null);
   const roiCanvasRef = useRef(null);
   const animationFrameId = useRef(null);
+
+  const [ipImageLoaded, setIpImageLoaded] = useState(false);
+  const [ipImageError, setIpImageError] = useState(false);
+
+  // 1. Webcam stream lifecycle hook (getUserMedia)
+  useEffect(() => {
+    if (!isCameraConnected) {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+      return;
+    }
+
+    const selectedCam = registeredCameras.find(c => c.name === cameraSource);
+    const camType = selectedCam?.type || 'DEVICE';
+
+    if (camType === 'DEVICE') {
+      const getWebcam = async () => {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              facingMode: 'environment'
+            }
+          });
+          streamRef.current = stream;
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            videoRef.current.play().catch(err => console.warn('Video play interrupted:', err));
+          }
+        } catch (err) {
+          console.error('Failed to access webcam:', err);
+          toast.error('Kamera tidak dapat diakses: ' + err.message);
+        }
+      };
+      getWebcam();
+    }
+
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+    };
+  }, [isCameraConnected, cameraSource, registeredCameras]);
+
+  // 2. IP Camera MJPEG stream hook
+  useEffect(() => {
+    if (!isCameraConnected) {
+      ipImageRef.current = null;
+      setIpImageLoaded(false);
+      setIpImageError(false);
+      return;
+    }
+
+    const selectedCam = registeredCameras.find(c => c.name === cameraSource);
+    const camType = selectedCam?.type || 'DEVICE';
+    const ipUrl = selectedCam?.url || '';
+
+    if (camType !== 'IP_CAMERA' || !ipUrl) {
+      ipImageRef.current = null;
+      setIpImageLoaded(false);
+      setIpImageError(false);
+      return;
+    }
+
+    const isRtsp = ipUrl.toLowerCase().startsWith('rtsp://');
+    if (isRtsp) {
+      ipImageRef.current = null;
+      setIpImageLoaded(true); // Treat as loaded, render simulated stream overlay
+      return;
+    }
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      setIpImageLoaded(true);
+      setIpImageError(false);
+    };
+    img.onerror = () => {
+      setIpImageError(true);
+      setIpImageLoaded(false);
+    };
+    img.src = ipUrl;
+    ipImageRef.current = img;
+
+    return () => {
+      img.onload = null;
+      img.onerror = null;
+    };
+  }, [cameraSource, registeredCameras, isCameraConnected]);
 
   // Auto-increment counters to prevent React duplicate key warnings
   const imageCounter = useRef(5);
@@ -475,193 +577,227 @@ fps: "${cameraFps}"
     ctx.restore();
   };
 
-  // Live Canvas View Rendering Loops
+  const drawChessboardOverlay = (ctx, width, height, angle, scale) => {
+    ctx.save();
+    ctx.globalAlpha = 0.55; // Semi-transparent overlay so live camera stream is visible behind it
+    drawChessboard(ctx, width, height, angle, scale);
+    ctx.restore();
+  };
+
+  // Continuous animation frame loop to render live webcam/IP Camera feed in real time
   useEffect(() => {
-    // 1. Lens Calibration view canvas drawing
-    if (currentMenu === 'lens-calibration' && cameraCanvasRef.current) {
-      const canvas = cameraCanvasRef.current;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#0f172a';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    let active = true;
 
-      if (isCameraConnected) {
-        // Draw chessboard inside camera feed
-        const selectedImgObj = capturedImages.find(img => img.id === selectedCapturedImage);
-        const angle = selectedImgObj ? selectedImgObj.angle : 0;
-        const scale = selectedImgObj ? selectedImgObj.scale : 1.0;
-        drawChessboard(ctx, canvas.width, canvas.height, angle, scale);
+    const render = () => {
+      if (!active) return;
 
-        // Add scan grid overlay lines
-        ctx.strokeStyle = 'rgba(59, 130, 246, 0.15)';
-        ctx.lineWidth = 1;
-        for (let i = 40; i < canvas.width; i += 40) {
-          ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+      let canvas = null;
+      if (currentMenu === 'camera-setup') canvas = setupCanvasRef.current;
+      else if (currentMenu === 'lens-calibration') canvas = cameraCanvasRef.current;
+      else if (currentMenu === 'scale-calibration') canvas = scaleCanvasRef.current;
+      else if (currentMenu === 'roi-setup') canvas = roiCanvasRef.current;
+
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          // Draw video or IP camera or fallback
+          if (isCameraConnected) {
+            const selectedCam = registeredCameras.find(c => c.name === cameraSource);
+            const camType = selectedCam?.type || 'DEVICE';
+
+            if (camType === 'IP_CAMERA' && ipImageRef.current && ipImageLoaded) {
+              ctx.drawImage(ipImageRef.current, 0, 0, canvas.width, canvas.height);
+            } else if (camType === 'DEVICE' && videoRef.current && videoRef.current.readyState >= 2) {
+              ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+            } else {
+              // Simulated backdrop
+              ctx.fillStyle = '#0f172a';
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              
+              // Draw pulsating indicator
+              ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+              ctx.beginPath();
+              ctx.arc(canvas.width / 2, canvas.height / 2, 50 + Math.sin(Date.now() / 200) * 10, 0, Math.PI * 2);
+              ctx.fill();
+
+              ctx.fillStyle = COLORS.textMuted;
+              ctx.font = '14px sans-serif';
+              ctx.textAlign = 'center';
+              ctx.fillText('Connecting to Camera Stream...', canvas.width / 2, canvas.height / 2);
+            }
+
+            // Overlay features based on active menu
+            if (currentMenu === 'camera-setup') {
+              // Crosshair guide overlay
+              ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.moveTo(canvas.width / 2, 0); ctx.lineTo(canvas.width / 2, canvas.height);
+              ctx.moveTo(0, canvas.height / 2); ctx.lineTo(canvas.width, canvas.height / 2);
+              ctx.stroke();
+
+              // Watermark
+              ctx.fillStyle = COLORS.greenAccent;
+              ctx.font = 'monospace 10px';
+              ctx.textAlign = 'left';
+              ctx.fillText(`Live Stream: ${cameraSource} [REALTIME]`, 15, canvas.height - 15);
+            }
+            else if (currentMenu === 'lens-calibration') {
+              // Overlay chessboard grid
+              const selectedImgObj = capturedImages.find(img => img.id === selectedCapturedImage);
+              const angle = selectedImgObj ? selectedImgObj.angle : 0;
+              const scale = selectedImgObj ? selectedImgObj.scale : 1.0;
+              drawChessboardOverlay(ctx, canvas.width, canvas.height, angle, scale);
+
+              // Grid overlay lines
+              ctx.strokeStyle = 'rgba(113, 75, 103, 0.15)'; // Purple grid
+              ctx.lineWidth = 1;
+              for (let i = 40; i < canvas.width; i += 40) {
+                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+              }
+              for (let j = 40; j < canvas.height; j += 40) {
+                ctx.beginPath(); ctx.moveTo(0, j); ctx.lineTo(canvas.width, j); ctx.stroke();
+              }
+            }
+            else if (currentMenu === 'scale-calibration') {
+              // Overlay simulated calibration target if no real feed
+              const selectedCam = registeredCameras.find(c => c.name === cameraSource);
+              const camType = selectedCam?.type || 'DEVICE';
+              if (camType !== 'IP_CAMERA' && (!videoRef.current || videoRef.current.readyState < 2)) {
+                // If fallback, draw simulated blocks
+                ctx.fillStyle = '#222f47';
+                ctx.strokeStyle = '#714b67';
+                ctx.lineWidth = 2;
+                const blockX = (canvas.width - 450) / 2;
+                const blockY = (canvas.height - 120) / 2;
+                ctx.fillRect(blockX, blockY, 450, 120);
+                ctx.strokeRect(blockX, blockY, 450, 120);
+
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = 'bold 12px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('REFERENCE CALIBRATION BAR', canvas.width / 2, canvas.height / 2 - 20);
+                ctx.fillText('KNOWN LENGTH: 100.00 mm', canvas.width / 2, canvas.height / 2 + 10);
+              }
+
+              // Caliper guide lines
+              const blockX = (canvas.width - 450) / 2;
+              const blockY = (canvas.height - 120) / 2;
+              ctx.strokeStyle = COLORS.greenAccent;
+              ctx.lineWidth = 1.5;
+              ctx.beginPath(); ctx.moveTo(blockX, blockY - 10); ctx.lineTo(blockX, blockY + 130); ctx.stroke();
+              ctx.beginPath(); ctx.moveTo(blockX + 450, blockY - 10); ctx.lineTo(blockX + 450, blockY + 130); ctx.stroke();
+              ctx.beginPath(); ctx.moveTo(blockX, blockY + 60); ctx.lineTo(blockX + 450, blockY + 60); ctx.stroke();
+
+              // Draw dragged line
+              if (draggedLine) {
+                ctx.strokeStyle = COLORS.blueAccent;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(draggedLine.x1, draggedLine.y1);
+                ctx.lineTo(draggedLine.x2, draggedLine.y2);
+                ctx.stroke();
+
+                ctx.fillStyle = COLORS.blueAccent;
+                ctx.beginPath(); ctx.arc(draggedLine.x1, draggedLine.y1, 5, 0, 2*Math.PI); ctx.fill();
+                ctx.beginPath(); ctx.arc(draggedLine.x2, draggedLine.y2, 5, 0, 2*Math.PI); ctx.fill();
+
+                const dx = draggedLine.x2 - draggedLine.x1;
+                const dy = draggedLine.y2 - draggedLine.y1;
+                const pxDist = Math.round(Math.sqrt(dx * dx + dy * dy));
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 13px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${pxDist} px`, (draggedLine.x1 + draggedLine.x2) / 2, ((draggedLine.y1 + draggedLine.y2) / 2) - 10);
+              }
+
+              // Instructions watermark
+              ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+              ctx.fillRect(10, 10, 320, 40);
+              ctx.fillStyle = '#ffffff';
+              ctx.font = '11px sans-serif';
+              ctx.textAlign = 'left';
+              ctx.fillText('Instructions: Click & drag to select calibration line.', 20, 25);
+              ctx.fillText('Line should match known reference distance exactly.', 20, 40);
+            }
+            else if (currentMenu === 'roi-setup') {
+              const selectedCam = registeredCameras.find(c => c.name === cameraSource);
+              const camType = selectedCam?.type || 'DEVICE';
+              if (camType !== 'IP_CAMERA' && (!videoRef.current || videoRef.current.readyState < 2)) {
+                // simulated components
+                ctx.strokeStyle = '#475569';
+                ctx.lineWidth = 2;
+                ctx.fillStyle = '#1e293b';
+
+                const partX = (canvas.width - 320) / 2;
+                const partY = (canvas.height - 180) / 2;
+                ctx.fillRect(partX, partY, 320, 180);
+                ctx.strokeRect(partX, partY, 320, 180);
+
+                ctx.beginPath();
+                ctx.arc(canvas.width / 2, canvas.height / 2, 45, 0, 2 * Math.PI);
+                ctx.stroke();
+              }
+
+              // Draw saved ROIs
+              savedRois.forEach(roi => {
+                ctx.strokeStyle = 'rgba(245, 158, 11, 0.4)';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([4, 4]);
+                ctx.strokeRect(roi.x, roi.y, roi.w, roi.h);
+                ctx.setLineDash([]);
+                ctx.fillStyle = 'rgba(245, 158, 11, 0.6)';
+                ctx.font = '10px sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText(roi.name, roi.x + 5, roi.y + 15);
+              });
+
+              // Draw Active ROI
+              ctx.strokeStyle = COLORS.yellowAccent;
+              ctx.lineWidth = 2.5;
+              ctx.strokeRect(roiBox.x, roiBox.y, roiBox.w, roiBox.h);
+
+              ctx.fillStyle = COLORS.yellowAccent;
+              const handles = [
+                { x: roiBox.x, y: roiBox.y },
+                { x: roiBox.x + roiBox.w, y: roiBox.y },
+                { x: roiBox.x, y: roiBox.y + roiBox.h },
+                { x: roiBox.x + roiBox.w, y: roiBox.y + roiBox.h }
+              ];
+              handles.forEach(h => {
+                ctx.fillRect(h.x - 5, h.y - 5, 10, 10);
+              });
+
+              ctx.fillStyle = COLORS.yellowAccent;
+              ctx.font = 'bold 12px sans-serif';
+              ctx.textAlign = 'left';
+              ctx.fillText(`ACTIVE: ${roiName}`, roiBox.x + 5, roiBox.y - 8);
+            }
+          } else {
+            // Camera Disconnected
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '16px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('NO CAMERA SIGNAL. CONNECT CAMERA FIRST.', canvas.width / 2, canvas.height / 2);
+          }
         }
-        for (let j = 40; j < canvas.height; j += 40) {
-          ctx.beginPath(); ctx.moveTo(0, j); ctx.lineTo(canvas.width, j); ctx.stroke();
-        }
-      } else {
-        // No signal state
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '16px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('NO CAMERA SIGNAL. CONNECT CAMERA FIRST.', canvas.width / 2, canvas.height / 2);
       }
-    }
 
-    // 2. Scale Calibration view canvas drawing
-    if (currentMenu === 'scale-calibration' && scaleCanvasRef.current) {
-      const canvas = scaleCanvasRef.current;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#0a0f1d';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      animationFrameId.current = requestAnimationFrame(render);
+    };
 
-      if (isCameraConnected) {
-        // Draw reference block on conveyor belt
-        ctx.fillStyle = '#222f47';
-        ctx.strokeStyle = '#3b82f6';
-        ctx.lineWidth = 2;
-        // Known block: width of 854px representing 100mm reference block
-        const blockX = (canvas.width - 450) / 2;
-        const blockY = (canvas.height - 120) / 2;
-        ctx.fillRect(blockX, blockY, 450, 120);
-        ctx.strokeRect(blockX, blockY, 450, 120);
-
-        // Label block
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = 'bold 12px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('REFERENCE CALIBRATION BAR', canvas.width / 2, canvas.height / 2 - 20);
-        ctx.fillText('KNOWN LENGTH: 100.00 mm', canvas.width / 2, canvas.height / 2 + 10);
-
-        // Draw caliper guide arrows for reference block length
-        ctx.strokeStyle = COLORS.greenAccent;
-        ctx.lineWidth = 1.5;
-        // Left guide line
-        ctx.beginPath(); ctx.moveTo(blockX, blockY - 10); ctx.lineTo(blockX, blockY + 130); ctx.stroke();
-        // Right guide line
-        ctx.beginPath(); ctx.moveTo(blockX + 450, blockY - 10); ctx.lineTo(blockX + 450, blockY + 130); ctx.stroke();
-
-        // Arrow line
-        ctx.beginPath();
-        ctx.moveTo(blockX, blockY + 60);
-        ctx.lineTo(blockX + 450, blockY + 60);
-        ctx.stroke();
-
-        // Draw dragged line if exists
-        if (draggedLine) {
-          ctx.strokeStyle = COLORS.blueAccent;
-          ctx.lineWidth = 3;
-          ctx.beginPath();
-          ctx.moveTo(draggedLine.x1, draggedLine.y1);
-          ctx.lineTo(draggedLine.x2, draggedLine.y2);
-          ctx.stroke();
-
-          // Dots on end
-          ctx.fillStyle = COLORS.blueAccent;
-          ctx.beginPath(); ctx.arc(draggedLine.x1, draggedLine.y1, 5, 0, 2*Math.PI); ctx.fill();
-          ctx.beginPath(); ctx.arc(draggedLine.x2, draggedLine.y2, 5, 0, 2*Math.PI); ctx.fill();
-
-          // Text distance label
-          const dx = draggedLine.x2 - draggedLine.x1;
-          const dy = draggedLine.y2 - draggedLine.y1;
-          const pxDist = Math.round(Math.sqrt(dx * dx + dy * dy));
-
-          ctx.fillStyle = '#ffffff';
-          ctx.font = 'bold 13px sans-serif';
-          ctx.fillText(`${pxDist} px`, (draggedLine.x1 + draggedLine.x2) / 2, ((draggedLine.y1 + draggedLine.y2) / 2) - 10);
-        }
-
-        // Draw instructions text overlay
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-        ctx.fillRect(10, 10, 320, 40);
-        ctx.fillStyle = COLORS.textLight;
-        ctx.font = '11px sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText('Instructions: Click & drag to select calibration line.', 20, 25);
-        ctx.fillText('Line should match known reference distance exactly.', 20, 40);
-
-      } else {
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '16px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('NO CAMERA SIGNAL. CONNECT CAMERA FIRST.', canvas.width / 2, canvas.height / 2);
-      }
-    }
-
-    // 3. ROI Configuration view canvas drawing
-    if (currentMenu === 'roi-setup' && roiCanvasRef.current) {
-      const canvas = roiCanvasRef.current;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#0a0f1d';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      if (isCameraConnected) {
-        // Draw a simulated industrial component in the center of the camera
-        ctx.strokeStyle = '#475569';
-        ctx.lineWidth = 2;
-        ctx.fillStyle = '#1e293b';
-
-        // Part silhouette
-        const partX = (canvas.width - 320) / 2;
-        const partY = (canvas.height - 180) / 2;
-        ctx.fillRect(partX, partY, 320, 180);
-        ctx.strokeRect(partX, partY, 320, 180);
-
-        // Circular cutout inside part
-        ctx.beginPath();
-        ctx.arc(canvas.width / 2, canvas.height / 2, 45, 0, 2 * Math.PI);
-        ctx.stroke();
-
-        // Draw saved ROIs
-        savedRois.forEach(roi => {
-          ctx.strokeStyle = 'rgba(245, 158, 11, 0.4)';
-          ctx.lineWidth = 1.5;
-          ctx.setLineDash([4, 4]);
-          ctx.strokeRect(roi.x, roi.y, roi.w, roi.h);
-          ctx.setLineDash([]);
-          ctx.fillStyle = 'rgba(245, 158, 11, 0.6)';
-          ctx.font = '10px sans-serif';
-          ctx.fillText(roi.name, roi.x + 5, roi.y + 15);
-        });
-
-        // Draw Active ROI being edited
-        ctx.strokeStyle = COLORS.yellowAccent;
-        ctx.lineWidth = 2.5;
-        ctx.strokeRect(roiBox.x, roiBox.y, roiBox.w, roiBox.h);
-
-        // Draw corners handles for resizing
-        ctx.fillStyle = COLORS.yellowAccent;
-        const handles = [
-          { x: roiBox.x, y: roiBox.y },
-          { x: roiBox.x + roiBox.w, y: roiBox.y },
-          { x: roiBox.x, y: roiBox.y + roiBox.h },
-          { x: roiBox.x + roiBox.w, y: roiBox.y + roiBox.h }
-        ];
-        handles.forEach(h => {
-          ctx.fillRect(h.x - 5, h.y - 5, 10, 10);
-        });
-
-        // Label active ROI
-        ctx.fillStyle = COLORS.yellowAccent;
-        ctx.font = 'bold 12px sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText(`ACTIVE: ${roiName}`, roiBox.x + 5, roiBox.y - 8);
-
-      } else {
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '16px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('NO CAMERA SIGNAL. CONNECT CAMERA FIRST.', canvas.width / 2, canvas.height / 2);
-      }
-    }
+    render();
 
     return () => {
+      active = false;
       if (animationFrameId.current) {
         cancelAnimationFrame(animationFrameId.current);
       }
     };
-  }, [currentMenu, isCameraConnected, selectedCapturedImage, chessboardRows, chessboardCols, squareSizeMm, draggedLine, roiBox, roiName, savedRois, pixelScaleFactor]);
+  }, [currentMenu, isCameraConnected, selectedCapturedImage, chessboardRows, chessboardCols, squareSizeMm, draggedLine, roiBox, roiName, savedRois, pixelScaleFactor, cameraSource, registeredCameras, ipImageLoaded]);
 
   // Scale calibration mouse handlers
   const handleScaleMouseDown = (e) => {
@@ -827,7 +963,7 @@ fps: "${cameraFps}"
                 display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: '6px',
                 border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600,
                 color: currentMenu === 'dashboard' ? 'white' : COLORS.textMuted,
-                backgroundColor: currentMenu === 'dashboard' ? COLORS.border : 'transparent',
+                backgroundColor: currentMenu === 'dashboard' ? COLORS.blueAccent : 'transparent',
                 transition: 'all 0.2s'
               }}
             >
@@ -840,7 +976,7 @@ fps: "${cameraFps}"
                 display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: '6px',
                 border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600,
                 color: currentMenu === 'camera-setup' ? 'white' : COLORS.textMuted,
-                backgroundColor: currentMenu === 'camera-setup' ? COLORS.border : 'transparent',
+                backgroundColor: currentMenu === 'camera-setup' ? COLORS.blueAccent : 'transparent',
                 transition: 'all 0.2s'
               }}
             >
@@ -855,7 +991,7 @@ fps: "${cameraFps}"
                   display: 'flex', alignItems: 'center', justifyItems: 'space-between', gap: '12px', padding: '10px 14px', borderRadius: '6px',
                   border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600,
                   color: (currentMenu === 'lens-calibration' || currentMenu === 'scale-calibration') ? 'white' : COLORS.textMuted,
-                  backgroundColor: (currentMenu === 'lens-calibration' || currentMenu === 'scale-calibration') ? 'rgba(33, 112, 235, 0.1)' : 'transparent',
+                  backgroundColor: (currentMenu === 'lens-calibration' || currentMenu === 'scale-calibration') ? COLORS.blueAccent : 'transparent',
                   transition: 'all 0.2s'
                 }}
               >
@@ -875,7 +1011,7 @@ fps: "${cameraFps}"
                       display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: '4px',
                       border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', fontSize: '0.8rem',
                       color: currentMenu === 'lens-calibration' ? COLORS.blueAccent : COLORS.textMuted,
-                      backgroundColor: currentMenu === 'lens-calibration' ? 'rgba(255,255,255,0.03)' : 'transparent',
+                      backgroundColor: currentMenu === 'lens-calibration' ? 'rgba(113, 75, 103, 0.08)' : 'transparent',
                       fontWeight: currentMenu === 'lens-calibration' ? 700 : 500,
                     }}
                   >
@@ -888,7 +1024,7 @@ fps: "${cameraFps}"
                       display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: '4px',
                       border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', fontSize: '0.8rem',
                       color: currentMenu === 'scale-calibration' ? COLORS.blueAccent : COLORS.textMuted,
-                      backgroundColor: currentMenu === 'scale-calibration' ? 'rgba(255,255,255,0.03)' : 'transparent',
+                      backgroundColor: currentMenu === 'scale-calibration' ? 'rgba(113, 75, 103, 0.08)' : 'transparent',
                       fontWeight: currentMenu === 'scale-calibration' ? 700 : 500,
                     }}
                   >
@@ -905,7 +1041,7 @@ fps: "${cameraFps}"
                 display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: '6px',
                 border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600,
                 color: currentMenu === 'roi-setup' ? 'white' : COLORS.textMuted,
-                backgroundColor: currentMenu === 'roi-setup' ? COLORS.border : 'transparent',
+                backgroundColor: currentMenu === 'roi-setup' ? COLORS.blueAccent : 'transparent',
                 transition: 'all 0.2s'
               }}
             >
@@ -918,7 +1054,7 @@ fps: "${cameraFps}"
                 display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: '6px',
                 border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600,
                 color: currentMenu === 'history' ? 'white' : COLORS.textMuted,
-                backgroundColor: currentMenu === 'history' ? COLORS.border : 'transparent',
+                backgroundColor: currentMenu === 'history' ? COLORS.blueAccent : 'transparent',
                 transition: 'all 0.2s'
               }}
             >
@@ -931,7 +1067,7 @@ fps: "${cameraFps}"
                 display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: '6px',
                 border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600,
                 color: currentMenu === 'settings' ? 'white' : COLORS.textMuted,
-                backgroundColor: currentMenu === 'settings' ? COLORS.border : 'transparent',
+                backgroundColor: currentMenu === 'settings' ? COLORS.blueAccent : 'transparent',
                 transition: 'all 0.2s'
               }}
             >
@@ -944,7 +1080,7 @@ fps: "${cameraFps}"
         <div style={{ 
           padding: '16px 20px', 
           borderTop: `1px solid ${COLORS.border}`,
-          backgroundColor: '#0a0e16'
+          backgroundColor: COLORS.sidebarDark
         }}>
           <button
             onClick={() => setCurrentMenu('about')}
@@ -984,7 +1120,7 @@ fps: "${cameraFps}"
             <span style={{ fontSize: '0.75rem', color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>
               Calibration Module
             </span>
-            <h2 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: 'white' }}>
+            <h2 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: COLORS.textLight }}>
               {currentMenu === 'dashboard' && 'System Dashboard'}
               {currentMenu === 'camera-setup' && 'Camera Connection Setup'}
               {currentMenu === 'lens-calibration' && 'Lens Distortion Calibration (OpenCV)'}
@@ -1007,7 +1143,7 @@ fps: "${cameraFps}"
                 transition: 'all 0.3s'
               }}></div>
               <div style={{ textAlign: 'left' }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'white', lineHeight: 1.1 }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: COLORS.textLight, lineHeight: 1.1 }}>
                   {isCameraConnected ? 'Camera Connected' : 'Camera Disconnected'}
                 </div>
                 <div style={{ fontSize: '0.65rem', color: COLORS.textMuted }}>
@@ -1023,13 +1159,13 @@ fps: "${cameraFps}"
                 onChange={(e) => setCameraResolution(e.target.value)}
                 disabled={!isCameraConnected}
                 style={{ 
-                  backgroundColor: COLORS.cardDark, color: 'white', border: `1px solid ${COLORS.border}`,
+                  backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`,
                   borderRadius: '4px', padding: '4px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer'
                 }}
               >
-                <option>1920 x 1080</option>
-                <option>1280 x 720</option>
-                <option>640 x 480</option>
+                <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>1920 x 1080</option>
+                <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>1280 x 720</option>
+                <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>640 x 480</option>
               </select>
 
               <select 
@@ -1037,13 +1173,13 @@ fps: "${cameraFps}"
                 onChange={(e) => setCameraFps(e.target.value)}
                 disabled={!isCameraConnected}
                 style={{ 
-                  backgroundColor: COLORS.cardDark, color: 'white', border: `1px solid ${COLORS.border}`,
+                  backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`,
                   borderRadius: '4px', padding: '4px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer'
                 }}
               >
-                <option>30 FPS</option>
-                <option>60 FPS</option>
-                <option>90 FPS</option>
+                <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>30 FPS</option>
+                <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>60 FPS</option>
+                <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>90 FPS</option>
               </select>
             </div>
           </div>
@@ -1139,11 +1275,11 @@ fps: "${cameraFps}"
                     <div style={{ width: '100%', height: '300px' }}>
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={rmsChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#22304d" />
+                          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
                           <XAxis dataKey="name" stroke="#64748b" style={{ fontSize: '0.7rem' }} />
                           <YAxis domain={[0, 'auto']} stroke="#64748b" style={{ fontSize: '0.7rem' }} />
                           <Tooltip 
-                            contentStyle={{ backgroundColor: COLORS.sidebarDark, borderColor: COLORS.border, color: 'white' }}
+                            contentStyle={{ backgroundColor: COLORS.sidebarDark, borderColor: COLORS.border, color: COLORS.textLight }}
                             itemStyle={{ color: COLORS.blueAccent }} 
                           />
                           <Legend wrapperStyle={{ fontSize: '0.75rem', paddingTop: '10px' }} />
@@ -1249,36 +1385,16 @@ fps: "${cameraFps}"
                     justifyContent: 'center'
                   }}>
                     {isCameraConnected ? (
-                      <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-                        {/* Dynamic camera feed animation */}
-                        <div style={{
-                          width: '100%', height: '100%',
-                          background: 'radial-gradient(circle at center, #1b253b 0%, #060a12 100%)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column'
-                        }}>
-                          <Camera size={64} style={{ opacity: 0.1, color: 'white', animation: 'pulse 2s infinite' }} />
-                          <div style={{ color: COLORS.textMuted, fontSize: '0.8rem', marginTop: '12px', letterSpacing: '0.5px' }}>
-                            [ OpenCV Real-time Feed Simulation Running ]
-                          </div>
-                          
-                          {/* Crosshair guide overlay */}
-                          <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: '1px', borderTop: '1px dashed rgba(255,255,255,0.1)' }}></div>
-                          <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: '1px', borderLeft: '1px dashed rgba(255,255,255,0.1)' }}></div>
-                          
-                          {/* Frame statistics watermark */}
-                          <div style={{ position: 'absolute', bottom: '15px', left: '15px', color: COLORS.greenAccent, fontFamily: 'monospace', fontSize: '0.65rem', textAlign: 'left', lineHeight: 1.4 }}>
-                            Resolution: {cameraResolution}<br />
-                            Sensor FPS: {cameraFps}<br />
-                            Exposure: {exposureValue} EV<br />
-                            Focus: {focusValue}<br />
-                            Gain: {gainValue}x
-                          </div>
-                        </div>
-                      </div>
+                      <canvas 
+                        ref={setupCanvasRef} 
+                        width={640} 
+                        height={360}
+                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                      />
                     ) : (
                       <div style={{ textAlign: 'center', padding: '40px' }}>
                         <XCircle size={48} color={COLORS.redAccent} style={{ marginBottom: '12px' }} />
-                        <h4 style={{ margin: '0 0 4px 0', fontSize: '1rem', color: 'white' }}>No Camera Stream Connected</h4>
+                        <h4 style={{ margin: '0 0 4px 0', fontSize: '1rem', color: COLORS.textLight }}>No Camera Stream Connected</h4>
                         <p style={{ margin: 0, fontSize: '0.75rem', color: COLORS.textMuted }}>Please verify inputs and click Connect Camera.</p>
                       </div>
                     )}
@@ -1315,12 +1431,12 @@ fps: "${cameraFps}"
                         }}
                         disabled={isCameraConnected}
                         style={{ 
-                          width: '100%', backgroundColor: '#0d131f', color: 'white', border: `1px solid ${COLORS.border}`,
+                          width: '100%', backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`,
                           borderRadius: '6px', padding: '10px 12px', fontSize: '0.85rem', fontWeight: 600, cursor: isCameraConnected ? 'not-allowed' : 'pointer'
                         }}
                       >
                         {registeredCameras.map(cam => (
-                          <option key={cam.id} value={cam.name}>
+                          <option key={cam.id} value={cam.name} style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>
                             {cam.name} ({cam.type || 'DEVICE'})
                           </option>
                         ))}
@@ -1338,13 +1454,13 @@ fps: "${cameraFps}"
                           onChange={(e) => setCameraResolution(e.target.value)}
                           disabled={isCameraConnected}
                           style={{ 
-                            width: '100%', backgroundColor: '#0d131f', color: 'white', border: `1px solid ${COLORS.border}`,
+                            width: '100%', backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`,
                             borderRadius: '6px', padding: '8px 10px', fontSize: '0.8rem', cursor: isCameraConnected ? 'not-allowed' : 'pointer'
                           }}
                         >
-                          <option>1920 x 1080</option>
-                          <option>1280 x 720</option>
-                          <option>640 x 480</option>
+                          <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>1920 x 1080</option>
+                          <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>1280 x 720</option>
+                          <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>640 x 480</option>
                         </select>
                       </div>
 
@@ -1357,13 +1473,13 @@ fps: "${cameraFps}"
                           onChange={(e) => setCameraFps(e.target.value)}
                           disabled={isCameraConnected}
                           style={{ 
-                            width: '100%', backgroundColor: '#0d131f', color: 'white', border: `1px solid ${COLORS.border}`,
+                            width: '100%', backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`,
                             borderRadius: '6px', padding: '8px 10px', fontSize: '0.8rem', cursor: isCameraConnected ? 'not-allowed' : 'pointer'
                           }}
                         >
-                          <option>30 FPS</option>
-                          <option>60 FPS</option>
-                          <option>90 FPS</option>
+                          <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>30 FPS</option>
+                          <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>60 FPS</option>
+                          <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>90 FPS</option>
                         </select>
                       </div>
                     </div>
@@ -1421,14 +1537,14 @@ fps: "${cameraFps}"
                           onChange={(e) => setWhiteBalance(e.target.value)}
                           disabled={!isCameraConnected}
                           style={{ 
-                            width: '100%', backgroundColor: '#0d131f', color: 'white', border: `1px solid ${COLORS.border}`,
+                            width: '100%', backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`,
                             borderRadius: '6px', padding: '8px 10px', fontSize: '0.8rem', cursor: !isCameraConnected ? 'not-allowed' : 'pointer'
                           }}
                         >
-                          <option>Auto</option>
-                          <option>Sunny</option>
-                          <option>Fluorescent</option>
-                          <option>Industrial LED</option>
+                          <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>Auto</option>
+                          <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>Sunny</option>
+                          <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>Fluorescent</option>
+                          <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>Industrial LED</option>
                         </select>
                       </div>
                     </div>
@@ -1460,9 +1576,9 @@ fps: "${cameraFps}"
                         onClick={handleSaveCameraSettings}
                         disabled={isSavingSettings}
                         style={{
-                          flex: 1, padding: '12px', borderRadius: '6px', border: `1px solid ${COLORS.border}`,
-                          backgroundColor: COLORS.cardHeader,
-                          color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem',
+                          flex: 1, padding: '12px', borderRadius: '6px', border: `1px solid ${COLORS.blueAccent}`,
+                          backgroundColor: 'transparent',
+                          color: COLORS.blueAccent, fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem',
                           transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
                         }}
                       >
@@ -1508,12 +1624,12 @@ fps: "${cameraFps}"
                       <div key={s.num} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <div style={{
                           width: '32px', height: '32px', borderRadius: '50%',
-                          backgroundColor: stepActive ? COLORS.blueAccent : '#1e293b',
-                          color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          backgroundColor: stepActive ? COLORS.blueAccent : COLORS.border,
+                          color: stepActive ? 'white' : COLORS.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center',
                           fontWeight: 700, fontSize: '0.9rem'
                         }}>{s.num}</div>
                         <div>
-                          <div style={{ fontSize: '0.8rem', fontWeight: 700, color: stepActive ? 'white' : COLORS.textMuted }}>{s.title}</div>
+                          <div style={{ fontSize: '0.8rem', fontWeight: 700, color: stepActive ? COLORS.blueAccent : COLORS.textMuted }}>{s.title}</div>
                           <div style={{ fontSize: '0.65rem', color: COLORS.textMuted }}>{s.desc}</div>
                         </div>
                         {idx < 3 && <ChevronRight size={16} color={COLORS.border} style={{ marginLeft: '10px' }} />}
@@ -1552,8 +1668,9 @@ fps: "${cameraFps}"
                       <button 
                         onClick={handleClearImages}
                         style={{
-                          backgroundColor: '#222f47', border: 'none', color: 'white', padding: '8px 14px', borderRadius: '4px',
-                          fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                          backgroundColor: 'transparent', border: `1px solid ${COLORS.redAccent}`, color: COLORS.redAccent, padding: '8px 14px', borderRadius: '4px',
+                          fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+                          transition: 'all 0.2s'
                         }}
                       >
                         <Trash2 size={14} /> Clear All
@@ -1563,7 +1680,7 @@ fps: "${cameraFps}"
 
                   {/* Captured Images Thumbnail Carousel */}
                   <div style={{ 
-                    padding: '16px', borderTop: `1px solid ${COLORS.border}`, backgroundColor: '#0d131f',
+                    padding: '16px', borderTop: `1px solid ${COLORS.border}`, backgroundColor: COLORS.cardHeader,
                     display: 'flex', alignItems: 'center', gap: '12px', overflowX: 'auto'
                   }}>
                     {capturedImages.map((img) => (
@@ -1573,7 +1690,7 @@ fps: "${cameraFps}"
                         style={{
                           flexShrink: 0, width: '90px', height: '60px', borderRadius: '4px',
                           border: selectedCapturedImage === img.id ? `2.5px solid ${COLORS.blueAccent}` : `1px solid ${COLORS.border}`,
-                          backgroundColor: '#161f30', position: 'relative', cursor: 'pointer', overflow: 'hidden',
+                          backgroundColor: COLORS.cardDark, position: 'relative', cursor: 'pointer', overflow: 'hidden',
                           display: 'flex', alignItems: 'center', justifyContent: 'center'
                         }}
                       >
@@ -1612,7 +1729,7 @@ fps: "${cameraFps}"
                     </div>
                     <div style={{ 
                       fontFamily: 'monospace', fontSize: '0.75rem', color: COLORS.greenAccent, 
-                      backgroundColor: '#0a0d16', padding: '12px', borderRadius: '6px', border: `1px solid ${COLORS.border}`
+                      backgroundColor: '#f1f5f9', padding: '12px', borderRadius: '6px', border: `1px solid ${COLORS.border}`
                     }}>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', textAlign: 'right' }}>
                         <span>{parseFloat(calibrationResult.matrix[0][0]).toFixed(4)}</span>
@@ -1647,14 +1764,14 @@ fps: "${cameraFps}"
                     </div>
                     <div style={{ 
                       fontFamily: 'monospace', fontSize: '0.75rem', color: COLORS.greenAccent, 
-                      backgroundColor: '#0a0d16', padding: '12px', borderRadius: '6px', border: `1px solid ${COLORS.border}`,
+                      backgroundColor: '#f1f5f9', padding: '12px', borderRadius: '6px', border: `1px solid ${COLORS.border}`,
                       display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px'
                     }}>
-                      <div>k1: <span style={{ color: 'white' }}>{calibrationResult.distortion.k1.toFixed(6)}</span></div>
-                      <div>p2: <span style={{ color: 'white' }}>{calibrationResult.distortion.p2.toFixed(6)}</span></div>
-                      <div>k2: <span style={{ color: 'white' }}>{calibrationResult.distortion.k2.toFixed(6)}</span></div>
-                      <div>k3: <span style={{ color: 'white' }}>{calibrationResult.distortion.k3.toFixed(6)}</span></div>
-                      <div>p1: <span style={{ color: 'white' }}>{calibrationResult.distortion.p1.toFixed(6)}</span></div>
+                      <div>k1: <span style={{ color: COLORS.textLight }}>{calibrationResult.distortion.k1.toFixed(6)}</span></div>
+                      <div>p2: <span style={{ color: COLORS.textLight }}>{calibrationResult.distortion.p2.toFixed(6)}</span></div>
+                      <div>k2: <span style={{ color: COLORS.textLight }}>{calibrationResult.distortion.k2.toFixed(6)}</span></div>
+                      <div>k3: <span style={{ color: COLORS.textLight }}>{calibrationResult.distortion.k3.toFixed(6)}</span></div>
+                      <div>p1: <span style={{ color: COLORS.textLight }}>{calibrationResult.distortion.p1.toFixed(6)}</span></div>
                     </div>
                   </div>
 
@@ -1675,13 +1792,13 @@ fps: "${cameraFps}"
                         <input 
                           type="number" value={chessboardRows} 
                           onChange={(e) => setChessboardRows(parseInt(e.target.value))}
-                          style={{ width: '60px', backgroundColor: '#0d131f', color: 'white', border: `1px solid ${COLORS.border}`, borderRadius: '4px', padding: '6px' }}
+                          style={{ width: '60px', backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`, borderRadius: '4px', padding: '6px' }}
                         />
                         <span style={{ fontSize: '0.75rem', color: COLORS.textMuted }}>x</span>
                         <input 
                           type="number" value={chessboardCols} 
                           onChange={(e) => setChessboardCols(parseInt(e.target.value))}
-                          style={{ width: '60px', backgroundColor: '#0d131f', color: 'white', border: `1px solid ${COLORS.border}`, borderRadius: '4px', padding: '6px' }}
+                          style={{ width: '60px', backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`, borderRadius: '4px', padding: '6px' }}
                         />
                         <span style={{ fontSize: '0.75rem', color: COLORS.textMuted }}>(Inner Points)</span>
                       </div>
@@ -1695,7 +1812,7 @@ fps: "${cameraFps}"
                         <input 
                           type="number" step="0.01" value={squareSizeMm} 
                           onChange={(e) => setSquareSizeMm(parseFloat(e.target.value))}
-                          style={{ width: '100px', backgroundColor: '#0d131f', color: 'white', border: `1px solid ${COLORS.border}`, borderRadius: '4px', padding: '6px' }}
+                          style={{ width: '100px', backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`, borderRadius: '4px', padding: '6px' }}
                         />
                         <span style={{ fontSize: '0.8rem', color: COLORS.textMuted }}>mm</span>
                       </div>
@@ -1731,12 +1848,12 @@ fps: "${cameraFps}"
                     </div>
 
                     {isCalibrating && (
-                      <div style={{ backgroundColor: '#0a0d16', padding: '10px', borderRadius: '4px', border: `1px solid ${COLORS.border}` }}>
+                      <div style={{ backgroundColor: '#f1f5f9', padding: '10px', borderRadius: '4px', border: `1px solid ${COLORS.border}` }}>
                         <div style={{ display: 'flex', justifyItems: 'space-between', fontSize: '0.75rem', marginBottom: '6px' }}>
                           <span>Calculating intrinsic parameters...</span>
                           <span style={{ marginLeft: 'auto', fontWeight: 700 }}>{calibrationProgress}%</span>
                         </div>
-                        <div style={{ width: '100%', height: '4px', backgroundColor: '#1e293b', borderRadius: '2px', overflow: 'hidden' }}>
+                        <div style={{ width: '100%', height: '4px', backgroundColor: COLORS.border, borderRadius: '2px', overflow: 'hidden' }}>
                           <div style={{ width: `${calibrationProgress}%`, height: '100%', backgroundColor: COLORS.blueAccent }}></div>
                         </div>
                       </div>
@@ -1804,7 +1921,7 @@ fps: "${cameraFps}"
                         type="text" value={yamlFilename} 
                         onChange={(e) => setYamlFilename(e.target.value)}
                         style={{
-                          width: '100%', backgroundColor: '#0d131f', color: 'white', border: `1px solid ${COLORS.border}`,
+                          width: '100%', backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`,
                           borderRadius: '6px', padding: '8px 10px', fontSize: '0.8rem', boxSizing: 'border-box'
                         }}
                       />
@@ -1824,9 +1941,10 @@ fps: "${cameraFps}"
                       <button
                         onClick={handleImportYAML}
                         style={{
-                          padding: '10px', borderRadius: '4px', border: `1px solid ${COLORS.border}`, backgroundColor: 'transparent',
-                          color: 'white', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                          padding: '10px', borderRadius: '4px', border: `1px solid ${COLORS.blueAccent}`, backgroundColor: 'transparent',
+                          color: COLORS.blueAccent, fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                          transition: 'all 0.2s'
                         }}
                       >
                         <FolderOpen size={12} /> Load YAML
@@ -1889,7 +2007,7 @@ fps: "${cameraFps}"
                           type="number" step="0.01" value={knownLengthMm}
                           onChange={(e) => setKnownLengthMm(parseFloat(e.target.value))}
                           style={{ 
-                            flex: 1, backgroundColor: '#0d131f', color: 'white', border: `1px solid ${COLORS.border}`, 
+                            flex: 1, backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`, 
                             borderRadius: '6px', padding: '10px', fontSize: '0.85rem'
                           }}
                         />
@@ -1903,7 +2021,7 @@ fps: "${cameraFps}"
                     <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: '16px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: COLORS.textMuted, marginBottom: '6px' }}>
                         <span>Detected Line Length:</span>
-                        <span style={{ fontWeight: 750, color: 'white' }}>
+                        <span style={{ fontWeight: 750, color: COLORS.textLight }}>
                           {draggedLine ? `${Math.round(Math.sqrt(Math.pow(draggedLine.x2 - draggedLine.x1, 2) + Math.pow(draggedLine.y2 - draggedLine.y1, 2)))} px` : 'No line drawn'}
                         </span>
                       </div>
@@ -1930,7 +2048,7 @@ fps: "${cameraFps}"
                   <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', fontWeight: 800 }}>Scale Factor Results</h4>
                   
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div style={{ backgroundColor: '#0a0d16', padding: '12px', borderRadius: '4px', border: `1px solid ${COLORS.border}`, textAlign: 'center' }}>
+                    <div style={{ backgroundColor: '#f1f5f9', padding: '12px', borderRadius: '4px', border: `1px solid ${COLORS.border}`, textAlign: 'center' }}>
                       <div style={{ fontSize: '0.65rem', color: COLORS.textMuted, textTransform: 'uppercase', marginBottom: '4px' }}>Computed Ratio</div>
                       <div style={{ fontSize: '1.4rem', fontWeight: 900, color: COLORS.greenAccent }}>
                         1 Pixel = {pixelScaleFactor.toFixed(4)} <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>mm</span>
@@ -2000,7 +2118,7 @@ fps: "${cameraFps}"
                         type="text" value={roiName}
                         onChange={(e) => setRoiName(e.target.value)}
                         style={{ 
-                          width: '100%', backgroundColor: '#0d131f', color: 'white', border: `1px solid ${COLORS.border}`, 
+                          width: '100%', backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`, 
                           borderRadius: '6px', padding: '10px', fontSize: '0.85rem', boxSizing: 'border-box'
                         }}
                       />
@@ -2016,7 +2134,7 @@ fps: "${cameraFps}"
                           type="number" step="0.01" value={roiTolerance}
                           onChange={(e) => setRoiTolerance(parseFloat(e.target.value))}
                           style={{ 
-                            flex: 1, backgroundColor: '#0d131f', color: 'white', border: `1px solid ${COLORS.border}`, 
+                            flex: 1, backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`, 
                             borderRadius: '6px', padding: '8px 10px', fontSize: '0.85rem'
                           }}
                         />
@@ -2027,11 +2145,11 @@ fps: "${cameraFps}"
                     <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: COLORS.textMuted }}>
                         <span>Position (X / Y):</span>
-                        <span style={{ fontWeight: 700, color: 'white' }}>{roiBox.x} px / {roiBox.y} px</span>
+                        <span style={{ fontWeight: 700, color: COLORS.textLight }}>{roiBox.x} px / {roiBox.y} px</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: COLORS.textMuted }}>
                         <span>Size (Width / Height):</span>
-                        <span style={{ fontWeight: 700, color: 'white' }}>{roiBox.w} px / {roiBox.h} px</span>
+                        <span style={{ fontWeight: 700, color: COLORS.textLight }}>{roiBox.w} px / {roiBox.h} px</span>
                       </div>
                     </div>
 
@@ -2057,7 +2175,7 @@ fps: "${cameraFps}"
                       <div 
                         key={roi.id}
                         style={{ 
-                          padding: '10px', borderRadius: '4px', backgroundColor: '#0a0d16', border: `1px solid ${COLORS.border}`,
+                          padding: '10px', borderRadius: '4px', backgroundColor: COLORS.bgDark, border: `1px solid ${COLORS.border}`,
                           display: 'flex', justifyContent: 'space-between', alignItems: 'center'
                         }}
                       >
@@ -2156,10 +2274,10 @@ fps: "${cameraFps}"
                     <label style={{ display: 'block', fontSize: '0.75rem', color: COLORS.textMuted, fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
                       Calibration Model algorithm
                     </label>
-                    <select style={{ width: '100%', backgroundColor: '#0d131f', color: 'white', border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '10px' }}>
-                      <option>Pinhole Camera Model (Standard OpenCV)</option>
-                      <option>Fisheye Lens Model (cv2.fisheye)</option>
-                      <option>Omnidirectional Model (cv2.omnidir)</option>
+                    <select style={{ width: '100%', backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '10px' }}>
+                      <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>Pinhole Camera Model (Standard OpenCV)</option>
+                      <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>Fisheye Lens Model (cv2.fisheye)</option>
+                      <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>Omnidirectional Model (cv2.omnidir)</option>
                     </select>
                   </div>
 
@@ -2168,10 +2286,10 @@ fps: "${cameraFps}"
                       <label style={{ display: 'block', fontSize: '0.75rem', color: COLORS.textMuted, fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
                         Optimization Flag
                       </label>
-                      <select style={{ width: '100%', backgroundColor: '#0d131f', color: 'white', border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '8px' }}>
-                        <option>CALIB_FIX_K3</option>
-                        <option>CALIB_RATIONAL_MODEL</option>
-                        <option>CALIB_ZERO_TANGENT_DIST</option>
+                      <select style={{ width: '100%', backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '8px' }}>
+                        <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>CALIB_FIX_K3</option>
+                        <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>CALIB_RATIONAL_MODEL</option>
+                        <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>CALIB_ZERO_TANGENT_DIST</option>
                       </select>
                     </div>
 
@@ -2179,9 +2297,9 @@ fps: "${cameraFps}"
                       <label style={{ display: 'block', fontSize: '0.75rem', color: COLORS.textMuted, fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
                         Subpixel Refinement
                       </label>
-                      <select style={{ width: '100%', backgroundColor: '#0d131f', color: 'white', border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '8px' }}>
-                        <option>cv2.cornerSubPix (Enabled)</option>
-                        <option>Disabled</option>
+                      <select style={{ width: '100%', backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '8px' }}>
+                        <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>cv2.cornerSubPix (Enabled)</option>
+                        <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>Disabled</option>
                       </select>
                     </div>
                   </div>
@@ -2193,7 +2311,7 @@ fps: "${cameraFps}"
                     <input 
                       type="text" 
                       defaultValue="/var/mes/vision/calibration/profiles/" 
-                      style={{ width: '100%', backgroundColor: '#0d131f', color: 'white', border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '10px', boxSizing: 'border-box' }}
+                      style={{ width: '100%', backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '10px', boxSizing: 'border-box' }}
                     />
                   </div>
 
@@ -2299,13 +2417,13 @@ fps: "${cameraFps}"
               Pixel / mm: <span style={{ color: COLORS.greenAccent, fontWeight: 700 }}>{pixelScaleFactor.toFixed(4)} mm/px</span>
             </div>
             <div>
-              Exposure: <span style={{ color: 'white', fontWeight: 700 }}>{exposureValue} EV</span>
+              Exposure: <span style={{ color: COLORS.textLight, fontWeight: 700 }}>{exposureValue} EV</span>
             </div>
             <div>
-              Gain: <span style={{ color: 'white', fontWeight: 700 }}>{gainValue.toFixed(1)}x</span>
+              Gain: <span style={{ color: COLORS.textLight, fontWeight: 700 }}>{gainValue.toFixed(1)}x</span>
             </div>
             <div>
-              White Balance: <span style={{ color: 'white', fontWeight: 700 }}>{whiteBalance}</span>
+              White Balance: <span style={{ color: COLORS.textLight, fontWeight: 700 }}>{whiteBalance}</span>
             </div>
           </div>
           <div>
@@ -2326,6 +2444,8 @@ fps: "${cameraFps}"
           to { transform: scale(1); opacity: 1; }
         }
       `}</style>
+      {/* Hidden video element for live webcam streaming */}
+      <video ref={videoRef} style={{ display: 'none' }} playsInline muted />
     </div>
   );
 }

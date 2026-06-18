@@ -2775,348 +2775,368 @@ function CameraRegionEditor({
             {/* Main workspace grid */}
             <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 360px', minHeight: 0, overflow: 'hidden' }}>
                 {/* Left: Camera Canvas + Thumbnail Strip + Activity Stream */}
-                <div className="custom-scrollbar" style={{ display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc', padding: '24px', overflowY: 'auto', gap: '20px' }}>
-                    {/* Hidden video element */}
-                    <video ref={videoRef} style={{ display: 'none' }} width="1280" height="720" playsInline muted />
-
-                    {/* Camera Monitor Card */}
+                <div className="custom-scrollbar" style={{ flex: 1, backgroundColor: '#f8fafc', padding: '24px', overflowY: 'auto' }}>
                     <div style={{
-                        backgroundColor: '#ffffff',
-                        borderRadius: '8px',
-                        border: '1px solid #e2e8f0',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.02)',
                         display: 'flex',
-                        flexDirection: 'column',
-                        width: '100%',
-                        maxWidth: '840px',
-                        margin: '0 auto',
-                        overflow: 'hidden'
+                        flexWrap: 'wrap',
+                        gap: '24px',
+                        maxWidth: '100%',
+                        width: '100%'
                     }}>
-                        {/* Card Header */}
+                        {/* Column 1: Camera Canvas & Region Thumbnail Strip */}
                         <div style={{
-                            padding: '12px 16px',
-                            borderBottom: '1px solid #e2e8f0',
-                            backgroundColor: '#fafafa',
+                            flex: '1.2 1 500px',
                             display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
+                            flexDirection: 'column',
+                            gap: '20px',
+                            minWidth: 0
                         }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <div style={{
-                                    width: '8px', height: '8px', borderRadius: '50%',
-                                    backgroundColor: hasPermission && !configureOffline ? '#22c55e' : '#9ca3af',
-                                    boxShadow: hasPermission && !configureOffline ? '0 0 8px #22c55e' : 'none'
-                                }} />
-                                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#374151' }}>
-                                    {camera.name}
-                                </span>
-                                <span style={{
-                                    fontSize: '0.65rem',
-                                    backgroundColor: '#eff6ff',
-                                    color: '#2563eb',
-                                    padding: '2px 6px',
-                                    borderRadius: '4px',
-                                    fontWeight: 600
-                                }}>
-                                    {camera.cameraSource}
-                                </span>
-                            </div>
-                            <span style={{ fontSize: '0.72rem', color: '#6b7280', fontWeight: 500 }}>
-                                1280×720 @ 30 FPS
-                            </span>
-                        </div>
+                            {/* Hidden video element */}
+                            <video ref={videoRef} style={{ display: 'none' }} width="1280" height="720" playsInline muted />
 
-                        {/* Card Body: Video and Sidebar side-by-side */}
-                        <div style={{
-                            display: 'grid',
-                            gridTemplateColumns: '1fr 240px',
-                            backgroundColor: '#ffffff',
-                            width: '100%',
-                        }}>
-                            {/* Left: Camera Screen Feed Area */}
+                            {/* Camera Monitor Card */}
                             <div style={{
-                                position: 'relative',
-                                backgroundColor: '#111827',
-                                width: '100%',
-                                aspectRatio: '4 / 3',
-                                cursor: isDragging ? 'grabbing' : 'crosshair'
-                            }}
-                            onMouseDown={handleMouseDown}
-                            onMouseMove={handleMouseMove}
-                            onMouseUp={handleMouseUp}
-                            >
-                                {/* Camera loading indicator */}
-                                {cameraLoading && !configureOffline && (
-                                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 5, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                                        <Loader2 size={24} color="#60a5fa" style={{ animation: 'spin 1s linear infinite' }} />
-                                        <span style={{ color: '#9ca3af', fontSize: '0.75rem' }}>Connecting stream...</span>
-                                    </div>
-                                )}
-
-                                <canvas
-                                    ref={canvasRef}
-                                    width="640"
-                                    height="480"
-                                    style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain' }}
-                                />
-                            </div>
-
-                            {/* Right: Sidebar controls */}
-                            <div style={{
-                                borderLeft: '1px solid #e2e8f0',
                                 backgroundColor: '#ffffff',
-                                padding: '16px',
+                                borderRadius: '8px',
+                                border: '1px solid #e2e8f0',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.02)',
                                 display: 'flex',
                                 flexDirection: 'column',
-                                gap: '16px',
-                                justifyContent: 'space-between'
+                                width: '100%',
+                                overflow: 'hidden'
                             }}>
-                                {/* Top portion of sidebar */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                                    <div style={{ fontSize: '0.72rem', color: '#6b7280', display: 'flex', alignItems: 'flex-start', gap: '4px', lineHeight: '1.4' }}>
-                                        <Info size={14} color="#9ca3af" style={{ flexShrink: 0, marginTop: '1px' }} />
-                                        <span>Drag on canvas to define active monitoring regions.</span>
-                                    </div>
-
-                                    {/* Action Buttons */}
-                                    <div style={{ display: 'flex', gap: '8px' }}>
-                                        <button
-                                            onClick={() => setShowGridOverlay(!showGridOverlay)}
-                                            style={{
-                                                flex: 1,
-                                                padding: '6px 10px',
-                                                borderRadius: '6px',
-                                                border: showGridOverlay ? '1px solid #3b82f6' : '1px solid #e2e8f0',
-                                                backgroundColor: showGridOverlay ? '#eff6ff' : '#ffffff',
-                                                color: showGridOverlay ? '#2563eb' : '#374151',
-                                                fontSize: '0.75rem',
-                                                fontWeight: 600,
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                gap: '4px',
-                                                transition: 'all 0.15s'
-                                            }}
-                                            title="Toggle Calibration Grid"
-                                        >
-                                            <Grid size={13} />
-                                            Grid
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                if (confirm('Are you sure you want to clear all regions?')) {
-                                                    setRegionsByCamera(prev => ({ ...prev, [camera.id]: [] }));
-                                                    setSelectedRegionId(null);
-                                                }
-                                            }}
-                                            style={{
-                                                flex: 1,
-                                                padding: '6px 10px',
-                                                borderRadius: '6px',
-                                                border: '1px solid #e2e8f0',
-                                                backgroundColor: '#ffffff',
-                                                color: '#ef4444',
-                                                fontSize: '0.75rem',
-                                                fontWeight: 600,
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                gap: '4px',
-                                                transition: 'all 0.15s'
-                                            }}
-                                            title="Clear all configured regions"
-                                        >
-                                            <Trash2 size={13} />
-                                            Clear
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Bottom portion of sidebar (Sliders) */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span style={{ fontSize: '0.72rem', color: '#6b7280', fontWeight: 600 }}>Brightness</span>
-                                            <span style={{ fontSize: '0.72rem', color: '#374151', fontWeight: 700 }}>{brightness}%</span>
-                                        </div>
-                                        <input
-                                            type="range"
-                                            min="50"
-                                            max="150"
-                                            value={brightness}
-                                            onChange={(e) => setBrightness(Number(e.target.value))}
-                                            style={{ width: '100%', height: '4px', cursor: 'pointer' }}
-                                        />
-                                    </div>
-
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span style={{ fontSize: '0.72rem', color: '#6b7280', fontWeight: 600 }}>Contrast</span>
-                                            <span style={{ fontSize: '0.72rem', color: '#374151', fontWeight: 700 }}>{contrast}%</span>
-                                        </div>
-                                        <input
-                                            type="range"
-                                            min="50"
-                                            max="150"
-                                            value={contrast}
-                                            onChange={(e) => setContrast(Number(e.target.value))}
-                                            style={{ width: '100%', height: '4px', cursor: 'pointer' }}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Region Thumbnail Strip (Tulip-style inside slate dashboard) */}
-                    {regions.length > 0 && (
-                        <div style={{ 
-                            backgroundColor: '#ffffff',
-                            borderRadius: '8px',
-                            border: '1px solid #e2e8f0',
-                            padding: '12px 16px',
-                            display: 'flex', gap: '8px', 
-                            alignItems: 'center', justifyContent: 'center', flexWrap: 'nowrap',
-                            overflowX: 'auto',
-                            width: '100%',
-                            maxWidth: '840px',
-                            margin: '0 auto'
-                        }}>
-                            {[...regions].reverse().map((region, idx) => {
-                                const isActive = region.id === selectedRegionId;
-                                const regionNum = regions.length - idx;
-                                return (
-                                    <div
-                                        key={region.id}
-                                        onClick={() => setSelectedRegionId(region.id)}
-                                        style={{
-                                            width: '56px', height: '48px', borderRadius: '6px', cursor: 'pointer',
-                                            border: isActive ? '2px solid #3b82f6' : '1px solid #e2e8f0',
-                                            backgroundColor: isActive ? 'rgba(59,130,246,0.05)' : '#ffffff',
-                                            position: 'relative', overflow: 'hidden', flexShrink: 0,
-                                            transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                        }}
-                                    >
-                                        {/* Region number badge */}
+                                {/* Card Header */}
+                                <div style={{
+                                    padding: '12px 16px',
+                                    borderBottom: '1px solid #e2e8f0',
+                                    backgroundColor: '#fafafa',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                         <div style={{
-                                            position: 'absolute', top: '3px', left: '3px',
-                                            width: '16px', height: '16px', borderRadius: '50%',
-                                            backgroundColor: isActive ? '#3b82f6' : '#94a3b8',
-                                            color: '#ffffff', fontSize: '0.58rem', fontWeight: 800,
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                            width: '8px', height: '8px', borderRadius: '50%',
+                                            backgroundColor: hasPermission && !configureOffline ? '#22c55e' : '#9ca3af',
+                                            boxShadow: hasPermission && !configureOffline ? '0 0 8px #22c55e' : 'none'
+                                        }} />
+                                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#374151' }}>
+                                            {camera.name}
+                                        </span>
+                                        <span style={{
+                                            fontSize: '0.65rem',
+                                            backgroundColor: '#eff6ff',
+                                            color: '#2563eb',
+                                            padding: '2px 6px',
+                                            borderRadius: '4px',
+                                            fontWeight: 600
                                         }}>
-                                            {regionNum}
-                                        </div>
-                                        {/* Mini region preview icon */}
-                                        <Maximize size={12} color={isActive ? '#3b82f6' : '#94a3b8'} />
+                                            {camera.cameraSource}
+                                        </span>
                                     </div>
-                                );
-                            })}
-                        </div>
-                    )}
+                                    <span style={{ fontSize: '0.72rem', color: '#6b7280', fontWeight: 500 }}>
+                                        1280×720 @ 30 FPS
+                                    </span>
+                                </div>
 
-                    {/* Real-time Detection Activity Log Table */}
-                    <div style={{
-                        backgroundColor: '#ffffff',
-                        borderRadius: '8px',
-                        border: '1px solid #e2e8f0',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.02)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        width: '100%',
-                        maxWidth: '840px',
-                        margin: '0 auto',
-                        overflow: 'hidden'
-                    }}>
-                        {/* Header */}
-                        <div style={{
-                            padding: '10px 16px',
-                            borderBottom: '1px solid #e2e8f0',
-                            backgroundColor: '#fafafa',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                        }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <Activity size={15} color="#3b82f6" />
-                                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#374151' }}>
-                                    Real-time Detection Activity Stream
-                                </span>
+                                {/* Card Body: Video and Sidebar side-by-side */}
+                                <div style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: '1fr 240px',
+                                    backgroundColor: '#ffffff',
+                                    width: '100%',
+                                }}>
+                                    {/* Left: Camera Screen Feed Area */}
+                                    <div style={{
+                                        position: 'relative',
+                                        backgroundColor: '#111827',
+                                        width: '100%',
+                                        aspectRatio: '4 / 3',
+                                        cursor: isDragging ? 'grabbing' : 'crosshair'
+                                    }}
+                                    onMouseDown={handleMouseDown}
+                                    onMouseMove={handleMouseMove}
+                                    onMouseUp={handleMouseUp}
+                                    >
+                                        {/* Camera loading indicator */}
+                                        {cameraLoading && !configureOffline && (
+                                            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 5, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                                                <Loader2 size={24} color="#60a5fa" style={{ animation: 'spin 1s linear infinite' }} />
+                                                <span style={{ color: '#9ca3af', fontSize: '0.75rem' }}>Connecting stream...</span>
+                                            </div>
+                                        )}
+
+                                        <canvas
+                                            ref={canvasRef}
+                                            width="640"
+                                            height="480"
+                                            style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain' }}
+                                        />
+                                    </div>
+
+                                    {/* Right: Sidebar controls */}
+                                    <div style={{
+                                        borderLeft: '1px solid #e2e8f0',
+                                        backgroundColor: '#ffffff',
+                                        padding: '16px',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '16px',
+                                        justifyContent: 'space-between'
+                                    }}>
+                                        {/* Top portion of sidebar */}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                            <div style={{ fontSize: '0.72rem', color: '#6b7280', display: 'flex', alignItems: 'flex-start', gap: '4px', lineHeight: '1.4' }}>
+                                                <Info size={14} color="#9ca3af" style={{ flexShrink: 0, marginTop: '1px' }} />
+                                                <span>Drag on canvas to define active monitoring regions.</span>
+                                            </div>
+
+                                            {/* Action Buttons */}
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <button
+                                                    onClick={() => setShowGridOverlay(!showGridOverlay)}
+                                                    style={{
+                                                        flex: 1,
+                                                        padding: '6px 10px',
+                                                        borderRadius: '6px',
+                                                        border: showGridOverlay ? '1px solid #3b82f6' : '1px solid #e2e8f0',
+                                                        backgroundColor: showGridOverlay ? '#eff6ff' : '#ffffff',
+                                                        color: showGridOverlay ? '#2563eb' : '#374151',
+                                                        fontSize: '0.75rem',
+                                                        fontWeight: 600,
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        gap: '4px',
+                                                        transition: 'all 0.15s'
+                                                    }}
+                                                    title="Toggle Calibration Grid"
+                                                >
+                                                    <Grid size={13} />
+                                                    Grid
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        if (confirm('Are you sure you want to clear all regions?')) {
+                                                            setRegionsByCamera(prev => ({ ...prev, [camera.id]: [] }));
+                                                            setSelectedRegionId(null);
+                                                        }
+                                                    }}
+                                                    style={{
+                                                        flex: 1,
+                                                        padding: '6px 10px',
+                                                        borderRadius: '6px',
+                                                        border: '1px solid #e2e8f0',
+                                                        backgroundColor: '#ffffff',
+                                                        color: '#ef4444',
+                                                        fontSize: '0.75rem',
+                                                        fontWeight: 600,
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        gap: '4px',
+                                                        transition: 'all 0.15s'
+                                                    }}
+                                                    title="Clear all configured regions"
+                                                >
+                                                    <Trash2 size={13} />
+                                                    Clear
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Bottom portion of sidebar (Sliders) */}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ fontSize: '0.72rem', color: '#6b7280', fontWeight: 600 }}>Brightness</span>
+                                                    <span style={{ fontSize: '0.72rem', color: '#374151', fontWeight: 700 }}>{brightness}%</span>
+                                                </div>
+                                                <input
+                                                    type="range"
+                                                    min="50"
+                                                    max="150"
+                                                    value={brightness}
+                                                    onChange={(e) => setBrightness(Number(e.target.value))}
+                                                    style={{ width: '100%', height: '4px', cursor: 'pointer' }}
+                                                />
+                                            </div>
+
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ fontSize: '0.72rem', color: '#6b7280', fontWeight: 600 }}>Contrast</span>
+                                                    <span style={{ fontSize: '0.72rem', color: '#374151', fontWeight: 700 }}>{contrast}%</span>
+                                                </div>
+                                                <input
+                                                    type="range"
+                                                    min="50"
+                                                    max="150"
+                                                    value={contrast}
+                                                    onChange={(e) => setContrast(Number(e.target.value))}
+                                                    style={{ width: '100%', height: '4px', cursor: 'pointer' }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <span style={{ fontSize: '0.65rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
-                                <span style={{
-                                    width: '6px', height: '6px', borderRadius: '50%',
-                                    backgroundColor: '#10b981', display: 'inline-block',
-                                    boxShadow: '0 0 6px #10b981'
-                                }} />
-                                LIVE FEED
-                            </span>
+
+                            {/* Region Thumbnail Strip (Tulip-style inside slate dashboard) */}
+                            {regions.length > 0 && (
+                                <div style={{ 
+                                    backgroundColor: '#ffffff',
+                                    borderRadius: '8px',
+                                    border: '1px solid #e2e8f0',
+                                    padding: '12px 16px',
+                                    display: 'flex', gap: '8px', 
+                                    alignItems: 'center', justifyContent: 'center', flexWrap: 'nowrap',
+                                    overflowX: 'auto',
+                                    width: '100%'
+                                }}>
+                                    {[...regions].reverse().map((region, idx) => {
+                                        const isActive = region.id === selectedRegionId;
+                                        const regionNum = regions.length - idx;
+                                        return (
+                                            <div
+                                                key={region.id}
+                                                onClick={() => setSelectedRegionId(region.id)}
+                                                style={{
+                                                    width: '56px', height: '48px', borderRadius: '6px', cursor: 'pointer',
+                                                    border: isActive ? '2px solid #3b82f6' : '1px solid #e2e8f0',
+                                                    backgroundColor: isActive ? 'rgba(59,130,246,0.05)' : '#ffffff',
+                                                    position: 'relative', overflow: 'hidden', flexShrink: 0,
+                                                    transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                }}
+                                            >
+                                                {/* Region number badge */}
+                                                <div style={{
+                                                    position: 'absolute', top: '3px', left: '3px',
+                                                    width: '16px', height: '16px', borderRadius: '50%',
+                                                    backgroundColor: isActive ? '#3b82f6' : '#94a3b8',
+                                                    color: '#ffffff', fontSize: '0.58rem', fontWeight: 800,
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                }}>
+                                                    {regionNum}
+                                                </div>
+                                                {/* Mini region preview icon */}
+                                                <Maximize size={12} color={isActive ? '#3b82f6' : '#94a3b8'} />
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
 
-                        {/* Table content */}
-                        <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
-                                <thead>
-                                    <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b', backgroundColor: '#f8fafc' }}>
-                                        <th style={{ padding: '8px 12px', fontWeight: 600 }}>Time</th>
-                                        <th style={{ padding: '8px 12px', fontWeight: 600 }}>Region</th>
-                                        <th style={{ padding: '8px 12px', fontWeight: 600 }}>Detector</th>
-                                        <th style={{ padding: '8px 12px', fontWeight: 600 }}>Value</th>
-                                        <th style={{ padding: '8px 12px', fontWeight: 600 }}>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {activityLogs.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={5} style={{ padding: '24px 12px', textAlign: 'center', color: '#94a3b8' }}>
-                                                No detection events recorded. Adjust region boundaries or trigger states to update logs.
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        activityLogs.map((log) => {
-                                            const isMatch = log.status === 'MATCH' || log.status === 'TRIGGERED' || log.status === 'ACTIVE';
-                                            return (
-                                                <tr key={log.id} style={{ borderBottom: '1px solid #f1f5f9', color: '#334155' }}>
-                                                    <td style={{ padding: '8px 12px', color: '#64748b', width: '90px' }}>{log.time}</td>
-                                                    <td style={{ padding: '8px 12px', fontWeight: 600 }}>{log.regionName}</td>
-                                                    <td style={{ padding: '8px 12px' }}>
-                                                        <span style={{
-                                                            padding: '2px 6px',
-                                                            borderRadius: '4px',
-                                                            fontSize: '0.65rem',
-                                                            fontWeight: 600,
-                                                            backgroundColor: log.detectorType === 'Color' ? '#eff6ff' : log.detectorType === 'Change' ? '#f0fdf4' : '#f1f5f9',
-                                                            color: log.detectorType === 'Color' ? '#2563eb' : log.detectorType === 'Change' ? '#16a34a' : '#475569'
-                                                        }}>
-                                                            {log.detectorType}
-                                                        </span>
-                                                    </td>
-                                                    <td style={{ padding: '8px 12px', fontFamily: 'monospace', color: '#475569' }}>{log.value}</td>
-                                                    <td style={{ padding: '8px 12px' }}>
-                                                        <span style={{
-                                                            display: 'inline-flex',
-                                                            alignItems: 'center',
-                                                            gap: '4px',
-                                                            fontWeight: 700,
-                                                            color: isMatch ? '#16a34a' : '#ef4444'
-                                                        }}>
-                                                            <span style={{
-                                                                width: '6px',
-                                                                height: '6px',
-                                                                borderRadius: '50%',
-                                                                backgroundColor: isMatch ? '#22c55e' : '#ef4444'
-                                                            }} />
-                                                            {log.status}
-                                                        </span>
+                        {/* Column 2: Real-time Detection Activity Log Table */}
+                        <div style={{
+                            flex: '0.8 1 360px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            minWidth: 0
+                        }}>
+                            <div style={{
+                                backgroundColor: '#ffffff',
+                                borderRadius: '8px',
+                                border: '1px solid #e2e8f0',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.02)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                width: '100%',
+                                flex: 1,
+                                minHeight: '360px',
+                                overflow: 'hidden'
+                            }}>
+                                {/* Header */}
+                                <div style={{
+                                    padding: '10px 16px',
+                                    borderBottom: '1px solid #e2e8f0',
+                                    backgroundColor: '#fafafa',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <Activity size={15} color="#3b82f6" />
+                                        <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#374151' }}>
+                                            Real-time Detection Activity Stream
+                                        </span>
+                                    </div>
+                                    <span style={{ fontSize: '0.65rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                                        <span style={{
+                                            width: '6px', height: '6px', borderRadius: '50%',
+                                            backgroundColor: '#10b981', display: 'inline-block',
+                                            boxShadow: '0 0 6px #10b981'
+                                        }} />
+                                        LIVE FEED
+                                    </span>
+                                </div>
+
+                                {/* Table content */}
+                                <div style={{ flex: 1, overflowY: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b', backgroundColor: '#f8fafc' }}>
+                                                <th style={{ padding: '8px 12px', fontWeight: 600 }}>Time</th>
+                                                <th style={{ padding: '8px 12px', fontWeight: 600 }}>Region</th>
+                                                <th style={{ padding: '8px 12px', fontWeight: 600 }}>Detector</th>
+                                                <th style={{ padding: '8px 12px', fontWeight: 600 }}>Value</th>
+                                                <th style={{ padding: '8px 12px', fontWeight: 600 }}>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {activityLogs.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={5} style={{ padding: '24px 12px', textAlign: 'center', color: '#94a3b8' }}>
+                                                        No detection events recorded. Adjust region boundaries or trigger states to update logs.
                                                     </td>
                                                 </tr>
-                                            );
-                                        })
-                                    )}
-                                </tbody>
-                            </table>
+                                            ) : (
+                                                activityLogs.map((log) => {
+                                                    const isMatch = log.status === 'MATCH' || log.status === 'TRIGGERED' || log.status === 'ACTIVE';
+                                                    return (
+                                                        <tr key={log.id} style={{ borderBottom: '1px solid #f1f5f9', color: '#334155' }}>
+                                                            <td style={{ padding: '8px 12px', color: '#64748b', width: '90px' }}>{log.time}</td>
+                                                            <td style={{ padding: '8px 12px', fontWeight: 600 }}>{log.regionName}</td>
+                                                            <td style={{ padding: '8px 12px' }}>
+                                                                <span style={{
+                                                                    padding: '2px 6px',
+                                                                    borderRadius: '4px',
+                                                                    fontSize: '0.65rem',
+                                                                    fontWeight: 600,
+                                                                    backgroundColor: log.detectorType === 'Color' ? '#eff6ff' : log.detectorType === 'Change' ? '#f0fdf4' : '#f1f5f9',
+                                                                    color: log.detectorType === 'Color' ? '#2563eb' : log.detectorType === 'Change' ? '#16a34a' : '#475569'
+                                                                }}>
+                                                                    {log.detectorType}
+                                                                </span>
+                                                            </td>
+                                                            <td style={{ padding: '8px 12px', fontFamily: 'monospace', color: '#475569' }}>{log.value}</td>
+                                                            <td style={{ padding: '8px 12px' }}>
+                                                                <span style={{
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '4px',
+                                                                    fontWeight: 700,
+                                                                    color: isMatch ? '#16a34a' : '#ef4444'
+                                                                }}>
+                                                                    <span style={{
+                                                                        width: '6px',
+                                                                        height: '6px',
+                                                                        borderRadius: '50%',
+                                                                        backgroundColor: isMatch ? '#22c55e' : '#ef4444'
+                                                                    }} />
+                                                                    {log.status}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

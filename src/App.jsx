@@ -171,12 +171,14 @@ const App = () => {
   const [logicMenuOpen, setLogicMenuOpen] = useState(false);
   const [consoleMenuOpen, setConsoleMenuOpen] = useState(false);
   const [shopFloorMenuOpen, setShopFloorMenuOpen] = useState(false);
+  const [visionMenuOpen, setVisionMenuOpen] = useState(false);
   const [systemMenuOpen, setSystemMenuOpen] = useState(false);
   const appsMenuRef = useRef(null);
   const analyticsMenuRef = useRef(null);
   const logicMenuRef = useRef(null);
   const consoleMenuRef = useRef(null);
   const shopFloorMenuRef = useRef(null);
+  const visionMenuRef = useRef(null);
   const systemMenuRef = useRef(null);
 
   // Close menu when clicking outside
@@ -196,6 +198,9 @@ const App = () => {
       }
       if (shopFloorMenuRef.current && !shopFloorMenuRef.current.contains(event.target)) {
         setShopFloorMenuOpen(false);
+      }
+      if (visionMenuRef.current && !visionMenuRef.current.contains(event.target)) {
+        setVisionMenuOpen(false);
       }
       if (systemMenuRef.current && !systemMenuRef.current.contains(event.target)) {
         setSystemMenuOpen(false);
@@ -403,12 +408,12 @@ const App = () => {
                   onClick={() => setShopFloorMenuOpen(!shopFloorMenuOpen)}
                   style={{
                     ...navLinkStyle('/stations'),
-                    backgroundColor: ['/stations', '/display-devices', '/machines', '/edge-devices', '/vision', '/iot-hub', '/plc-settings', '/voice-inspection'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
-                    color: ['/stations', '/display-devices', '/machines', '/edge-devices', '/vision', '/iot-hub', '/plc-settings', '/voice-inspection'].includes(location.pathname) ? '#2563eb' : '#475569',
+                    backgroundColor: ['/stations', '/display-devices', '/machines', '/edge-devices', '/iot-hub', '/plc-settings', '/voice-inspection'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
+                    color: ['/stations', '/display-devices', '/machines', '/edge-devices', '/iot-hub', '/plc-settings', '/voice-inspection'].includes(location.pathname) ? '#2563eb' : '#475569',
                     fontSize: '0.9rem', padding: '6px 12px', fontWeight: 600
                   }}
-                  onMouseEnter={(e) => { if (!['/stations', '/display-devices', '/machines', '/edge-devices', '/vision', '/iot-hub', '/plc-settings', '/voice-inspection'].includes(location.pathname)) { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
-                  onMouseLeave={(e) => { if (!['/stations', '/display-devices', '/machines', '/edge-devices', '/vision', '/iot-hub', '/plc-settings'].includes(location.pathname)) { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
+                  onMouseEnter={(e) => { if (!['/stations', '/display-devices', '/machines', '/edge-devices', '/iot-hub', '/plc-settings', '/voice-inspection'].includes(location.pathname)) { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
+                  onMouseLeave={(e) => { if (!['/stations', '/display-devices', '/machines', '/edge-devices', '/iot-hub', '/plc-settings'].includes(location.pathname)) { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
                 >
                   Shop Floor <ChevronDown size={14} style={{ transform: shopFloorMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', marginLeft: '4px' }} />
                 </button>
@@ -418,12 +423,35 @@ const App = () => {
                     {hasAccess('/display-devices') && <Link to="/display-devices" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/display-devices')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/display-devices' ? '#f0f7ff' : 'transparent'}><Tv size={16} /> Interfaces</Link>}
                     {hasAccess('/machines') && <Link to="/machines" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/machines')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/machines' ? '#f0f7ff' : 'transparent'}><Cpu size={16} /> Machines</Link>}
                     {hasAccess('/edge-devices') && <Link to="/edge-devices" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/edge-devices')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/edge-devices' ? '#f0f7ff' : 'transparent'}><Activity size={16} /> Edge Devices</Link>}
-                    {hasAccess('/vision') && <Link to="/vision" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/vision')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/vision' ? '#f0f7ff' : 'transparent'}><Eye size={16} /> Vision</Link>}
-                    {hasAccess('/vision') && <Link to="/vision/calibration" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/vision/calibration')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/vision/calibration' ? '#f0f7ff' : 'transparent'}><Camera size={16} /> Camera Calibration</Link>}
                     {hasAccess('/voice-inspection') && <Link to="/voice-inspection" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/voice-inspection')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/voice-inspection' ? '#f0f7ff' : 'transparent'}><Volume2 size={16} /> Voice Inspection</Link>}
                     <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '4px 0' }} />
                     {hasAccess('/iot-hub') && <Link to="/iot-hub" onClick={() => setShopFloorMenuOpen(false)} style={{ ...dropdownItemStyle('/iot-hub'), background: location.pathname === '/iot-hub' ? 'linear-gradient(135deg,#eff6ff,#f5f3ff)' : 'transparent' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = location.pathname === '/iot-hub' ? '#eff6ff' : 'transparent'}><Radio size={16} style={{ color: '#8b5cf6' }} /> <span style={{ background: 'linear-gradient(90deg,#3b82f6,#8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontWeight: 800 }}>IoT Hub</span> <span style={{ marginLeft: 'auto', fontSize: '0.6rem', fontWeight: 800, padding: '1px 6px', backgroundColor: '#8b5cf6', color: 'white', borderRadius: '10px' }}>NEW</span></Link>}
                     {hasAccess('/plc-settings') && <Link to="/plc-settings" onClick={() => setShopFloorMenuOpen(false)} style={dropdownItemStyle('/plc-settings')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/plc-settings' ? '#f0f7ff' : 'transparent'}><SlidersHorizontal size={16} /> PLC Settings</Link>}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* VISION DROPDOWN */}
+            {hasAccess('/vision') && (
+              <div style={{ position: 'relative' }} ref={visionMenuRef}>
+                <button
+                  onClick={() => setVisionMenuOpen(!visionMenuOpen)}
+                  style={{
+                    ...navLinkStyle('/vision'),
+                    backgroundColor: ['/vision', '/vision/calibration'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
+                    color: ['/vision', '/vision/calibration'].includes(location.pathname) ? '#2563eb' : '#475569',
+                    fontSize: '0.9rem', padding: '6px 12px', fontWeight: 600
+                  }}
+                  onMouseEnter={(e) => { if (!['/vision', '/vision/calibration'].includes(location.pathname)) { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
+                  onMouseLeave={(e) => { if (!['/vision', '/vision/calibration'].includes(location.pathname)) { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
+                >
+                  Vision <ChevronDown size={14} style={{ transform: visionMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', marginLeft: '4px' }} />
+                </button>
+                {visionMenuOpen && (
+                  <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, backgroundColor: 'white', minWidth: '220px', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)', padding: '8px 0', display: 'flex', flexDirection: 'column', zIndex: 1001, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                    <Link to="/vision" onClick={() => setVisionMenuOpen(false)} style={dropdownItemStyle('/vision')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/vision' ? '#f0f7ff' : 'transparent'}><Eye size={16} /> Vision</Link>
+                    <Link to="/vision/calibration" onClick={() => setVisionMenuOpen(false)} style={dropdownItemStyle('/vision/calibration')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/vision/calibration' ? '#f0f7ff' : 'transparent'}><Camera size={16} /> Camera Calibration</Link>
                   </div>
                 )}
               </div>
