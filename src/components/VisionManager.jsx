@@ -722,13 +722,17 @@ const VisionManager = () => {
                                         <div style={{ height: '160px', backgroundColor: '#0f172a', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                             <Camera size={44} color="#334155" />
                                             <div style={{ position: 'absolute', top: '12px', right: '12px' }}>
-                                                <span style={{
-                                                    padding: '4px 10px', borderRadius: '20px', backgroundColor: config.status === 'ACTIVE' ? '#dcfce7' : '#f1f5f9',
-                                                    color: config.status === 'ACTIVE' ? '#166534' : '#64748b', fontSize: '0.65rem', fontWeight: 800,
-                                                    border: '1px solid rgba(0,0,0,0.05)'
-                                                }}>
+                                                <button
+                                                    onClick={() => toggleCameraStatus(config.id)}
+                                                    style={{
+                                                        padding: '4px 10px', borderRadius: '20px', backgroundColor: config.status === 'ACTIVE' ? '#dcfce7' : '#f1f5f9',
+                                                        color: config.status === 'ACTIVE' ? '#166534' : '#64748b', fontSize: '0.65rem', fontWeight: 800,
+                                                        border: '1px solid rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'all 0.15s'
+                                                    }}
+                                                    title={config.status === 'ACTIVE' ? "Deactivate Camera" : "Activate Camera"}
+                                                >
                                                     {config.status}
-                                                </span>
+                                                </button>
                                             </div>
                                             <button
                                                 onClick={() => setSelectedCamera(config)}
@@ -756,7 +760,12 @@ const VisionManager = () => {
 
                                             <div style={{ display: 'flex', gap: '10px' }}>
                                                 <button
-                                                    onClick={() => toggleCameraStatus(config.id)}
+                                                    onClick={() => {
+                                                        if (config.status !== 'ACTIVE') {
+                                                            toggleCameraStatus(config.id);
+                                                        }
+                                                        setSelectedCamera(config);
+                                                    }}
                                                     style={{ flex: 1, padding: '8px', borderRadius: '8px', backgroundColor: '#3b82f6', color: 'white', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                                                 >
                                                     <Play size={12} /> LIVE STREAM
