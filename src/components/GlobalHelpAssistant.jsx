@@ -1211,7 +1211,7 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
   };
 
   return (
-    <div style={{ display: 'flex', gap: '24px', padding: '24px', height: 'calc(100vh - 56px)', boxSizing: 'border-box', backgroundColor: '#f8fafc', flexDirection: 'column' }}>
+    <div style={{ display: 'flex', gap: '24px', padding: '24px', flex: 1, minHeight: 0, boxSizing: 'border-box', backgroundColor: '#f8fafc', flexDirection: 'column' }}>
       
       {/* ─── MAIN HEADER TAB SELECTION ───────────────────────────── */}
       <div style={{ display: 'flex', borderBottom: '1px solid #cbd5e1', backgroundColor: '#ffffff', borderRadius: '12px', padding: '4px', border: '1px solid #e2e8f0', gap: '6px' }}>
@@ -1823,8 +1823,8 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
             position: 'fixed',
             top: 0,
             left: 0,
-            width: '100vw',
-            height: '100vh',
+            right: 0,
+            bottom: 0,
             backgroundColor: 'rgba(15, 23, 42, 0.9)',
             display: 'flex',
             alignItems: 'center',

@@ -1237,7 +1237,8 @@ const TableManager = () => {
     return (
         <div style={{
             display: 'flex',
-            height: '100vh',
+            flex: 1,
+            minHeight: 0,
             backgroundColor: TOKENS.bg,
             color: TOKENS.text,
             fontFamily: "'Inter', system-ui, -apple-system, sans-serif",

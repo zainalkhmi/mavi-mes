@@ -122,11 +122,16 @@ const App = () => {
       // Clean up any legacy transform-based zoom
       root.style.transform = '';
       root.style.transformOrigin = '';
-      root.style.width = '';
-      root.style.height = '';
       
       // Apply CSS zoom — this properly scales layout, scroll, and sizing
       root.style.zoom = zoomLevel === 1.0 ? '' : zoomLevel;
+      if (zoomLevel !== 1.0) {
+        root.style.height = `calc(100vh / ${zoomLevel})`;
+        root.style.width = `calc(100vw / ${zoomLevel})`;
+      } else {
+        root.style.height = '100%';
+        root.style.width = '100%';
+      }
     }
     // Also clean up body zoom in case it was set by legacy code
     document.body.style.zoom = '';
@@ -608,7 +613,7 @@ const App = () => {
       </nav>}
 
       {/* Main Content */}
-      <div style={{ flex: 1, overflow: 'hidden' }}>
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <Routes>
           {isOperator ? (
             // OPERATOR ROUTES ONLY

@@ -949,7 +949,7 @@ const FunctionsEditor = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#f8fafc' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, backgroundColor: '#f8fafc' }}>
       {/* Header */}
       <header style={{
         height: '64px',

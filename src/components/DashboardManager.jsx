@@ -300,11 +300,11 @@ const DashboardManager = () => {
     );
 
     return (
-        <div style={{ height: '100%', backgroundColor: '#f8fafc', padding: '40px', overflowY: 'auto' }}>
-            <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+        <div style={{ height: '100%', backgroundColor: '#f8fafc', padding: '24px 28px', overflowY: 'auto' }}>
+            <div style={{ width: '100%', maxWidth: 'none', margin: 0 }}>
                 
                 {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px', gap: '20px', flexWrap: 'wrap' }}>
                     <div>
                         <h1 style={{ color: '#0f172a', fontSize: '2.2rem', fontWeight: 900, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '15px' }}>
                             <div style={{ backgroundColor: '#0ea5e9', padding: '10px', borderRadius: '12px' }}>
@@ -314,7 +314,7 @@ const DashboardManager = () => {
                         </h1>
                         <p style={{ color: '#64748b', fontSize: '1.1rem' }}>Combine multiple analyses into a single real-time operational overview.</p>
                     </div>
-                    <div style={{ display: 'flex', gap: '15px' }}>
+                    <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
                         <button 
                             onClick={generateDefaultPerformanceDashboard}
                             style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 28px', backgroundColor: 'white', color: '#0ea5e9', border: '2px solid #0ea5e9', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(14, 165, 233, 0.1)' }}
@@ -349,7 +349,7 @@ const DashboardManager = () => {
                     <h2 style={{ color: '#0f172a', fontSize: '1.25rem', fontWeight: 800, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <LayoutDashboard size={20} color="#0ea5e9" /> Mulai Cepat dengan Template Dashboard MES
                     </h2>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '20px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
                         {DASHBOARD_TEMPLATES.map(tmpl => {
                             const TmplIcon = tmpl.icon;
                             return (
@@ -432,7 +432,7 @@ const DashboardManager = () => {
                         <p style={{ color: '#64748b' }}>Design your first operational dashboard to visualize your data efficiently.</p>
                     </div>
                 ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '24px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
                         {filteredDashboards.map(dashboard => (
                             <div key={dashboard.id} style={{ backgroundColor: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', transition: 'transform 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-4px)'} onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
                                 <div style={{ padding: '24px' }}>

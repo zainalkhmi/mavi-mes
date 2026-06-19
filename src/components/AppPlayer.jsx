@@ -82,6 +82,12 @@ function AppCard({ app, isActive, isFavorite, isRecent, onLaunch, onFavorite }) 
     const gradient = appGradient(app.name);
     const bgImage = app.config?.thumbnail ? `url(${app.config.thumbnail})` : gradient;
     
+    const handleLaunchClick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onLaunch(app);
+    };
+    
     const getStatusStyle = (status) => {
         if (status === 'PUBLISHED') return { bg: '#dcfce7', text: '#166534' };
         if (status === 'PENDING') return { bg: '#fef9c3', text: '#854d0e' };
@@ -169,7 +175,8 @@ function AppCard({ app, isActive, isFavorite, isRecent, onLaunch, onFavorite }) 
                     </span>
                 )}
                 <button
-                    onClick={() => onLaunch(app)}
+                    type="button"
+                    onClick={handleLaunchClick}
                     style={{
                         marginLeft: 'auto',
                         padding: '6px 12px',
@@ -316,11 +323,16 @@ function AuthModal({ app, operatorDefault, stationDefault, stations = [], onConf
                     </div>
 
                     <div style={{ display: 'flex', gap: '8px' }}>
-                        <button onClick={onCancel} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', color: '#64748b', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>
+                        <button type="button" onClick={onCancel} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', color: '#64748b', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>
                             Cancel
                         </button>
                         <button
-                            onClick={() => onConfirm(opName.trim(), stn.trim() || 'Station-01')}
+                            type="button"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onConfirm(opName.trim(), stn.trim() || 'Station-01');
+                            }}
                             disabled={!opName.trim()}
                             style={{
                                 flex: 2, padding: '10px', borderRadius: '8px', border: 'none',
@@ -696,6 +708,18 @@ function renderMarkdown(md = '') {
 }
 
 function AppHelpGuideScreen({ app, helpGuide, onStart, onSkip }) {
+    const handleStartClick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onStart();
+    };
+
+    const handleSkipClick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onSkip();
+    };
+
     return (
         <div style={{
             position: 'absolute', inset: 0, zIndex: 50,
@@ -736,7 +760,8 @@ function AppHelpGuideScreen({ app, helpGuide, onStart, onSkip }) {
                     </div>
                 </div>
                 <button
-                    onClick={onSkip}
+                    type="button"
+                    onClick={handleSkipClick}
                     title="Lewati panduan"
                     style={{
                         background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)',
@@ -777,7 +802,8 @@ function AppHelpGuideScreen({ app, helpGuide, onStart, onSkip }) {
                     Baca panduan di atas sebelum memulai aplikasi
                 </div>
                 <button
-                    onClick={onStart}
+                    type="button"
+                    onClick={handleStartClick}
                     id="help-guide-start-btn"
                     style={{
                         padding: '12px 32px',
@@ -1230,6 +1256,12 @@ const AppPlayer = () => {
     const handleChangeApp = () => {
         stopSession();
         // Focus search or sidebar happens naturally as activeAppId becomes empty
+    };
+
+    const handleBackToBuilder = () => {
+        const params = new URLSearchParams();
+        if (activeAppId) params.set('appId', activeAppId);
+        window.location.hash = params.toString() ? `/builder?${params.toString()}` : '/builder';
     };
 
     const handleAddComment = () => {
@@ -1743,6 +1775,24 @@ const AppPlayer = () => {
                                                     <RotateCcw size={13} color="#a5b4fc" />
                                                 </div>
                                                 <span style={{ flex: 1 }}>Restart App</span>
+                                            </button>
+
+                                            <button
+                                                onClick={() => { handleBackToBuilder(); setMenuOpen(false); }}
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', gap: '12px',
+                                                    padding: '9px 16px', width: '100%', border: 'none',
+                                                    background: 'none', textAlign: 'left', fontSize: '0.82rem',
+                                                    fontWeight: 600, color: 'rgba(255,255,255,0.75)',
+                                                    cursor: 'pointer', transition: 'all 0.15s'
+                                                }}
+                                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
+                                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
+                                            >
+                                                <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(59,130,246,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                    <ExternalLink size={13} color="#93c5fd" />
+                                                </div>
+                                                <span style={{ flex: 1 }}>Back to App Builder</span>
                                             </button>
 
                                             {/* Change App item */}

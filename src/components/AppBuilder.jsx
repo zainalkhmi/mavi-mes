@@ -19368,14 +19368,22 @@ const AppBuilder = () => {
                             <Code size={18} />
                         </button>
                         <button
-                            onClick={() => {
+                            type="button"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
                                 if (!currentAppId) {
                                     toast.error('Please save the app first.');
                                     return;
                                 }
-                                window.open(`/#/player?appId=${currentAppId}&operator=Designer&station=Test%20Station%201`, '_blank');
+                                const params = new URLSearchParams({
+                                    appId: currentAppId,
+                                    operator: 'Designer',
+                                    station: 'Test Station 1'
+                                });
+                                window.location.hash = `/player?${params.toString()}`;
                             }}
-                            title="Buka di App Player (Tab Baru)"
+                            title="Buka di App Player"
                             style={{
                                 width: '36px',
                                 height: '36px',

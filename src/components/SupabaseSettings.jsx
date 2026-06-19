@@ -81,7 +81,7 @@ const SupabaseSettings = () => {
 
   return (
     <div style={{ 
-      height: '100vh', width: '100%', backgroundColor: '#f8f9fa', color: '#495057', 
+      flex: 1, minHeight: 0, width: '100%', backgroundColor: '#f8f9fa', color: '#495057', 
       display: 'flex', flexDirection: 'column', fontFamily: "'Inter', system-ui, sans-serif" 
     }}>
       {/* Top Navbar */}

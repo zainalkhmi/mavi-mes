@@ -194,10 +194,10 @@ const DashboardEditor = () => {
                 </div>
 
                 {/* Dashboard Canvas */}
-                <div style={{ flex: 1, padding: '40px', overflowY: 'auto', backgroundColor: '#f1f5f9' }}>
+                <div style={{ flex: 1, padding: '24px', overflowY: 'auto', backgroundColor: '#f1f5f9' }}>
                     <div style={{ 
-                        minHeight: '100%', border: '2px dashed #cbd5e1', borderRadius: '24px', padding: '30px',
-                        display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', gap: '24px',
+                        minHeight: '100%', border: '2px dashed #cbd5e1', borderRadius: '24px', padding: '20px',
+                        display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '20px',
                         alignContent: 'start'
                     }}>
                         {dashboard.layout.length === 0 ? (

@@ -119,7 +119,7 @@ const LandingPage = () => {
     <div style={{
       backgroundColor: '#0b0f19',
       color: '#cbd5e1',
-      minHeight: '100vh',
+      minHeight: '100%',
       fontFamily: "'Inter', sans-serif",
       overflowX: 'hidden',
       position: 'relative'

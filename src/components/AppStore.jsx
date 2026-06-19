@@ -4149,7 +4149,7 @@ const AppStore = () => {
         <div style={{ height: '100%', backgroundColor: '#f8fafc', overflowY: 'auto', padding: '40px 20px', fontFamily: "'Inter', sans-serif" }}>
             <Toaster position="top-right" />
 
-            <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+            <div style={{ maxWidth: '100%', margin: '0 auto' }}>
 
                 {/* HEADER SECTION */}
                 <div style={{ marginBottom: '50px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>

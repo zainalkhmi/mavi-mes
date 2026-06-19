@@ -152,7 +152,7 @@ const Home = () => {
     <div style={{ 
       padding: '30px', 
       backgroundColor: '#f8fafc', 
-      minHeight: '100vh', 
+      minHeight: '100%', 
       fontFamily: "'Inter', sans-serif",
       width: '100%',
       boxSizing: 'border-box'

@@ -908,7 +908,8 @@ fps: "${cameraFps}"
   return (
     <div style={{ 
       display: 'flex', 
-      height: '100vh', 
+      flex: 1, 
+      minHeight: 0, 
       backgroundColor: COLORS.bgDark, 
       color: COLORS.textLight,
       fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
