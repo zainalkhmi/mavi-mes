@@ -442,43 +442,50 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                         }
                         ctx.putImageData(dst, 0, 0);
                     } else if (filterType === 'COLOR_DETECTOR') {
-                        // Sample center pixels (or conveyor belt pixels if IP camera)
-                        const size = 20;
-                        const sx = Math.floor((canvas.width - size) / 2);
-                        const sy = (cameraSource === 'IP_CAMERA') ? 365 : Math.floor((canvas.height - size) / 2);
-                        
                         try {
-                            const frameData = ctx.getImageData(sx, sy, size, size).data;
-                            let rSum = 0, gSum = 0, bSum = 0, count = 0;
-                            for (let i = 0; i < frameData.length; i += 4) {
-                                rSum += frameData[i];
-                                gSum += frameData[i+1];
-                                bSum += frameData[i+2];
-                                count++;
-                            }
-                            const avgR = Math.round(rSum / count);
-                            const avgG = Math.round(gSum / count);
-                            const avgB = Math.round(bSum / count);
-
+                            const size = 20;
+                            const sx = Math.floor((canvas.width - size) / 2);
+                            const sy = (cameraSource === 'IP_CAMERA') ? 365 : Math.floor((canvas.height - size) / 2);
+                            
                             const targetColor = comp?.props?.targetColor || 'RED';
                             const colorTolerance = Number(comp?.props?.colorTolerance ?? 70);
+                            
+                            // Initialize refs for python API if not exist
+                            if (!window._colorDetectRef) window._colorDetectRef = { isFetching: false, lastFetch: 0, predictions: [] };
+                            
+                            const now = Date.now();
+                            if (!window._colorDetectRef.isFetching && (now - window._colorDetectRef.lastFetch > 1000)) {
+                                window._colorDetectRef.isFetching = true;
+                                window._colorDetectRef.lastFetch = now;
+                                
+                                canvas.toBlob((blob) => {
+                                    if (blob) {
+                                        const formData = new FormData();
+                                        formData.append("file", blob, "frame.jpg");
+                                        
+                                        fetch('http://localhost:8000/detect/color', {
+                                            method: "POST",
+                                            body: formData
+                                        })
+                                        .then(res => res.json())
+                                        .then(data => {
+                                            if (data && data.predictions) {
+                                                window._colorDetectRef.predictions = data.predictions;
+                                            }
+                                        })
+                                        .catch(err => console.error("Color API error:", err))
+                                        .finally(() => {
+                                            window._colorDetectRef.isFetching = false;
+                                        });
+                                    } else {
+                                        window._colorDetectRef.isFetching = false;
+                                    }
+                                }, 'image/jpeg', 0.85);
+                            }
 
-                            const targetRGBMap = {
-                                RED: { r: 239, g: 68, b: 68 },
-                                GREEN: { r: 34, g: 197, b: 94 },
-                                BLUE: { r: 59, g: 130, b: 246 },
-                                YELLOW: { r: 234, g: 179, b: 8 },
-                                BLACK: { r: 15, g: 23, b: 42 },
-                                WHITE: { r: 255, g: 255, b: 255 }
-                            };
-
-                            const targetRGB = targetRGBMap[targetColor] || targetRGBMap.RED;
-                            const dr = avgR - targetRGB.r;
-                            const dg = avgG - targetRGB.g;
-                            const db = avgB - targetRGB.b;
-                            const dist = Math.sqrt(dr*dr + dg*dg + db*db);
-                            const similarity = Math.round(Math.max(0, 100 - (dist / 441.67) * 100));
-                            const isMatch = similarity >= colorTolerance;
+                            const preds = window._colorDetectRef.predictions;
+                            const isMatch = preds.length > 0;
+                            const similarity = isMatch ? preds[0].confidence : 0;
 
                             // Handle state transitions for triggers
                             if (lastMatchRef.current !== isMatch) {
@@ -505,63 +512,57 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                             ctx.textAlign = 'center';
                             ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
                             ctx.shadowBlur = 4;
-                            ctx.fillText(`TARGET: ${targetColor} (${colorTolerance}%)`, canvas.width / 2, sy - 20);
+                            ctx.fillText(`TARGET: ${targetColor} (PYTHON API)`, canvas.width / 2, sy - 20);
                             ctx.fillStyle = isMatch ? '#22c55e' : '#ef4444';
-                            ctx.fillText(isMatch ? `COLOR MATCH (${similarity}%)` : `MISMATCH (${similarity}%)`, canvas.width / 2, sy + size + 25);
+                            ctx.fillText(isMatch ? `COLOR MATCH (${similarity}%)` : `MISMATCH`, canvas.width / 2, sy + size + 25);
                             ctx.shadowBlur = 0; // Reset shadow
-
-                            // Draw swatch patches
-                            ctx.fillStyle = `rgb(${avgR}, ${avgG}, ${avgB})`;
-                            ctx.beginPath();
-                            ctx.arc(canvas.width / 2 - 15, sy + size + 40, 7, 0, Math.PI * 2);
-                            ctx.fill();
-                            ctx.strokeStyle = '#ffffff';
-                            ctx.lineWidth = 1.5;
-                            ctx.stroke();
-
-                            ctx.fillStyle = `rgb(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b})`;
-                            ctx.beginPath();
-                            ctx.arc(canvas.width / 2 + 15, sy + size + 40, 7, 0, Math.PI * 2);
-                            ctx.fill();
-                            ctx.stroke();
                         } catch (e) {
-                            console.error('Color detection processing error:', e);
+                            console.error('Color detection API processing error:', e);
                         }
                     } else if (filterType === 'CHANGE_DETECTOR') {
-                        // Sample center pixels (or conveyor belt pixels if IP camera)
-                        const size = 30; // 30x30 region
-                        const sx = Math.floor((canvas.width - size) / 2);
-                        const sy = (cameraSource === 'IP_CAMERA') ? 360 : Math.floor((canvas.height - size) / 2);
-                        
                         try {
-                            const currentFrame = ctx.getImageData(sx, sy, size, size);
-                            const cData = currentFrame.data;
-
-                            let changedPixels = 0;
-                            const totalPixels = size * size;
-
-                            if (prevFrameRef.current && prevFrameRef.current.width === size && prevFrameRef.current.height === size) {
-                                const pData = prevFrameRef.current.data;
-                                const diffThreshold = 30; // Pixel color difference threshold
-
-                                for (let i = 0; i < cData.length; i += 4) {
-                                    const dr = Math.abs(cData[i] - pData[i]);
-                                    const dg = Math.abs(cData[i+1] - pData[i+1]);
-                                    const db = Math.abs(cData[i+2] - pData[i+2]);
-                                    
-                                    // Calculate average difference
-                                    const avgDiff = (dr + dg + db) / 3;
-                                    if (avgDiff > diffThreshold) {
-                                        changedPixels++;
+                            const size = 30; // 30x30 region
+                            const sx = Math.floor((canvas.width - size) / 2);
+                            const sy = (cameraSource === 'IP_CAMERA') ? 360 : Math.floor((canvas.height - size) / 2);
+                            
+                            const changeThreshold = Number(comp?.props?.changeThreshold ?? 25);
+                            
+                            // Initialize refs for python API if not exist
+                            if (!window._changeDetectRef) window._changeDetectRef = { isFetching: false, lastFetch: 0, predictions: [] };
+                            
+                            const now = Date.now();
+                            if (!window._changeDetectRef.isFetching && (now - window._changeDetectRef.lastFetch > 1000)) {
+                                window._changeDetectRef.isFetching = true;
+                                window._changeDetectRef.lastFetch = now;
+                                
+                                canvas.toBlob((blob) => {
+                                    if (blob) {
+                                        const formData = new FormData();
+                                        formData.append("file", blob, "frame.jpg");
+                                        
+                                        fetch('http://localhost:8000/detect/change', {
+                                            method: "POST",
+                                            body: formData
+                                        })
+                                        .then(res => res.json())
+                                        .then(data => {
+                                            if (data && data.predictions) {
+                                                window._changeDetectRef.predictions = data.predictions;
+                                            }
+                                        })
+                                        .catch(err => console.error("Change API error:", err))
+                                        .finally(() => {
+                                            window._changeDetectRef.isFetching = false;
+                                        });
+                                    } else {
+                                        window._changeDetectRef.isFetching = false;
                                     }
-                                }
+                                }, 'image/jpeg', 0.85);
                             }
 
-                            // Store current frame for next check
-                            prevFrameRef.current = currentFrame;
-
-                            const changeThreshold = Number(comp?.props?.changeThreshold ?? 25);
-                            const changePercent = Math.round((changedPixels / totalPixels) * 100);
+                            const preds = window._changeDetectRef.predictions;
+                            // Dummy logic based on edges returned
+                            const changePercent = preds.length > 0 ? Math.min(100, preds.length * 10) : 0;
                             const isChangeDetected = changePercent >= changeThreshold;
 
                             // Handle state transitions for triggers
@@ -589,13 +590,13 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                             ctx.textAlign = 'center';
                             ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
                             ctx.shadowBlur = 4;
-                            ctx.fillText(`MOTION REGION (Min ${changeThreshold}%)`, canvas.width / 2, sy - 20);
+                            ctx.fillText(`MOTION REGION (PYTHON API)`, canvas.width / 2, sy - 20);
                             ctx.fillStyle = isChangeDetected ? '#22c55e' : '#eab308';
                             ctx.fillText(isChangeDetected ? `MOTION DETECTED (${changePercent}%)` : `NO MOTION (${changePercent}%)`, canvas.width / 2, sy + size + 25);
                             ctx.shadowBlur = 0; // Reset shadow
 
                         } catch (e) {
-                            console.error('Change detection processing error:', e);
+                            console.error('Change detection API processing error:', e);
                         }
                     } else if (filterType === 'JIG_DETECTOR') {
                         // Sample central region
@@ -606,25 +607,41 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                         try {
                             const jigAlignmentThreshold = Number(comp?.props?.jigAlignmentThreshold ?? 80);
                             
-                            // Calculate similarity based on conveyor items or device pixel variance
-                            let alignmentScore = 0;
-                            if (cameraSource === 'IP_CAMERA') {
-                                // Conveyor belt simulation: item passes through center x coords
-                                // Check if conveyor item is currently centered
-                                const itemX = (Date.now() / 15) % (canvas.width + 100) - 50;
-                                const distToCenter = Math.abs(itemX - (canvas.width / 2));
-                                if (distToCenter < 40) {
-                                    // Item is aligned in the jig region!
-                                    alignmentScore = Math.round(95 - (distToCenter / 40) * 15);
-                                } else {
-                                    alignmentScore = Math.round(25 + Math.random() * 5);
-                                }
-                            } else {
-                                // Device camera simulation: fluctuates around 75-85%
-                                const noise = Math.sin(Date.now() / 1000) * 8;
-                                alignmentScore = Math.round(78 + noise);
+                            // Initialize refs for python API if not exist
+                            if (!window._jigDetectRef) window._jigDetectRef = { isFetching: false, lastFetch: 0, predictions: [] };
+                            
+                            const now = Date.now();
+                            if (!window._jigDetectRef.isFetching && (now - window._jigDetectRef.lastFetch > 1000)) {
+                                window._jigDetectRef.isFetching = true;
+                                window._jigDetectRef.lastFetch = now;
+                                
+                                canvas.toBlob((blob) => {
+                                    if (blob) {
+                                        const formData = new FormData();
+                                        formData.append("file", blob, "frame.jpg");
+                                        
+                                        fetch('http://localhost:8000/detect/jig', {
+                                            method: "POST",
+                                            body: formData
+                                        })
+                                        .then(res => res.json())
+                                        .then(data => {
+                                            if (data && data.predictions) {
+                                                window._jigDetectRef.predictions = data.predictions;
+                                            }
+                                        })
+                                        .catch(err => console.error("Jig API error:", err))
+                                        .finally(() => {
+                                            window._jigDetectRef.isFetching = false;
+                                        });
+                                    } else {
+                                        window._jigDetectRef.isFetching = false;
+                                    }
+                                }, 'image/jpeg', 0.85);
                             }
 
+                            const preds = window._jigDetectRef.predictions;
+                            let alignmentScore = preds.length > 0 ? preds[0].confidence : 0;
                             const isJigPresent = alignmentScore >= jigAlignmentThreshold;
 
                             // Handle state transitions

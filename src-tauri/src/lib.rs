@@ -6,6 +6,7 @@ use std::thread;
 use tauri::{AppHandle, Emitter, State};
 use tokio_modbus::client::Context as ModbusContext;
 use tokio_modbus::prelude::*;
+use tauri_plugin_shell::ShellExt;
 
 struct TcpState {
     stream: Mutex<Option<TcpStream>>,
@@ -221,6 +222,7 @@ fn open_device_pairing_wizard() -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .manage(TcpState {
             stream: Mutex::new(None),
         })
@@ -238,6 +240,20 @@ pub fn run() {
             open_device_pairing_wizard
         ])
         .setup(|app| {
+            // Spawn Python YOLO Sidecar if on desktop
+            #[cfg(desktop)]
+            {
+                match app.shell().sidecar("yolo_server") {
+                    Ok(sidecar) => {
+                        match sidecar.spawn() {
+                            Ok(_) => println!("Successfully spawned yolo_server sidecar"),
+                            Err(e) => eprintln!("Failed to spawn yolo_server sidecar: {:?}", e),
+                        }
+                    }
+                    Err(e) => eprintln!("Failed to initialize yolo_server sidecar: {:?}", e),
+                }
+            }
+
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
