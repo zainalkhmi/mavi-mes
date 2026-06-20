@@ -7,7 +7,7 @@ import {
   Play, Volume2, Mic, Tv, Map, Wifi, AlertTriangle, Wrench, CreditCard, Gamepad2, Grid3X3, Sun, Flame, Wind,
   Snowflake, Compass, Container, Bell, Power, ArrowRight, RotateCw, ArrowDownUp, Car, Fuel, Bug, Trash2, Wallet,
   Keyboard, Menu, Hash, Upload, ShieldCheck, Cog, AlignLeft, LayoutGrid, Palette, PlayCircle, Thermometer, Video,
-  Gauge, TrendingUp, Rocket, Route, AppWindow, Factory, Workflow, Link2, BrainCircuit
+  Gauge, TrendingUp, Rocket, Route, AppWindow, Factory, Workflow, Link2, BrainCircuit, Ruler
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';

@@ -403,6 +403,19 @@ const getBuilderSystemPrompt = (context) => {
   const previewDevice = context?.previewDevice || 'RESPONSIVE';
   const previewOrientation = context?.previewOrientation || 'PORTRAIT';
 
+  // Load drawings from localStorage if running in browser
+  let drawingsStr = '  - No drawings saved in Drawing & CAD Blueprint Manager yet.';
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const drawings = JSON.parse(window.localStorage.getItem('mavi_drawings') || '[]');
+      if (drawings.length > 0) {
+        drawingsStr = drawings.map(d => `  - ID: "${d.id}", Name: "${d.name}", FileName: "${d.fileName}", Format: "${d.fileType}"\n    Dimensions/Parameters:\n${(d.dimensions || []).map(dim => `      * Label: "${dim.label}", Mapped Variable: "${dim.variable}", Spec: "${dim.spec}" (Tol: ${dim.tolMin}-${dim.tolMax} ${dim.unit || 'mm'})`).join('\n')}`).join('\n');
+      }
+    }
+  } catch (e) {
+    console.warn("Could not parse drawings for copilot prompt:", e);
+  }
+
   // Dynamic layout helper values
   const fullWidth = canvasWidth - 40;
   const gap = 20;
@@ -486,6 +499,12 @@ ArduinoGraph/RealtimePlotter/PinGraph → ARDUINO_GRAPH
 ════════════════════════════════════════════════
 ▸ AI Chat Widget Generik (AI_CHAT): Menyediakan asisten AI serbaguna yang dapat dipasang di layar mana saja oleh pembuat aplikasi dengan custom system prompt dan model pilihan (seperti gpt-4, gemini, dll.).
 ▸ IoT & Hardware Integration: Didukung oleh jembatan data terintegrasi ke sensor fisik seperti pembaca serial USB / Bluetooth (Caliper/Micrometer/Scale) dan modul scanner OBD2 kendaraan untuk memproses data aktual lapangan secara otomatis.
+▸ Drawing & CAD Blueprint Integration (CAD_VIEWER): Mendukung visualisasi drawing dan gambar CAD teknik. Jika pengguna meminta untuk memasukkan, menggambar, memuat, menampilkan, atau memanggil blueprint atau drawing (seperti Flange Connector, Hydraulic Cylinder, atau gambar kustom), gunakan widget CAD_VIEWER. Setel props:
+  - "fileUrl": ID drawing dari daftar kustom yang tersedia (misal "dwg_flange_connector" atau "dwg_hydraulic_cylinder"), atau default blueprint.
+  - "title": Judul model (misal "Visualisasi Flange" atau "3D Model").
+  - "format": "DXF" | "DWG" | "PDF" | "STEP" | "IGES" (sesuai format blueprint).
+  *Penting*: Hubungkan HMI Halaman dengan parameter drawing! Buat variabel global HMI (menggunakan CREATE_VARIABLE) dengan nama yang sama persis dengan "Mapped Variable" dari drawing tersebut. Nilai variabel HMI ini akan ter-sync otomatis dengan parameter drawing saat diukur atau diubah. Anda bisa menampilkan nilai variabel ini dengan VARIABLE_TEXT, atau mengikatnya sebagai targetVariable ke input field (TEXT_INPUT/NUMBER_INPUT) atau menyimpannya ke tabel produksi.
+
 
 ════════════════════════════════════════════════
 🎨 PILLARS OF HIGH-FIDELITY INDUSTRIAL DESIGN (CRITICAL FOR PERFECT ALIGNMENT)
@@ -808,6 +827,8 @@ CURRENT CONTEXT:
 - ⭐ CURRENTLY SELECTED WIDGET: ${context.selectedWidget ? JSON.stringify({ id: context.selectedWidget.id, type: context.selectedWidget.type, name: context.selectedWidget.displayName || context.selectedWidget.props?.label || context.selectedWidget.type, existingTriggers: (context.selectedWidget.props?.triggers || []).map(t => ({ id: t.id, name: t.name, event: t.event })) }) : 'none (no widget selected)'}
 - 📖 EXISTING HELP GUIDE: ${context.helpGuide ? `(guide exists, ${context.helpGuide.length} chars — update it)` : '(no guide yet — create from scratch)'}
 - 🔗 INTEGRASI APLIKASI TERKAIT (RELATED APPS - the user wants to connect with these apps): ${JSON.stringify(context.relatedApps || [])}
+- 📐 DRAWINGS & BLUEPRINTS DATABASE (tersimpan di Drawing & CAD Blueprint Manager):
+${drawingsStr}
 
 IMPORTANT: When the user says "add trigger", "add function", "tambahkan trigger", "tambahkan function" WITHOUT specifying a widget name, ALWAYS target the CURRENTLY SELECTED WIDGET above. Use its exact "name" as the widgetId in CREATE_TRIGGER commands.
 

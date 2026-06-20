@@ -398,7 +398,6 @@ const App = () => {
                     {hasAccess('/builder') && <Link to="/builder" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/builder')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/builder' ? '#f0f7ff' : 'transparent'}><Layout size={16} /> App Builder</Link>}
                     {hasAccess('/file-explorer') && <Link to="/file-explorer" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/file-explorer')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/file-explorer' ? '#f0f7ff' : 'transparent'}><Folder size={16} /> File Explorer</Link>}
                     {hasAccess('/store') && <Link to="/store" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/store')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/store' ? '#f0f7ff' : 'transparent'}><ShoppingBag size={16} /> App Store</Link>}
-                    {hasAccess('/builder') && <Link to="/drawings" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/drawings')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/drawings' ? '#f0f7ff' : 'transparent'}><Ruler size={16} /> Drawing Manager</Link>}
                     {hasAccess('/app-management') && <Link to="/app-management" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/app-management')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/app-management' ? '#f0f7ff' : 'transparent'}><AppWindow size={16} /> App Management</Link>}
                     {hasAccess('/tables') && <Link to="/tables" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/tables')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/tables' ? '#f0f7ff' : 'transparent'}><Database size={16} /> Tables</Link>}
                     {hasAccess('/connectors') && <Link to="/connectors" onClick={() => setAppsMenuOpen(false)} style={dropdownItemStyle('/connectors')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/connectors' ? '#f0f7ff' : 'transparent'}><Link2 size={16} /> Connectors</Link>}
@@ -407,6 +406,23 @@ const App = () => {
                   </div>
                 )}
               </div>
+            )}
+
+            {/* DRAWINGS */}
+            {hasAccess('/builder') && (
+              <Link
+                to="/drawings"
+                style={{
+                  ...navLinkStyle('/drawings'),
+                  backgroundColor: location.pathname === '/drawings' ? '#f0f7ff' : 'transparent',
+                  color: location.pathname === '/drawings' ? '#2563eb' : '#475569',
+                  fontSize: '0.9rem', padding: '6px 12px', fontWeight: 600
+                }}
+                onMouseEnter={(e) => { if (location.pathname !== '/drawings') { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
+                onMouseLeave={(e) => { if (location.pathname !== '/drawings') { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
+              >
+                Drawings
+              </Link>
             )}
 
             {/* SHOP FLOOR */}
