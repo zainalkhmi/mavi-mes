@@ -24992,8 +24992,25 @@ const AppBuilder = () => {
                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>TITLE</label>
                                                         <input value={selectedComp.props.title || ''} onChange={(e) => updateComponentProps(selectedComp.id, { title: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', marginBottom: '12px' }} />
 
-                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CAD FILE URL</label>
-                                                        <input value={selectedComp.props.fileUrl || ''} onChange={(e) => updateComponentProps(selectedComp.id, { fileUrl: e.target.value })} placeholder="https://...drawing.dwg" style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px', marginBottom: '12px' }} />
+                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CAD FILE BLUEPRINT</label>
+                                                        <select 
+                                                            value={selectedComp.props.fileUrl || ''} 
+                                                            onChange={(e) => updateComponentProps(selectedComp.id, { fileUrl: e.target.value })} 
+                                                            style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)', marginBottom: '12px' }}
+                                                        >
+                                                            <option value="">-- Pilih Blueprint --</option>
+                                                            <option value="interactive-2d-blueprint">Flange Connector (Default Blueprint)</option>
+                                                            <option value="interactive-3d-cad">Interactive 3D CAD Twin (Default Assembly)</option>
+                                                            {(() => {
+                                                                try {
+                                                                    return JSON.parse(localStorage.getItem('mavi_drawings') || '[]');
+                                                                } catch (e) {
+                                                                    return [];
+                                                                }
+                                                            })().map(d => (
+                                                                <option key={d.id} value={d.id}>{d.name} ({d.fileName})</option>
+                                                            ))}
+                                                        </select>
 
                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>FORMAT</label>
                                                         <select value={selectedComp.props.format || 'DWG'} onChange={(e) => updateComponentProps(selectedComp.id, { format: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}>

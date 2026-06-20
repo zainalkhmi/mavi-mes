@@ -35,6 +35,7 @@ Pengetahuan dasar Mavi meliputi:
 6. **Console:** Aplikasi dijalankan oleh operator melalui Live Terminal atau App Player.
 7. **Mavi Vision & Detector Integrations (Landing AI & Local Model):**
    - **Manage Providers:** Operator/Admin mendaftarkan API Key Landing AI di drawer *Manage Providers* di menu Vision -> Models.
+8. **Drawing & CAD Integration:** Admin dapat mengunggah berkas gambar teknik (.dxf, .svg, .pdf) di menu **Drawing Manager** ([Buka Drawing Manager](#/drawings)), memetakan toleransi, dan mengaitkannya ke variabel aplikasi. Saat operator menginput nilai aktual jangka sorong di Live Terminal, garis gambar CAD akan otomatis berubah warna (Hijau = PASS, Merah = FAIL).
    - **Create Model:** Membuat model klasifikasi melalui provider **Landing AI** (butuh Tulip Table, min 2 kelas, min 10 gambar per kelas, opsi filter kueri) atau **Local model** (mengunggah file model biner/XML kustom secara offline: .xml, .bin, .json).
    - **Visual Detectors**: Ditambahkan pada region sensor kamera di editor penampang kamera/region. Terdiri dari 5 jenis detektor:
      - *Color Detectors*: Memantau kesesuaian nilai target warna.
@@ -827,6 +828,50 @@ Filter **Dimension Measurement** pada widget **OpenCV Camera** memungkinkan peng
 - Posisikan kamera **tegak lurus** terhadap permukaan objek.
 - Gunakan **resolusi tinggi** dan pastikan fokus tajam.
 - Untuk presisi \\u003C 0.05 mm, pertimbangkan penggunaan **telecentric lens**.
+`
+  },
+  {
+    id: 'drawing-cad-guide',
+    title: 'Drawing & CAD Integration',
+    icon: Ruler,
+    color: '#2563eb', // Blue
+    content: `
+### Panduan Integrasi Drawing & CAD Blueprint di Mavi HMI
+
+Drawing & CAD Blueprint Manager memungkinkan Anda mengunggah berkas gambar teknik (.svg, .dxf, .pdf), memetakan koordinat dimensi secara visual ke variabel Quality Management System (QMS), dan melakukan judgment Pass/Fail otomatis di stasiun operator.
+
+---
+
+#### 1. Cara Melakukan Pemetaan (Mapping) di Drawing Manager
+Untuk mengaitkan dimensi gambar dengan variabel aplikasi:
+1. Masuk ke menu **Apps** -> **Drawing Manager** dari bilah navigasi atas.
+2. Unggah file gambar Anda (.svg, .dxf, atau .pdf) pada drop-zone uploader. Sistem akan mengonversi dan membedah entitas geometri secara otomatis.
+3. Klik nama file gambar Anda di daftar sebelah kiri untuk memuat Canvas.
+4. Klik langsung pada **kotak label dimensi** di atas Canvas (misal: \`Ø 80.0\` atau \`L: 120.0\`).
+5. Isi data pemetaan pada panel kanan:
+   - **Target Spec Nominal**: Masukkan angka spesifikasi target.
+   - **Batas Toleransi (Min/Max)**: Masukkan deviasi toleransi yang diperbolehkan.
+   - **Variabel Connector (QMS)**: Pilih variabel HMI yang akan dikoneksikan (misal: \`Meas_Length\` atau \`Meas_Diameter\`).
+6. Klik **Simpan Pemetaan Dimensi**.
+
+---
+
+#### 2. Cara Mengintegrasikan Drawing ke App Builder
+Setelah dimensi dipetakan, ikuti langkah berikut untuk menampilkannya di aplikasi operator:
+1. Buka **App Builder** dan pilih aplikasi Anda.
+2. Tarik (drag) widget **CAD** (atau \`CAD_VIEWER\`) dari panel widget kiri ke dalam kanvas HMI.
+3. Pada panel properti sebelah kanan widget CAD, atur properti **\`fileUrl\`** sesuai dengan blueprint Anda (misal: \`'interactive-2d-blueprint'\`).
+4. Buat widget input form (seperti \`TEXT_INPUT\` atau \`NUMBER_INPUT\`) untuk menerima hasil ukur jangka sorong dari operator.
+5. Koneksikan (**bind**) properti \`targetVariable\` widget input tersebut ke variabel HMI yang sama dengan pemetaan Drawing Manager (misal: \`Meas_Length\` atau \`Meas_Diameter\`).
+
+---
+
+#### 3. Cara Kerja Validasi Dinamis di Live Terminal
+Ketika operator menjalankan aplikasi di stasiun kerja (**Live Terminal**):
+- Setiap kali operator mengetuk label dimensi pada gambar, variabel \`Active_Dimension_Key\` akan ter-update untuk memfokuskan input box yang bersangkutan.
+- Saat operator menginput nilai aktual jangka sorong:
+  - Sistem mencocokkan nilai tersebut terhadap toleransi min/max dari database.
+  - Garis dimensi pada gambar akan otomatis berubah warna menjadi **Hijau (PASS)** jika memenuhi spesifikasi, atau **Merah (FAIL)** jika tidak sesuai spesifikasi.
 `
   },
   {
