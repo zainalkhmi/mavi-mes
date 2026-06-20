@@ -13908,6 +13908,93 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
   const lastAnalysisTimeRef = useRef(0);
   const [cameraConfig, setCameraConfig] = useState(null);
 
+  const cameraSource = cameraConfig?.type || comp?.props?.cameraSource || 'DEVICE';
+  const ipCameraUrl = cameraConfig?.url || comp?.props?.ipCameraUrl || '';
+
+  // Ruler States & Refs
+  const [isRulerModeActive, setIsRulerModeActive] = useState(comp?.props?.filterType === 'RULER_VISION');
+  const [isCircleModeActive, setIsCircleModeActive] = useState(comp?.props?.filterType === 'CIRCLE_DETECT');
+  const [isAngleModeActive, setIsAngleModeActive] = useState(comp?.props?.filterType === 'ANGLE_MEASURE');
+  const [isContourModeActive, setIsContourModeActive] = useState(comp?.props?.filterType === 'CONTOUR_GEOMETRY');
+
+  const activateMeasurementMode = (mode) => {
+    setIsRulerModeActive(mode === 'RULER_VISION');
+    setIsCircleModeActive(mode === 'CIRCLE_DETECT');
+    setIsAngleModeActive(mode === 'ANGLE_MEASURE');
+    setIsContourModeActive(mode === 'CONTOUR_GEOMETRY');
+
+    if (mode !== 'RULER_VISION') {
+      setRulerPoints(null);
+      lastSavedRulerPointsRef.current = null;
+      setRulerDragStart(null);
+      setRulerDragCurrent(null);
+      if (rulerDetectRef.current) {
+        rulerDetectRef.current.measurement = '-';
+        if (rulerDetectRef.current.processedImgUrl) {
+          URL.revokeObjectURL(rulerDetectRef.current.processedImgUrl);
+          rulerDetectRef.current.processedImgUrl = null;
+          rulerDetectRef.current.processedImage.src = '';
+        }
+      }
+    }
+  };
+
+  const [rulerPoints, setRulerPoints] = useState(null);
+  const [rulerDragStart, setRulerDragStart] = useState(null);
+  const [rulerDragCurrent, setRulerDragCurrent] = useState(null);
+  const lastSavedRulerPointsRef = useRef(null);
+
+  const rulerDetectRef = useRef({
+    isFetching: false,
+    lastFetch: 0,
+    processedImgUrl: null,
+    processedImage: new Image(),
+    measurement: '-'
+  });
+  const circleDetectRef = useRef({ isFetching: false, lastFetch: 0, processedImgUrl: null, processedImage: new Image(), result: null });
+  const angleDetectRef = useRef({ isFetching: false, lastFetch: 0, processedImgUrl: null, processedImage: new Image(), result: null });
+  const contourDetectRef = useRef({ isFetching: false, lastFetch: 0, processedImgUrl: null, processedImage: new Image(), result: null });
+
+  const offscreenCanvasRef = useRef(null);
+  const getCleanFrameBlob = useCallback((callback, mimeType = 'image/jpeg', quality = 0.85) => {
+    const video = videoRef.current;
+    if (!offscreenCanvasRef.current) {
+      offscreenCanvasRef.current = document.createElement('canvas');
+    }
+    const offscreenCanvas = offscreenCanvasRef.current;
+    const w = canvasRef.current?.width || 320;
+    const h = canvasRef.current?.height || 240;
+    offscreenCanvas.width = w;
+    offscreenCanvas.height = h;
+    
+    const offscreenCtx = offscreenCanvas.getContext('2d');
+    if (!offscreenCtx) return callback(null);
+    
+    if (cameraSource === 'IP_CAMERA' || isSimulatedCv) {
+      drawSimulatedIPStream(offscreenCtx, w, h);
+    } else if (video) {
+      offscreenCtx.drawImage(video, 0, 0, w, h);
+    } else {
+      return callback(null);
+    }
+    
+    offscreenCanvas.toBlob(callback, mimeType, quality);
+  }, [cameraSource]);
+
+  useEffect(() => {
+    if (comp?.props?.filterType === 'RULER_VISION') {
+      setIsRulerModeActive(true);
+    }
+  }, [comp?.props?.filterType]);
+
+  useEffect(() => {
+    return () => {
+      if (rulerDetectRef.current?.processedImgUrl) {
+        URL.revokeObjectURL(rulerDetectRef.current.processedImgUrl);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     const fetchConfig = async () => {
       if (comp?.props?.cameraConfigId) {
@@ -14016,9 +14103,6 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
     };
   }, []);
 
-  const cameraSource = cameraConfig?.type || comp?.props?.cameraSource || 'DEVICE';
-  const ipCameraUrl = cameraConfig?.url || comp?.props?.ipCameraUrl || '';
-
   const animationTickRef = useRef(0);
   const drawSimulatedIPStream = (ctx, w, h) => {
     animationTickRef.current = (animationTickRef.current + 1) % 1000;
@@ -14045,28 +14129,104 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
 
     const itemX = (tick * 1.5) % (w + 60) - 30;
 
-    const colorPalette = {
-      RED: '#ef4444',
-      GREEN: '#22c55e',
-      BLUE: '#3b82f6',
-      YELLOW: '#eab308',
-      BLACK: '#090d16',
-      WHITE: '#ffffff'
-    };
-    const colorsList = ['RED', 'GREEN', 'BLUE', 'YELLOW', 'WHITE', 'BLACK'];
-    const cycleIndex = Math.floor(tick / 150) % colorsList.length;
-    const currentItemColorKey = colorsList[cycleIndex];
-    const currentItemColor = colorPalette[currentItemColorKey] || '#3b82f6';
+    // Draw custom measurement targets in simulated screen center if active
+    if (isCircleModeActive) {
+      const cx = w / 2;
+      const cy = h / 2 - 10;
+      const radius = Math.min(w, h) * 0.22;
+      
+      // Draw simulated metal disc
+      ctx.fillStyle = '#64748b';
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3;
+      ctx.stroke();
 
-    ctx.fillStyle = currentItemColor;
-    ctx.fillRect(itemX, h - 65, 30, 25);
+      // Center hole
+      ctx.fillStyle = '#0f172a';
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius * 0.35, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else if (isAngleModeActive) {
+      const cx = w / 2;
+      const cy = h / 2 - 10;
+      const len = Math.min(w, h) * 0.3;
+      const angleDeg = 60 + 20 * Math.sin(tick * 0.05);
+      const angleRad = (angleDeg * Math.PI) / 180;
 
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(itemX + 5, h - 55, 20, 10);
-    ctx.fillStyle = '#000000';
-    for (let bx = 0; bx < 15; bx += 2) {
-      if (Math.sin(bx + tick) > -0.2) {
-        ctx.fillRect(itemX + 6 + bx, h - 55, 1, 10);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      
+      const x1 = cx - len * Math.cos(angleRad / 2);
+      const y1 = cy - len * Math.sin(angleRad / 2);
+      const x2 = cx + len * Math.cos(angleRad / 2);
+      const y2 = cy - len * Math.sin(angleRad / 2);
+
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(cx, cy);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    } else if (isContourModeActive) {
+      // Shape 1: Triangle
+      const tx = w * 0.3;
+      const ty = h / 2 - 10;
+      const tSize = Math.min(w, h) * 0.15;
+      ctx.fillStyle = '#475569';
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(tx, ty - tSize);
+      ctx.lineTo(tx + tSize, ty + tSize * 0.8);
+      ctx.lineTo(tx - tSize, ty + tSize * 0.8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Shape 2: Square/Rectangle
+      const sx = w * 0.7 - 10;
+      const sy = h / 2 - 25;
+      const sSize = Math.min(w, h) * 0.22;
+      ctx.fillStyle = '#475569';
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.rect(sx, sy, sSize, sSize);
+      ctx.fill();
+      ctx.stroke();
+    } else {
+      // Default moving conveyor items
+      const colorPalette = {
+        RED: '#ef4444',
+        GREEN: '#22c55e',
+        BLUE: '#3b82f6',
+        YELLOW: '#eab308',
+        BLACK: '#090d16',
+        WHITE: '#ffffff'
+      };
+      const colorsList = ['RED', 'GREEN', 'BLUE', 'YELLOW', 'WHITE', 'BLACK'];
+      const cycleIndex = Math.floor(tick / 150) % colorsList.length;
+      const currentItemColorKey = colorsList[cycleIndex];
+      const currentItemColor = colorPalette[currentItemColorKey] || '#3b82f6';
+
+      ctx.fillStyle = currentItemColor;
+      ctx.fillRect(itemX, h - 65, 30, 25);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(itemX + 5, h - 55, 20, 10);
+      ctx.fillStyle = '#000000';
+      for (let bx = 0; bx < 15; bx += 2) {
+        if (Math.sin(bx + tick) > -0.2) {
+          ctx.fillRect(itemX + 6 + bx, h - 55, 1, 10);
+        }
       }
     }
 
@@ -14132,12 +14292,104 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
     };
   }, [cvLoaded, cameraSource]);
 
+  // Helper to calculate mouse/touch position scaled to the canvas with objectFit: cover
+  const getCanvasMousePos = (e) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    
+    // Handle touch events
+    const isTouch = e.touches && e.touches.length > 0;
+    const clientX = isTouch ? e.touches[0].clientX : e.clientX;
+    const clientY = isTouch ? e.touches[0].clientY : e.clientY;
+    
+    const W_r = rect.width;
+    const H_r = rect.height;
+    const W_c = canvas.width;
+    const H_c = canvas.height;
+    
+    // Scale factor applied to the buffer to draw it on the display (object-fit: cover)
+    const S = Math.max(W_r / W_c, H_r / H_c);
+    
+    const x_r = clientX - rect.left;
+    const y_r = clientY - rect.top;
+    
+    const x = (x_r - W_r / 2) / S + W_c / 2;
+    const y = (y_r - H_r / 2) / S + H_c / 2;
+    
+    // Clamp bounds to within canvas dimensions
+    return {
+      x: Math.max(0, Math.min(Math.round(x), W_c)),
+      y: Math.max(0, Math.min(Math.round(y), H_c))
+    };
+  };
+
+  const handleRulerMouseDown = (e) => {
+    const pos = getCanvasMousePos(e);
+    setRulerDragStart(pos);
+    setRulerDragCurrent(pos);
+    setRulerPoints(null);
+    if (rulerDetectRef.current) {
+      rulerDetectRef.current.measurement = '-';
+    }
+  };
+
+  const handleRulerMouseMove = (e) => {
+    if (!rulerDragStart) return;
+    const pos = getCanvasMousePos(e);
+    setRulerDragCurrent(pos);
+  };
+
+  const handleRulerMouseUp = () => {
+    if (!rulerDragStart || !rulerDragCurrent) return;
+    const dx = rulerDragCurrent.x - rulerDragStart.x;
+    const dy = rulerDragCurrent.y - rulerDragStart.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    
+    if (dist > 5) {
+      const pts = {
+        x1: rulerDragStart.x,
+        y1: rulerDragStart.y,
+        x2: rulerDragCurrent.x,
+        y2: rulerDragCurrent.y
+      };
+      setRulerPoints(pts);
+    }
+    setRulerDragStart(null);
+    setRulerDragCurrent(null);
+  };
+
+  const handleRulerTouchStart = (e) => {
+    e.preventDefault();
+    handleRulerMouseDown(e);
+  };
+
+  const handleRulerTouchMove = (e) => {
+    e.preventDefault();
+    handleRulerMouseMove(e);
+  };
+
+  const handleRulerTouchEnd = (e) => {
+    e.preventDefault();
+    handleRulerMouseUp();
+  };
+
+  const areRulerPointsEqual = (p1, p2) => {
+    if (!p1 && !p2) return true;
+    if (!p1 || !p2) return false;
+    return p1.x1 === p2.x1 && p1.y1 === p2.y1 && p1.x2 === p2.x2 && p1.y2 === p2.y2;
+  };
+
   // Real-time Database Saving Function
   const saveLogToDb = async (currentVal, isPassed) => {
     if (isSaving) return;
     setIsSaving(true);
     try {
-      const modeName = comp.props.filterType || 'CANNY';
+      let modeName = comp.props.filterType || 'CANNY';
+      if (isRulerModeActive) modeName = 'RULER_VISION';
+      else if (isCircleModeActive) modeName = 'CIRCLE_DETECT';
+      else if (isAngleModeActive) modeName = 'ANGLE_MEASURE';
+      else if (isContourModeActive) modeName = 'CONTOUR_GEOMETRY';
       const statusStr = isPassed ? 'PASS' : 'FAIL';
       
       const payload = {
@@ -14183,18 +14435,24 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
   useEffect(() => {
     const interval = setInterval(() => {
       const current = currentReadoutRef.current;
-      if (uiReadout.val !== current.val || uiReadout.isPassed !== current.isPassed) {
-        setUiReadout({ ...current });
-        
-        // Auto-save logic
-        if (autoSave && lastLoggedVal.current !== current.val && current.val !== 'WAITING FOR CODE...' && current.val !== '-') {
+      setUiReadout(current);
+
+      if (autoSave && lastLoggedVal.current !== current.val && current.val !== 'WAITING FOR CODE...' && current.val !== '-') {
+        if (isRulerModeActive) {
+          // For Ruler, only save if the ruler points have changed since last save
+          if (rulerPoints && !areRulerPointsEqual(rulerPoints, lastSavedRulerPointsRef.current)) {
+            lastSavedRulerPointsRef.current = rulerPoints;
+            lastLoggedVal.current = current.val;
+            saveLogToDb(current.val, current.isPassed);
+          }
+        } else {
           lastLoggedVal.current = current.val;
           saveLogToDb(current.val, current.isPassed);
         }
       }
     }, 300);
     return () => clearInterval(interval);
-  }, [uiReadout, autoSave]);
+  }, [uiReadout, autoSave, isRulerModeActive, isCircleModeActive, isAngleModeActive, isContourModeActive, rulerPoints]);
 
   // Frame processing loop
   useEffect(() => {
@@ -14492,7 +14750,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
       if (!isProcessing) return;
 
       try {
-        if (cameraSource !== 'IP_CAMERA' && (video.paused || video.ended)) {
+        if (cameraSource !== 'IP_CAMERA' && !isSimulatedCv && (video.paused || video.ended)) {
           requestRef.current = requestAnimationFrame(processFrame);
           return;
         }
@@ -14506,16 +14764,177 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
           return fallback;
         };
 
-        const filterType = comp.props.filterType || 'CANNY';
+        const baseFilterType = comp.props.filterType || 'CANNY';
+        let filterType = baseFilterType;
+        if (isRulerModeActive) {
+          filterType = 'RULER_VISION';
+        } else if (isCircleModeActive) {
+          filterType = 'CIRCLE_DETECT';
+        } else if (isAngleModeActive) {
+          filterType = 'ANGLE_MEASURE';
+        } else if (isContourModeActive) {
+          filterType = 'CONTOUR_GEOMETRY';
+        }
         const threshVal = comp.props.thresholdValue ?? 100;
         
         let calculatedVal = '-';
         let isPassed = true;
+        
+        const ctx = canvas.getContext('2d');
 
-        if (isSimulatedCv || cameraSource === 'IP_CAMERA') {
+        if (filterType === 'RULER_VISION') {
+          try {
+            const stateRef = rulerDetectRef.current;
+            const now = Date.now();
+            
+            if (rulerPoints) {
+              if (!stateRef.isFetching && (now - stateRef.lastFetch > 180)) {
+                stateRef.isFetching = true;
+                stateRef.lastFetch = now;
+                
+                getCleanFrameBlob((blob) => {
+                  if (blob) {
+                    const formData = new FormData();
+                    formData.append("file", blob, "frame.jpg");
+                    
+                    const scaleRatio = 640 / canvas.width;
+                    const mmPx = (comp?.props?.mmPerPixel || 0.1170) * scaleRatio;
+                    
+                    const params = new URLSearchParams({
+                      x1: rulerPoints.x1.toString(),
+                      y1: rulerPoints.y1.toString(),
+                      x2: rulerPoints.x2.toString(),
+                      y2: rulerPoints.y2.toString(),
+                      mm_per_pixel: mmPx.toString()
+                    });
+                    
+                    fetch(`http://localhost:8000/detect/ruler?${params.toString()}`, {
+                      method: "POST",
+                      body: formData
+                    })
+                    .then(res => {
+                      if (!res.ok) throw new Error('Ruler API error');
+                      const calcVal = res.headers.get('X-Calculated-Value') || '-';
+                      const metadataStr = res.headers.get('X-Ruler-Result') || '{}';
+                      
+                      stateRef.measurement = calcVal;
+                      
+                      if (lastMatchStatesRef.current.rulerVal !== calcVal) {
+                        lastMatchStatesRef.current.rulerVal = calcVal;
+                        let parsedMeta = {};
+                        try {
+                          parsedMeta = JSON.parse(metadataStr);
+                        } catch(_) {}
+                        
+                        if (typeof fireDeviceInputTriggers === 'function' && cameraConfig?.id) {
+                          fireDeviceInputTriggers(cameraConfig.id, 'ON_MEASUREMENT', {
+                            value: calcVal,
+                            metadata: parsedMeta
+                          });
+                        }
+                        
+                        const rulerVarName = comp?.props?.rulerVariableName || `${comp.id}_RULER_VAL`;
+                        if (setAppVariables) {
+                          setAppVariables(prev => {
+                            const idx = prev.findIndex(v => v.name === rulerVarName);
+                            if (idx >= 0) {
+                              const updated = [...prev];
+                              updated[idx] = { ...updated[idx], value: calcVal };
+                              return updated;
+                            } else {
+                              return [...prev, { name: rulerVarName, value: calcVal, type: 'TEXT' }];
+                            }
+                          });
+                        }
+                      }
+                      
+                      return res.blob();
+                    })
+                    .then(imgBlob => {
+                      if (stateRef.processedImgUrl) {
+                        URL.revokeObjectURL(stateRef.processedImgUrl);
+                      }
+                      stateRef.processedImgUrl = URL.createObjectURL(imgBlob);
+                      stateRef.processedImage.src = stateRef.processedImgUrl;
+                    })
+                    .catch(err => console.error("Python Ruler Vision error in widget:", err))
+                    .finally(() => {
+                      stateRef.isFetching = false;
+                    });
+                  } else {
+                    stateRef.isFetching = false;
+                  }
+                }, 'image/jpeg', 0.85);
+              }
+              
+              if (stateRef.processedImage && stateRef.processedImage.complete && stateRef.processedImage.naturalWidth > 0) {
+                ctx.drawImage(stateRef.processedImage, 0, 0, width, height);
+              }
+              calculatedVal = stateRef.measurement;
+              isPassed = true;
+            } else {
+              if (cameraSource === 'IP_CAMERA') {
+                drawSimulatedIPStream(ctx, width, height);
+              } else {
+                ctx.drawImage(video, 0, 0, width, height);
+              }
+              
+              ctx.fillStyle = 'rgba(15, 23, 42, 0.4)';
+              ctx.fillRect(0, 0, width, height);
+              
+              ctx.fillStyle = '#ffffff';
+              ctx.font = 'bold 9px sans-serif';
+              ctx.textAlign = 'center';
+              ctx.fillText("RULER VISION ACTIVE", width / 2, height / 2 - 5);
+              ctx.fillStyle = '#38bdf8';
+              ctx.font = '7px sans-serif';
+              ctx.fillText("Drag on screen to measure", width / 2, height / 2 + 10);
+              ctx.textAlign = 'start';
+              
+              calculatedVal = '-';
+              isPassed = true;
+            }
+            
+            if (rulerDragStart && rulerDragCurrent) {
+              const rx1 = rulerDragStart.x;
+              const ry1 = rulerDragStart.y;
+              const rx2 = rulerDragCurrent.x;
+              const ry2 = rulerDragCurrent.y;
+              
+              ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+              ctx.lineWidth = 4;
+              ctx.beginPath();
+              ctx.moveTo(rx1, ry1);
+              ctx.lineTo(rx2, ry2);
+              ctx.stroke();
+              
+              ctx.strokeStyle = '#0ea5e9';
+              ctx.lineWidth = 1.5;
+              ctx.beginPath();
+              ctx.moveTo(rx1, ry1);
+              ctx.lineTo(rx2, ry2);
+              ctx.stroke();
+              
+              ctx.fillStyle = '#ffffff';
+              ctx.strokeStyle = '#0ea5e9';
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.arc(rx1, ry1, 3, 0, 2 * Math.PI);
+              ctx.fill();
+              ctx.stroke();
+              
+              ctx.beginPath();
+              ctx.arc(rx2, ry2, 3, 0, 2 * Math.PI);
+              ctx.fill();
+              ctx.stroke();
+            }
+          } catch (e) {
+            console.error('Ruler Vision canvas processing error in widget:', e);
+          }
+        } else if (isSimulatedCv || cameraSource === 'IP_CAMERA') {
           // Fast Canvas 2D fallback rendering (when OpenCV is downloading or offline or IP Camera)
           const ctx = canvas.getContext('2d');
-          if (cameraSource === 'IP_CAMERA') {
+          if (cameraSource === 'IP_CAMERA' || isSimulatedCv) {
             drawSimulatedIPStream(ctx, width, height);
           } else {
             ctx.drawImage(video, 0, 0, width, height);
@@ -14883,6 +15302,188 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
             ctx.fillText(isCalibrated ? `Calibrated: ${mmPx.toFixed(4)} ${dimUnit}/px` : 'NOT CALIBRATED', 18, 45);
             ctx.fillText(`Tolerance: ${comp.props.dimMinMm ?? '—'} ~ ${comp.props.dimMaxMm ?? '—'} ${dimUnit}`, 18, 55);
           }
+          } else if (filterType === 'CIRCLE_DETECT') {
+            // ── CIRCLE/DIAMETER DETECTION (Python API) ──
+            const ctx = canvas.getContext('2d');
+            if (cameraSource === 'IP_CAMERA') {
+              drawSimulatedIPStream(ctx, width, height);
+            } else {
+              ctx.drawImage(video, 0, 0, width, height);
+            }
+
+            const stateRef = circleDetectRef.current;
+            const now = Date.now();
+            const mmPx = comp?.props?.mmPerPixel || 0.1170;
+            const minR = comp?.props?.circleMinRadius ?? 10;
+            const maxR = comp?.props?.circleMaxRadius ?? 200;
+            const param2Val = comp?.props?.circleParam2 ?? 30;
+
+            if (!stateRef.isFetching && (now - stateRef.lastFetch > 300)) {
+              stateRef.isFetching = true;
+              stateRef.lastFetch = now;
+
+              getCleanFrameBlob((blob) => {
+                if (blob) {
+                  const formData = new FormData();
+                  formData.append("file", blob, "frame.jpg");
+                  const params = new URLSearchParams({ mm_per_pixel: mmPx.toString(), min_radius: minR.toString(), max_radius: maxR.toString(), param2: param2Val.toString() });
+                  fetch(`http://localhost:8000/detect/circle?${params.toString()}`, { method: "POST", body: formData })
+                    .then(res => {
+                      if (!res.ok) throw new Error('Circle API error');
+                      const metaStr = res.headers.get('X-Circle-Result') || '{}';
+                      try { stateRef.result = JSON.parse(metaStr); } catch(_) { stateRef.result = {}; }
+                      return res.blob();
+                    })
+                    .then(imgBlob => {
+                      if (stateRef.processedImgUrl) URL.revokeObjectURL(stateRef.processedImgUrl);
+                      stateRef.processedImgUrl = URL.createObjectURL(imgBlob);
+                      stateRef.processedImage.src = stateRef.processedImgUrl;
+                    })
+                    .catch(err => console.error("Circle API error:", err))
+                    .finally(() => { stateRef.isFetching = false; });
+                } else { stateRef.isFetching = false; }
+              }, 'image/jpeg', 0.85);
+            }
+
+            if (stateRef.processedImage && stateRef.processedImage.complete && stateRef.processedImage.naturalWidth > 0) {
+              ctx.drawImage(stateRef.processedImage, 0, 0, width, height);
+            }
+
+            const circleCount = stateRef.result?.count ?? 0;
+            calculatedVal = circleCount > 0 ? `Circles: ${circleCount}` : 'No circles';
+            isPassed = circleCount > 0;
+
+            // HUD
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+            ctx.fillRect(10, 10, 180, 30);
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(10, 10, 180, 30);
+            ctx.fillStyle = '#38bdf8';
+            ctx.font = 'bold 9px sans-serif';
+            ctx.fillText('CIRCLE/DIAMETER DETECTION', 18, 29);
+
+          } else if (filterType === 'ANGLE_MEASURE') {
+            // ── ANGLE MEASUREMENT (Python API) ──
+            const ctx = canvas.getContext('2d');
+            if (cameraSource === 'IP_CAMERA') {
+              drawSimulatedIPStream(ctx, width, height);
+            } else {
+              ctx.drawImage(video, 0, 0, width, height);
+            }
+
+            const stateRef = angleDetectRef.current;
+            const now = Date.now();
+            const cannyTh = comp?.props?.angleCannyThreshold ?? 50;
+            const minLen = comp?.props?.angleMinLineLength ?? 50;
+            const maxGap = comp?.props?.angleMaxLineGap ?? 10;
+
+            if (!stateRef.isFetching && (now - stateRef.lastFetch > 300)) {
+              stateRef.isFetching = true;
+              stateRef.lastFetch = now;
+
+              getCleanFrameBlob((blob) => {
+                if (blob) {
+                  const formData = new FormData();
+                  formData.append("file", blob, "frame.jpg");
+                  const params = new URLSearchParams({ canny_threshold: cannyTh.toString(), min_line_length: minLen.toString(), max_line_gap: maxGap.toString() });
+                  fetch(`http://localhost:8000/detect/angle?${params.toString()}`, { method: "POST", body: formData })
+                    .then(res => {
+                      if (!res.ok) throw new Error('Angle API error');
+                      const metaStr = res.headers.get('X-Angle-Result') || '{}';
+                      try { stateRef.result = JSON.parse(metaStr); } catch(_) { stateRef.result = {}; }
+                      return res.blob();
+                    })
+                    .then(imgBlob => {
+                      if (stateRef.processedImgUrl) URL.revokeObjectURL(stateRef.processedImgUrl);
+                      stateRef.processedImgUrl = URL.createObjectURL(imgBlob);
+                      stateRef.processedImage.src = stateRef.processedImgUrl;
+                    })
+                    .catch(err => console.error("Angle API error:", err))
+                    .finally(() => { stateRef.isFetching = false; });
+                } else { stateRef.isFetching = false; }
+              }, 'image/jpeg', 0.85);
+            }
+
+            if (stateRef.processedImage && stateRef.processedImage.complete && stateRef.processedImage.naturalWidth > 0) {
+              ctx.drawImage(stateRef.processedImage, 0, 0, width, height);
+            }
+
+            const angleCount = stateRef.result?.angles?.length ?? 0;
+            calculatedVal = angleCount > 0 ? `Angles: ${stateRef.result.angles.map(a => a.angle_deg?.toFixed(1) + '°').join(', ')}` : 'No angles';
+            isPassed = angleCount > 0;
+
+            // HUD
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+            ctx.fillRect(10, 10, 180, 30);
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(10, 10, 180, 30);
+            ctx.fillStyle = '#f59e0b';
+            ctx.font = 'bold 9px sans-serif';
+            ctx.fillText('ANGLE MEASUREMENT', 18, 29);
+
+          } else if (filterType === 'CONTOUR_GEOMETRY') {
+            // ── PERIMETER & AREA (Python API) ──
+            const ctx = canvas.getContext('2d');
+            if (cameraSource === 'IP_CAMERA') {
+              drawSimulatedIPStream(ctx, width, height);
+            } else {
+              ctx.drawImage(video, 0, 0, width, height);
+            }
+
+            const stateRef = contourDetectRef.current;
+            const now = Date.now();
+            const threshold = comp?.props?.contourThreshold ?? 80;
+            const minArea = comp?.props?.contourMinArea ?? 500;
+            const mmPx = comp?.props?.mmPerPixel || 0.1170;
+            const dimUnit = comp?.props?.dimUnit || 'mm';
+
+            if (!stateRef.isFetching && (now - stateRef.lastFetch > 300)) {
+              stateRef.isFetching = true;
+              stateRef.lastFetch = now;
+
+              getCleanFrameBlob((blob) => {
+                if (blob) {
+                  const formData = new FormData();
+                  formData.append("file", blob, "frame.jpg");
+                  const params = new URLSearchParams({ threshold: threshold.toString(), min_area: minArea.toString(), mm_per_pixel: mmPx.toString() });
+                  fetch(`http://localhost:8000/detect/contour_geometry?${params.toString()}`, { method: "POST", body: formData })
+                    .then(res => {
+                      if (!res.ok) throw new Error('Contour API error');
+                      const metaStr = res.headers.get('X-Contour-Result') || '{}';
+                      try { stateRef.result = JSON.parse(metaStr); } catch(_) { stateRef.result = {}; }
+                      return res.blob();
+                    })
+                    .then(imgBlob => {
+                      if (stateRef.processedImgUrl) URL.revokeObjectURL(stateRef.processedImgUrl);
+                      stateRef.processedImgUrl = URL.createObjectURL(imgBlob);
+                      stateRef.processedImage.src = stateRef.processedImgUrl;
+                    })
+                    .catch(err => console.error("Contour API error:", err))
+                    .finally(() => { stateRef.isFetching = false; });
+                } else { stateRef.isFetching = false; }
+              }, 'image/jpeg', 0.85);
+            }
+
+            if (stateRef.processedImage && stateRef.processedImage.complete && stateRef.processedImage.naturalWidth > 0) {
+              ctx.drawImage(stateRef.processedImage, 0, 0, width, height);
+            }
+
+            const cCount = stateRef.result?.contours?.length ?? 0;
+            calculatedVal = cCount > 0 ? stateRef.result.contours.map(c => `P:${c.perimeter_mm?.toFixed(1)}${dimUnit} A:${c.area_mm2?.toFixed(1)}${dimUnit}²`).join(' | ') : 'No contours';
+            isPassed = cCount > 0;
+
+            // HUD
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+            ctx.fillRect(10, 10, 200, 30);
+            ctx.strokeStyle = '#a855f7';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(10, 10, 200, 30);
+            ctx.fillStyle = '#a855f7';
+            ctx.font = 'bold 9px sans-serif';
+            ctx.fillText('PERIMETER & AREA MEASUREMENT', 18, 29);
+
         } else {
           // Regular OpenCV flow
           cap.read(src);
@@ -15363,7 +15964,6 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
           lastAnalysisTimeRef.current = nowTime;
         }
 
-        const ctx = canvas.getContext('2d');
         const w = canvas.width;
         const h = canvas.height;
 
@@ -15551,13 +16151,13 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
         } catch (e) {}
       }
     };
-  }, [cameraActive, cvLoaded, isSimulatedCv, comp.props.filterType, comp.props.thresholdValue, comp.props.yoloModelType, comp.props.yoloConfidence, comp.props.yoloTargetClass]);
+  }, [cameraActive, cvLoaded, isSimulatedCv, comp.props.filterType, comp.props.thresholdValue, comp.props.yoloModelType, comp.props.yoloConfidence, comp.props.yoloTargetClass, isRulerModeActive, isCircleModeActive, isAngleModeActive, isContourModeActive, rulerPoints, rulerDragStart, rulerDragCurrent]);
 
   const isDark = selectedApp?.config?.appThemeMode === 'DARK';
   const textColor = isDark ? '#f8fafc' : '#0f172a';
 
   return (
-    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px', boxSizing: 'border-box' }}>
+    <div style={{ width: '100%', height: comp.h ? '100%' : 'auto', display: 'flex', flexDirection: 'column', gap: '12px', boxSizing: 'border-box' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600 }}>
           {comp.props.label || 'OpenCV Live Stream'} ({comp.props.filterType || 'CANNY'})
@@ -15581,13 +16181,16 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
         borderRadius: '12px', 
         overflow: 'hidden', 
         backgroundColor: isDark ? '#1e293b' : 'white',
-        padding: '12px',
+        padding: cvLoaded && cameraActive && !loadingError ? '0' : '12px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         position: 'relative',
-        minHeight: '260px'
+        flex: 1,
+        minHeight: comp.h ? '0' : '260px',
+        width: '100%',
+        height: '100%'
       }}>
         <video 
           ref={videoRef} 
@@ -15603,11 +16206,17 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
             ref={canvasRef} 
             style={{ 
               width: '100%', 
-              maxHeight: '240px', 
-              borderRadius: '8px', 
-              objectFit: 'contain',
-              backgroundColor: '#000000'
+              height: '100%', 
+              objectFit: 'cover',
+              backgroundColor: '#000000',
+              cursor: isRulerModeActive ? 'crosshair' : 'default'
             }} 
+            onMouseDown={isRulerModeActive ? handleRulerMouseDown : undefined}
+            onMouseMove={isRulerModeActive ? handleRulerMouseMove : undefined}
+            onMouseUp={isRulerModeActive ? handleRulerMouseUp : undefined}
+            onTouchStart={isRulerModeActive ? handleRulerTouchStart : undefined}
+            onTouchMove={isRulerModeActive ? handleRulerTouchMove : undefined}
+            onTouchEnd={isRulerModeActive ? handleRulerTouchEnd : undefined}
           />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', color: isDark ? '#94a3b8' : '#64748b' }}>
@@ -15634,7 +16243,9 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
           padding: '10px 14px',
           borderRadius: '8px',
           backgroundColor: isDark ? '#0f172a' : '#f8fafc',
-          border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`
+          border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
+          flexWrap: 'wrap',
+          gap: '8px'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: isDark ? '#94a3b8' : '#64748b' }}>Hasil:</span>
@@ -15650,24 +16261,170 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
             </span>
           </div>
 
-          <button
-            onClick={() => saveLogToDb(uiReadout.val, uiReadout.isPassed)}
-            disabled={isSaving}
-            style={{
-              padding: '6px 12px',
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              backgroundColor: '#7c3aed',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              opacity: isSaving ? 0.6 : 1,
-              transition: 'all 0.2s'
-            }}
-          >
-            {isSaving ? 'Menyimpan...' : 'Simpan Real-time'}
-          </button>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            {/* Ruler Vision Button */}
+            <button
+              onClick={() => {
+                if (isRulerModeActive) activateMeasurementMode(null);
+                else activateMeasurementMode('RULER_VISION');
+              }}
+              style={{
+                padding: '6px 12px',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                border: isRulerModeActive ? '1px solid #38bdf8' : `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                backgroundColor: isRulerModeActive ? 'rgba(14, 165, 233, 0.15)' : (isDark ? '#1e293b' : '#ffffff'),
+                color: isRulerModeActive ? '#38bdf8' : (isDark ? '#cbd5e1' : '#475569'),
+                borderRadius: '6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                transition: 'all 0.2s'
+              }}
+            >
+              <Ruler size={12} /> {isRulerModeActive ? 'Ruler: Active' : 'Ruler'}
+            </button>
+
+            {/* Circle Vision Button */}
+            <button
+              onClick={() => {
+                if (isCircleModeActive) activateMeasurementMode(null);
+                else activateMeasurementMode('CIRCLE_DETECT');
+              }}
+              style={{
+                padding: '6px 12px',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                border: isCircleModeActive ? '1px solid #38bdf8' : `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                backgroundColor: isCircleModeActive ? 'rgba(14, 165, 233, 0.15)' : (isDark ? '#1e293b' : '#ffffff'),
+                color: isCircleModeActive ? '#38bdf8' : (isDark ? '#cbd5e1' : '#475569'),
+                borderRadius: '6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                transition: 'all 0.2s'
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/></svg>
+              {isCircleModeActive ? 'Circle: Active' : 'Circle'}
+            </button>
+
+            {/* Angle Vision Button */}
+            <button
+              onClick={() => {
+                if (isAngleModeActive) activateMeasurementMode(null);
+                else activateMeasurementMode('ANGLE_MEASURE');
+              }}
+              style={{
+                padding: '6px 12px',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                border: isAngleModeActive ? '1px solid #38bdf8' : `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                backgroundColor: isAngleModeActive ? 'rgba(14, 165, 233, 0.15)' : (isDark ? '#1e293b' : '#ffffff'),
+                color: isAngleModeActive ? '#38bdf8' : (isDark ? '#cbd5e1' : '#475569'),
+                borderRadius: '6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                transition: 'all 0.2s'
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 22H2M2 22a20 20 0 0 1 20-20"/></svg>
+              {isAngleModeActive ? 'Angle: Active' : 'Angle'}
+            </button>
+
+            {/* Area/Contour Vision Button */}
+            <button
+              onClick={() => {
+                if (isContourModeActive) activateMeasurementMode(null);
+                else activateMeasurementMode('CONTOUR_GEOMETRY');
+              }}
+              style={{
+                padding: '6px 12px',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                border: isContourModeActive ? '1px solid #38bdf8' : `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                backgroundColor: isContourModeActive ? 'rgba(14, 165, 233, 0.15)' : (isDark ? '#1e293b' : '#ffffff'),
+                color: isContourModeActive ? '#38bdf8' : (isDark ? '#cbd5e1' : '#475569'),
+                borderRadius: '6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                transition: 'all 0.2s'
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
+              {isContourModeActive ? 'Area: Active' : 'Area'}
+            </button>
+
+            {isRulerModeActive && rulerPoints && (
+              <button
+                onClick={() => {
+                  setRulerPoints(null);
+                  lastSavedRulerPointsRef.current = null;
+                  if (rulerDetectRef.current) {
+                    rulerDetectRef.current.measurement = '-';
+                    if (rulerDetectRef.current.processedImgUrl) {
+                      URL.revokeObjectURL(rulerDetectRef.current.processedImgUrl);
+                      rulerDetectRef.current.processedImgUrl = null;
+                      rulerDetectRef.current.processedImage.src = '';
+                    }
+                  }
+                  const rulerVarName = comp?.props?.rulerVariableName || `${comp.id}_RULER_VAL`;
+                  if (setAppVariables) {
+                    setAppVariables(prev => {
+                      const idx = prev.findIndex(v => v.name === rulerVarName);
+                      if (idx >= 0) {
+                        const updated = [...prev];
+                        updated[idx] = { ...updated[idx], value: '' };
+                        return updated;
+                      }
+                      return prev;
+                    });
+                  }
+                }}
+                style={{
+                  padding: '6px 12px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  border: '1px solid #fee2e2',
+                  backgroundColor: '#fef2f2',
+                  color: '#ef4444',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <Trash2 size={12} /> Clear
+              </button>
+            )}
+
+            <button
+              onClick={() => saveLogToDb(uiReadout.val, uiReadout.isPassed)}
+              disabled={isSaving}
+              style={{
+                padding: '6px 12px',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                backgroundColor: '#7c3aed',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                opacity: isSaving ? 0.6 : 1,
+                transition: 'all 0.2s'
+              }}
+            >
+              {isSaving ? 'Menyimpan...' : 'Simpan Real-time'}
+            </button>
+          </div>
         </div>
       )}
 

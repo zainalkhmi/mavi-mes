@@ -93,14 +93,8 @@ export default function CameraCalibration() {
   const [chessboardRows, setChessboardRows] = useState(9);
   const [chessboardCols, setChessboardCols] = useState(6);
   const [squareSizeMm, setSquareSizeMm] = useState(25.00);
-  const [capturedImages, setCapturedImages] = useState([
-    { id: 1, name: 'Image 1', validated: true, angle: -12, scale: 0.95 },
-    { id: 2, name: 'Image 2', validated: true, angle: 5, scale: 1.02 },
-    { id: 3, name: 'Image 3', validated: true, angle: -3, scale: 0.88 },
-    { id: 4, name: 'Image 4', validated: true, angle: 15, scale: 0.97 },
-    { id: 5, name: 'Image 5', validated: true, angle: 0, scale: 1.05 },
-  ]);
-  const [selectedCapturedImage, setSelectedCapturedImage] = useState(5);
+  const [capturedImages, setCapturedImages] = useState([]);
+  const [selectedCapturedImage, setSelectedCapturedImage] = useState(null);
   const [isCalibrating, setIsCalibrating] = useState(false);
   const [calibrationProgress, setCalibrationProgress] = useState(0);
   const [calibrationResult, setCalibrationResult] = useState({
@@ -253,7 +247,8 @@ export default function CameraCalibration() {
   }, [cameraSource, registeredCameras, isCameraConnected]);
 
   // Auto-increment counters to prevent React duplicate key warnings
-  const imageCounter = useRef(5);
+  const imageCounter = useRef(0);
+  const imageCacheRef = useRef({});
 
   // Handle Connect Camera
   const handleConnectCamera = () => {
@@ -315,92 +310,153 @@ export default function CameraCalibration() {
       toast.error('Cannot capture image. Camera is disconnected.');
       return;
     }
-    imageCounter.current += 1;
-    const newId = imageCounter.current;
-    const angles = [-15, -10, -5, 0, 5, 10, 15];
-    const scales = [0.85, 0.9, 0.95, 1.0, 1.05, 1.1];
-    const randomAngle = angles[Math.floor(Math.random() * angles.length)];
-    const randomScale = scales[Math.floor(Math.random() * scales.length)];
     
-    const newImg = {
-      id: newId,
-      name: `Image ${newId}`,
-      validated: true,
-      angle: randomAngle,
-      scale: randomScale
-    };
+    // Switch to live mode temporarily if we select a static image, or grab from canvas
+    setSelectedCapturedImage(null); // Deselect captured image to return viewport to live camera feed
     
-    setCapturedImages([...capturedImages, newImg]);
-    setSelectedCapturedImage(newId);
-    toast.success(`Image ${newId} captured & processed with corner detection.`);
+    setTimeout(() => {
+      const canvas = cameraCanvasRef.current;
+      if (!canvas) {
+        toast.error('Kamera viewport canvas tidak ditemukan.');
+        return;
+      }
+      
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          toast.error('Gagal mengambil snapshot dari kamera.');
+          return;
+        }
+        
+        const formData = new FormData();
+        formData.append('file', blob, 'frame.jpg');
+        
+        const loadingToast = toast.loading('Memproses corner detection via Python OpenCV...');
+        
+        try {
+          const res = await fetch(`http://localhost:8000/calibrate/detect_corners?rows=${chessboardRows}&cols=${chessboardCols}`, {
+            method: 'POST',
+            body: formData
+          });
+          const data = await res.json();
+          
+          toast.dismiss(loadingToast);
+          if (data && data.success) {
+            toast.success('Chessboard corners successfully detected!');
+            
+            imageCounter.current += 1;
+            const newId = imageCounter.current;
+            
+            // Cache current canvas image as Image object
+            const dataUrl = canvas.toDataURL('image/jpeg');
+            const img = new Image();
+            img.src = dataUrl;
+            imageCacheRef.current[newId] = img;
+            
+            const newImg = {
+              id: newId,
+              name: `Image ${newId}`,
+              validated: true,
+              dataUrl: dataUrl,
+              corners: data.corners
+            };
+            
+            setCapturedImages(prev => [...prev, newImg]);
+            setSelectedCapturedImage(newId);
+          } else {
+            toast.error(data.message || 'Chessboard corners not found. Adjust pattern/lighting.');
+          }
+        } catch (err) {
+          toast.dismiss(loadingToast);
+          toast.error('API Error: ' + err.message);
+        }
+      }, 'image/jpeg', 0.90);
+    }, 100);
   };
 
   // Clear Chessboard Images
   const handleClearImages = () => {
     setCapturedImages([]);
     imageCounter.current = 0;
+    imageCacheRef.current = {};
+    setSelectedCapturedImage(null);
     toast.success('All captured calibration images cleared.');
   };
 
   // Start OpenCV Camera Intrinsic Calibration
-  const handleStartCalibration = () => {
-    if (capturedImages.length < 3) {
-      toast.error('Please capture at least 3 calibration images. (10-20 recommended)');
+  const handleStartCalibration = async () => {
+    const validImages = capturedImages.filter(img => img.validated && img.corners && img.corners.length > 0);
+    if (validImages.length < 3) {
+      toast.error('Please capture at least 3 valid calibration images.');
       return;
     }
+    
     setIsCalibrating(true);
-    setCalibrationProgress(0);
-
-    const interval = setInterval(() => {
-      setCalibrationProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsCalibrating(false);
-          // Set calibration output parameters
-          const calculatedRMS = (0.12 + Math.random() * 0.1).toFixed(2);
-          const now = new Date();
-          const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'Short', year: 'numeric' }) + ' ' + now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-          
-          setCalibrationResult({
-            reprojectionError: parseFloat(calculatedRMS),
-            status: 'Valid',
-            matrix: [
-              [(1040 + Math.random() * 20).toFixed(4), 0.0, (955 + Math.random() * 10).toFixed(4)],
-              [0.0, (1040 + Math.random() * 20).toFixed(4), (535 + Math.random() * 10).toFixed(4)],
-              [0.0, 0.0, 1.0]
-            ],
-            distortion: {
-              k1: parseFloat((-0.2 + Math.random() * 0.05).toFixed(6)),
-              k2: parseFloat((0.03 + Math.random() * 0.01).toFixed(6)),
-              p1: parseFloat((-0.001 - Math.random() * 0.001).toFixed(6)),
-              p2: parseFloat((0.002 + Math.random() * 0.001).toFixed(6)),
-              k3: parseFloat((-0.01 + Math.random() * 0.005).toFixed(6))
-            },
-            lastCalibrated: dateStr
-          });
-
-          // Add to calibration history database
-          const newCalHistory = {
-            id: `CAL-${Math.floor(10 + Math.random()*90)}`,
-            date: now.toISOString().slice(0, 16).replace('T', ' '),
-            operator: 'A. Hidayat',
-            camera: cameraSource,
-            type: 'Full OpenCV',
-            rms: `${calculatedRMS} px`,
-            scale: `${pixelScaleFactor.toFixed(4)} mm/px`,
-            status: 'VALID'
-          };
-          setCalibrationHistory(prevHist => [
-            newCalHistory,
-            ...prevHist.map(h => h.status === 'VALID' ? { ...h, status: 'SUPERSEDED' } : h)
-          ]);
-
-          toast.success(`OpenCV Calibration completed! RMS Error: ${calculatedRMS} px`);
-          return 100;
-        }
-        return prev + 10;
+    setCalibrationProgress(20);
+    
+    const payload = {
+      corners_list: validImages.map(img => img.corners),
+      rows: chessboardRows,
+      cols: chessboardCols,
+      square_size: squareSizeMm,
+      image_width: 640,
+      image_height: 480
+    };
+    
+    try {
+      setCalibrationProgress(50);
+      const res = await fetch('http://localhost:8000/calibrate/run_calibration', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
       });
-    }, 250);
+      const data = await res.json();
+      
+      setCalibrationProgress(100);
+      setIsCalibrating(false);
+      
+      if (data && data.success) {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'Short', year: 'numeric' }) + ' ' + now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        
+        setCalibrationResult({
+          reprojectionError: data.reprojection_error,
+          status: 'Valid',
+          matrix: data.camera_matrix,
+          distortion: {
+            k1: data.distortion_coefficients[0] || 0,
+            k2: data.distortion_coefficients[1] || 0,
+            p1: data.distortion_coefficients[2] || 0,
+            p2: data.distortion_coefficients[3] || 0,
+            k3: data.distortion_coefficients[4] || 0
+          },
+          lastCalibrated: dateStr
+        });
+        
+        const newCalHistory = {
+          id: `CAL-${Math.floor(10 + Math.random() * 90)}`,
+          date: now.toISOString().slice(0, 16).replace('T', ' '),
+          operator: 'A. Hidayat',
+          camera: cameraSource,
+          type: 'Full OpenCV',
+          rms: `${data.reprojection_error.toFixed(4)} px`,
+          scale: `${pixelScaleFactor.toFixed(4)} mm/px`,
+          status: 'VALID'
+        };
+        setCalibrationHistory(prevHist => [
+          newCalHistory,
+          ...prevHist.map(h => h.status === 'VALID' ? { ...h, status: 'SUPERSEDED' } : h)
+        ]);
+        
+        toast.success(`OpenCV Calibration completed! RMS Error: ${data.reprojection_error.toFixed(4)} px`);
+      } else {
+        toast.error(data.error || 'Calibration run failed.');
+      }
+    } catch (err) {
+      setIsCalibrating(false);
+      toast.error('Error during calibration computation: ' + err.message);
+    }
   };
 
   // Export YAML configuration
@@ -577,9 +633,50 @@ fps: "${cameraFps}"
     ctx.restore();
   };
 
+  const drawRealCorners = (ctx, corners, rows, cols) => {
+    if (!corners || corners.length === 0) return;
+    ctx.save();
+    const numPoints = corners.length;
+    // Inner chessboard grid corners are cols x rows
+    for (let r = 0; r < rows; r++) {
+      ctx.beginPath();
+      ctx.strokeStyle = `hsl(${(r * 360) / rows}, 80%, 50%)`;
+      ctx.lineWidth = 1.5;
+      for (let c = 0; c < cols; c++) {
+        const idx = r * cols + c;
+        if (idx >= numPoints) break;
+        const pt = corners[idx];
+        // Scale from original 640x480 to canvas display size
+        const canvasX = pt[0];
+        const canvasY = pt[1];
+        if (c === 0) {
+          ctx.moveTo(canvasX, canvasY);
+        } else {
+          ctx.lineTo(canvasX, canvasY);
+        }
+      }
+      ctx.stroke();
+    }
+    
+    // Draw dots
+    for (let i = 0; i < numPoints; i++) {
+      const pt = corners[i];
+      const r = Math.floor(i / cols);
+      const hue = (r * 360) / rows;
+      ctx.beginPath();
+      ctx.arc(pt[0], pt[1], 4, 0, 2 * Math.PI);
+      ctx.fillStyle = `hsl(${hue}, 100%, 60%)`;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1;
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+  };
+
   const drawChessboardOverlay = (ctx, width, height, angle, scale) => {
     ctx.save();
-    ctx.globalAlpha = 0.55; // Semi-transparent overlay so live camera stream is visible behind it
+    ctx.globalAlpha = 0.55;
     drawChessboard(ctx, width, height, angle, scale);
     ctx.restore();
   };
@@ -605,7 +702,15 @@ fps: "${cameraFps}"
             const selectedCam = registeredCameras.find(c => c.name === cameraSource);
             const camType = selectedCam?.type || 'DEVICE';
 
-            if (camType === 'IP_CAMERA' && ipImageRef.current && ipImageLoaded) {
+            if (currentMenu === 'lens-calibration' && selectedCapturedImage) {
+              const cachedImg = imageCacheRef.current[selectedCapturedImage];
+              if (cachedImg) {
+                ctx.drawImage(cachedImg, 0, 0, canvas.width, canvas.height);
+              } else {
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+              }
+            } else if (camType === 'IP_CAMERA' && ipImageRef.current && ipImageLoaded) {
               ctx.drawImage(ipImageRef.current, 0, 0, canvas.width, canvas.height);
             } else if (camType === 'DEVICE' && videoRef.current && videoRef.current.readyState >= 2) {
               ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
@@ -643,20 +748,21 @@ fps: "${cameraFps}"
               ctx.fillText(`Live Stream: ${cameraSource} [REALTIME]`, 15, canvas.height - 15);
             }
             else if (currentMenu === 'lens-calibration') {
-              // Overlay chessboard grid
-              const selectedImgObj = capturedImages.find(img => img.id === selectedCapturedImage);
-              const angle = selectedImgObj ? selectedImgObj.angle : 0;
-              const scale = selectedImgObj ? selectedImgObj.scale : 1.0;
-              drawChessboardOverlay(ctx, canvas.width, canvas.height, angle, scale);
-
-              // Grid overlay lines
-              ctx.strokeStyle = 'rgba(113, 75, 103, 0.15)'; // Purple grid
-              ctx.lineWidth = 1;
-              for (let i = 40; i < canvas.width; i += 40) {
-                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
-              }
-              for (let j = 40; j < canvas.height; j += 40) {
-                ctx.beginPath(); ctx.moveTo(0, j); ctx.lineTo(canvas.width, j); ctx.stroke();
+              if (selectedCapturedImage) {
+                const selectedImgObj = capturedImages.find(img => img.id === selectedCapturedImage);
+                if (selectedImgObj && selectedImgObj.corners && selectedImgObj.corners.length > 0) {
+                  drawRealCorners(ctx, selectedImgObj.corners, chessboardRows, chessboardCols);
+                }
+              } else {
+                // Live preview helper guidelines
+                ctx.strokeStyle = 'rgba(113, 75, 103, 0.15)'; // Purple grid
+                ctx.lineWidth = 1;
+                for (let i = 40; i < canvas.width; i += 40) {
+                  ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+                }
+                for (let j = 40; j < canvas.height; j += 40) {
+                  ctx.beginPath(); ctx.moveTo(0, j); ctx.lineTo(canvas.width, j); ctx.stroke();
+                }
               }
             }
             else if (currentMenu === 'scale-calibration') {

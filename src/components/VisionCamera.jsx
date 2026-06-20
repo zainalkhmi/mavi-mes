@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Camera, RefreshCw, Eye, Loader2, Sparkles, CheckCircle, AlertTriangle, Play, Video, Square, Download, Trash2 } from 'lucide-react';
+import { Camera, RefreshCw, Eye, Loader2, Sparkles, CheckCircle, AlertTriangle, Play, Video, Square, Download, Trash2, Sliders, Ruler } from 'lucide-react';
 import { getPrimaryAiConnector } from '../utils/database';
 
 export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetInteraction, viewMode }) {
@@ -20,6 +20,65 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
     const isFetchingCloudRef = useRef(false);
     const lastCloudFetchTimeRef = useRef(0);
     const cloudDetectionsRef = useRef([]);
+    const lastAnalysisTimeRef = useRef(0);
+
+    // Refs for python local inference APIs to prevent window global pollution
+    const cvProcessRef = useRef({ isFetching: false, lastFetch: 0, processedImgUrl: null, processedImage: new Image() });
+    const inspectionDetectRef = useRef({ isFetching: false, lastFetch: 0, predictions: [] });
+    const colorDetectRef = useRef({ isFetching: false, lastFetch: 0, predictions: [] });
+    const changeDetectRef = useRef({ isFetching: false, lastFetch: 0, predictions: [] });
+    const jigDetectRef = useRef({ isFetching: false, lastFetch: 0, predictions: [] });
+    const rulerDetectRef = useRef({ isFetching: false, lastFetch: 0, processedImgUrl: null, processedImage: new Image(), measurement: '-' });
+    const circleDetectRef = useRef({ isFetching: false, lastFetch: 0, processedImgUrl: null, processedImage: new Image(), result: null });
+    const angleDetectRef = useRef({ isFetching: false, lastFetch: 0, processedImgUrl: null, processedImage: new Image(), result: null });
+    const contourDetectRef = useRef({ isFetching: false, lastFetch: 0, processedImgUrl: null, processedImage: new Image(), result: null });
+    const offscreenCanvasRef = useRef(null);
+    
+    const getCleanFrameBlob = useCallback((callback, mimeType = 'image/jpeg', quality = 0.85) => {
+        const video = videoRef.current;
+        if (!offscreenCanvasRef.current) {
+            offscreenCanvasRef.current = document.createElement('canvas');
+        }
+        const offscreenCanvas = offscreenCanvasRef.current;
+        const w = canvasRef.current?.width || 640;
+        const h = canvasRef.current?.height || 480;
+        offscreenCanvas.width = w;
+        offscreenCanvas.height = h;
+        
+        const offscreenCtx = offscreenCanvas.getContext('2d');
+        if (!offscreenCtx) return callback(null);
+        
+        if (cameraSource === 'IP_CAMERA') {
+            drawSimulatedIPStream(offscreenCtx, w, h);
+        } else if (video) {
+            offscreenCtx.drawImage(video, 0, 0, w, h);
+        } else {
+            return callback(null);
+        }
+        
+        offscreenCanvas.toBlob(callback, mimeType, quality);
+    }, [cameraSource]);
+
+    // Cleanup hook for processed images
+    useEffect(() => {
+        return () => {
+            if (cvProcessRef.current?.processedImgUrl) {
+                URL.revokeObjectURL(cvProcessRef.current.processedImgUrl);
+            }
+            if (rulerDetectRef.current?.processedImgUrl) {
+                URL.revokeObjectURL(rulerDetectRef.current.processedImgUrl);
+            }
+            if (circleDetectRef.current?.processedImgUrl) {
+                URL.revokeObjectURL(circleDetectRef.current.processedImgUrl);
+            }
+            if (angleDetectRef.current?.processedImgUrl) {
+                URL.revokeObjectURL(angleDetectRef.current.processedImgUrl);
+            }
+            if (contourDetectRef.current?.processedImgUrl) {
+                URL.revokeObjectURL(contourDetectRef.current.processedImgUrl);
+            }
+        };
+    }, []);
 
     const [hasPermission, setHasPermission] = useState(null);
     const [capturedImage, setCapturedImage] = useState(null);
@@ -35,6 +94,44 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
     const [isUploadingSnapshot, setIsUploadingSnapshot] = useState(false);
 
     const [cameraConfig, setCameraConfig] = useState(null);
+
+    const [isRulerModeActive, setIsRulerModeActive] = useState(comp?.props?.filterType === 'RULER_VISION');
+    const [isCircleModeActive, setIsCircleModeActive] = useState(comp?.props?.filterType === 'CIRCLE_DETECT');
+    const [isAngleModeActive, setIsAngleModeActive] = useState(comp?.props?.filterType === 'ANGLE_MEASURE');
+    const [isContourModeActive, setIsContourModeActive] = useState(comp?.props?.filterType === 'CONTOUR_GEOMETRY');
+
+    const activateMeasurementMode = (mode) => {
+        setIsRulerModeActive(mode === 'RULER_VISION');
+        setIsCircleModeActive(mode === 'CIRCLE_DETECT');
+        setIsAngleModeActive(mode === 'ANGLE_MEASURE');
+        setIsContourModeActive(mode === 'CONTOUR_GEOMETRY');
+
+        if (mode !== 'RULER_VISION') {
+            setRulerPoints(null);
+            setRulerDragStart(null);
+            setRulerDragCurrent(null);
+            if (rulerDetectRef.current) {
+                rulerDetectRef.current.measurement = '-';
+                if (rulerDetectRef.current.processedImgUrl) {
+                    URL.revokeObjectURL(rulerDetectRef.current.processedImgUrl);
+                    rulerDetectRef.current.processedImgUrl = null;
+                    rulerDetectRef.current.processedImage.src = '';
+                }
+            }
+        }
+    };
+
+    const [rulerPoints, setRulerPoints] = useState(null);
+    const [rulerDragStart, setRulerDragStart] = useState(null);
+    const [rulerDragCurrent, setRulerDragCurrent] = useState(null);
+
+    useEffect(() => {
+        const ft = comp?.props?.filterType;
+        setIsRulerModeActive(ft === 'RULER_VISION');
+        setIsCircleModeActive(ft === 'CIRCLE_DETECT');
+        setIsAngleModeActive(ft === 'ANGLE_MEASURE');
+        setIsContourModeActive(ft === 'CONTOUR_GEOMETRY');
+    }, [comp?.props?.filterType]);
 
     useEffect(() => {
         const fetchConfig = async () => {
@@ -56,8 +153,17 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
         fetchConfig();
     }, [comp?.props?.cameraConfigId]);
 
-    let filterType = comp?.props?.filterType || 'NONE';
-    if (cameraConfig && comp?.props?.enableDetector !== false) {
+    const baseFilterType = comp?.props?.filterType || 'NONE';
+    let filterType = baseFilterType;
+    if (isRulerModeActive) {
+        filterType = 'RULER_VISION';
+    } else if (isCircleModeActive) {
+        filterType = 'CIRCLE_DETECT';
+    } else if (isAngleModeActive) {
+        filterType = 'ANGLE_MEASURE';
+    } else if (isContourModeActive) {
+        filterType = 'CONTOUR_GEOMETRY';
+    } else if (cameraConfig && comp?.props?.enableDetector !== false) {
         const regions = cameraConfig.settings?.regions || [];
         let activeFilter = null;
         for (const region of regions) {
@@ -228,33 +334,107 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
             ctx.fill();
         }
 
-        // Draw item moving on the conveyor belt
+        // Draw item or measurement shapes on/above the conveyor belt
         const itemX = (tick * 1.5) % (w + 100) - 50;
 
-        // Define color palette matching target options
-        const colorPalette = {
-            RED: '#ef4444',
-            GREEN: '#22c55e',
-            BLUE: '#3b82f6',
-            YELLOW: '#eab308',
-            BLACK: '#090d16',
-            WHITE: '#ffffff'
-        };
-        const colorsList = ['RED', 'GREEN', 'BLUE', 'YELLOW', 'WHITE', 'BLACK'];
-        const cycleIndex = Math.floor(tick / 200) % colorsList.length;
-        const currentItemColorKey = colorsList[cycleIndex];
-        const currentItemColor = colorPalette[currentItemColorKey] || '#3b82f6';
+        if (isCircleModeActive) {
+            const cx = w / 2;
+            const cy = h / 2 - 30;
+            const radius = Math.min(w, h) * 0.22;
+            
+            // Draw simulated metal disc
+            ctx.fillStyle = '#64748b';
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 4;
+            ctx.stroke();
 
-        ctx.fillStyle = currentItemColor; // Dynamic item color
-        ctx.fillRect(itemX, h - 130, 60, 50);
+            // Center hole
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius * 0.35, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        } else if (isAngleModeActive) {
+            const cx = w / 2;
+            const cy = h / 2 - 30;
+            const len = Math.min(w, h) * 0.3;
+            const angleDeg = 60 + 20 * Math.sin(tick * 0.05);
+            const angleRad = (angleDeg * Math.PI) / 180;
 
-        // Barcode on item
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(itemX + 10, h - 110, 40, 20);
-        ctx.fillStyle = '#000000';
-        for (let bx = 0; bx < 30; bx += 3) {
-            if (Math.sin(bx + tick) > -0.2) {
-                ctx.fillRect(itemX + 12 + bx, h - 110, 2, 20);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 5;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            
+            const x1 = cx - len * Math.cos(angleRad / 2);
+            const y1 = cy - len * Math.sin(angleRad / 2);
+            const x2 = cx + len * Math.cos(angleRad / 2);
+            const y2 = cy - len * Math.sin(angleRad / 2);
+
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(cx, cy);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+        } else if (isContourModeActive) {
+            // Shape 1: Triangle
+            const tx = w * 0.3;
+            const ty = h / 2 - 30;
+            const tSize = Math.min(w, h) * 0.15;
+            ctx.fillStyle = '#475569';
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(tx, ty - tSize);
+            ctx.lineTo(tx + tSize, ty + tSize * 0.8);
+            ctx.lineTo(tx - tSize, ty + tSize * 0.8);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Shape 2: Square/Rectangle
+            const sx = w * 0.7 - 20;
+            const sy = h / 2 - 50;
+            const sSize = Math.min(w, h) * 0.22;
+            ctx.fillStyle = '#475569';
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.rect(sx, sy, sSize, sSize);
+            ctx.fill();
+            ctx.stroke();
+        } else {
+            // Define color palette matching target options
+            const colorPalette = {
+                RED: '#ef4444',
+                GREEN: '#22c55e',
+                BLUE: '#3b82f6',
+                YELLOW: '#eab308',
+                BLACK: '#090d16',
+                WHITE: '#ffffff'
+            };
+            const colorsList = ['RED', 'GREEN', 'BLUE', 'YELLOW', 'WHITE', 'BLACK'];
+            const cycleIndex = Math.floor(tick / 200) % colorsList.length;
+            const currentItemColorKey = colorsList[cycleIndex];
+            const currentItemColor = colorPalette[currentItemColorKey] || '#3b82f6';
+
+            ctx.fillStyle = currentItemColor; // Dynamic item color
+            ctx.fillRect(itemX, h - 130, 60, 50);
+
+            // Barcode on item
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(itemX + 10, h - 110, 40, 20);
+            ctx.fillStyle = '#000000';
+            for (let bx = 0; bx < 30; bx += 3) {
+                if (Math.sin(bx + tick) > -0.2) {
+                    ctx.fillRect(itemX + 12 + bx, h - 110, 2, 20);
+                }
             }
         }
 
@@ -395,52 +575,252 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             }
 
-            // 2. Apply filters if this is an OpenCV camera
-            if (!isCameraCapture && filterType !== 'NONE') {
-                try {
-                    const src = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    const dst = ctx.createImageData(canvas.width, canvas.height);
-                    const sData = src.data;
-                    const dData = dst.data;
-                    const w = canvas.width;
-                    const h = canvas.height;
-
-                    if (filterType === 'GRAYSCALE') {
-                        for (let i = 0; i < sData.length; i += 4) {
-                            const g = 0.299 * sData[i] + 0.587 * sData[i + 1] + 0.114 * sData[i + 2];
-                            dData[i] = g;
-                            dData[i + 1] = g;
-                            dData[i + 2] = g;
-                            dData[i + 3] = 255;
-                        }
-                        ctx.putImageData(dst, 0, 0);
-                    } else if (filterType === 'THRESHOLD') {
-                        for (let i = 0; i < sData.length; i += 4) {
-                            const g = 0.299 * sData[i] + 0.587 * sData[i + 1] + 0.114 * sData[i + 2];
-                            const val = g > thresholdValue ? 255 : 0;
-                            dData[i] = val;
-                            dData[i + 1] = val;
-                            dData[i + 2] = val;
-                            dData[i + 3] = 255;
-                        }
-                        ctx.putImageData(dst, 0, 0);
-                    } else if (filterType === 'CANNY' || filterType === 'EDGE' || filterType === 'INSPECTION') {
-                        for (let y = 0; y < h - 1; y++) {
-                            for (let x = 0; x < w - 1; x++) {
-                                const idx = (y * w + x) * 4;
-                                const nextX = idx + 4;
-                                const nextY = idx + w * 4;
-
-                                const val = Math.abs(sData[idx] - sData[nextX]) + Math.abs(sData[idx] - sData[nextY]);
-                                const edge = val > 15 ? 255 : 0;
-
-                                dData[idx] = edge ? 124 : 15;     // R
-                                dData[idx + 1] = edge ? 58 : 23;   // G
-                                dData[idx + 2] = edge ? 237 : 42;  // B
-                                dData[idx + 3] = 255;
+            // 2. Apply filters if this is an OpenCV camera or Ruler Vision is active
+            if (!isCameraCapture) {
+                if (isRulerModeActive) {
+                    try {
+                        const stateRef = rulerDetectRef.current;
+                        const now = Date.now();
+                        
+                        if (rulerPoints) {
+                            if (!stateRef.isFetching && (now - stateRef.lastFetch > 180)) {
+                                stateRef.isFetching = true;
+                                stateRef.lastFetch = now;
+                                
+                                getCleanFrameBlob((blob) => {
+                                    if (blob) {
+                                        const formData = new FormData();
+                                        formData.append("file", blob, "frame.jpg");
+                                        
+                                        const mmPx = comp?.props?.mmPerPixel || 0.1170;
+                                        
+                                        const params = new URLSearchParams({
+                                            x1: rulerPoints.x1.toString(),
+                                            y1: rulerPoints.y1.toString(),
+                                            x2: rulerPoints.x2.toString(),
+                                            y2: rulerPoints.y2.toString(),
+                                            mm_per_pixel: mmPx.toString()
+                                        });
+                                        
+                                        fetch(`http://localhost:8000/detect/ruler?${params.toString()}`, {
+                                            method: "POST",
+                                            body: formData
+                                        })
+                                        .then(res => {
+                                            if (!res.ok) throw new Error('Ruler API error');
+                                            const calcVal = res.headers.get('X-Calculated-Value') || '-';
+                                            const metadataStr = res.headers.get('X-Ruler-Result') || '{}';
+                                            
+                                            stateRef.measurement = calcVal;
+                                            
+                                            if (lastMatchRef.current !== calcVal) {
+                                                lastMatchRef.current = calcVal;
+                                                let parsedMeta = {};
+                                                try {
+                                                    parsedMeta = JSON.parse(metadataStr);
+                                                } catch(_) {}
+                                                onWidgetInteraction(comp, 'OnMeasurement', { label: calcVal, result: calcVal, value: calcVal, metadata: parsedMeta });
+                                                syncInputDatasourceValue(comp, calcVal, `${comp.type}_MEASUREMENT`);
+                                            }
+                                            
+                                            return res.blob();
+                                        })
+                                        .then(imgBlob => {
+                                            if (stateRef.processedImgUrl) {
+                                                URL.revokeObjectURL(stateRef.processedImgUrl);
+                                            }
+                                            stateRef.processedImgUrl = URL.createObjectURL(imgBlob);
+                                            stateRef.processedImage.src = stateRef.processedImgUrl;
+                                        })
+                                        .catch(err => console.error("Python Ruler Vision error:", err))
+                                        .finally(() => {
+                                            stateRef.isFetching = false;
+                                        });
+                                    } else {
+                                        stateRef.isFetching = false;
+                                    }
+                                }, 'image/jpeg', 0.85);
                             }
+                            
+                            if (stateRef.processedImage && stateRef.processedImage.complete && stateRef.processedImage.naturalWidth > 0) {
+                                ctx.drawImage(stateRef.processedImage, 0, 0, canvas.width, canvas.height);
+                            }
+                        } else {
+                            ctx.fillStyle = 'rgba(15, 23, 42, 0.4)';
+                            ctx.fillRect(0, 0, canvas.width, canvas.height);
+                            
+                            ctx.fillStyle = '#ffffff';
+                            ctx.font = 'bold 13px Inter, sans-serif';
+                            ctx.textAlign = 'center';
+                            ctx.fillText("RULER VISION ACTIVE", canvas.width / 2, canvas.height / 2 - 10);
+                            ctx.fillStyle = '#38bdf8';
+                            ctx.font = '11px Inter, sans-serif';
+                            ctx.fillText("Drag on the camera screen to measure an item", canvas.width / 2, canvas.height / 2 + 15);
                         }
-                        ctx.putImageData(dst, 0, 0);
+                        
+                        // Draw client-side temporary line if dragging
+                        if (rulerDragStart && rulerDragCurrent) {
+                            const { x1, y1, x2, y2 } = {
+                                x1: rulerDragStart.x,
+                                y1: rulerDragStart.y,
+                                x2: rulerDragCurrent.x,
+                                y2: rulerDragCurrent.y
+                            };
+                            
+                            ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+                            ctx.lineWidth = 6;
+                            ctx.beginPath();
+                            ctx.moveTo(x1, y1);
+                            ctx.lineTo(x2, y2);
+                            ctx.stroke();
+                            
+                            ctx.strokeStyle = '#0ea5e9';
+                            ctx.lineWidth = 2.5;
+                            ctx.beginPath();
+                            ctx.moveTo(x1, y1);
+                            ctx.lineTo(x2, y2);
+                            ctx.stroke();
+                            
+                            ctx.fillStyle = '#ffffff';
+                            ctx.strokeStyle = '#0ea5e9';
+                            ctx.lineWidth = 2;
+                            ctx.beginPath();
+                            ctx.arc(x1, y1, 5, 0, 2 * Math.PI);
+                            ctx.fill();
+                            ctx.stroke();
+                            
+                            ctx.beginPath();
+                            ctx.arc(x2, y2, 5, 0, 2 * Math.PI);
+                            ctx.fill();
+                            ctx.stroke();
+                        }
+                    } catch (e) {
+                        console.error('Ruler Vision canvas processing error:', e);
+                    }
+                } else if (filterType !== 'NONE') {
+                    try {
+                    if (['GRAYSCALE', 'THRESHOLD', 'CANNY', 'EDGE'].includes(filterType)) {
+                        const stateRef = cvProcessRef.current;
+                        const now = Date.now();
+                        if (!stateRef.isFetching && (now - stateRef.lastFetch > 150)) {
+                            stateRef.isFetching = true;
+                            stateRef.lastFetch = now;
+                            
+                            getCleanFrameBlob((blob) => {
+                                if (blob) {
+                                    const formData = new FormData();
+                                    formData.append("file", blob, "frame.jpg");
+                                    
+                                    const params = new URLSearchParams({
+                                        filter_type: filterType,
+                                        threshold_value: (thresholdValue ?? 100).toString(),
+                                        camera_id: comp.id
+                                    });
+                                    
+                                    fetch(`http://localhost:8000/cv/process?${params.toString()}`, {
+                                        method: "POST",
+                                        body: formData
+                                    })
+                                    .then(res => {
+                                        if (!res.ok) throw new Error('API error');
+                                        return res.blob();
+                                    })
+                                    .then(imgBlob => {
+                                        if (stateRef.processedImgUrl) {
+                                            URL.revokeObjectURL(stateRef.processedImgUrl);
+                                        }
+                                        stateRef.processedImgUrl = URL.createObjectURL(imgBlob);
+                                        stateRef.processedImage.src = stateRef.processedImgUrl;
+                                    })
+                                    .catch(err => console.error("Python process filter error:", err))
+                                    .finally(() => {
+                                        stateRef.isFetching = false;
+                                    });
+                                } else {
+                                    stateRef.isFetching = false;
+                                }
+                            }, 'image/jpeg', 0.85);
+                        }
+                        
+                        if (stateRef.processedImage && stateRef.processedImage.complete && stateRef.processedImage.naturalWidth > 0) {
+                            ctx.drawImage(stateRef.processedImage, 0, 0, canvas.width, canvas.height);
+                        }
+                    } else if (filterType === 'INSPECTION') {
+                        try {
+                            const size = 60;
+                            const sx = Math.floor((canvas.width - size) / 2);
+                            const sy = (cameraSource === 'IP_CAMERA') ? 350 : Math.floor((canvas.height - size) / 2);
+
+                            const stateRef = inspectionDetectRef.current;
+                            const now = Date.now();
+                            if (!stateRef.isFetching && (now - stateRef.lastFetch > 1000)) {
+                                stateRef.isFetching = true;
+                                stateRef.lastFetch = now;
+
+                                getCleanFrameBlob((blob) => {
+                                    if (blob) {
+                                        const formData = new FormData();
+                                        formData.append("file", blob, "frame.jpg");
+
+                                        fetch('http://localhost:8000/detect/measurement', {
+                                            method: "POST",
+                                            body: formData
+                                        })
+                                        .then(res => res.json())
+                                        .then(data => {
+                                            if (data && data.predictions) {
+                                                stateRef.predictions = data.predictions;
+                                            }
+                                        })
+                                        .catch(err => console.error("Measurement API error:", err))
+                                        .finally(() => {
+                                            stateRef.isFetching = false;
+                                        });
+                                    } else {
+                                        stateRef.isFetching = false;
+                                    }
+                                }, 'image/jpeg', 0.85);
+                            }
+
+                            const preds = stateRef.predictions;
+                            const isMatch = preds.length > 0;
+                            const label = isMatch ? preds[0].label : "0.0mm x 0.0mm";
+
+                            // Handle state transitions for triggers
+                            if (lastMatchRef.current !== label) {
+                                lastMatchRef.current = label;
+                                onWidgetInteraction(comp, 'OnMeasurement', { label, predictions: preds });
+                                syncInputDatasourceValue(comp, label, `${comp.type}_MEASUREMENT`);
+                            }
+
+                            // Draw measurements overlays
+                            preds.forEach(det => {
+                                ctx.strokeStyle = '#22c55e';
+                                ctx.lineWidth = 2;
+                                ctx.strokeRect(det.x, det.y, det.w, det.h);
+
+                                ctx.fillStyle = 'rgba(34, 197, 94, 0.15)';
+                                ctx.fillRect(det.x, det.y, det.w, det.h);
+
+                                ctx.fillStyle = '#22c55e';
+                                ctx.font = 'bold 10px Inter, sans-serif';
+                                ctx.textAlign = 'center';
+                                ctx.fillText(det.label, det.x + det.w / 2, det.y - 8);
+                            });
+
+                            // Draw inspection HUD overlays
+                            ctx.fillStyle = '#ffffff';
+                            ctx.font = 'bold 10px Inter, sans-serif';
+                            ctx.textAlign = 'center';
+                            ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+                            ctx.shadowBlur = 4;
+                            ctx.fillText(`MEASUREMENT ZONE (PYTHON API)`, canvas.width / 2, sy - 20);
+                            ctx.fillStyle = isMatch ? '#22c55e' : '#ef4444';
+                            ctx.fillText(isMatch ? `MEASURED: ${label}` : `NO OBJECT DETECTED`, canvas.width / 2, sy + size + 25);
+                            ctx.shadowBlur = 0; // Reset shadow
+                        } catch (e) {
+                            console.error('Measurement detection API processing error:', e);
+                        }
                     } else if (filterType === 'COLOR_DETECTOR') {
                         try {
                             const size = 20;
@@ -450,15 +830,13 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                             const targetColor = comp?.props?.targetColor || 'RED';
                             const colorTolerance = Number(comp?.props?.colorTolerance ?? 70);
                             
-                            // Initialize refs for python API if not exist
-                            if (!window._colorDetectRef) window._colorDetectRef = { isFetching: false, lastFetch: 0, predictions: [] };
-                            
+                            const stateRef = colorDetectRef.current;
                             const now = Date.now();
-                            if (!window._colorDetectRef.isFetching && (now - window._colorDetectRef.lastFetch > 1000)) {
-                                window._colorDetectRef.isFetching = true;
-                                window._colorDetectRef.lastFetch = now;
+                            if (!stateRef.isFetching && (now - stateRef.lastFetch > 1000)) {
+                                stateRef.isFetching = true;
+                                stateRef.lastFetch = now;
                                 
-                                canvas.toBlob((blob) => {
+                                getCleanFrameBlob((blob) => {
                                     if (blob) {
                                         const formData = new FormData();
                                         formData.append("file", blob, "frame.jpg");
@@ -470,20 +848,20 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                                         .then(res => res.json())
                                         .then(data => {
                                             if (data && data.predictions) {
-                                                window._colorDetectRef.predictions = data.predictions;
+                                                stateRef.predictions = data.predictions;
                                             }
                                         })
                                         .catch(err => console.error("Color API error:", err))
                                         .finally(() => {
-                                            window._colorDetectRef.isFetching = false;
+                                            stateRef.isFetching = false;
                                         });
                                     } else {
-                                        window._colorDetectRef.isFetching = false;
+                                        stateRef.isFetching = false;
                                     }
                                 }, 'image/jpeg', 0.85);
                             }
 
-                            const preds = window._colorDetectRef.predictions;
+                            const preds = stateRef.predictions;
                             const isMatch = preds.length > 0;
                             const similarity = isMatch ? preds[0].confidence : 0;
 
@@ -527,15 +905,13 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                             
                             const changeThreshold = Number(comp?.props?.changeThreshold ?? 25);
                             
-                            // Initialize refs for python API if not exist
-                            if (!window._changeDetectRef) window._changeDetectRef = { isFetching: false, lastFetch: 0, predictions: [] };
-                            
+                            const stateRef = changeDetectRef.current;
                             const now = Date.now();
-                            if (!window._changeDetectRef.isFetching && (now - window._changeDetectRef.lastFetch > 1000)) {
-                                window._changeDetectRef.isFetching = true;
-                                window._changeDetectRef.lastFetch = now;
+                            if (!stateRef.isFetching && (now - stateRef.lastFetch > 1000)) {
+                                stateRef.isFetching = true;
+                                stateRef.lastFetch = now;
                                 
-                                canvas.toBlob((blob) => {
+                                getCleanFrameBlob((blob) => {
                                     if (blob) {
                                         const formData = new FormData();
                                         formData.append("file", blob, "frame.jpg");
@@ -547,20 +923,20 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                                         .then(res => res.json())
                                         .then(data => {
                                             if (data && data.predictions) {
-                                                window._changeDetectRef.predictions = data.predictions;
+                                                stateRef.predictions = data.predictions;
                                             }
                                         })
                                         .catch(err => console.error("Change API error:", err))
                                         .finally(() => {
-                                            window._changeDetectRef.isFetching = false;
+                                            stateRef.isFetching = false;
                                         });
                                     } else {
-                                        window._changeDetectRef.isFetching = false;
+                                        stateRef.isFetching = false;
                                     }
                                 }, 'image/jpeg', 0.85);
                             }
 
-                            const preds = window._changeDetectRef.predictions;
+                            const preds = stateRef.predictions;
                             // Dummy logic based on edges returned
                             const changePercent = preds.length > 0 ? Math.min(100, preds.length * 10) : 0;
                             const isChangeDetected = changePercent >= changeThreshold;
@@ -607,15 +983,13 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                         try {
                             const jigAlignmentThreshold = Number(comp?.props?.jigAlignmentThreshold ?? 80);
                             
-                            // Initialize refs for python API if not exist
-                            if (!window._jigDetectRef) window._jigDetectRef = { isFetching: false, lastFetch: 0, predictions: [] };
-                            
+                            const stateRef = jigDetectRef.current;
                             const now = Date.now();
-                            if (!window._jigDetectRef.isFetching && (now - window._jigDetectRef.lastFetch > 1000)) {
-                                window._jigDetectRef.isFetching = true;
-                                window._jigDetectRef.lastFetch = now;
+                            if (!stateRef.isFetching && (now - stateRef.lastFetch > 1000)) {
+                                stateRef.isFetching = true;
+                                stateRef.lastFetch = now;
                                 
-                                canvas.toBlob((blob) => {
+                                getCleanFrameBlob((blob) => {
                                     if (blob) {
                                         const formData = new FormData();
                                         formData.append("file", blob, "frame.jpg");
@@ -627,20 +1001,20 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                                         .then(res => res.json())
                                         .then(data => {
                                             if (data && data.predictions) {
-                                                window._jigDetectRef.predictions = data.predictions;
+                                                stateRef.predictions = data.predictions;
                                             }
                                         })
                                         .catch(err => console.error("Jig API error:", err))
                                         .finally(() => {
-                                            window._jigDetectRef.isFetching = false;
+                                            stateRef.isFetching = false;
                                         });
                                     } else {
-                                        window._jigDetectRef.isFetching = false;
+                                        stateRef.isFetching = false;
                                     }
                                 }, 'image/jpeg', 0.85);
                             }
 
-                            const preds = window._jigDetectRef.predictions;
+                            const preds = stateRef.predictions;
                             let alignmentScore = preds.length > 0 ? preds[0].confidence : 0;
                             const isJigPresent = alignmentScore >= jigAlignmentThreshold;
 
@@ -815,7 +1189,7 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                                     isFetchingCloudRef.current = true;
                                     lastCloudFetchTimeRef.current = now;
 
-                                    canvas.toBlob((blob) => {
+                                    getCleanFrameBlob((blob) => {
                                         if (blob) {
                                             const formData = new FormData();
                                             const endpoint = yoloRunMode === 'ULTRALYTICS_CLOUD'
@@ -1100,11 +1474,258 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                         } catch (err) {
                             console.error('YOLO detector processing error:', err);
                         }
+                    } else if (filterType === 'CIRCLE_DETECT') {
+                        try {
+                            const stateRef = circleDetectRef.current;
+                            const now = Date.now();
+                            const mmPx = comp?.props?.mmPerPixel || 0.1170;
+                            const minR = comp?.props?.circleMinRadius ?? 10;
+                            const maxR = comp?.props?.circleMaxRadius ?? 200;
+                            const param2 = comp?.props?.circleParam2 ?? 30;
+
+                            if (!stateRef.isFetching && (now - stateRef.lastFetch > 300)) {
+                                stateRef.isFetching = true;
+                                stateRef.lastFetch = now;
+
+                                getCleanFrameBlob((blob) => {
+                                    if (blob) {
+                                        const formData = new FormData();
+                                        formData.append("file", blob, "frame.jpg");
+
+                                        const params = new URLSearchParams({
+                                            mm_per_pixel: mmPx.toString(),
+                                            min_radius: minR.toString(),
+                                            max_radius: maxR.toString(),
+                                            param2: param2.toString()
+                                        });
+
+                                        fetch(`http://localhost:8000/detect/circle?${params.toString()}`, {
+                                            method: "POST",
+                                            body: formData
+                                        })
+                                        .then(res => {
+                                            if (!res.ok) throw new Error('Circle API error');
+                                            const metaStr = res.headers.get('X-Circle-Result') || '{}';
+                                            let meta = {};
+                                            try { meta = JSON.parse(metaStr); } catch(_) {}
+                                            stateRef.result = meta;
+
+                                            const summaryVal = meta.count > 0 
+                                                ? `Circles: ${meta.count}, D: ${meta.circles?.[0]?.diameter_mm?.toFixed(2) || '-'} mm`
+                                                : 'No circles detected';
+
+                                            if (lastMatchRef.current !== summaryVal) {
+                                                lastMatchRef.current = summaryVal;
+                                                onWidgetInteraction(comp, 'OnCircleDetect', { label: summaryVal, result: summaryVal, value: summaryVal, metadata: meta });
+                                                syncInputDatasourceValue(comp, summaryVal, `${comp.type}_CIRCLE_RESULT`);
+                                            }
+
+                                            return res.blob();
+                                        })
+                                        .then(imgBlob => {
+                                            if (stateRef.processedImgUrl) URL.revokeObjectURL(stateRef.processedImgUrl);
+                                            stateRef.processedImgUrl = URL.createObjectURL(imgBlob);
+                                            stateRef.processedImage.src = stateRef.processedImgUrl;
+                                        })
+                                        .catch(err => console.error("Circle Detection API error:", err))
+                                        .finally(() => { stateRef.isFetching = false; });
+                                    } else {
+                                        stateRef.isFetching = false;
+                                    }
+                                }, 'image/jpeg', 0.85);
+                            }
+
+                            if (stateRef.processedImage && stateRef.processedImage.complete && stateRef.processedImage.naturalWidth > 0) {
+                                ctx.drawImage(stateRef.processedImage, 0, 0, canvas.width, canvas.height);
+                            }
+
+                            // HUD overlay
+                            const w = canvas.width;
+                            ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+                            ctx.fillRect(10, 10, w - 20, 26);
+                            ctx.strokeStyle = '#38bdf8';
+                            ctx.lineWidth = 1;
+                            ctx.strokeRect(10, 10, w - 20, 26);
+                            ctx.fillStyle = '#38bdf8';
+                            ctx.font = 'bold 9px monospace';
+                            ctx.textAlign = 'left';
+                            ctx.fillText('⭕ CIRCLE/DIAMETER DETECTION ACTIVE', 16, 26);
+                            ctx.textAlign = 'right';
+                            const circleCount = stateRef.result?.count ?? 0;
+                            ctx.fillText(`Found: ${circleCount} circle(s)`, w - 16, 26);
+
+                        } catch (err) {
+                            console.error('Circle detection processing error:', err);
+                        }
+                    } else if (filterType === 'ANGLE_MEASURE') {
+                        try {
+                            const stateRef = angleDetectRef.current;
+                            const now = Date.now();
+                            const cannyTh = comp?.props?.angleCannyThreshold ?? 50;
+                            const minLen = comp?.props?.angleMinLineLength ?? 50;
+                            const maxGap = comp?.props?.angleMaxLineGap ?? 10;
+
+                            if (!stateRef.isFetching && (now - stateRef.lastFetch > 300)) {
+                                stateRef.isFetching = true;
+                                stateRef.lastFetch = now;
+
+                                getCleanFrameBlob((blob) => {
+                                    if (blob) {
+                                        const formData = new FormData();
+                                        formData.append("file", blob, "frame.jpg");
+
+                                        const params = new URLSearchParams({
+                                            canny_threshold: cannyTh.toString(),
+                                            min_line_length: minLen.toString(),
+                                            max_line_gap: maxGap.toString()
+                                        });
+
+                                        fetch(`http://localhost:8000/detect/angle?${params.toString()}`, {
+                                            method: "POST",
+                                            body: formData
+                                        })
+                                        .then(res => {
+                                            if (!res.ok) throw new Error('Angle API error');
+                                            const metaStr = res.headers.get('X-Angle-Result') || '{}';
+                                            let meta = {};
+                                            try { meta = JSON.parse(metaStr); } catch(_) {}
+                                            stateRef.result = meta;
+
+                                            const summaryVal = meta.angles && meta.angles.length > 0
+                                                ? `Angles: ${meta.angles.map(a => a.angle_deg?.toFixed(1) + '°').join(', ')}`
+                                                : 'No angles detected';
+
+                                            if (lastMatchRef.current !== summaryVal) {
+                                                lastMatchRef.current = summaryVal;
+                                                onWidgetInteraction(comp, 'OnAngleMeasure', { label: summaryVal, result: summaryVal, value: summaryVal, metadata: meta });
+                                                syncInputDatasourceValue(comp, summaryVal, `${comp.type}_ANGLE_RESULT`);
+                                            }
+
+                                            return res.blob();
+                                        })
+                                        .then(imgBlob => {
+                                            if (stateRef.processedImgUrl) URL.revokeObjectURL(stateRef.processedImgUrl);
+                                            stateRef.processedImgUrl = URL.createObjectURL(imgBlob);
+                                            stateRef.processedImage.src = stateRef.processedImgUrl;
+                                        })
+                                        .catch(err => console.error("Angle Detection API error:", err))
+                                        .finally(() => { stateRef.isFetching = false; });
+                                    } else {
+                                        stateRef.isFetching = false;
+                                    }
+                                }, 'image/jpeg', 0.85);
+                            }
+
+                            if (stateRef.processedImage && stateRef.processedImage.complete && stateRef.processedImage.naturalWidth > 0) {
+                                ctx.drawImage(stateRef.processedImage, 0, 0, canvas.width, canvas.height);
+                            }
+
+                            // HUD overlay
+                            const w = canvas.width;
+                            ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+                            ctx.fillRect(10, 10, w - 20, 26);
+                            ctx.strokeStyle = '#f59e0b';
+                            ctx.lineWidth = 1;
+                            ctx.strokeRect(10, 10, w - 20, 26);
+                            ctx.fillStyle = '#f59e0b';
+                            ctx.font = 'bold 9px monospace';
+                            ctx.textAlign = 'left';
+                            ctx.fillText('📐 ANGLE MEASUREMENT ACTIVE', 16, 26);
+                            ctx.textAlign = 'right';
+                            const angleCount = stateRef.result?.angles?.length ?? 0;
+                            ctx.fillText(`Found: ${angleCount} angle(s)`, w - 16, 26);
+
+                        } catch (err) {
+                            console.error('Angle measurement processing error:', err);
+                        }
+                    } else if (filterType === 'CONTOUR_GEOMETRY') {
+                        try {
+                            const stateRef = contourDetectRef.current;
+                            const now = Date.now();
+                            const threshold = comp?.props?.contourThreshold ?? 80;
+                            const minArea = comp?.props?.contourMinArea ?? 500;
+                            const mmPx = comp?.props?.mmPerPixel || 0.1170;
+                            const dimUnit = comp?.props?.dimUnit || 'mm';
+
+                            if (!stateRef.isFetching && (now - stateRef.lastFetch > 300)) {
+                                stateRef.isFetching = true;
+                                stateRef.lastFetch = now;
+
+                                getCleanFrameBlob((blob) => {
+                                    if (blob) {
+                                        const formData = new FormData();
+                                        formData.append("file", blob, "frame.jpg");
+
+                                        const params = new URLSearchParams({
+                                            threshold: threshold.toString(),
+                                            min_area: minArea.toString(),
+                                            mm_per_pixel: mmPx.toString()
+                                        });
+
+                                        fetch(`http://localhost:8000/detect/contour_geometry?${params.toString()}`, {
+                                            method: "POST",
+                                            body: formData
+                                        })
+                                        .then(res => {
+                                            if (!res.ok) throw new Error('Contour API error');
+                                            const metaStr = res.headers.get('X-Contour-Result') || '{}';
+                                            let meta = {};
+                                            try { meta = JSON.parse(metaStr); } catch(_) {}
+                                            stateRef.result = meta;
+
+                                            const summaryVal = meta.contours && meta.contours.length > 0
+                                                ? meta.contours.map(c => `P:${c.perimeter_mm?.toFixed(1)}${dimUnit} A:${c.area_mm2?.toFixed(1)}${dimUnit}²`).join(' | ')
+                                                : 'No contours detected';
+
+                                            if (lastMatchRef.current !== summaryVal) {
+                                                lastMatchRef.current = summaryVal;
+                                                onWidgetInteraction(comp, 'OnContourDetect', { label: summaryVal, result: summaryVal, value: summaryVal, metadata: meta });
+                                                syncInputDatasourceValue(comp, summaryVal, `${comp.type}_CONTOUR_RESULT`);
+                                            }
+
+                                            return res.blob();
+                                        })
+                                        .then(imgBlob => {
+                                            if (stateRef.processedImgUrl) URL.revokeObjectURL(stateRef.processedImgUrl);
+                                            stateRef.processedImgUrl = URL.createObjectURL(imgBlob);
+                                            stateRef.processedImage.src = stateRef.processedImgUrl;
+                                        })
+                                        .catch(err => console.error("Contour Geometry API error:", err))
+                                        .finally(() => { stateRef.isFetching = false; });
+                                    } else {
+                                        stateRef.isFetching = false;
+                                    }
+                                }, 'image/jpeg', 0.85);
+                            }
+
+                            if (stateRef.processedImage && stateRef.processedImage.complete && stateRef.processedImage.naturalWidth > 0) {
+                                ctx.drawImage(stateRef.processedImage, 0, 0, canvas.width, canvas.height);
+                            }
+
+                            // HUD overlay
+                            const w = canvas.width;
+                            ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+                            ctx.fillRect(10, 10, w - 20, 26);
+                            ctx.strokeStyle = '#a855f7';
+                            ctx.lineWidth = 1;
+                            ctx.strokeRect(10, 10, w - 20, 26);
+                            ctx.fillStyle = '#a855f7';
+                            ctx.font = 'bold 9px monospace';
+                            ctx.textAlign = 'left';
+                            ctx.fillText('📏 PERIMETER & AREA MEASUREMENT ACTIVE', 16, 26);
+                            ctx.textAlign = 'right';
+                            const cCount = stateRef.result?.contours?.length ?? 0;
+                            ctx.fillText(`Found: ${cCount} contour(s)`, w - 16, 26);
+
+                        } catch (err) {
+                            console.error('Contour geometry processing error:', err);
+                        }
                     }
                 } catch (e) {
                     console.error('Filter processing error:', e);
                 }
             }
+        }
 
             // Draw target overlays for Caliper / Dial Gauge guides
             if (['CALIPER_OCR', 'DIAL_GAUGE', 'OCR_DETECTOR'].includes(filterType)) {
@@ -1165,6 +1786,7 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
 
                 const colorDet = region.detectors?.colorDetector;
                 const changeDet = region.detectors?.changeDetector;
+                const dimDet = region.detectors?.dimensionDetector;
 
                 let isMatching = false;
                 let changeTriggered = false;
@@ -1257,13 +1879,203 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                                 });
                             }
                         }
-                    } catch (e) {
-                        // ignore startup errors
-                    }
-                } else {
-                    isMatching = lastRegionMatchStatesRef.current[region.id + '_color'] || false;
-                    changeTriggered = lastRegionMatchStatesRef.current[region.id + '_change'] || false;
-                }
+
+                        // Dimension Detector
+                        if (dimDet && dimDet.enabled) {
+                             const totalPixels = rw * rh;
+                             const intensities = new Float32Array(totalPixels);
+                             for (let i = 0; i < totalPixels; i++) {
+                                 const idx = i * 4;
+                                 intensities[i] = 0.299 * pixels[idx] + 0.587 * pixels[idx+1] + 0.114 * pixels[idx+2];
+                             }
+                             
+                             const threshold = dimDet.cannyThreshold ?? 100;
+                             const minArea = dimDet.minArea ?? 100;
+                             
+                             let minX = rw;
+                             let maxX = 0;
+                             let minY = rh;
+                             let maxY = 0;
+                             let edgeCount = 0;
+                             
+                             const edgePoints = [];
+                             
+                             for (let y = 1; y < rh - 1; y++) {
+                                 for (let x = 1; x < rw - 1; x++) {
+                                     const val00 = intensities[(y-1)*rw + (x-1)];
+                                     const val01 = intensities[(y-1)*rw + x];
+                                     const val02 = intensities[(y-1)*rw + (x+1)];
+                                     
+                                     const val10 = intensities[y*rw + (x-1)];
+                                     const val12 = intensities[y*rw + (x+1)];
+                                     
+                                     const val20 = intensities[(y+1)*rw + (x-1)];
+                                     const val21 = intensities[(y+1)*rw + x];
+                                     const val22 = intensities[(y+1)*rw + (x+1)];
+                                     
+                                     const gx = (val02 + 2*val12 + val22) - (val00 + 2*val10 + val20);
+                                     const gy = (val20 + 2*val21 + val22) - (val00 + 2*val01 + val02);
+                                     const g = Math.sqrt(gx*gx + gy*gy);
+                                     
+                                     if (g > threshold) {
+                                         if (x < minX) minX = x;
+                                         if (x > maxX) maxX = x;
+                                         if (y < minY) minY = y;
+                                         if (y > maxY) maxY = y;
+                                         edgeCount++;
+                                         edgePoints.push({ x, y });
+                                     }
+                                 }
+                             }
+                             
+                             const detectedW = (maxX >= minX) ? (maxX - minX + 1) : 0;
+                             const detectedH = (maxY >= minY) ? (maxY - minY + 1) : 0;
+                             const detectedArea = detectedW * detectedH;
+                             
+                             let measuredValue = 0;
+                             let isPass = false;
+                             let detectedShape = 'Object';
+                             let shapeDiameter = 0;
+                             let shapeWidth = 0;
+                             let shapeHeight = 0;
+                             
+                             if (edgeCount >= 8 && detectedW > 4 && detectedH > 4 && detectedArea >= minArea) {
+                                 const cx = (minX + maxX) / 2;
+                                 const cy = (minY + maxY) / 2;
+                                 
+                                 let sumDist = 0;
+                                 const distances = [];
+                                 for (let i = 0; i < edgePoints.length; i++) {
+                                     const p = edgePoints[i];
+                                     const dx = p.x - cx;
+                                     const dy = p.y - cy;
+                                     const d = Math.sqrt(dx*dx + dy*dy);
+                                     distances.push(d);
+                                     sumDist += d;
+                                 }
+                                 const meanDist = sumDist / edgePoints.length;
+                                 
+                                 let sumSqDiff = 0;
+                                 for (let i = 0; i < distances.length; i++) {
+                                     sumSqDiff += (distances[i] - meanDist) * (distances[i] - meanDist);
+                                 }
+                                 const stdDevDist = Math.sqrt(sumSqDiff / edgePoints.length);
+                                 const cvDist = meanDist > 0 ? (stdDevDist / meanDist) : 1;
+                                 
+                                 const aspect = detectedW / detectedH;
+                                 const isRoundAspect = aspect >= 0.75 && aspect <= 1.33;
+                                 
+                                 if (isRoundAspect && cvDist < 0.09) {
+                                     detectedShape = 'Circle';
+                                     shapeDiameter = meanDist * 2;
+                                 } else if (isRoundAspect && cvDist >= 0.09 && cvDist < 0.17) {
+                                     detectedShape = 'Square';
+                                     shapeWidth = detectedW;
+                                     shapeHeight = detectedH;
+                                 } else {
+                                     detectedShape = (detectedW === detectedH || (aspect >= 0.9 && aspect <= 1.1)) ? 'Square' : 'Rectangle';
+                                     shapeWidth = detectedW;
+                                     shapeHeight = detectedH;
+                                 }
+                                 
+                                 const mode = dimDet.measureMode || 'Width';
+                                 const unit = dimDet.unit || 'mm';
+                                 const referenceSize = dimDet.referenceSize ?? 20;
+                                 let scale = 1;
+                                 
+                                 if (unit === 'px') {
+                                     if (detectedShape === 'Circle') {
+                                         measuredValue = Number(shapeDiameter.toFixed(1));
+                                     } else {
+                                         if (mode === 'Width') measuredValue = shapeWidth;
+                                         else if (mode === 'Height') measuredValue = shapeHeight;
+                                         else if (mode === 'Diagonal') measuredValue = Number(Math.sqrt(shapeWidth*shapeWidth + shapeHeight*shapeHeight).toFixed(1));
+                                         else if (mode === 'Area') measuredValue = shapeWidth * shapeHeight;
+                                     }
+                                 } else {
+                                     if (mode === 'Width') {
+                                         scale = referenceSize / rw;
+                                         measuredValue = Number(((detectedShape === 'Circle' ? shapeDiameter : shapeWidth) * scale).toFixed(2));
+                                     } else if (mode === 'Height') {
+                                         scale = referenceSize / rh;
+                                         measuredValue = Number(((detectedShape === 'Circle' ? shapeDiameter : shapeHeight) * scale).toFixed(2));
+                                     } else if (mode === 'Diagonal') {
+                                         scale = referenceSize / Math.sqrt(rw * rw + rh * rh);
+                                         if (detectedShape === 'Circle') {
+                                             measuredValue = Number((shapeDiameter * scale).toFixed(2));
+                                         } else {
+                                             const diagPixels = Math.sqrt(shapeWidth * shapeWidth + shapeHeight * shapeHeight);
+                                             measuredValue = Number((diagPixels * scale).toFixed(2));
+                                         }
+                                     } else if (mode === 'Area') {
+                                         scale = referenceSize / (rw * rh);
+                                         if (detectedShape === 'Circle') {
+                                             const areaPixels = Math.PI * (shapeDiameter / 2) * (shapeDiameter / 2);
+                                             measuredValue = Number((areaPixels * scale).toFixed(2));
+                                         } else {
+                                             measuredValue = Number((detectedArea * scale).toFixed(2));
+                                         }
+                                     }
+                                 }
+                                 
+                                 isPass = measuredValue >= (dimDet.lsl ?? 19.5) && measuredValue <= (dimDet.usl ?? 20.5);
+                                 region.objectBox = {
+                                     ox: rx + minX,
+                                     oy: ry + minY,
+                                     ow: detectedW,
+                                     oh: detectedH,
+                                     shape: detectedShape,
+                                     shapeDiameter: detectedShape === 'Circle' ? measuredValue : 0,
+                                     shapeWidth: detectedShape !== 'Circle' ? (unit === 'px' ? shapeWidth : Number((shapeWidth * (referenceSize / rw)).toFixed(2))) : 0,
+                                     shapeHeight: detectedShape !== 'Circle' ? (unit === 'px' ? shapeHeight : Number((shapeHeight * (referenceSize / rh)).toFixed(2))) : 0,
+                                     unit: unit
+                                 };
+                             } else {
+                                 measuredValue = 0;
+                                 isPass = false;
+                                 region.objectBox = null;
+                             }
+                             
+                             region.measuredValue = measuredValue;
+                             
+                             const oldPass = region.lastPassStatus;
+                             region.lastPassStatus = isPass;
+
+                             if (oldPass !== isPass) {
+                                 if (isPass) {
+                                     onWidgetInteraction(comp, 'OnPass', {
+                                         deviceId: comp.props.cameraConfigId,
+                                         value: measuredValue,
+                                         regionId: region.id,
+                                         regionName: region.name
+                                     });
+                                 } else {
+                                     onWidgetInteraction(comp, 'OnFail', {
+                                         deviceId: comp.props.cameraConfigId,
+                                         value: measuredValue,
+                                         regionId: region.id,
+                                         regionName: region.name
+                                     });
+                                 }
+                                 onWidgetInteraction(comp, 'ON_CHANGE', {
+                                     deviceId: comp.props.cameraConfigId,
+                                     deviceEvent: isPass ? 'PASS' : 'FAIL',
+                                     value: measuredValue,
+                                     regionId: region.id,
+                                     regionName: region.name
+                                 });
+                                 syncInputDatasourceValue(comp, measuredValue.toString(), `${comp.type}_MEASUREMENT`);
+                             }
+                         } else {
+                             region.objectBox = null;
+                         }
+                     } catch (e) {
+                         // ignore startup errors
+                     }
+                 } else {
+                     isMatching = lastRegionMatchStatesRef.current[region.id + '_color'] || false;
+                     changeTriggered = lastRegionMatchStatesRef.current[region.id + '_change'] || false;
+                 }
 
                 if (showOverlay) {
                     let borderColor = '#3b82f6';
@@ -1271,11 +2083,43 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                         borderColor = isMatching ? '#22c55e' : '#ef4444';
                     } else if (changeDet && changeDet.enabled) {
                         borderColor = changeTriggered ? '#10b981' : '#f59e0b';
+                    } else if (dimDet && dimDet.enabled) {
+                        const isPass = region.lastPassStatus ?? false;
+                        borderColor = isPass ? '#10b981' : '#ef4444';
                     }
 
                     ctx.strokeStyle = borderColor;
                     ctx.lineWidth = 1.5;
                     ctx.strokeRect(rx, ry, rw, rh);
+
+                    // Draw detected object bounding box inside the region
+                    if (dimDet && dimDet.enabled && region.objectBox) {
+                        const { ox, oy, ow, oh, shape, shapeDiameter, shapeWidth, shapeHeight, unit } = region.objectBox;
+                        const isPass = region.lastPassStatus ?? false;
+                        const color = isPass ? '#10b981' : '#ef4444';
+                        ctx.strokeStyle = color;
+                        ctx.lineWidth = 1.5;
+                        ctx.setLineDash([3, 3]);
+                        if (shape === 'Circle') {
+                            ctx.beginPath();
+                            ctx.arc(ox + ow / 2, oy + oh / 2, (ow + oh) / 4, 0, 2 * Math.PI);
+                            ctx.stroke();
+                        } else {
+                            ctx.strokeRect(ox, oy, ow, oh);
+                        }
+                        ctx.setLineDash([]);
+                        
+                        // Display size and shape label directly on camera feed
+                        ctx.fillStyle = color;
+                        ctx.font = 'bold 9px sans-serif';
+                        let label = '';
+                        if (shape === 'Circle') {
+                            label = `Circle d=${shapeDiameter} ${unit}`;
+                        } else {
+                            label = `${shape} ${shapeWidth}x${shapeHeight} ${unit}`;
+                        }
+                        ctx.fillText(label, ox, oy - 4);
+                    }
 
                     // Corner Markers
                     ctx.lineWidth = 2.5;
@@ -1297,6 +2141,12 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                         labelText += ` (${colorSimilarity}%)`;
                     } else if (changeDet && changeDet.enabled) {
                         labelText += ` (${changePercent}%)`;
+                    } else if (dimDet && dimDet.enabled) {
+                        const isPass = region.lastPassStatus ?? false;
+                        const mode = dimDet.measureMode || 'Width';
+                        const val = region.measuredValue !== undefined ? region.measuredValue : 0;
+                        const shape = region.objectBox?.shape || 'Object';
+                        labelText += ` - ${shape} (${mode}): ${val}${dimDet.unit || 'mm'} (${isPass ? 'PASS' : 'FAIL'})`;
                     }
                     const textWidth = ctx.measureText(labelText).width + 6;
                     ctx.fillRect(rx, ry - 11, textWidth, 11);
@@ -1316,7 +2166,88 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                 cancelAnimationFrame(animationFrameRef.current);
             }
         };
-    }, [viewMode, filterType, thresholdValue, capturedImage, isCameraCapture, hasPermission, cameraSource, ipCameraUrl, ipImageLoaded, ipImageError, showVideoPreview, comp?.props?.yoloModelType, comp?.props?.yoloConfidence, comp?.props?.yoloTargetClass, comp?.props?.yoloRunMode, comp?.props?.yoloApiKey, comp?.props?.yoloModelId, comp?.props?.yoloLocalUrl, cameraConfig, comp?.props?.enableDetector]);
+    }, [viewMode, filterType, thresholdValue, capturedImage, isCameraCapture, hasPermission, cameraSource, ipCameraUrl, ipImageLoaded, ipImageError, showVideoPreview, comp?.props?.yoloModelType, comp?.props?.yoloConfidence, comp?.props?.yoloTargetClass, comp?.props?.yoloRunMode, comp?.props?.yoloApiKey, comp?.props?.yoloModelId, comp?.props?.yoloLocalUrl, cameraConfig, comp?.props?.enableDetector, isRulerModeActive, isCircleModeActive, isAngleModeActive, isContourModeActive, rulerPoints, rulerDragStart, rulerDragCurrent]);
+
+    // Helper to calculate mouse/touch position scaled to the canvas with objectFit: cover
+    const getCanvasMousePos = (e) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return { x: 0, y: 0 };
+        const rect = canvas.getBoundingClientRect();
+        
+        // Handle touch events
+        const isTouch = e.touches && e.touches.length > 0;
+        const clientX = isTouch ? e.touches[0].clientX : e.clientX;
+        const clientY = isTouch ? e.touches[0].clientY : e.clientY;
+        
+        const W_r = rect.width;
+        const H_r = rect.height;
+        const W_c = canvas.width;
+        const H_c = canvas.height;
+        
+        // Scale factor applied to the buffer to draw it on the display (object-fit: cover)
+        const S = Math.max(W_r / W_c, H_r / H_c);
+        
+        const x_r = clientX - rect.left;
+        const y_r = clientY - rect.top;
+        
+        const x = (x_r - W_r / 2) / S + W_c / 2;
+        const y = (y_r - H_r / 2) / S + H_c / 2;
+        
+        // Clamp bounds to within canvas dimensions
+        return {
+            x: Math.max(0, Math.min(Math.round(x), W_c)),
+            y: Math.max(0, Math.min(Math.round(y), H_c))
+        };
+    };
+
+    const handleRulerMouseDown = (e) => {
+        const pos = getCanvasMousePos(e);
+        setRulerDragStart(pos);
+        setRulerDragCurrent(pos);
+        setRulerPoints(null);
+        if (rulerDetectRef.current) {
+            rulerDetectRef.current.measurement = '-';
+        }
+    };
+
+    const handleRulerMouseMove = (e) => {
+        if (!rulerDragStart) return;
+        const pos = getCanvasMousePos(e);
+        setRulerDragCurrent(pos);
+    };
+
+    const handleRulerMouseUp = () => {
+        if (!rulerDragStart || !rulerDragCurrent) return;
+        const dx = rulerDragCurrent.x - rulerDragStart.x;
+        const dy = rulerDragCurrent.y - rulerDragStart.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist > 10) {
+            setRulerPoints({
+                x1: rulerDragStart.x,
+                y1: rulerDragStart.y,
+                x2: rulerDragCurrent.x,
+                y2: rulerDragCurrent.y
+            });
+        }
+        setRulerDragStart(null);
+        setRulerDragCurrent(null);
+    };
+
+    const handleRulerTouchStart = (e) => {
+        e.preventDefault();
+        handleRulerMouseDown(e);
+    };
+
+    const handleRulerTouchMove = (e) => {
+        e.preventDefault();
+        handleRulerMouseMove(e);
+    };
+
+    const handleRulerTouchEnd = (e) => {
+        e.preventDefault();
+        handleRulerMouseUp();
+    };
 
     // Handle standard camera capture
     const handleCapture = useCallback(() => {
@@ -1802,14 +2733,14 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                         src={recordedUrl}
                         controls
                         autoPlay
-                        style={{ width: '100%', height: '100%', objectFit: 'contain', backgroundColor: '#000' }}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', backgroundColor: '#000' }}
                     />
                 ) : capturedImage ? (
                     /* Captured Image Preview */
                     <img
                         src={capturedImage}
                         alt="Captured frame"
-                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
                 ) : hasPermission === false ? (
                     /* No Permission Fallback */
@@ -1842,7 +2773,18 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                             ref={canvasRef}
                             width="640"
                             height="480"
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            style={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                                cursor: isRulerModeActive ? 'crosshair' : 'default'
+                            }}
+                            onMouseDown={isRulerModeActive ? handleRulerMouseDown : undefined}
+                            onMouseMove={isRulerModeActive ? handleRulerMouseMove : undefined}
+                            onMouseUp={isRulerModeActive ? handleRulerMouseUp : undefined}
+                            onTouchStart={isRulerModeActive ? handleRulerTouchStart : undefined}
+                            onTouchMove={isRulerModeActive ? handleRulerTouchMove : undefined}
+                            onTouchEnd={isRulerModeActive ? handleRulerTouchEnd : undefined}
                         />
                     </>
                 )}
@@ -1926,6 +2868,113 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                     </button>
                 ) : (
                     <>
+                        {/* Ruler Vision Button */}
+                        <button
+                            onClick={() => {
+                                if (isRulerModeActive) activateMeasurementMode(null);
+                                else activateMeasurementMode('RULER_VISION');
+                            }}
+                            disabled={!hasPermission}
+                            style={{
+                                flex: 1, padding: '8px', borderRadius: '8px',
+                                border: isRulerModeActive ? '1px solid #38bdf8' : '1px solid #334155',
+                                backgroundColor: isRulerModeActive ? 'rgba(14, 165, 233, 0.15)' : '#1e293b',
+                                color: isRulerModeActive ? '#38bdf8' : '#cbd5e1',
+                                fontSize: '0.75rem', fontWeight: 700,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                cursor: hasPermission ? 'pointer' : 'not-allowed'
+                            }}
+                        >
+                            <Ruler size={14} /> {isRulerModeActive ? 'Ruler: Active' : 'Ruler'}
+                        </button>
+
+                        {/* Circle Vision Button */}
+                        <button
+                            onClick={() => {
+                                if (isCircleModeActive) activateMeasurementMode(null);
+                                else activateMeasurementMode('CIRCLE_DETECT');
+                            }}
+                            disabled={!hasPermission}
+                            style={{
+                                flex: 1, padding: '8px', borderRadius: '8px',
+                                border: isCircleModeActive ? '1px solid #38bdf8' : '1px solid #334155',
+                                backgroundColor: isCircleModeActive ? 'rgba(14, 165, 233, 0.15)' : '#1e293b',
+                                color: isCircleModeActive ? '#38bdf8' : '#cbd5e1',
+                                fontSize: '0.75rem', fontWeight: 700,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                cursor: hasPermission ? 'pointer' : 'not-allowed'
+                            }}
+                        >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/></svg>
+                            {isCircleModeActive ? 'Circle: Active' : 'Circle'}
+                        </button>
+
+                        {/* Angle Vision Button */}
+                        <button
+                            onClick={() => {
+                                if (isAngleModeActive) activateMeasurementMode(null);
+                                else activateMeasurementMode('ANGLE_MEASURE');
+                            }}
+                            disabled={!hasPermission}
+                            style={{
+                                flex: 1, padding: '8px', borderRadius: '8px',
+                                border: isAngleModeActive ? '1px solid #38bdf8' : '1px solid #334155',
+                                backgroundColor: isAngleModeActive ? 'rgba(14, 165, 233, 0.15)' : '#1e293b',
+                                color: isAngleModeActive ? '#38bdf8' : '#cbd5e1',
+                                fontSize: '0.75rem', fontWeight: 700,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                cursor: hasPermission ? 'pointer' : 'not-allowed'
+                            }}
+                        >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 22H2M2 22a20 20 0 0 1 20-20"/></svg>
+                            {isAngleModeActive ? 'Angle: Active' : 'Angle'}
+                        </button>
+
+                        {/* Area/Contour Vision Button */}
+                        <button
+                            onClick={() => {
+                                if (isContourModeActive) activateMeasurementMode(null);
+                                else activateMeasurementMode('CONTOUR_GEOMETRY');
+                            }}
+                            disabled={!hasPermission}
+                            style={{
+                                flex: 1, padding: '8px', borderRadius: '8px',
+                                border: isContourModeActive ? '1px solid #38bdf8' : '1px solid #334155',
+                                backgroundColor: isContourModeActive ? 'rgba(14, 165, 233, 0.15)' : '#1e293b',
+                                color: isContourModeActive ? '#38bdf8' : '#cbd5e1',
+                                fontSize: '0.75rem', fontWeight: 700,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                cursor: hasPermission ? 'pointer' : 'not-allowed'
+                            }}
+                        >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
+                            {isContourModeActive ? 'Area: Active' : 'Area'}
+                        </button>
+
+                        {isRulerModeActive && rulerPoints && (
+                            <button
+                                onClick={() => {
+                                    setRulerPoints(null);
+                                    if (rulerDetectRef.current) {
+                                        rulerDetectRef.current.measurement = '-';
+                                        if (rulerDetectRef.current.processedImgUrl) {
+                                            URL.revokeObjectURL(rulerDetectRef.current.processedImgUrl);
+                                            rulerDetectRef.current.processedImgUrl = null;
+                                            rulerDetectRef.current.processedImage.src = '';
+                                        }
+                                    }
+                                    syncInputDatasourceValue(comp, '', `${comp.type}_MEASUREMENT`);
+                                }}
+                                style={{
+                                    padding: '8px', borderRadius: '8px', border: '1px solid #fee2e2',
+                                    backgroundColor: '#fef2f2', color: '#ef4444', fontSize: '0.75rem', fontWeight: 700,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer'
+                                }}
+                            >
+                                <Trash2 size={14} /> Clear
+                            </button>
+                        )}
+
                         {/* Primary action to trigger capture */}
                         <button
                             onClick={handleCapture}

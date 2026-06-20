@@ -23998,6 +23998,9 @@ const AppBuilder = () => {
                                                                             <option value="CHANGE_DETECTOR">Change Detector (Sensor Perubahan)</option>
                                                                             <option value="YOLO_DETECTOR">YOLO Object Detection (Ultralytics)</option>
                                                                             <option value="DIMENSION">Dimension Measurement (Pengukuran Dimensi)</option>
+                                                                            <option value="CIRCLE_DETECT">Circle/Diameter Detection (Deteksi Lingkaran)</option>
+                                                                            <option value="ANGLE_MEASURE">Angle Measurement (Pengukuran Sudut)</option>
+                                                                            <option value="CONTOUR_GEOMETRY">Perimeter & Area (Keliling & Luas)</option>
                                                                         </select>
                                                                     </div>
                                                                     {selectedComp.props.filterType === 'YOLO_DETECTOR' && (
@@ -24247,6 +24250,72 @@ const AppBuilder = () => {
                                                                                         />
                                                                                     </div>
                                                                                 </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                    {selectedComp.props.filterType === 'CIRCLE_DETECT' && (
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+                                                                            <div style={{ padding: '10px', backgroundColor: 'rgba(56, 189, 248, 0.06)', border: '1px solid rgba(56, 189, 248, 0.2)', borderRadius: '8px' }}>
+                                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#38bdf8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>⭕ Circle Detection Settings</label>
+                                                                                <div className="prop-group" style={{ marginBottom: '10px' }}>
+                                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Min Radius (px): {selectedComp.props.circleMinRadius ?? 10}</label>
+                                                                                    <input type="range" min="5" max="150" value={selectedComp.props.circleMinRadius ?? 10} onChange={(e) => updateComponentProps(selectedComp.id, { circleMinRadius: parseInt(e.target.value) })} style={{ width: '100%', cursor: 'pointer' }} />
+                                                                                </div>
+                                                                                <div className="prop-group" style={{ marginBottom: '10px' }}>
+                                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Max Radius (px): {selectedComp.props.circleMaxRadius ?? 200}</label>
+                                                                                    <input type="range" min="20" max="400" value={selectedComp.props.circleMaxRadius ?? 200} onChange={(e) => updateComponentProps(selectedComp.id, { circleMaxRadius: parseInt(e.target.value) })} style={{ width: '100%', cursor: 'pointer' }} />
+                                                                                </div>
+                                                                                <div className="prop-group" style={{ marginBottom: '10px' }}>
+                                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Sensitivity (Accumulator): {selectedComp.props.circleParam2 ?? 30}</label>
+                                                                                    <input type="range" min="10" max="100" value={selectedComp.props.circleParam2 ?? 30} onChange={(e) => updateComponentProps(selectedComp.id, { circleParam2: parseInt(e.target.value) })} style={{ width: '100%', cursor: 'pointer' }} />
+                                                                                    <span style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)' }}>Lower = more circles detected (may include false positives)</span>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="prop-group" style={{ marginBottom: '4px' }}>
+                                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>mm/pixel Calibration</label>
+                                                                                <input type="number" step="0.0001" min="0" value={selectedComp.props.mmPerPixel ?? 0.1170} onChange={(e) => updateComponentProps(selectedComp.id, { mmPerPixel: parseFloat(e.target.value) || 0.1170 })} placeholder="e.g. 0.1170" style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.8rem' }} />
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                    {selectedComp.props.filterType === 'ANGLE_MEASURE' && (
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+                                                                            <div style={{ padding: '10px', backgroundColor: 'rgba(245, 158, 11, 0.06)', border: '1px solid rgba(245, 158, 11, 0.2)', borderRadius: '8px' }}>
+                                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#f59e0b', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>📐 Angle Measurement Settings</label>
+                                                                                <div className="prop-group" style={{ marginBottom: '10px' }}>
+                                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Canny Threshold: {selectedComp.props.angleCannyThreshold ?? 50}</label>
+                                                                                    <input type="range" min="10" max="200" value={selectedComp.props.angleCannyThreshold ?? 50} onChange={(e) => updateComponentProps(selectedComp.id, { angleCannyThreshold: parseInt(e.target.value) })} style={{ width: '100%', cursor: 'pointer' }} />
+                                                                                </div>
+                                                                                <div className="prop-group" style={{ marginBottom: '10px' }}>
+                                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Min Line Length (px): {selectedComp.props.angleMinLineLength ?? 50}</label>
+                                                                                    <input type="range" min="10" max="300" value={selectedComp.props.angleMinLineLength ?? 50} onChange={(e) => updateComponentProps(selectedComp.id, { angleMinLineLength: parseInt(e.target.value) })} style={{ width: '100%', cursor: 'pointer' }} />
+                                                                                </div>
+                                                                                <div className="prop-group" style={{ marginBottom: '10px' }}>
+                                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Max Line Gap (px): {selectedComp.props.angleMaxLineGap ?? 10}</label>
+                                                                                    <input type="range" min="1" max="50" value={selectedComp.props.angleMaxLineGap ?? 10} onChange={(e) => updateComponentProps(selectedComp.id, { angleMaxLineGap: parseInt(e.target.value) })} style={{ width: '100%', cursor: 'pointer' }} />
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                    {selectedComp.props.filterType === 'CONTOUR_GEOMETRY' && (
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+                                                                            <div style={{ padding: '10px', backgroundColor: 'rgba(168, 85, 247, 0.06)', border: '1px solid rgba(168, 85, 247, 0.2)', borderRadius: '8px' }}>
+                                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#a855f7', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>📏 Perimeter & Area Settings</label>
+                                                                                <div className="prop-group" style={{ marginBottom: '10px' }}>
+                                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Edge Threshold: {selectedComp.props.contourThreshold ?? 80}</label>
+                                                                                    <input type="range" min="10" max="255" value={selectedComp.props.contourThreshold ?? 80} onChange={(e) => updateComponentProps(selectedComp.id, { contourThreshold: parseInt(e.target.value) })} style={{ width: '100%', cursor: 'pointer' }} />
+                                                                                </div>
+                                                                                <div className="prop-group" style={{ marginBottom: '10px' }}>
+                                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Min Contour Area (px²): {selectedComp.props.contourMinArea ?? 500}</label>
+                                                                                    <input type="range" min="50" max="5000" step="50" value={selectedComp.props.contourMinArea ?? 500} onChange={(e) => updateComponentProps(selectedComp.id, { contourMinArea: parseInt(e.target.value) })} style={{ width: '100%', cursor: 'pointer' }} />
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="prop-group" style={{ marginBottom: '4px' }}>
+                                                                                <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-quaternary)', marginBottom: '4px' }}>mm/pixel Calibration</label>
+                                                                                <input type="number" step="0.0001" min="0" value={selectedComp.props.mmPerPixel ?? 0.1170} onChange={(e) => updateComponentProps(selectedComp.id, { mmPerPixel: parseFloat(e.target.value) || 0.1170 })} placeholder="e.g. 0.1170" style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.8rem' }} />
+                                                                            </div>
+                                                                            <div className="prop-group" style={{ marginBottom: '4px' }}>
+                                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Display Unit</label>
+                                                                                <input type="text" value={selectedComp.props.dimUnit || 'mm'} onChange={(e) => updateComponentProps(selectedComp.id, { dimUnit: e.target.value })} placeholder="mm" style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }} />
                                                                             </div>
                                                                         </div>
                                                                     )}

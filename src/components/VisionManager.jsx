@@ -2416,6 +2416,8 @@ function CameraRegionEditor({
                              let maxY = 0;
                              let edgeCount = 0;
                              
+                             const edgePoints = [];
+                             
                              for (let y = 1; y < rh - 1; y++) {
                                  for (let x = 1; x < rw - 1; x++) {
                                      const val00 = intensities[(y-1)*rw + (x-1)];
@@ -2439,6 +2441,7 @@ function CameraRegionEditor({
                                          if (y < minY) minY = y;
                                          if (y > maxY) maxY = y;
                                          edgeCount++;
+                                         edgePoints.push({ x, y });
                                      }
                                  }
                              }
@@ -2449,32 +2452,87 @@ function CameraRegionEditor({
                              
                              let measuredValue = 0;
                              let isPass = false;
+                             let detectedShape = 'Object';
+                             let shapeDiameter = 0;
+                             let shapeWidth = 0;
+                             let shapeHeight = 0;
                              
-                             if (edgeCount >= 5 && detectedW > 0 && detectedH > 0 && detectedArea >= minArea) {
+                             if (edgeCount >= 8 && detectedW > 4 && detectedH > 4 && detectedArea >= minArea) {
+                                 const cx = (minX + maxX) / 2;
+                                 const cy = (minY + maxY) / 2;
+                                 
+                                 let sumDist = 0;
+                                 const distances = [];
+                                 for (let i = 0; i < edgePoints.length; i++) {
+                                     const p = edgePoints[i];
+                                     const dx = p.x - cx;
+                                     const dy = p.y - cy;
+                                     const d = Math.sqrt(dx*dx + dy*dy);
+                                     distances.push(d);
+                                     sumDist += d;
+                                 }
+                                 const meanDist = sumDist / edgePoints.length;
+                                 
+                                 let sumSqDiff = 0;
+                                 for (let i = 0; i < distances.length; i++) {
+                                     sumSqDiff += (distances[i] - meanDist) * (distances[i] - meanDist);
+                                 }
+                                 const stdDevDist = Math.sqrt(sumSqDiff / edgePoints.length);
+                                 const cvDist = meanDist > 0 ? (stdDevDist / meanDist) : 1;
+                                 
+                                 const aspect = detectedW / detectedH;
+                                 const isRoundAspect = aspect >= 0.75 && aspect <= 1.33;
+                                 
+                                 if (isRoundAspect && cvDist < 0.09) {
+                                     detectedShape = 'Circle';
+                                     shapeDiameter = meanDist * 2;
+                                 } else if (isRoundAspect && cvDist >= 0.09 && cvDist < 0.17) {
+                                     detectedShape = 'Square';
+                                     shapeWidth = detectedW;
+                                     shapeHeight = detectedH;
+                                 } else {
+                                     detectedShape = (detectedW === detectedH || (aspect >= 0.9 && aspect <= 1.1)) ? 'Square' : 'Rectangle';
+                                     shapeWidth = detectedW;
+                                     shapeHeight = detectedH;
+                                 }
+                                 
                                  const mode = dimDet.measureMode || 'Width';
                                  const unit = dimDet.unit || 'mm';
                                  const referenceSize = dimDet.referenceSize ?? 20;
                                  let scale = 1;
                                  
                                  if (unit === 'px') {
-                                     if (mode === 'Width') measuredValue = detectedW;
-                                     else if (mode === 'Height') measuredValue = detectedH;
-                                     else if (mode === 'Diagonal') measuredValue = Number(Math.sqrt(detectedW*detectedW + detectedH*detectedH).toFixed(1));
-                                     else if (mode === 'Area') measuredValue = detectedArea;
+                                     if (detectedShape === 'Circle') {
+                                         measuredValue = Number(shapeDiameter.toFixed(1));
+                                     } else {
+                                         if (mode === 'Width') measuredValue = shapeWidth;
+                                         else if (mode === 'Height') measuredValue = shapeHeight;
+                                         else if (mode === 'Diagonal') measuredValue = Number(Math.sqrt(shapeWidth*shapeWidth + shapeHeight*shapeHeight).toFixed(1));
+                                         else if (mode === 'Area') measuredValue = shapeWidth * shapeHeight;
+                                     }
                                  } else {
                                      if (mode === 'Width') {
                                          scale = referenceSize / rw;
-                                         measuredValue = Number((detectedW * scale).toFixed(2));
+                                         measuredValue = Number(((detectedShape === 'Circle' ? shapeDiameter : shapeWidth) * scale).toFixed(2));
                                      } else if (mode === 'Height') {
                                          scale = referenceSize / rh;
-                                         measuredValue = Number((detectedH * scale).toFixed(2));
+                                         measuredValue = Number(((detectedShape === 'Circle' ? shapeDiameter : shapeHeight) * scale).toFixed(2));
                                      } else if (mode === 'Diagonal') {
                                          scale = referenceSize / Math.sqrt(rw * rw + rh * rh);
-                                         const diagPixels = Math.sqrt(detectedW * detectedW + detectedH * detectedH);
-                                         measuredValue = Number((diagPixels * scale).toFixed(2));
+                                         if (detectedShape === 'Circle') {
+                                             measuredValue = Number((shapeDiameter * scale).toFixed(2));
+                                         } else {
+                                             const diagPixels = Math.sqrt(shapeWidth * shapeWidth + shapeHeight * shapeHeight);
+                                             measuredValue = Number((diagPixels * scale).toFixed(2));
+                                         }
                                      } else if (mode === 'Area') {
                                          scale = referenceSize / (rw * rh);
-                                         measuredValue = Number((detectedArea * scale).toFixed(2));
+                                         if (detectedShape === 'Circle') {
+                                             const areaPixels = Math.PI * (shapeDiameter / 2) * (shapeDiameter / 2);
+                                             measuredValue = Number((areaPixels * scale).toFixed(2));
+                                         } else {
+                                             measuredValue = Number((detectedArea * scale).toFixed(2));
+                                         }
                                      }
                                  }
                                  
@@ -2483,7 +2541,12 @@ function CameraRegionEditor({
                                      ox: rx + minX,
                                      oy: ry + minY,
                                      ow: detectedW,
-                                     oh: detectedH
+                                     oh: detectedH,
+                                     shape: detectedShape,
+                                     shapeDiameter: detectedShape === 'Circle' ? measuredValue : 0,
+                                     shapeWidth: detectedShape !== 'Circle' ? (unit === 'px' ? shapeWidth : Number((shapeWidth * (referenceSize / rw)).toFixed(2))) : 0,
+                                     shapeHeight: detectedShape !== 'Circle' ? (unit === 'px' ? shapeHeight : Number((shapeHeight * (referenceSize / rh)).toFixed(2))) : 0,
+                                     unit: unit
                                  };
                              } else {
                                  measuredValue = 0;
@@ -2557,13 +2620,31 @@ function CameraRegionEditor({
 
                 // Draw detected object bounding box inside the region
                 if (dimDet && dimDet.enabled && region.objectBox && hasVideoFeed) {
-                    const { ox, oy, ow, oh } = region.objectBox;
+                    const { ox, oy, ow, oh, shape, shapeDiameter, shapeWidth, shapeHeight, unit } = region.objectBox;
                     const isPass = region.lastPassStatus ?? false;
-                    ctx.strokeStyle = isPass ? '#10b981' : '#ef4444';
-                    ctx.lineWidth = 1;
+                    const color = isPass ? '#10b981' : '#ef4444';
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 1.5;
                     ctx.setLineDash([3, 3]);
-                    ctx.strokeRect(ox, oy, ow, oh);
+                    if (shape === 'Circle') {
+                        ctx.beginPath();
+                        ctx.arc(ox + ow / 2, oy + oh / 2, (ow + oh) / 4, 0, 2 * Math.PI);
+                        ctx.stroke();
+                    } else {
+                        ctx.strokeRect(ox, oy, ow, oh);
+                    }
                     ctx.setLineDash([]);
+                    
+                    // Display size and shape label directly on camera feed
+                    ctx.fillStyle = color;
+                    ctx.font = 'bold 9px sans-serif';
+                    let label = '';
+                    if (shape === 'Circle') {
+                        label = `Circle d=${shapeDiameter} ${unit}`;
+                    } else {
+                        label = `${shape} ${shapeWidth}x${shapeHeight} ${unit}`;
+                    }
+                    ctx.fillText(label, ox, oy - 4);
                 }
 
                 // L-shaped corner markers (Tulip-style)
@@ -2635,7 +2716,8 @@ function CameraRegionEditor({
                     ctx.textAlign = 'left';
                     const mode = dimDet.measureMode || 'Width';
                     const val = region.measuredValue !== undefined ? region.measuredValue : 0;
-                    ctx.fillText(`${mode}: ${val} ${dimDet.unit ?? 'mm'} (${isPass ? 'PASS' : 'FAIL'})`, region.x + 6, region.y + region.h - 8);
+                    const shape = region.objectBox?.shape || 'Object';
+                    ctx.fillText(`${shape} (${mode}): ${val} ${dimDet.unit ?? 'mm'} (${isPass ? 'PASS' : 'FAIL'})`, region.x + 6, region.y + region.h - 8);
                 }
             });
 
