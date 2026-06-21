@@ -751,3 +751,26 @@ ALTER TABLE public.vision_models ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all vision_models" ON public.vision_models;
 CREATE POLICY "Allow all vision_models" ON public.vision_models FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
+-- 32. Table: drawings
+CREATE TABLE IF NOT EXISTS public.drawings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    file_type TEXT NOT NULL, -- DXF, SVG, PDF
+    dimensions JSONB DEFAULT '[]',
+    shapes JSONB DEFAULT '[]',
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Ensure columns exist
+ALTER TABLE public.drawings ADD COLUMN IF NOT EXISTS shapes JSONB DEFAULT '[]';
+ALTER TABLE public.drawings ADD COLUMN IF NOT EXISTS data_url TEXT;
+
+GRANT ALL ON TABLE public.drawings TO anon, authenticated;
+ALTER TABLE public.drawings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all drawings" ON public.drawings;
+CREATE POLICY "Allow all drawings" ON public.drawings FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+
+

@@ -29,7 +29,8 @@ import {
   ZoomOut,
   Search,
   Volume2,
-  Ruler
+  Ruler,
+  FileCode
 } from 'lucide-react';
 import TableManager from './components/TableManager';
 import ConnectorManager from './components/ConnectorManager';
@@ -72,6 +73,7 @@ import GlobalHelpAssistant from './components/GlobalHelpAssistant';
 import VoiceControlledCaliperInspection from './components/VoiceControlledCaliperInspection';
 import GlobalVoiceAssistant from './components/GlobalVoiceAssistant';
 import DrawingManager from './components/DrawingManager';
+import DrawingFileManager from './components/DrawingFileManager';
 import { Toaster } from 'react-hot-toast';
 
 const Placeholder = ({ title }) => (
@@ -180,6 +182,7 @@ const App = () => {
   const [shopFloorMenuOpen, setShopFloorMenuOpen] = useState(false);
   const [visionMenuOpen, setVisionMenuOpen] = useState(false);
   const [systemMenuOpen, setSystemMenuOpen] = useState(false);
+  const [drawingsMenuOpen, setDrawingsMenuOpen] = useState(false);
   const appsMenuRef = useRef(null);
   const analyticsMenuRef = useRef(null);
   const logicMenuRef = useRef(null);
@@ -187,6 +190,7 @@ const App = () => {
   const shopFloorMenuRef = useRef(null);
   const visionMenuRef = useRef(null);
   const systemMenuRef = useRef(null);
+  const drawingsMenuRef = useRef(null);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -211,6 +215,9 @@ const App = () => {
       }
       if (systemMenuRef.current && !systemMenuRef.current.contains(event.target)) {
         setSystemMenuOpen(false);
+      }
+      if (drawingsMenuRef.current && !drawingsMenuRef.current.contains(event.target)) {
+        setDrawingsMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -410,19 +417,27 @@ const App = () => {
 
             {/* DRAWINGS */}
             {hasAccess('/builder') && (
-              <Link
-                to="/drawings"
-                style={{
-                  ...navLinkStyle('/drawings'),
-                  backgroundColor: location.pathname === '/drawings' ? '#f0f7ff' : 'transparent',
-                  color: location.pathname === '/drawings' ? '#2563eb' : '#475569',
-                  fontSize: '0.9rem', padding: '6px 12px', fontWeight: 600
-                }}
-                onMouseEnter={(e) => { if (location.pathname !== '/drawings') { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
-                onMouseLeave={(e) => { if (location.pathname !== '/drawings') { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
-              >
-                Drawings
-              </Link>
+              <div style={{ position: 'relative' }} ref={drawingsMenuRef}>
+                <button
+                  onClick={() => setDrawingsMenuOpen(!drawingsMenuOpen)}
+                  style={{
+                    ...navLinkStyle('/drawings'),
+                    backgroundColor: ['/drawings', '/drawings/files'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
+                    color: ['/drawings', '/drawings/files'].includes(location.pathname) ? '#2563eb' : '#475569',
+                    fontSize: '0.9rem', padding: '6px 12px', fontWeight: 600
+                  }}
+                  onMouseEnter={(e) => { if (!['/drawings', '/drawings/files'].includes(location.pathname)) { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
+                  onMouseLeave={(e) => { if (!['/drawings', '/drawings/files'].includes(location.pathname)) { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
+                >
+                  Drawings <ChevronDown size={14} style={{ transform: drawingsMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', marginLeft: '4px' }} />
+                </button>
+                {drawingsMenuOpen && (
+                  <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, backgroundColor: 'white', minWidth: '220px', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)', padding: '8px 0', display: 'flex', flexDirection: 'column', zIndex: 1001, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                    <Link to="/drawings" onClick={() => setDrawingsMenuOpen(false)} style={dropdownItemStyle('/drawings')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/drawings' ? '#f0f7ff' : 'transparent'}><Layout size={16} /> Drawing Canvas & Mapping</Link>
+                    <Link to="/drawings/files" onClick={() => setDrawingsMenuOpen(false)} style={dropdownItemStyle('/drawings/files')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/drawings/files' ? '#f0f7ff' : 'transparent'}><FileCode size={16} /> Drawing File Management</Link>
+                  </div>
+                )}
+              </div>
             )}
 
             {/* SHOP FLOOR */}
@@ -658,6 +673,7 @@ const App = () => {
               <Route path="/file-explorer" element={hasAccess('/file-explorer') ? <FileExplorer /> : <Navigate to="/" replace />} />
               <Route path="/store" element={hasAccess('/store') ? <AppStore /> : <Navigate to="/" replace />} />
               <Route path="/drawings" element={hasAccess('/builder') ? <DrawingManager /> : <Navigate to="/" replace />} />
+              <Route path="/drawings/files" element={hasAccess('/builder') ? <DrawingFileManager /> : <Navigate to="/" replace />} />
               <Route path="/app-management" element={hasAccess('/app-management') ? <AppManagement /> : <Navigate to="/" replace />} />
               <Route path="/tables" element={hasAccess('/tables') ? <TableManager /> : <Navigate to="/" replace />} />
               <Route path="/connectors" element={hasAccess('/connectors') ? <ConnectorManager /> : <Navigate to="/" replace />} />

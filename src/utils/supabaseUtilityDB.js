@@ -479,3 +479,170 @@ export async function saveLiveMeasurement(data) {
     return result.data;
 }
 
+// ── Drawings ──────────────────────────────────────────
+
+export async function getAllDrawings() {
+    try {
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase
+            .from('drawings')
+            .select('*')
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        
+        const mappedData = (data || []).map(d => ({
+            ...d,
+            fileName: d.file_name,
+            fileType: d.file_type
+        }));
+        
+        // Sync local storage cache for offline/fallback use
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('mavi_drawings', JSON.stringify(mappedData));
+        }
+        return mappedData;
+    } catch (err) {
+        console.warn('[Supabase Fallback] Failed to fetch drawings from database, loading from localStorage:', err);
+        if (typeof window !== 'undefined') {
+            try {
+                const cached = localStorage.getItem('mavi_drawings');
+                if (cached) return JSON.parse(cached);
+            } catch (e) {
+                console.error('[Supabase Fallback] Failed to parse local drawings cache:', e);
+            }
+        }
+        return [];
+    }
+}
+
+export async function saveDrawing(drawing) {
+    const payload = {
+        name: drawing.name,
+        file_name: drawing.fileName || drawing.file_name || '',
+        file_type: drawing.fileType || drawing.file_type || 'DXF',
+        dimensions: drawing.dimensions || [],
+        shapes: drawing.shapes || [],
+        data_url: drawing.dataUrl || drawing.data_url || null,
+        updated_at: new Date().toISOString()
+    };
+
+
+    try {
+        const supabase = getSupabaseClient();
+        let result;
+        const isRealUuid = drawing.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(drawing.id);
+        
+        if (isRealUuid) {
+            result = await supabase.from('drawings').update(payload).eq('id', drawing.id).select().single();
+        } else {
+            const insertPayload = { ...payload, created_at: new Date().toISOString() };
+            result = await supabase.from('drawings').insert(insertPayload).select().single();
+        }
+        if (result.error) throw result.error;
+        
+        // Sync local cache
+        if (typeof window !== 'undefined') {
+            try {
+                const cachedRaw = localStorage.getItem('mavi_drawings') || '[]';
+                let list = JSON.parse(cachedRaw);
+                const mappedData = {
+                    ...result.data,
+                    fileName: result.data.file_name,
+                    fileType: result.data.file_type,
+                    dataUrl: result.data.data_url
+                };
+                const index = list.findIndex(d => d.id === drawing.id || d.id === result.data.id);
+                if (index !== -1) {
+                    list[index] = mappedData;
+                } else {
+                    list.push(mappedData);
+                }
+                localStorage.setItem('mavi_drawings', JSON.stringify(list));
+            } catch (e) {
+                console.error('[Supabase Fallback] Failed to update local cache on save:', e);
+            }
+        }
+        return {
+            ...result.data,
+            fileName: result.data.file_name,
+            fileType: result.data.file_type,
+            dataUrl: result.data.data_url
+        };
+    } catch (err) {
+        console.warn('[Supabase Fallback] Failed to save drawing to database, saving to localStorage:', err);
+        if (typeof window !== 'undefined') {
+            try {
+                const cachedRaw = localStorage.getItem('mavi_drawings') || '[]';
+                const list = JSON.parse(cachedRaw);
+                let savedItem;
+                
+                if (drawing.id) {
+                    const index = list.findIndex(d => d.id === drawing.id);
+                    savedItem = {
+                        ...drawing,
+                        ...payload,
+                        id: drawing.id
+                    };
+                    if (index !== -1) {
+                        list[index] = savedItem;
+                    } else {
+                        list.push(savedItem);
+                    }
+                } else {
+                    savedItem = {
+                        ...payload,
+                        fileName: payload.file_name,
+                        fileType: payload.file_type,
+                        id: 'local-' + Math.random().toString(36).substr(2, 9),
+                        created_at: payload.updated_at
+                    };
+                    list.push(savedItem);
+                }
+                
+                localStorage.setItem('mavi_drawings', JSON.stringify(list));
+                return savedItem;
+            } catch (e) {
+                console.error('[Supabase Fallback] Failed to save drawing locally:', e);
+                throw err;
+            }
+        }
+        throw err;
+    }
+}
+
+export async function deleteDrawing(id) {
+    try {
+        const supabase = getSupabaseClient();
+        const isRealUuid = id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+        
+        if (isRealUuid) {
+            const { error } = await supabase.from('drawings').delete().eq('id', id);
+            if (error) throw error;
+        }
+        
+        if (typeof window !== 'undefined') {
+            const cachedRaw = localStorage.getItem('mavi_drawings') || '[]';
+            const list = JSON.parse(cachedRaw);
+            const newList = list.filter(d => d.id !== id);
+            localStorage.setItem('mavi_drawings', JSON.stringify(newList));
+        }
+        return true;
+    } catch (err) {
+        console.warn('[Supabase Fallback] Failed to delete drawing from database, deleting from localStorage:', err);
+        if (typeof window !== 'undefined') {
+            try {
+                const cachedRaw = localStorage.getItem('mavi_drawings') || '[]';
+                const list = JSON.parse(cachedRaw);
+                const newList = list.filter(d => d.id !== id);
+                localStorage.setItem('mavi_drawings', JSON.stringify(newList));
+                return true;
+            } catch (e) {
+                console.error('[Supabase Fallback] Failed to delete drawing locally:', e);
+                throw err;
+            }
+        }
+        throw err;
+    }
+}
+
+
