@@ -144,7 +144,7 @@ class AutomationEngine {
 
       // Log only first 5 events/minute verbosely, then summarize every 50 events.
       if (this.machineTriggerLogState.count <= 5) {
-        console.log(`[AutomationEngine] Triggering event: ${eventType}`, eventData);
+        // console.log(`[AutomationEngine] Triggering event: ${eventType}`, eventData);
       } else if (this.machineTriggerLogState.count % 50 === 0) {
         console.log(`[AutomationEngine] Triggering event: ${eventType} (throttled summary)`, {
           countThisMinute: this.machineTriggerLogState.count,

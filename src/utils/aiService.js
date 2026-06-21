@@ -409,7 +409,9 @@ const getBuilderSystemPrompt = (context) => {
     if (typeof window !== 'undefined' && window.localStorage) {
       const drawings = JSON.parse(window.localStorage.getItem('mavi_drawings') || '[]');
       if (drawings.length > 0) {
-        drawingsStr = drawings.map(d => `  - ID: "${d.id}", Name: "${d.name}", FileName: "${d.fileName}", Format: "${d.fileType}"\n    Dimensions/Parameters:\n${(d.dimensions || []).map(dim => `      * Label: "${dim.label}", Mapped Variable: "${dim.variable}", Spec: "${dim.spec}" (Tol: ${dim.tolMin}-${dim.tolMax} ${dim.unit || 'mm'})`).join('\n')}`).join('\n');
+        drawingsStr = drawings.map(d => `  - ID: "${d.id}", Name: "${d.name}", FileName: "${d.fileName}", Format: "${d.fileType}"
+    Parameters (${(d.dimensions || []).length} total):
+${(d.dimensions || []).map(dim => `      * [${(dim.category || 'dimension').toUpperCase()}${dim.gdt_symbol ? ' ' + dim.gdt_symbol : ''}] Label: "${dim.label}", Variable: "${dim.variable}", Spec: "${dim.spec}" ${dim.unit || 'mm'} (Tol: ${dim.tolMin}–${dim.tolMax}), MeasureType: ${dim.measureType || 'linear_horizontal'}`).join('\n')}`).join('\n');
       }
     }
   } catch (e) {

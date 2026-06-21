@@ -25020,6 +25020,68 @@ const AppBuilder = () => {
                                                             <option value="IGES">IGES</option>
                                                             <option value="STL">STL</option>
                                                         </select>
+
+                                                        {/* GD&T Parameter Summary Table */}
+                                                        {(() => {
+                                                            const fileUrl = selectedComp.props.fileUrl || '';
+                                                            if (!fileUrl) return null;
+                                                            let drawings = [];
+                                                            try { drawings = JSON.parse(localStorage.getItem('mavi_drawings') || '[]'); } catch(e) {}
+                                                            const dwg = drawings.find(d => d.id === fileUrl || d.fileName === fileUrl);
+                                                            if (!dwg || !dwg.dimensions || dwg.dimensions.length === 0) return null;
+
+                                                            const CATEGORY_META = {
+                                                                dimension: { icon: '📏', color: '#3b82f6', label: 'Linear' },
+                                                                diameter:  { icon: '⌀',  color: '#8b5cf6', label: 'Diameter' },
+                                                                radius:   { icon: '⊕',  color: '#06b6d4', label: 'Radius' },
+                                                                angle:    { icon: '∠',  color: '#f59e0b', label: 'Angle' },
+                                                                area:     { icon: '▢',  color: '#10b981', label: 'Area' },
+                                                                roughness:{ icon: '△',  color: '#ef4444', label: 'Roughness' },
+                                                                custom:   { icon: '⚙',  color: '#64748b', label: 'Custom' },
+                                                            };
+
+                                                            // Group by category
+                                                            const grouped = {};
+                                                            dwg.dimensions.forEach(dim => {
+                                                                const cat = dim.category || 'dimension';
+                                                                if (!grouped[cat]) grouped[cat] = [];
+                                                                grouped[cat].push(dim);
+                                                            });
+
+                                                            return (
+                                                                <div style={{ marginTop: '12px' }}>
+                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>MAPPED PARAMETERS ({dwg.dimensions.length})</label>
+                                                                    <div style={{ backgroundColor: 'var(--bg-secondary, #f8fafc)', borderRadius: '8px', border: '1px solid var(--border-primary)', overflow: 'hidden' }}>
+                                                                        {Object.entries(grouped).map(([cat, dims]) => {
+                                                                            const meta = CATEGORY_META[cat] || CATEGORY_META.custom;
+                                                                            return (
+                                                                                <div key={cat}>
+                                                                                    <div style={{ padding: '6px 10px', backgroundColor: `${meta.color}10`, borderBottom: '1px solid var(--border-primary)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                                                        <span style={{ fontSize: '0.8rem' }}>{meta.icon}</span>
+                                                                                        <span style={{ fontSize: '0.68rem', fontWeight: 800, color: meta.color }}>{meta.label}</span>
+                                                                                        <span style={{ fontSize: '0.6rem', color: 'var(--text-quaternary)', marginLeft: 'auto' }}>{dims.length}</span>
+                                                                                    </div>
+                                                                                    {dims.map(dim => (
+                                                                                        <div key={dim.id} style={{ padding: '6px 10px', borderBottom: '1px solid var(--border-primary)', fontSize: '0.68rem' }}>
+                                                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                                                                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{dim.gdt_symbol ? dim.gdt_symbol + ' ' : ''}{dim.label}</span>
+                                                                                                <span style={{ color: 'var(--text-quaternary)', fontSize: '0.6rem' }}>{dim.spec} {dim.unit}</span>
+                                                                                            </div>
+                                                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
+                                                                                                <code style={{ fontSize: '0.6rem', color: meta.color, backgroundColor: `${meta.color}10`, padding: '1px 5px', borderRadius: '3px' }}>
+                                                                                                    {dim.variable || '(unlinked)'}
+                                                                                                </code>
+                                                                                                <span style={{ fontSize: '0.58rem', color: 'var(--text-quaternary)' }}>Tol: {dim.tolMin}–{dim.tolMax}</span>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ))}
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })()}
                                                     </div>
                                                 )}
 
