@@ -324,6 +324,12 @@ export default function DrawingManager() {
     const imageInsertRef = useRef(null); // for image insertion into canvas
     const [dragImageShape, setDragImageShape] = useState(null); // image being dragged/resized on canvas
 
+    // Copilot AI state declarations
+    const [copilotPrompt, setCopilotPrompt] = useState('');
+    const [copilotLoading, setCopilotLoading] = useState(false);
+    const [copilotProgress, setCopilotProgress] = useState(0);
+    const [copilotLog, setCopilotLog] = useState('');
+
     // Close add picker and management menu on outside click
     useEffect(() => {
         const handleClick = (e) => {
@@ -1140,6 +1146,441 @@ export default function DrawingManager() {
         }
     };
 
+    const handleCreateBlankDrawing = () => {
+        const name = window.prompt("Masukkan nama blueprint baru:", "Blueprint Kustom Baru");
+        if (name === null) return;
+        const cleanName = name.trim() || "Blueprint Kustom Baru";
+        
+        const newDwg = {
+            id: `dwg_custom_${Date.now()}`,
+            name: cleanName,
+            fileName: `${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '_')}.cad`,
+            fileType: 'CAD',
+            uploadedAt: new Date().toISOString(),
+            dimensions: [],
+            shapes: []
+        };
+        
+        saveDrawing(newDwg).then(saved => {
+            setDrawings(prev => [saved, ...prev]);
+            setSelectedDwgId(saved.id);
+            setActiveDimId('');
+            toast.success(`Blueprint kustom "${cleanName}" berhasil dibuat!`);
+        }).catch(err => {
+            console.error(err);
+            toast.error('Gagal menyimpan blueprint baru ke database.');
+        });
+        
+        setShowMgmtMenu(false);
+    };
+
+    const handleAIGenerate = () => {
+        if (!copilotPrompt.trim()) {
+            toast.error('Ketik prompt instruksi terlebih dahulu.');
+            return;
+        }
+
+        setCopilotLoading(true);
+        setCopilotProgress(10);
+        setCopilotLog('Menganalisis instruksi prompt...');
+
+        setTimeout(() => {
+            setCopilotProgress(35);
+            setCopilotLog('Menghitung geometri vector 2D...');
+            
+            setTimeout(() => {
+                setCopilotProgress(70);
+                setCopilotLog('Memetakan parameter & hotspot toleransi dimensi...');
+                
+                setTimeout(() => {
+                    setCopilotProgress(90);
+                    setCopilotLog('Menyimpan blueprint CAD ke database...');
+                    
+                    const text = copilotPrompt.toLowerCase();
+                    
+                    // Default values if not specified
+                    let flangeOuter = 160;
+                    let flangeInner = 50;
+                    let boltHoles = 4;
+                    let boltDia = 12;
+                    let boltPcd = 110;
+                    
+                    let shaftLength = 220;
+                    let shaftDia = 40;
+                    let journalDia = 25;
+                    let journalLength = 50;
+                    
+                    let boxWidth = 150;
+                    let boxHeight = 100;
+                    let holeCount = 4;
+                    let holeDia = 10;
+                    
+                    // Extract numbers from text if possible
+                    const numbers = copilotPrompt.match(/\d+/g)?.map(Number) || [];
+                    
+                    let generatedDwgName = "AI Blueprint - Model 2D";
+                    let shapes = [];
+                    let dimensions = [];
+                    
+                    const cx = 250;
+                    const cy = 180;
+
+                    if (text.includes("flens") || text.includes("flange") || text.includes("ring") || text.includes("lingkaran") || text.includes("circle")) {
+                        if (numbers.length >= 1) flangeOuter = numbers[0];
+                        if (numbers.length >= 2) flangeInner = numbers[1];
+                        if (numbers.length >= 3) {
+                            const boltCountMatch = text.match(/(\d+)\s*(lubang|hole|baut)/i);
+                            if (boltCountMatch) {
+                                boltHoles = parseInt(boltCountMatch[1]);
+                            } else {
+                                boltHoles = numbers[2];
+                            }
+                        }
+                        
+                        generatedDwgName = `Flange Connector ⌀${flangeOuter}x⌀${flangeInner} [AI]`;
+                        const outerR = Math.min(120, flangeOuter * 0.7);
+                        const pcdR = outerR * 0.7;
+                        const innerR = outerR * (flangeInner / flangeOuter);
+                        
+                        shapes.push({
+                            id: `ai_shape_outer_${Date.now()}`,
+                            type: 'circle',
+                            cx, cy, r: outerR,
+                            color: '#3b82f6', strokeWidth: 2
+                        });
+                        shapes.push({
+                            id: `ai_shape_pcd_${Date.now()}`,
+                            type: 'circle',
+                            cx, cy, r: pcdR,
+                            color: '#3b82f6', strokeWidth: 1,
+                            strokeDasharray: '4,4'
+                        });
+                        shapes.push({
+                            id: `ai_shape_inner_${Date.now()}`,
+                            type: 'circle',
+                            cx, cy, r: innerR,
+                            color: '#60a5fa', strokeWidth: 2
+                        });
+                        
+                        for (let i = 0; i < boltHoles; i++) {
+                            const angle = (i * 2 * Math.PI) / boltHoles;
+                            shapes.push({
+                                id: `ai_shape_bolt_${i}_${Date.now()}`,
+                                type: 'circle',
+                                cx: Math.round(cx + pcdR * Math.cos(angle)),
+                                cy: Math.round(cy + pcdR * Math.sin(angle)),
+                                r: Math.round(boltDia * 0.4),
+                                color: '#3b82f6', strokeWidth: 1
+                            });
+                        }
+                        
+                        shapes.push({
+                            id: `ai_shape_cl1_${Date.now()}`,
+                            type: 'line',
+                            x1: cx - outerR - 20, y1: cy, x2: cx + outerR + 20, y2: cy,
+                            color: '#3b82f6', strokeWidth: 0.75, strokeDasharray: '10,4,2,4'
+                        });
+                        shapes.push({
+                            id: `ai_shape_cl2_${Date.now()}`,
+                            type: 'line',
+                            x1: cx, y1: cy - outerR - 20, x2: cx, y2: cy + outerR + 20,
+                            color: '#3b82f6', strokeWidth: 0.75, strokeDasharray: '10,4,2,4'
+                        });
+                        
+                        dimensions.push({
+                            id: `dim_ai_outer_${Date.now()}`,
+                            label: 'Flange Outer Diameter',
+                            spec: flangeOuter.toFixed(1),
+                            tolMin: parseFloat((flangeOuter - 0.2).toFixed(2)),
+                            tolMax: parseFloat((flangeOuter + 0.2).toFixed(2)),
+                            variable: 'Outer_Dia',
+                            unit: 'mm',
+                            category: 'diameter',
+                            measureType: 'diameter',
+                            indicatorType: 'radial',
+                            gdt_symbol: '⌀',
+                            x1: cx, y1: cy,
+                            x2: cx + Math.round(outerR * Math.cos(-Math.PI/4)),
+                            y2: cy + Math.round(outerR * Math.sin(-Math.PI/4)),
+                            lx: cx + Math.round((outerR + 20) * Math.cos(-Math.PI/4)),
+                            ly: cy + Math.round((outerR + 20) * Math.sin(-Math.PI/4)),
+                            markerShape: 'default',
+                            markerSize: 60,
+                            triggers: []
+                        });
+                        dimensions.push({
+                            id: `dim_ai_inner_${Date.now()}`,
+                            label: 'Center Bore Diameter',
+                            spec: flangeInner.toFixed(1),
+                            tolMin: parseFloat((flangeInner - 0.1).toFixed(2)),
+                            tolMax: parseFloat((flangeInner + 0.1).toFixed(2)),
+                            variable: 'Cylinder_Bore_Dia',
+                            unit: 'mm',
+                            category: 'diameter',
+                            measureType: 'diameter',
+                            indicatorType: 'radial',
+                            gdt_symbol: '⌀',
+                            x1: cx, y1: cy,
+                            x2: cx + Math.round(innerR * Math.cos(Math.PI/4)),
+                            y2: cy + Math.round(innerR * Math.sin(Math.PI/4)),
+                            lx: cx + Math.round((innerR + 30) * Math.cos(Math.PI/4)),
+                            ly: cy + Math.round((innerR + 30) * Math.sin(Math.PI/4)),
+                            markerShape: 'default',
+                            markerSize: 60,
+                            triggers: [
+                                { id: `trig_ai_bore_${Date.now()}`, type: 'STOP_MACHINE', condition: 'ON_FAIL', priority: 'critical', message: 'Center Bore di luar toleransi! Hentikan lini perakitan.', enabled: true }
+                            ]
+                        });
+                        dimensions.push({
+                            id: `dim_ai_pcd_${Date.now()}`,
+                            label: 'Bolt PCD Circle',
+                            spec: boltPcd.toFixed(1),
+                            tolMin: parseFloat((boltPcd - 0.15).toFixed(2)),
+                            tolMax: parseFloat((boltPcd + 0.15).toFixed(2)),
+                            variable: 'Custom_Param_1',
+                            unit: 'mm',
+                            category: 'dimension',
+                            measureType: 'linear_horizontal',
+                            indicatorType: 'horizontal',
+                            gdt_symbol: '',
+                            x1: cx - Math.round(pcdR), y1: cy,
+                            x2: cx + Math.round(pcdR), y2: cy,
+                            lx: cx, ly: cy + Math.round(pcdR) + 20,
+                            markerShape: 'circle',
+                            markerSize: 50,
+                            triggers: []
+                        });
+                    } else if (text.includes("poros") || text.includes("shaft") || text.includes("rod") || text.includes("silinder") || text.includes("piston") || text.includes("cylinder")) {
+                        if (numbers.length >= 1) shaftLength = numbers[0];
+                        if (numbers.length >= 2) shaftDia = numbers[1];
+                        if (numbers.length >= 3) journalDia = numbers[2];
+                        
+                        generatedDwgName = `Shaft Journal L${shaftLength}x⌀${shaftDia} [AI]`;
+                        const sLen = Math.min(300, shaftLength * 1.2);
+                        const sDia = Math.min(100, shaftDia * 1.5);
+                        const jDia = Math.min(sDia * 0.8, journalDia * 1.5);
+                        const xStart = cx - sLen / 2;
+                        const yStart = cy - sDia / 2;
+                        
+                        shapes.push({
+                            id: `ai_shape_shaft_body_${Date.now()}`,
+                            type: 'rect',
+                            x: Math.round(xStart + journalLength),
+                            y: Math.round(yStart),
+                            w: Math.round(sLen - 2 * journalLength),
+                            h: Math.round(sDia),
+                            color: '#3b82f6', strokeWidth: 2
+                        });
+                        shapes.push({
+                            id: `ai_shape_left_journal_${Date.now()}`,
+                            type: 'rect',
+                            x: Math.round(xStart),
+                            y: Math.round(cy - jDia / 2),
+                            w: Math.round(journalLength),
+                            h: Math.round(jDia),
+                            color: '#60a5fa', strokeWidth: 1.5
+                        });
+                        shapes.push({
+                            id: `ai_shape_right_journal_${Date.now()}`,
+                            type: 'rect',
+                            x: Math.round(xStart + sLen - journalLength),
+                            y: Math.round(cy - jDia / 2),
+                            w: Math.round(journalLength),
+                            h: Math.round(jDia),
+                            color: '#60a5fa', strokeWidth: 1.5
+                        });
+                        shapes.push({
+                            id: `ai_shape_cl_${Date.now()}`,
+                            type: 'line',
+                            x1: xStart - 20, y1: cy, x2: xStart + sLen + 20, y2: cy,
+                            color: '#3b82f6', strokeWidth: 0.75, strokeDasharray: '15,4,2,4'
+                        });
+                        
+                        dimensions.push({
+                            id: `dim_ai_len_${Date.now()}`,
+                            label: 'Total Shaft Length',
+                            spec: shaftLength.toFixed(1),
+                            tolMin: parseFloat((shaftLength - 0.5).toFixed(2)),
+                            tolMax: parseFloat((shaftLength + 0.5).toFixed(2)),
+                            variable: 'Meas_Length',
+                            unit: 'mm',
+                            category: 'dimension',
+                            measureType: 'linear_horizontal',
+                            indicatorType: 'horizontal',
+                            gdt_symbol: '',
+                            x1: Math.round(xStart), y1: Math.round(cy + sDia / 2 + 20),
+                            x2: Math.round(xStart + sLen), y2: Math.round(cy + sDia / 2 + 20),
+                            lx: Math.round(cx), ly: Math.round(cy + sDia / 2 + 35),
+                            markerShape: 'default',
+                            markerSize: 60,
+                            triggers: []
+                        });
+                        dimensions.push({
+                            id: `dim_ai_dia_${Date.now()}`,
+                            label: 'Main Body Diameter',
+                            spec: shaftDia.toFixed(1),
+                            tolMin: parseFloat((shaftDia - 0.05).toFixed(2)),
+                            tolMax: parseFloat((shaftDia + 0.05).toFixed(2)),
+                            variable: 'Meas_Diameter',
+                            unit: 'mm',
+                            category: 'diameter',
+                            measureType: 'diameter',
+                            indicatorType: 'radial',
+                            gdt_symbol: '⌀',
+                            x1: Math.round(cx), y1: Math.round(yStart),
+                            x2: Math.round(cx), y2: Math.round(yStart + sDia),
+                            lx: Math.round(cx + 30), ly: Math.round(cy - 20),
+                            markerShape: 'default',
+                            markerSize: 60,
+                            triggers: []
+                        });
+                        dimensions.push({
+                            id: `dim_ai_j_dia_${Date.now()}`,
+                            label: 'Journal Bearing Dia',
+                            spec: journalDia.toFixed(1),
+                            tolMin: parseFloat((journalDia - 0.02).toFixed(2)),
+                            tolMax: parseFloat((journalDia + 0.02).toFixed(2)),
+                            variable: 'Rod_Diameter_Spec',
+                            unit: 'mm',
+                            category: 'diameter',
+                            measureType: 'diameter',
+                            indicatorType: 'radial',
+                            gdt_symbol: '⌀',
+                            x1: Math.round(xStart + journalLength / 2), y1: Math.round(cy - jDia / 2),
+                            x2: Math.round(xStart + journalLength / 2), y2: Math.round(cy + jDia / 2),
+                            lx: Math.round(xStart + journalLength / 2 - 30), ly: Math.round(cy - 30),
+                            markerShape: 'default',
+                            markerSize: 60,
+                            triggers: [
+                                { id: `trig_ai_j_dia_${Date.now()}`, type: 'NOTIFY_SUPERVISOR', condition: 'ON_FAIL', priority: 'high', message: 'Bearing journal shaft di luar batas toleransi!', enabled: true }
+                            ]
+                        });
+                    } else {
+                        if (numbers.length >= 1) boxWidth = numbers[0];
+                        if (numbers.length >= 2) boxHeight = numbers[1];
+                        
+                        generatedDwgName = `Plate Bracket ${boxWidth}x${boxHeight} [AI]`;
+                        const w = Math.min(300, boxWidth * 1.5);
+                        const h = Math.min(200, boxHeight * 1.5);
+                        
+                        shapes.push({
+                            id: `ai_shape_plate_${Date.now()}`,
+                            type: 'rect',
+                            x: Math.round(cx - w / 2),
+                            y: Math.round(cy - h / 2),
+                            w: Math.round(w),
+                            h: Math.round(h),
+                            color: '#3b82f6', strokeWidth: 2
+                        });
+                        
+                        const offset = 20;
+                        const cornerHoles = [
+                            { x: cx - w/2 + offset, y: cy - h/2 + offset },
+                            { x: cx + w/2 - offset, y: cy - h/2 + offset },
+                            { x: cx - w/2 + offset, y: cy + h/2 - offset },
+                            { x: cx + w/2 - offset, y: cy + h/2 - offset }
+                        ];
+                        
+                        cornerHoles.forEach((hole, idx) => {
+                            shapes.push({
+                                id: `ai_shape_hole_${idx}_${Date.now()}`,
+                                type: 'circle',
+                                cx: Math.round(hole.x), cy: Math.round(hole.y), r: 8,
+                                color: '#60a5fa', strokeWidth: 1.5
+                            });
+                        });
+                        
+                        dimensions.push({
+                            id: `dim_ai_w_${Date.now()}`,
+                            label: 'Plate Overall Width',
+                            spec: boxWidth.toFixed(1),
+                            tolMin: parseFloat((boxWidth - 0.3).toFixed(2)),
+                            tolMax: parseFloat((boxWidth + 0.3).toFixed(2)),
+                            variable: 'Meas_Width',
+                            unit: 'mm',
+                            category: 'dimension',
+                            measureType: 'linear_horizontal',
+                            indicatorType: 'horizontal',
+                            gdt_symbol: '',
+                            x1: Math.round(cx - w / 2), y1: Math.round(cy - h / 2 - 15),
+                            x2: Math.round(cx + w / 2), y2: Math.round(cy - h / 2 - 15),
+                            lx: Math.round(cx), ly: Math.round(cy - h / 2 - 30),
+                            markerShape: 'default',
+                            markerSize: 60,
+                            triggers: []
+                        });
+                        dimensions.push({
+                            id: `dim_ai_h_${Date.now()}`,
+                            label: 'Plate Overall Height',
+                            spec: boxHeight.toFixed(1),
+                            tolMin: parseFloat((boxHeight - 0.2).toFixed(2)),
+                            tolMax: parseFloat((boxHeight + 0.2).toFixed(2)),
+                            variable: 'Meas_Height',
+                            unit: 'mm',
+                            category: 'dimension',
+                            measureType: 'linear_vertical',
+                            indicatorType: 'vertical',
+                            gdt_symbol: '',
+                            x1: Math.round(cx - w / 2 - 15), y1: Math.round(cy - h / 2),
+                            x2: Math.round(cx - w / 2 - 15), y2: Math.round(cy + h / 2),
+                            lx: Math.round(cx - w / 2 - 30), ly: Math.round(cy),
+                            markerShape: 'default',
+                            markerSize: 60,
+                            triggers: []
+                        });
+                        dimensions.push({
+                            id: `dim_ai_hole_dia_${Date.now()}`,
+                            label: 'Mounting Hole Dia',
+                            spec: holeDia.toFixed(1),
+                            tolMin: parseFloat((holeDia - 0.08).toFixed(2)),
+                            tolMax: parseFloat((holeDia + 0.08).toFixed(2)),
+                            variable: 'Inner_Dia',
+                            unit: 'mm',
+                            category: 'diameter',
+                            measureType: 'diameter',
+                            indicatorType: 'radial',
+                            gdt_symbol: '⌀',
+                            x1: Math.round(cx - w/2 + offset), y1: Math.round(cy - h/2 + offset),
+                            x2: Math.round(cx - w/2 + offset + 6), y2: Math.round(cy - h/2 + offset + 6),
+                            lx: Math.round(cx - w/2 + offset + 18), ly: Math.round(cy - h/2 + offset + 18),
+                            markerShape: 'triangle',
+                            markerSize: 45,
+                            triggers: [
+                                { id: `trig_ai_hole_${Date.now()}`, type: 'ESCALATE_QUALITY', condition: 'ON_FAIL', priority: 'high', message: 'Hole diameter out of spec, mounting pins won\'t fit!', enabled: true }
+                            ]
+                        });
+                    }
+
+                    const newDwg = {
+                        id: `dwg_ai_${Date.now()}`,
+                        name: generatedDwgName,
+                        fileName: `${generatedDwgName.toLowerCase().replace(/[^a-z0-9]/g, '_')}.dxf`,
+                        fileType: 'AI_CAD',
+                        uploadedAt: new Date().toISOString(),
+                        dimensions,
+                        shapes
+                    };
+
+                    saveDrawing(newDwg).then(saved => {
+                        setDrawings(prev => [saved, ...prev]);
+                        setSelectedDwgId(saved.id);
+                        if (saved.dimensions?.length > 0) setActiveDimId(saved.dimensions[0].id);
+                        else setActiveDimId('');
+                        
+                        setCopilotLoading(false);
+                        setCopilotProgress(100);
+                        setCopilotPrompt('');
+                        toast.success(`Blueprint "${generatedDwgName}" berhasil digenerasi!`);
+                    }).catch(err => {
+                        console.error(err);
+                        setCopilotLoading(false);
+                        toast.error('Gagal menyimpan blueprint hasil generasi AI.');
+                    });
+                }, 1000);
+            }, 800);
+        }, 800);
+    };
+
     // ─── Upload handlers ───
     const handleFileDrop = (e) => { e.preventDefault(); setIsDragOver(false); if (e.dataTransfer.files?.length > 0) processUploadedFile(e.dataTransfer.files[0]); };
     const handleFileSelect = (e) => { if (e.target.files?.length > 0) processUploadedFile(e.target.files[0]); };
@@ -1717,6 +2158,15 @@ export default function DrawingManager() {
                                 padding: '6px 0', zIndex: 100, width: '200px', display: 'flex', flexDirection: 'column'
                             }}>
                                 <button
+                                    onClick={handleCreateBlankDrawing}
+                                    style={mgmtItemStyle}
+                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                >
+                                    <Plus size={13} color="#2563eb" /> Buat Blueprint Baru
+                                </button>
+                                <div style={{ height: '1px', backgroundColor: '#f1f5f9', margin: '4px 0' }} />
+                                <button
                                     onClick={handleExportSchema}
                                     style={mgmtItemStyle}
                                     onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
@@ -1763,7 +2213,175 @@ export default function DrawingManager() {
             </div>
 
             {/* Main Content */}
-            <div style={{ flex: 1, padding: '0 24px 24px 24px', display: 'grid', gridTemplateColumns: '1fr 340px', gap: '20px', overflow: 'hidden' }}>
+            <div style={{ flex: 1, padding: '0 24px 24px 24px', display: 'grid', gridTemplateColumns: '300px 1fr 340px', gap: '20px', overflow: 'hidden' }}>
+                    
+                    {/* Left Panel: Copilot AI */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
+                        <div style={{
+                            background: 'linear-gradient(135deg, #0f172a, #1e1b4b)',
+                            borderRadius: '12px',
+                            border: '1px solid #312e81',
+                            boxShadow: '0 0 15px rgba(99, 102, 241, 0.15)',
+                            padding: '14px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '10px',
+                            position: 'relative',
+                            overflow: 'hidden'
+                        }}>
+                            {/* Decorative background glow */}
+                            <div style={{
+                                position: 'absolute', top: '-40px', right: '-40px',
+                                width: '100px', height: '100px', borderRadius: '50%',
+                                backgroundColor: 'rgba(99, 102, 241, 0.15)', filter: 'blur(30px)',
+                                pointerEvents: 'none'
+                            }} />
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ fontSize: '1.2rem', animation: 'sparkle 2s ease-in-out infinite' }}>🤖</span>
+                                    <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 900, color: '#e2e8f0', letterSpacing: '0.02em' }}>
+                                        Copilot AI CAD Generator
+                                    </h3>
+                                </div>
+                                <span style={{
+                                    fontSize: '0.55rem', fontWeight: 800, padding: '2px 6px',
+                                    borderRadius: '6px', backgroundColor: '#312e81', color: '#818cf8',
+                                    border: '1px solid #4338ca'
+                                }}>
+                                    BETA
+                                </span>
+                            </div>
+
+                            <p style={{ margin: 0, fontSize: '0.68rem', color: '#94a3b8', lineHeight: '1.4' }}>
+                                Ketik prompt gambar 2D yang ingin Anda buat beserta ukurannya (misal: Flens ⌀150 dengan lubang tengah ⌀40).
+                            </p>
+
+                            <textarea
+                                value={copilotPrompt}
+                                onChange={(e) => setCopilotPrompt(e.target.value)}
+                                disabled={copilotLoading}
+                                placeholder="Contoh: Buat ring flens diameter 150mm, lubang tengah 40mm, dan 6 lubang baut..."
+                                rows={2}
+                                style={{
+                                    width: '100%', padding: '8px 10px', borderRadius: '8px',
+                                    border: '1px solid #334155', backgroundColor: '#0f172a',
+                                    color: '#f8fafc', fontSize: '0.72rem', outline: 'none',
+                                    resize: 'none', fontFamily: "'Inter', sans-serif",
+                                    transition: 'border-color 0.2s',
+                                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)'
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleAIGenerate();
+                                    }
+                                }}
+                            />
+
+                            {copilotLoading ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '6px 0' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.62rem', color: '#818cf8', fontWeight: 800 }}>
+                                        <span>{copilotLog}</span>
+                                        <span>{copilotProgress}%</span>
+                                    </div>
+                                    <div style={{ width: '100%', height: '6px', backgroundColor: '#1e293b', borderRadius: '3px', overflow: 'hidden' }}>
+                                        <div style={{ width: `${copilotProgress}%`, height: '100%', backgroundColor: '#6366f1', borderRadius: '3px', transition: 'width 0.3s ease' }} />
+                                    </div>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <button
+                                        onClick={handleAIGenerate}
+                                        style={{
+                                            padding: '8px 12px',
+                                            background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+                                            color: 'white', border: 'none', borderRadius: '8px',
+                                            fontWeight: 800, cursor: 'pointer', fontSize: '0.72rem',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            gap: '6px', boxShadow: '0 4px 10px rgba(79, 70, 229, 0.3)',
+                                            transition: 'opacity 0.2s'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                                        onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                                    >
+                                        <Zap size={12} fill="white" /> Generasikan Model CAD
+                                    </button>
+
+                                    {/* Prompt Suggestions */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <span style={{ fontSize: '0.58rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Rekomendasi Prompt:</span>
+                                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                            {[
+                                                { label: '⌀160 Flange', text: 'Buat flens bundar diameter 160mm dengan lubang tengah 50mm dan 8 lubang baut' },
+                                                { label: 'Shaft Poros', text: 'Buat poros shaft dengan panjang total 220mm, diameter utama 40mm dan bearing journal 25mm' },
+                                                { label: 'Bracket Plate', text: 'Buat pelat braket kustom dengan ukuran 150x100mm dan mounting hole 4 lubang' }
+                                            ].map((sug, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    onClick={() => setCopilotPrompt(sug.text)}
+                                                    style={{
+                                                        border: '1px solid #334155', backgroundColor: 'transparent',
+                                                        color: '#94a3b8', fontSize: '0.62rem', padding: '3px 6px',
+                                                        borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s'
+                                                    }}
+                                                    onMouseEnter={(e) => { e.currentTarget.style.color = '#e2e8f0'; e.currentTarget.style.borderColor = '#4f46e5'; }}
+                                                    onMouseLeave={(e) => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.borderColor = '#334155'; }}
+                                                >
+                                                    {sug.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <style>{`
+                                @keyframes sparkle {
+                                    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px rgba(99, 102, 241, 0.4)); }
+                                    50% { transform: scale(1.1); filter: drop-shadow(0 0 8px rgba(99, 102, 241, 0.8)); }
+                                }
+                            `}</style>
+                        </div>
+
+                        {/* MANUAL BLANK BLUEPRINT CARD */}
+                        <div style={{
+                            backgroundColor: 'white',
+                            borderRadius: '12px',
+                            border: '1px solid #e2e8f0',
+                            padding: '14px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '10px',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '1.2rem' }}>➕</span>
+                                <h3 style={{ margin: 0, fontSize: '0.82rem', fontWeight: 800, color: '#1e293b' }}>
+                                    Desain Manual Kanvas Kosong
+                                </h3>
+                            </div>
+                            <p style={{ margin: 0, fontSize: '0.68rem', color: '#64748b', lineHeight: '1.4' }}>
+                                Mulai dari kanvas kosong untuk menggambar garis, lingkaran, teks, menyisipkan gambar, dan memetakan dimensi parameter secara manual.
+                            </p>
+                            <button
+                                onClick={handleCreateBlankDrawing}
+                                style={{
+                                    padding: '8px 12px',
+                                    backgroundColor: '#2563eb',
+                                    color: 'white', border: 'none', borderRadius: '8px',
+                                    fontWeight: 800, cursor: 'pointer', fontSize: '0.72rem',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    gap: '6px', transition: 'background-color 0.2s',
+                                    boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1d4ed8'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
+                            >
+                                <Plus size={12} /> Buat Blueprint Baru
+                            </button>
+                        </div>
+                    </div>
                     
                     {/* Interactive Editor Canvas */}
                     <div style={{ backgroundColor: '#0b1d33', borderRadius: '16px', border: '1px solid #1e3a8a', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
