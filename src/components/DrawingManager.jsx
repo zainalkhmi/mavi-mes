@@ -39,7 +39,9 @@ import {
     AlertTriangle,
     FileText,
     Globe,
-    Power
+    Power,
+    ImagePlus,
+    Move
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getAllDrawings, saveDrawing, deleteDrawing } from '../utils/supabaseUtilityDB';
@@ -319,6 +321,8 @@ export default function DrawingManager() {
     const addPickerRef = useRef(null);
     const mgmtMenuRef = useRef(null);
     const fileSchemaRef = useRef(null);
+    const imageInsertRef = useRef(null); // for image insertion into canvas
+    const [dragImageShape, setDragImageShape] = useState(null); // image being dragged/resized on canvas
 
     // Close add picker and management menu on outside click
     useEffect(() => {
@@ -857,10 +861,24 @@ export default function DrawingManager() {
                 left
             });
             setTextInputValue('');
+        } else if (cadTool === 'image') {
+            // For image tool, clicking the canvas triggers file picker
+            if (imageInsertRef.current) {
+                imageInsertRef.current.click();
+            }
         }
     };
 
     const handleSvgMouseMove = (e) => {
+        if (dragImageShape) {
+            const coords = getCanvasCoords(e);
+            setDragImageShape(prev => ({
+                ...prev,
+                currentX: Math.round(coords.x - prev.offsetX),
+                currentY: Math.round(coords.y - prev.offsetY)
+            }));
+            return;
+        }
         if (!drawingShape) return;
         const coords = getCanvasCoords(e);
         
@@ -894,6 +912,22 @@ export default function DrawingManager() {
     };
 
     const handleSvgMouseUp = () => {
+        if (dragImageShape) {
+            const currentShapes = selectedDwg.shapes || [];
+            const updatedShapes = currentShapes.map(s => {
+                if (s.id === dragImageShape.id) {
+                    return {
+                        ...s,
+                        x: dragImageShape.currentX,
+                        y: dragImageShape.currentY
+                    };
+                }
+                return s;
+            });
+            updateShapes(updatedShapes);
+            setDragImageShape(null);
+            return;
+        }
         if (!drawingShape) return;
         if (!selectedDwg) {
             setDrawingShape(null);
@@ -962,6 +996,68 @@ export default function DrawingManager() {
                 toast.error('Gagal menghapus gambar dari database.');
             }
         }
+    };
+
+    // ─── Image Insertion Handler ───
+    const handleImageInsert = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp', 'image/gif', 'image/bmp'];
+        if (!validTypes.includes(file.type)) {
+            toast.error('Format gambar tidak didukung. Gunakan PNG, JPG, SVG, WebP, atau GIF.');
+            return;
+        }
+
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error('Ukuran gambar terlalu besar. Maksimal 5MB.');
+            return;
+        }
+
+        if (!selectedDwg) {
+            toast.error('Pilih atau buat blueprint terlebih dahulu.');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const dataUrl = event.target.result;
+            
+            // Create a temp image to get natural dimensions
+            const img = new window.Image();
+            img.onload = () => {
+                // Scale to fit within canvas, max 300px wide or 250px tall
+                let w = img.naturalWidth;
+                let h = img.naturalHeight;
+                const maxW = 300;
+                const maxH = 250;
+                if (w > maxW) { h = h * (maxW / w); w = maxW; }
+                if (h > maxH) { w = w * (maxH / h); h = maxH; }
+                w = Math.round(w);
+                h = Math.round(h);
+
+                const newShape = {
+                    id: `shape_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+                    type: 'image',
+                    x: Math.round(250 - w / 2), // center horizontally
+                    y: Math.round(180 - h / 2), // center vertically
+                    w,
+                    h,
+                    src: dataUrl,
+                    fileName: file.name,
+                    opacity: 0.85,
+                };
+
+                const currentShapes = selectedDwg.shapes || [];
+                updateShapes([...currentShapes, newShape]);
+                toast.success(`Gambar "${file.name}" berhasil disisipkan ke canvas.`);
+            };
+            img.src = dataUrl;
+        };
+        reader.readAsDataURL(file);
+        
+        // Reset input so same file can be re-selected
+        e.target.value = '';
     };
 
     // ─── Drawing Management Handlers ───
@@ -1805,6 +1901,29 @@ export default function DrawingManager() {
                                 >
                                     <Eraser size={16} />
                                 </button>
+                                <button
+                                    title="Insert Image / Sisipkan Gambar"
+                                    onClick={() => {
+                                        setCadTool('image');
+                                        if (imageInsertRef.current) {
+                                            imageInsertRef.current.click();
+                                        }
+                                    }}
+                                    style={{
+                                        background: cadTool === 'image' ? '#10b981' : 'transparent',
+                                        border: 'none',
+                                        color: 'white',
+                                        padding: '6px',
+                                        borderRadius: '4px',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        transition: 'background-color 0.2s'
+                                    }}
+                                >
+                                    <ImagePlus size={16} />
+                                </button>
                             </div>
 
                             {/* Color swatches */}
@@ -1986,6 +2105,15 @@ export default function DrawingManager() {
                             </button>
                         </div>
 
+                        {/* Hidden image input for canvas image insertion */}
+                        <input
+                            ref={imageInsertRef}
+                            type="file"
+                            accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp,image/gif,image/bmp"
+                            onChange={handleImageInsert}
+                            style={{ display: 'none' }}
+                        />
+
                         {/* Canvas SVG */}
                         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', position: 'relative', width: '100%', minHeight: 0 }}>
                             <svg
@@ -2001,9 +2129,11 @@ export default function DrawingManager() {
                                     width: 'auto',
                                     height: 'auto',
                                     aspectRatio: '500 / 360',
-                                    cursor: cadTool === 'select'
-                                        ? (activeDim ? 'crosshair' : 'default')
-                                        : (cadTool === 'erase' ? 'pointer' : 'crosshair')
+                                    cursor: dragImageShape
+                                        ? 'grabbing'
+                                        : (cadTool === 'select'
+                                            ? (activeDim ? 'crosshair' : 'default')
+                                            : (cadTool === 'erase' ? 'pointer' : 'crosshair'))
                                 }}
                             >
                                 <defs>
@@ -2068,6 +2198,8 @@ export default function DrawingManager() {
                                                 const currentShapes = selectedDwg.shapes || [];
                                                 updateShapes(currentShapes.filter(s => s.id !== shape.id));
                                                 toast.success('Bentuk terhapus', { id: 'erase-shape' });
+                                            } else if (cadTool === 'select' && shape.type === 'image') {
+                                                e.stopPropagation();
                                             }
                                         };
                                         
@@ -2151,6 +2283,85 @@ export default function DrawingManager() {
                                                 >
                                                     {shape.text}
                                                 </text>
+                                            );
+                                        } else if (shape.type === 'image') {
+                                            const isDraggingThis = dragImageShape && dragImageShape.id === shape.id;
+                                            const displayX = isDraggingThis ? dragImageShape.currentX : shape.x;
+                                            const displayY = isDraggingThis ? dragImageShape.currentY : shape.y;
+                                            return (
+                                                <g key={shape.id}>
+                                                    <image
+                                                        href={shape.src}
+                                                        x={displayX}
+                                                        y={displayY}
+                                                        width={shape.w}
+                                                        height={shape.h}
+                                                        opacity={shape.opacity || 0.85}
+                                                        preserveAspectRatio="none"
+                                                        onClick={handleShapeClick}
+                                                        onMouseDown={(e) => {
+                                                            if (cadTool !== 'select') return;
+                                                            e.stopPropagation();
+                                                            e.preventDefault();
+                                                            const coords = getCanvasCoords(e);
+                                                            setDragImageShape({
+                                                                id: shape.id,
+                                                                offsetX: coords.x - shape.x,
+                                                                offsetY: coords.y - shape.y,
+                                                                currentX: shape.x,
+                                                                currentY: shape.y
+                                                            });
+                                                        }}
+                                                        style={{
+                                                            cursor: cadTool === 'erase'
+                                                                ? 'pointer'
+                                                                : (cadTool === 'select' ? 'grab' : 'default'),
+                                                            transition: isDraggingThis ? 'none' : 'opacity 0.2s',
+                                                        }}
+                                                        onMouseEnter={(e) => {
+                                                            if (cadTool === 'erase') {
+                                                                e.currentTarget.style.opacity = '0.3';
+                                                                e.currentTarget.style.outline = '2px dashed #ef4444';
+                                                            }
+                                                        }}
+                                                        onMouseLeave={(e) => {
+                                                            e.currentTarget.style.opacity = shape.opacity || 0.85;
+                                                            e.currentTarget.style.outline = 'none';
+                                                        }}
+                                                    />
+                                                    {/* Image border indicator */}
+                                                    <rect
+                                                        x={displayX}
+                                                        y={displayY}
+                                                        width={shape.w}
+                                                        height={shape.h}
+                                                        fill="none"
+                                                        stroke="#3b82f680"
+                                                        strokeWidth="0.5"
+                                                        strokeDasharray="4,2"
+                                                        pointerEvents="none"
+                                                    />
+                                                    {/* Label badge */}
+                                                    <rect
+                                                        x={displayX}
+                                                        y={displayY - 11}
+                                                        width={Math.min(shape.fileName?.length * 4.5 + 12 || 50, shape.w)}
+                                                        height="11"
+                                                        rx="2"
+                                                        fill="#0f172aCC"
+                                                        pointerEvents="none"
+                                                    />
+                                                    <text
+                                                        x={displayX + 4}
+                                                        y={displayY - 3}
+                                                        fill="#94a3b8"
+                                                        fontSize="6"
+                                                        fontFamily="monospace"
+                                                        pointerEvents="none"
+                                                    >
+                                                        🖼 {(shape.fileName || 'image').substring(0, Math.floor(shape.w / 4.5))}
+                                                    </text>
+                                                </g>
                                             );
                                         }
                                         return null;
@@ -2252,7 +2463,7 @@ export default function DrawingManager() {
                         <div style={{ padding: '10px 16px', backgroundColor: 'rgba(30, 58, 138, 0.2)', borderTop: '1px solid #1e3a8a', display: 'flex', gap: '8px', alignItems: 'center' }}>
                             <HelpCircle size={14} color="#60a5fa" style={{ flexShrink: 0 }} />
                             <span style={{ fontSize: '0.68rem', color: '#93c5fd' }}>
-                                <b>Tips:</b> Klik label pada canvas untuk memilih, lalu <b>klik di mana saja</b> untuk reposisi. Warna berubah berdasarkan status QC.
+                                <b>Tips:</b> Klik label pada canvas untuk memilih, lalu <b>klik di mana saja</b> untuk reposisi. Gunakan <b>🖼 Insert Image</b> untuk menyisipkan gambar ke canvas. Warna berubah berdasarkan status QC.
                             </span>
                         </div>
                     </div>
