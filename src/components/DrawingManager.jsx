@@ -323,6 +323,12 @@ export default function DrawingManager() {
     const fileSchemaRef = useRef(null);
     const imageInsertRef = useRef(null); // for image insertion into canvas
     const [dragImageShape, setDragImageShape] = useState(null); // image being dragged/resized on canvas
+    const [selectedShapeId, setSelectedShapeId] = useState(null); // currently selected shape ID (e.g. image)
+
+    // Clear selection on tool or drawing change
+    useEffect(() => {
+        setSelectedShapeId(null);
+    }, [cadTool, selectedDwgId]);
 
     // Copilot AI state declarations
     const [copilotPrompt, setCopilotPrompt] = useState('');
@@ -878,10 +884,68 @@ export default function DrawingManager() {
     const handleSvgMouseMove = (e) => {
         if (dragImageShape) {
             const coords = getCanvasCoords(e);
+            const dx = coords.x - dragImageShape.startX;
+            const dy = coords.y - dragImageShape.startY;
+            
+            const start = dragImageShape.startShape;
+            const crop = start.crop || { x: 0, y: 0, w: start.naturalWidth || start.w, h: start.naturalHeight || start.h };
+            const natW = start.naturalWidth || start.w;
+            const natH = start.naturalHeight || start.h;
+
+            let nextX = start.x;
+            let nextY = start.y;
+            let nextW = start.w;
+            let nextH = start.h;
+            let nextCrop = { ...crop };
+
+            if (dragImageShape.type === 'move') {
+                nextX = Math.round(coords.x - dragImageShape.offsetX);
+                nextY = Math.round(coords.y - dragImageShape.offsetY);
+            } else if (dragImageShape.type === 'resize-br') {
+                nextW = Math.max(10, Math.round(start.w + dx));
+                nextH = Math.max(10, Math.round(start.h + dy));
+            } else if (dragImageShape.type === 'resize-bl') {
+                nextW = Math.max(10, Math.round(start.w - dx));
+                nextH = Math.max(10, Math.round(start.h + dy));
+                nextX = Math.round(start.x + (start.w - nextW));
+            } else if (dragImageShape.type === 'resize-tr') {
+                nextW = Math.max(10, Math.round(start.w + dx));
+                nextH = Math.max(10, Math.round(start.h - dy));
+                nextY = Math.round(start.y + (start.h - nextH));
+            } else if (dragImageShape.type === 'resize-tl') {
+                nextW = Math.max(10, Math.round(start.w - dx));
+                nextH = Math.max(10, Math.round(start.h - dy));
+                nextX = Math.round(start.x + (start.w - nextW));
+                nextY = Math.round(start.y + (start.h - nextH));
+            } else if (dragImageShape.type === 'crop-r') {
+                nextW = Math.max(10, Math.round(start.w + dx));
+                const deltaW = nextW - start.w;
+                nextCrop.w = Math.max(10, Math.min(natW - crop.x, Math.round(crop.w + (deltaW * (crop.w / start.w)))));
+            } else if (dragImageShape.type === 'crop-l') {
+                nextW = Math.max(10, Math.round(start.w - dx));
+                const deltaW = start.w - nextW;
+                nextX = Math.round(start.x + deltaW);
+                nextCrop.x = Math.max(0, Math.min(natW - 10, Math.round(crop.x + (deltaW * (crop.w / start.w)))));
+                nextCrop.w = Math.max(10, Math.round(crop.w - (deltaW * (crop.w / start.w))));
+            } else if (dragImageShape.type === 'crop-b') {
+                nextH = Math.max(10, Math.round(start.h + dy));
+                const deltaH = nextH - start.h;
+                nextCrop.h = Math.max(10, Math.min(natH - crop.y, Math.round(crop.h + (deltaH * (crop.h / start.h)))));
+            } else if (dragImageShape.type === 'crop-t') {
+                nextH = Math.max(10, Math.round(start.h - dy));
+                const deltaH = start.h - nextH;
+                nextY = Math.round(start.y + deltaH);
+                nextCrop.y = Math.max(0, Math.min(natH - 10, Math.round(crop.y + (deltaH * (crop.h / start.h)))));
+                nextCrop.h = Math.max(10, Math.round(crop.h - (deltaH * (crop.h / start.h))));
+            }
+
             setDragImageShape(prev => ({
                 ...prev,
-                currentX: Math.round(coords.x - prev.offsetX),
-                currentY: Math.round(coords.y - prev.offsetY)
+                currentX: nextX,
+                currentY: nextY,
+                currentW: nextW,
+                currentH: nextH,
+                currentCrop: nextCrop
             }));
             return;
         }
@@ -924,8 +988,11 @@ export default function DrawingManager() {
                 if (s.id === dragImageShape.id) {
                     return {
                         ...s,
-                        x: dragImageShape.currentX,
-                        y: dragImageShape.currentY
+                        x: dragImageShape.currentX !== undefined ? dragImageShape.currentX : s.x,
+                        y: dragImageShape.currentY !== undefined ? dragImageShape.currentY : s.y,
+                        w: dragImageShape.currentW !== undefined ? dragImageShape.currentW : s.w,
+                        h: dragImageShape.currentH !== undefined ? dragImageShape.currentH : s.h,
+                        crop: dragImageShape.currentCrop !== undefined ? dragImageShape.currentCrop : s.crop
                     };
                 }
                 return s;
@@ -950,6 +1017,10 @@ export default function DrawingManager() {
 
     const handleCanvasClick = (e) => {
         if (cadTool !== 'select') return;
+        
+        // Clear active selection on background click
+        setSelectedShapeId(null);
+        
         if (!activeDim) return;
         const coords = getCanvasCoords(e);
         const x = coords.x;
@@ -1052,6 +1123,9 @@ export default function DrawingManager() {
                     src: dataUrl,
                     fileName: file.name,
                     opacity: 0.85,
+                    naturalWidth: img.naturalWidth || w,
+                    naturalHeight: img.naturalHeight || h,
+                    crop: { x: 0, y: 0, w: img.naturalWidth || w, h: img.naturalHeight || h }
                 };
 
                 const currentShapes = selectedDwg.shapes || [];
@@ -3049,34 +3123,60 @@ export default function DrawingManager() {
                                             const isDraggingThis = dragImageShape && dragImageShape.id === shape.id;
                                             const displayX = isDraggingThis ? dragImageShape.currentX : shape.x;
                                             const displayY = isDraggingThis ? dragImageShape.currentY : shape.y;
+                                            const displayW = isDraggingThis ? dragImageShape.currentW : shape.w;
+                                            const displayH = isDraggingThis ? dragImageShape.currentH : shape.h;
+                                            
+                                            const defaultCrop = { x: 0, y: 0, w: shape.naturalWidth || shape.w, h: shape.naturalHeight || shape.h };
+                                            const crop = isDraggingThis && dragImageShape.currentCrop ? dragImageShape.currentCrop : (shape.crop || defaultCrop);
+                                            const natW = shape.naturalWidth || shape.w;
+                                            const natH = shape.naturalHeight || shape.h;
+
+                                            const isSelected = selectedShapeId === shape.id;
+
                                             return (
                                                 <g key={shape.id}>
-                                                    <image
-                                                        href={shape.src}
+                                                    {/* Cropped Image using nested <svg> viewport */}
+                                                    <svg
                                                         x={displayX}
                                                         y={displayY}
-                                                        width={shape.w}
-                                                        height={shape.h}
-                                                        opacity={shape.opacity || 0.85}
+                                                        width={displayW}
+                                                        height={displayH}
+                                                        viewBox={`${crop.x} ${crop.y} ${crop.w} ${crop.h}`}
                                                         preserveAspectRatio="none"
-                                                        onClick={handleShapeClick}
+                                                        opacity={shape.opacity || 0.85}
+                                                        onClick={(e) => {
+                                                            if (cadTool === 'erase') {
+                                                                handleShapeClick(e);
+                                                            } else if (cadTool === 'select') {
+                                                                e.stopPropagation();
+                                                                setSelectedShapeId(shape.id);
+                                                            }
+                                                        }}
                                                         onMouseDown={(e) => {
                                                             if (cadTool !== 'select') return;
                                                             e.stopPropagation();
                                                             e.preventDefault();
                                                             const coords = getCanvasCoords(e);
+                                                            setSelectedShapeId(shape.id);
                                                             setDragImageShape({
                                                                 id: shape.id,
+                                                                type: 'move',
+                                                                startX: coords.x,
+                                                                startY: coords.y,
                                                                 offsetX: coords.x - shape.x,
                                                                 offsetY: coords.y - shape.y,
+                                                                startShape: shape,
                                                                 currentX: shape.x,
-                                                                currentY: shape.y
+                                                                currentY: shape.y,
+                                                                currentW: shape.w,
+                                                                currentH: shape.h,
+                                                                currentCrop: crop
                                                             });
                                                         }}
                                                         style={{
                                                             cursor: cadTool === 'erase'
                                                                 ? 'pointer'
-                                                                : (cadTool === 'select' ? 'grab' : 'default'),
+                                                                : (cadTool === 'select' ? (isDraggingThis ? 'grabbing' : 'grab') : 'default'),
                                                             transition: isDraggingThis ? 'none' : 'opacity 0.2s',
                                                         }}
                                                         onMouseEnter={(e) => {
@@ -3089,39 +3189,353 @@ export default function DrawingManager() {
                                                             e.currentTarget.style.opacity = shape.opacity || 0.85;
                                                             e.currentTarget.style.outline = 'none';
                                                         }}
-                                                    />
+                                                    >
+                                                        <image
+                                                            href={shape.src}
+                                                            x="0"
+                                                            y="0"
+                                                            width={natW}
+                                                            height={natH}
+                                                        />
+                                                    </svg>
+                                                    
                                                     {/* Image border indicator */}
                                                     <rect
                                                         x={displayX}
                                                         y={displayY}
-                                                        width={shape.w}
-                                                        height={shape.h}
+                                                        width={displayW}
+                                                        height={displayH}
                                                         fill="none"
-                                                        stroke="#3b82f680"
-                                                        strokeWidth="0.5"
-                                                        strokeDasharray="4,2"
+                                                        stroke={isSelected ? "#8b5cf6" : "#3b82f680"}
+                                                        strokeWidth={isSelected ? "1.5" : "0.5"}
+                                                        strokeDasharray={isSelected ? "none" : "4,2"}
                                                         pointerEvents="none"
                                                     />
-                                                    {/* Label badge */}
-                                                    <rect
-                                                        x={displayX}
-                                                        y={displayY - 11}
-                                                        width={Math.min(shape.fileName?.length * 4.5 + 12 || 50, shape.w)}
-                                                        height="11"
-                                                        rx="2"
-                                                        fill="#0f172aCC"
-                                                        pointerEvents="none"
-                                                    />
-                                                    <text
-                                                        x={displayX + 4}
-                                                        y={displayY - 3}
-                                                        fill="#94a3b8"
-                                                        fontSize="6"
-                                                        fontFamily="monospace"
-                                                        pointerEvents="none"
-                                                    >
-                                                        🖼 {(shape.fileName || 'image').substring(0, Math.floor(shape.w / 4.5))}
-                                                    </text>
+
+                                                    {/* Selected overlay handles */}
+                                                    {isSelected && cadTool === 'select' && (
+                                                        <>
+                                                            {/* Corner Resize Handles */}
+                                                            {/* Top-Left */}
+                                                            <rect
+                                                                x={displayX - 4}
+                                                                y={displayY - 4}
+                                                                width="8"
+                                                                height="8"
+                                                                fill="white"
+                                                                stroke="#8b5cf6"
+                                                                strokeWidth="1.5"
+                                                                style={{ cursor: 'nwse-resize' }}
+                                                                onMouseDown={(e) => {
+                                                                    e.stopPropagation();
+                                                                    e.preventDefault();
+                                                                    const coords = getCanvasCoords(e);
+                                                                    setDragImageShape({
+                                                                        id: shape.id,
+                                                                        type: 'resize-tl',
+                                                                        startX: coords.x,
+                                                                        startY: coords.y,
+                                                                        startShape: shape,
+                                                                        currentX: shape.x,
+                                                                        currentY: shape.y,
+                                                                        currentW: shape.w,
+                                                                        currentH: shape.h,
+                                                                        currentCrop: crop
+                                                                    });
+                                                                }}
+                                                            />
+                                                            {/* Top-Right */}
+                                                            <rect
+                                                                x={displayX + displayW - 4}
+                                                                y={displayY - 4}
+                                                                width="8"
+                                                                height="8"
+                                                                fill="white"
+                                                                stroke="#8b5cf6"
+                                                                strokeWidth="1.5"
+                                                                style={{ cursor: 'nesw-resize' }}
+                                                                onMouseDown={(e) => {
+                                                                    e.stopPropagation();
+                                                                    e.preventDefault();
+                                                                    const coords = getCanvasCoords(e);
+                                                                    setDragImageShape({
+                                                                        id: shape.id,
+                                                                        type: 'resize-tr',
+                                                                        startX: coords.x,
+                                                                        startY: coords.y,
+                                                                        startShape: shape,
+                                                                        currentX: shape.x,
+                                                                        currentY: shape.y,
+                                                                        currentW: shape.w,
+                                                                        currentH: shape.h,
+                                                                        currentCrop: crop
+                                                                    });
+                                                                }}
+                                                            />
+                                                            {/* Bottom-Left */}
+                                                            <rect
+                                                                x={displayX - 4}
+                                                                y={displayY + displayH - 4}
+                                                                width="8"
+                                                                height="8"
+                                                                fill="white"
+                                                                stroke="#8b5cf6"
+                                                                strokeWidth="1.5"
+                                                                style={{ cursor: 'nesw-resize' }}
+                                                                onMouseDown={(e) => {
+                                                                    e.stopPropagation();
+                                                                    e.preventDefault();
+                                                                    const coords = getCanvasCoords(e);
+                                                                    setDragImageShape({
+                                                                        id: shape.id,
+                                                                        type: 'resize-bl',
+                                                                        startX: coords.x,
+                                                                        startY: coords.y,
+                                                                        startShape: shape,
+                                                                        currentX: shape.x,
+                                                                        currentY: shape.y,
+                                                                        currentW: shape.w,
+                                                                        currentH: shape.h,
+                                                                        currentCrop: crop
+                                                                    });
+                                                                }}
+                                                            />
+                                                            {/* Bottom-Right */}
+                                                            <rect
+                                                                x={displayX + displayW - 4}
+                                                                y={displayY + displayH - 4}
+                                                                width="8"
+                                                                height="8"
+                                                                fill="white"
+                                                                stroke="#8b5cf6"
+                                                                strokeWidth="1.5"
+                                                                style={{ cursor: 'nwse-resize' }}
+                                                                onMouseDown={(e) => {
+                                                                    e.stopPropagation();
+                                                                    e.preventDefault();
+                                                                    const coords = getCanvasCoords(e);
+                                                                    setDragImageShape({
+                                                                        id: shape.id,
+                                                                        type: 'resize-br',
+                                                                        startX: coords.x,
+                                                                        startY: coords.y,
+                                                                        startShape: shape,
+                                                                        currentX: shape.x,
+                                                                        currentY: shape.y,
+                                                                        currentW: shape.w,
+                                                                        currentH: shape.h,
+                                                                        currentCrop: crop
+                                                                    });
+                                                                }}
+                                                            />
+
+                                                            {/* Edge Crop Handles */}
+                                                            {/* Top Crop */}
+                                                            <rect
+                                                                x={displayX + displayW / 2 - 8}
+                                                                y={displayY - 3}
+                                                                width="16"
+                                                                height="4"
+                                                                fill="#1e293b"
+                                                                stroke="#8b5cf6"
+                                                                strokeWidth="0.5"
+                                                                style={{ cursor: 'ns-resize' }}
+                                                                onMouseDown={(e) => {
+                                                                    e.stopPropagation();
+                                                                    e.preventDefault();
+                                                                    const coords = getCanvasCoords(e);
+                                                                    setDragImageShape({
+                                                                        id: shape.id,
+                                                                        type: 'crop-t',
+                                                                        startX: coords.x,
+                                                                        startY: coords.y,
+                                                                        startShape: shape,
+                                                                        currentX: shape.x,
+                                                                        currentY: shape.y,
+                                                                        currentW: shape.w,
+                                                                        currentH: shape.h,
+                                                                        currentCrop: crop
+                                                                    });
+                                                                }}
+                                                            />
+                                                            {/* Bottom Crop */}
+                                                            <rect
+                                                                x={displayX + displayW / 2 - 8}
+                                                                y={displayY + displayH - 1}
+                                                                width="16"
+                                                                height="4"
+                                                                fill="#1e293b"
+                                                                stroke="#8b5cf6"
+                                                                strokeWidth="0.5"
+                                                                style={{ cursor: 'ns-resize' }}
+                                                                onMouseDown={(e) => {
+                                                                    e.stopPropagation();
+                                                                    e.preventDefault();
+                                                                    const coords = getCanvasCoords(e);
+                                                                    setDragImageShape({
+                                                                        id: shape.id,
+                                                                        type: 'crop-b',
+                                                                        startX: coords.x,
+                                                                        startY: coords.y,
+                                                                        startShape: shape,
+                                                                        currentX: shape.x,
+                                                                        currentY: shape.y,
+                                                                        currentW: shape.w,
+                                                                        currentH: shape.h,
+                                                                        currentCrop: crop
+                                                                    });
+                                                                }}
+                                                            />
+                                                            {/* Left Crop */}
+                                                            <rect
+                                                                x={displayX - 3}
+                                                                y={displayY + displayH / 2 - 8}
+                                                                width="4"
+                                                                height="16"
+                                                                fill="#1e293b"
+                                                                stroke="#8b5cf6"
+                                                                strokeWidth="0.5"
+                                                                style={{ cursor: 'ew-resize' }}
+                                                                onMouseDown={(e) => {
+                                                                    e.stopPropagation();
+                                                                    e.preventDefault();
+                                                                    const coords = getCanvasCoords(e);
+                                                                    setDragImageShape({
+                                                                        id: shape.id,
+                                                                        type: 'crop-l',
+                                                                        startX: coords.x,
+                                                                        startY: coords.y,
+                                                                        startShape: shape,
+                                                                        currentX: shape.x,
+                                                                        currentY: shape.y,
+                                                                        currentW: shape.w,
+                                                                        currentH: shape.h,
+                                                                        currentCrop: crop
+                                                                    });
+                                                                }}
+                                                            />
+                                                            {/* Right Crop */}
+                                                            <rect
+                                                                x={displayX + displayW - 1}
+                                                                y={displayY + displayH / 2 - 8}
+                                                                width="4"
+                                                                height="16"
+                                                                fill="#1e293b"
+                                                                stroke="#8b5cf6"
+                                                                strokeWidth="0.5"
+                                                                style={{ cursor: 'ew-resize' }}
+                                                                onMouseDown={(e) => {
+                                                                    e.stopPropagation();
+                                                                    e.preventDefault();
+                                                                    const coords = getCanvasCoords(e);
+                                                                    setDragImageShape({
+                                                                        id: shape.id,
+                                                                        type: 'crop-r',
+                                                                        startX: coords.x,
+                                                                        startY: coords.y,
+                                                                        startShape: shape,
+                                                                        currentX: shape.x,
+                                                                        currentY: shape.y,
+                                                                        currentW: shape.w,
+                                                                        currentH: shape.h,
+                                                                        currentCrop: crop
+                                                                    });
+                                                                }}
+                                                            />
+
+                                                            {/* Contextual Toolbar */}
+                                                            <foreignObject
+                                                                x={displayX}
+                                                                y={displayY - 26 > 5 ? displayY - 26 : displayY + displayH + 5}
+                                                                width="240"
+                                                                height="24"
+                                                            >
+                                                                <div style={{
+                                                                    display: 'flex',
+                                                                    gap: '4px',
+                                                                    backgroundColor: '#0f172ae6',
+                                                                    border: '1px solid #8b5cf6',
+                                                                    borderRadius: '4px',
+                                                                    padding: '2px 4px',
+                                                                    alignItems: 'center',
+                                                                    width: 'max-content',
+                                                                    boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+                                                                    fontFamily: "'Inter', sans-serif"
+                                                                }}>
+                                                                    <span style={{ fontSize: '0.55rem', color: '#a78bfa', fontWeight: 800, padding: '0 2px' }}>GAMBAR</span>
+                                                                    <button
+                                                                        onClick={(ev) => {
+                                                                            ev.stopPropagation();
+                                                                            const currentShapes = selectedDwg.shapes || [];
+                                                                            const updated = currentShapes.map(s => {
+                                                                                if (s.id === shape.id) {
+                                                                                    return {
+                                                                                        ...s,
+                                                                                        crop: { x: 0, y: 0, w: s.naturalWidth || s.w, h: s.naturalHeight || s.h }
+                                                                                    };
+                                                                                }
+                                                                                return s;
+                                                                            });
+                                                                            updateShapes(updated);
+                                                                            toast.success('Crop direset ke ukuran penuh.');
+                                                                        }}
+                                                                        style={{
+                                                                            background: '#312e81', border: 'none', color: '#c084fc', cursor: 'pointer',
+                                                                            padding: '1px 5px', fontSize: '0.55rem', fontWeight: 'bold', borderRadius: '3px',
+                                                                            transition: 'background-color 0.1s'
+                                                                        }}
+                                                                        onMouseEnter={ev => ev.currentTarget.style.backgroundColor = '#3730a3'}
+                                                                        onMouseLeave={ev => ev.currentTarget.style.backgroundColor = '#312e81'}
+                                                                    >
+                                                                        Reset Crop
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={(ev) => {
+                                                                            ev.stopPropagation();
+                                                                            const currentShapes = selectedDwg.shapes || [];
+                                                                            updateShapes(currentShapes.filter(s => s.id !== shape.id));
+                                                                            setSelectedShapeId(null);
+                                                                            toast.success('Gambar berhasil dihapus.');
+                                                                        }}
+                                                                        style={{
+                                                                            background: '#7f1d1d', border: 'none', color: '#fca5a5', cursor: 'pointer',
+                                                                            padding: '1px 5px', fontSize: '0.55rem', fontWeight: 'bold', borderRadius: '3px',
+                                                                            transition: 'background-color 0.1s'
+                                                                        }}
+                                                                        onMouseEnter={ev => ev.currentTarget.style.backgroundColor = '#991b1b'}
+                                                                        onMouseLeave={ev => ev.currentTarget.style.backgroundColor = '#7f1d1d'}
+                                                                    >
+                                                                        Hapus
+                                                                    </button>
+                                                                </div>
+                                                            </foreignObject>
+                                                        </>
+                                                    )}
+
+                                                    {/* Label badge (only show if not selected to reduce clutter) */}
+                                                    {!isSelected && (
+                                                        <>
+                                                            <rect
+                                                                x={displayX}
+                                                                y={displayY - 11}
+                                                                width={Math.min(shape.fileName?.length * 4.5 + 12 || 50, displayW)}
+                                                                height="11"
+                                                                rx="2"
+                                                                fill="#0f172aCC"
+                                                                pointerEvents="none"
+                                                            />
+                                                            <text
+                                                                x={displayX + 4}
+                                                                y={displayY - 3}
+                                                                fill="#94a3b8"
+                                                                fontSize="6"
+                                                                fontFamily="monospace"
+                                                                pointerEvents="none"
+                                                            >
+                                                                🖼 {(shape.fileName || 'image').substring(0, Math.floor(displayW / 4.5))}
+                                                            </text>
+                                                        </>
+                                                    )}
                                                 </g>
                                             );
                                         }

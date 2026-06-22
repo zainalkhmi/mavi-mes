@@ -192,7 +192,9 @@ import {
     PlaySquare,
     RotateCcw,
     PanelTop,
-    Binary
+    Binary,
+    Wallet,
+    Keyboard
 } from 'lucide-react';
 
 export const COMPONENT_TYPES = {
