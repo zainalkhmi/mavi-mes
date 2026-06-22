@@ -1174,6 +1174,110 @@ export default function DrawingManager() {
         setShowMgmtMenu(false);
     };
 
+    const parsePromptParams = (promptText) => {
+        const text = promptText.toLowerCase();
+        
+        const extractParam = (keywords, defaultValue) => {
+            for (const word of keywords) {
+                const regex1 = new RegExp(`${word}\\s*[:=\\-⌀\\s]*\\s*(\\d+(?:\\.\\d+)?)`, 'i');
+                const match1 = text.match(regex1);
+                if (match1) return parseFloat(match1[1]);
+                
+                const regex2 = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*(?:mm|°|μm|um|mm²)?\\s*${word}`, 'i');
+                const match2 = text.match(regex2);
+                if (match2) return parseFloat(match2[1]);
+            }
+            return defaultValue;
+        };
+
+        const allNumbers = text.match(/\d+(?:\.\d+)?/g)?.map(Number) || [];
+
+        if (text.includes("flens") || text.includes("flange") || text.includes("ring") || text.includes("lingkaran") || text.includes("circle")) {
+            let outer = extractParam(["diameter luar", "outer diameter", "diameter utama", "diameter", "od", "flens", "flange", "ring", "⌀", "d"], 160);
+            let inner = extractParam(["lubang tengah", "diameter dalam", "lubang", "inner diameter", "bore", "id"], 50);
+            let holes = extractParam(["lubang baut", "jumlah lubang", "lubang", "holes", "bolts", "baut"], 4);
+            
+            if (outer === 160 && allNumbers.length >= 1) outer = allNumbers[0];
+            if (inner === 50 && allNumbers.length >= 2) {
+                if (allNumbers[1] < outer) inner = allNumbers[1];
+            }
+            if (holes === 4 && allNumbers.length >= 3) {
+                const boltCountMatch = text.match(/(\d+)\s*(lubang|hole|baut)/i);
+                if (boltCountMatch) {
+                    holes = parseInt(boltCountMatch[1]);
+                } else if (allNumbers[2] < 30) {
+                    holes = allNumbers[2];
+                }
+            }
+
+            let pcd = extractParam(["pcd", "pitch circle diameter", "diameter pcd"], outer * 0.75);
+            if (pcd <= inner || pcd >= outer) {
+                pcd = inner + (outer - inner) * 0.7;
+            }
+
+            let boltD = extractParam(["diameter baut", "baut", "bolt diameter", "bolt size"], 12);
+            
+            return {
+                type: 'flange',
+                outer,
+                inner,
+                holes: Math.round(holes),
+                pcd,
+                boltD
+            };
+        } else if (text.includes("poros") || text.includes("shaft") || text.includes("rod") || text.includes("silinder") || text.includes("piston") || text.includes("cylinder")) {
+            let length = extractParam(["panjang total", "panjang", "total length", "length", "l"], 220);
+            let bodyDia = extractParam(["diameter utama", "diameter poros", "diameter", "body diameter", "shaft diameter", "d"], 40);
+            let journalDia = extractParam(["bearing journal", "journal", "diameter journal", "bearing", "journal diameter", "j diameter"], 25);
+            let journalLen = extractParam(["panjang journal", "journal length", "j length"], length * 0.22);
+
+            if (length === 220 && allNumbers.length >= 1) length = allNumbers[0];
+            if (bodyDia === 40 && allNumbers.length >= 2) bodyDia = allNumbers[1];
+            if (journalDia === 25 && allNumbers.length >= 3) journalDia = allNumbers[2];
+
+            if (journalDia >= bodyDia) journalDia = bodyDia * 0.625;
+            if (journalLen * 2 >= length) journalLen = length * 0.22;
+
+            return {
+                type: 'shaft',
+                length,
+                bodyDia,
+                journalDia,
+                journalLen
+            };
+        } else {
+            const dimsMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:mm)?\s*[xX*]\s*(\d+(?:\.\d+)?)/);
+            let width = 150;
+            let height = 100;
+            if (dimsMatch) {
+                width = parseFloat(dimsMatch[1]);
+                height = parseFloat(dimsMatch[2]);
+            } else {
+                width = extractParam(["lebar", "width", "w", "panjang pelat", "panjang plat"], 150);
+                height = extractParam(["tinggi", "lebar pelat", "lebar plat", "height", "h"], 100);
+                
+                if (width === 150 && allNumbers.length >= 1) width = allNumbers[0];
+                if (height === 100 && allNumbers.length >= 2) height = allNumbers[1];
+            }
+
+            let holes = extractParam(["lubang baut", "lubang", "holes", "mounting holes"], 4);
+            let holeD = extractParam(["diameter lubang", "lubang", "hole diameter", "d"], 10);
+
+            if (holes === 4 && allNumbers.length >= 3) {
+                const third = allNumbers[2];
+                if (third <= 12) holes = third;
+            }
+
+            return {
+                type: 'plate',
+                width,
+                height,
+                holes: Math.round(holes),
+                holeD
+            };
+        }
+    };
+
     const handleAIGenerate = () => {
         if (!copilotPrompt.trim()) {
             toast.error('Ketik prompt instruksi terlebih dahulu.');
@@ -1196,28 +1300,7 @@ export default function DrawingManager() {
                     setCopilotProgress(90);
                     setCopilotLog('Menyimpan blueprint CAD ke database...');
                     
-                    const text = copilotPrompt.toLowerCase();
-                    
-                    // Default values if not specified
-                    let flangeOuter = 160;
-                    let flangeInner = 50;
-                    let boltHoles = 4;
-                    let boltDia = 12;
-                    let boltPcd = 110;
-                    
-                    let shaftLength = 220;
-                    let shaftDia = 40;
-                    let journalDia = 25;
-                    let journalLength = 50;
-                    
-                    let boxWidth = 150;
-                    let boxHeight = 100;
-                    let holeCount = 4;
-                    let holeDia = 10;
-                    
-                    // Extract numbers from text if possible
-                    const numbers = copilotPrompt.match(/\d+/g)?.map(Number) || [];
-                    
+                    const params = parsePromptParams(copilotPrompt);
                     let generatedDwgName = "AI Blueprint - Model 2D";
                     let shapes = [];
                     let dimensions = [];
@@ -1225,22 +1308,12 @@ export default function DrawingManager() {
                     const cx = 250;
                     const cy = 180;
 
-                    if (text.includes("flens") || text.includes("flange") || text.includes("ring") || text.includes("lingkaran") || text.includes("circle")) {
-                        if (numbers.length >= 1) flangeOuter = numbers[0];
-                        if (numbers.length >= 2) flangeInner = numbers[1];
-                        if (numbers.length >= 3) {
-                            const boltCountMatch = text.match(/(\d+)\s*(lubang|hole|baut)/i);
-                            if (boltCountMatch) {
-                                boltHoles = parseInt(boltCountMatch[1]);
-                            } else {
-                                boltHoles = numbers[2];
-                            }
-                        }
-                        
-                        generatedDwgName = `Flange Connector ⌀${flangeOuter}x⌀${flangeInner} [AI]`;
-                        const outerR = Math.min(120, flangeOuter * 0.7);
-                        const pcdR = outerR * 0.7;
-                        const innerR = outerR * (flangeInner / flangeOuter);
+                    if (params.type === 'flange') {
+                        generatedDwgName = `Flange Connector ⌀${params.outer}x⌀${params.inner} [AI]`;
+                        const outerR = Math.min(120, params.outer * 0.65);
+                        const pcdR = outerR * (params.pcd / params.outer);
+                        const innerR = outerR * (params.inner / params.outer);
+                        const scaleFlange = outerR / params.outer;
                         
                         shapes.push({
                             id: `ai_shape_outer_${Date.now()}`,
@@ -1262,14 +1335,14 @@ export default function DrawingManager() {
                             color: '#60a5fa', strokeWidth: 2
                         });
                         
-                        for (let i = 0; i < boltHoles; i++) {
-                            const angle = (i * 2 * Math.PI) / boltHoles;
+                        for (let i = 0; i < params.holes; i++) {
+                            const angle = (i * 2 * Math.PI) / params.holes;
                             shapes.push({
                                 id: `ai_shape_bolt_${i}_${Date.now()}`,
                                 type: 'circle',
                                 cx: Math.round(cx + pcdR * Math.cos(angle)),
                                 cy: Math.round(cy + pcdR * Math.sin(angle)),
-                                r: Math.round(boltDia * 0.4),
+                                r: Math.max(3, Math.round((params.boltD * scaleFlange) / 2)),
                                 color: '#3b82f6', strokeWidth: 1
                             });
                         }
@@ -1290,9 +1363,9 @@ export default function DrawingManager() {
                         dimensions.push({
                             id: `dim_ai_outer_${Date.now()}`,
                             label: 'Flange Outer Diameter',
-                            spec: flangeOuter.toFixed(1),
-                            tolMin: parseFloat((flangeOuter - 0.2).toFixed(2)),
-                            tolMax: parseFloat((flangeOuter + 0.2).toFixed(2)),
+                            spec: params.outer.toFixed(1),
+                            tolMin: parseFloat((params.outer - 0.2).toFixed(2)),
+                            tolMax: parseFloat((params.outer + 0.2).toFixed(2)),
                             variable: 'Outer_Dia',
                             unit: 'mm',
                             category: 'diameter',
@@ -1311,9 +1384,9 @@ export default function DrawingManager() {
                         dimensions.push({
                             id: `dim_ai_inner_${Date.now()}`,
                             label: 'Center Bore Diameter',
-                            spec: flangeInner.toFixed(1),
-                            tolMin: parseFloat((flangeInner - 0.1).toFixed(2)),
-                            tolMax: parseFloat((flangeInner + 0.1).toFixed(2)),
+                            spec: params.inner.toFixed(1),
+                            tolMin: parseFloat((params.inner - 0.1).toFixed(2)),
+                            tolMax: parseFloat((params.inner + 0.1).toFixed(2)),
                             variable: 'Cylinder_Bore_Dia',
                             unit: 'mm',
                             category: 'diameter',
@@ -1334,9 +1407,9 @@ export default function DrawingManager() {
                         dimensions.push({
                             id: `dim_ai_pcd_${Date.now()}`,
                             label: 'Bolt PCD Circle',
-                            spec: boltPcd.toFixed(1),
-                            tolMin: parseFloat((boltPcd - 0.15).toFixed(2)),
-                            tolMax: parseFloat((boltPcd + 0.15).toFixed(2)),
+                            spec: params.pcd.toFixed(1),
+                            tolMin: parseFloat((params.pcd - 0.15).toFixed(2)),
+                            tolMax: parseFloat((params.pcd + 0.15).toFixed(2)),
                             variable: 'Custom_Param_1',
                             unit: 'mm',
                             category: 'dimension',
@@ -1350,24 +1423,50 @@ export default function DrawingManager() {
                             markerSize: 50,
                             triggers: []
                         });
-                    } else if (text.includes("poros") || text.includes("shaft") || text.includes("rod") || text.includes("silinder") || text.includes("piston") || text.includes("cylinder")) {
-                        if (numbers.length >= 1) shaftLength = numbers[0];
-                        if (numbers.length >= 2) shaftDia = numbers[1];
-                        if (numbers.length >= 3) journalDia = numbers[2];
+                        if (params.holes > 0) {
+                            dimensions.push({
+                                id: `dim_ai_bolt_${Date.now()}`,
+                                label: 'Bolt Hole Diameter',
+                                spec: params.boltD.toFixed(1),
+                                tolMin: parseFloat((params.boltD - 0.1).toFixed(2)),
+                                tolMax: parseFloat((params.boltD + 0.1).toFixed(2)),
+                                variable: 'Custom_Param_2',
+                                unit: 'mm',
+                                category: 'diameter',
+                                measureType: 'diameter',
+                                indicatorType: 'radial',
+                                gdt_symbol: '⌀',
+                                x1: cx + Math.round(pcdR),
+                                y1: cy,
+                                x2: cx + Math.round(pcdR) + Math.max(3, Math.round((params.boltD * scaleFlange) / 2)),
+                                y2: cy,
+                                lx: cx + Math.round(pcdR) + 20,
+                                ly: cy - 20,
+                                markerShape: 'default',
+                                markerSize: 40,
+                                triggers: []
+                            });
+                        }
+                    } else if (params.type === 'shaft') {
+                        generatedDwgName = `Shaft Journal L${params.length}x⌀${params.bodyDia} [AI]`;
+                        const sLen = Math.min(300, params.length * 1.1);
+                        const sDia = Math.min(100, params.bodyDia * 1.5);
                         
-                        generatedDwgName = `Shaft Journal L${shaftLength}x⌀${shaftDia} [AI]`;
-                        const sLen = Math.min(300, shaftLength * 1.2);
-                        const sDia = Math.min(100, shaftDia * 1.5);
-                        const jDia = Math.min(sDia * 0.8, journalDia * 1.5);
+                        const scaleX = sLen / params.length;
+                        const scaleY = sDia / params.bodyDia;
+                        
+                        const jDia = params.journalDia * scaleY;
+                        const jLen = params.journalLen * scaleX;
+                        
                         const xStart = cx - sLen / 2;
                         const yStart = cy - sDia / 2;
                         
                         shapes.push({
                             id: `ai_shape_shaft_body_${Date.now()}`,
                             type: 'rect',
-                            x: Math.round(xStart + journalLength),
+                            x: Math.round(xStart + jLen),
                             y: Math.round(yStart),
-                            w: Math.round(sLen - 2 * journalLength),
+                            w: Math.round(sLen - 2 * jLen),
                             h: Math.round(sDia),
                             color: '#3b82f6', strokeWidth: 2
                         });
@@ -1376,16 +1475,16 @@ export default function DrawingManager() {
                             type: 'rect',
                             x: Math.round(xStart),
                             y: Math.round(cy - jDia / 2),
-                            w: Math.round(journalLength),
+                            w: Math.round(jLen),
                             h: Math.round(jDia),
                             color: '#60a5fa', strokeWidth: 1.5
                         });
                         shapes.push({
                             id: `ai_shape_right_journal_${Date.now()}`,
                             type: 'rect',
-                            x: Math.round(xStart + sLen - journalLength),
+                            x: Math.round(xStart + sLen - jLen),
                             y: Math.round(cy - jDia / 2),
-                            w: Math.round(journalLength),
+                            w: Math.round(jLen),
                             h: Math.round(jDia),
                             color: '#60a5fa', strokeWidth: 1.5
                         });
@@ -1399,9 +1498,9 @@ export default function DrawingManager() {
                         dimensions.push({
                             id: `dim_ai_len_${Date.now()}`,
                             label: 'Total Shaft Length',
-                            spec: shaftLength.toFixed(1),
-                            tolMin: parseFloat((shaftLength - 0.5).toFixed(2)),
-                            tolMax: parseFloat((shaftLength + 0.5).toFixed(2)),
+                            spec: params.length.toFixed(1),
+                            tolMin: parseFloat((params.length - 0.5).toFixed(2)),
+                            tolMax: parseFloat((params.length + 0.5).toFixed(2)),
                             variable: 'Meas_Length',
                             unit: 'mm',
                             category: 'dimension',
@@ -1418,9 +1517,9 @@ export default function DrawingManager() {
                         dimensions.push({
                             id: `dim_ai_dia_${Date.now()}`,
                             label: 'Main Body Diameter',
-                            spec: shaftDia.toFixed(1),
-                            tolMin: parseFloat((shaftDia - 0.05).toFixed(2)),
-                            tolMax: parseFloat((shaftDia + 0.05).toFixed(2)),
+                            spec: params.bodyDia.toFixed(1),
+                            tolMin: parseFloat((params.bodyDia - 0.05).toFixed(2)),
+                            tolMax: parseFloat((params.bodyDia + 0.05).toFixed(2)),
                             variable: 'Meas_Diameter',
                             unit: 'mm',
                             category: 'diameter',
@@ -1437,55 +1536,95 @@ export default function DrawingManager() {
                         dimensions.push({
                             id: `dim_ai_j_dia_${Date.now()}`,
                             label: 'Journal Bearing Dia',
-                            spec: journalDia.toFixed(1),
-                            tolMin: parseFloat((journalDia - 0.02).toFixed(2)),
-                            tolMax: parseFloat((journalDia + 0.02).toFixed(2)),
+                            spec: params.journalDia.toFixed(1),
+                            tolMin: parseFloat((params.journalDia - 0.02).toFixed(2)),
+                            tolMax: parseFloat((params.journalDia + 0.02).toFixed(2)),
                             variable: 'Rod_Diameter_Spec',
                             unit: 'mm',
                             category: 'diameter',
                             measureType: 'diameter',
                             indicatorType: 'radial',
                             gdt_symbol: '⌀',
-                            x1: Math.round(xStart + journalLength / 2), y1: Math.round(cy - jDia / 2),
-                            x2: Math.round(xStart + journalLength / 2), y2: Math.round(cy + jDia / 2),
-                            lx: Math.round(xStart + journalLength / 2 - 30), ly: Math.round(cy - 30),
+                            x1: Math.round(xStart + jLen / 2), y1: Math.round(cy - jDia / 2),
+                            x2: Math.round(xStart + jLen / 2), y2: Math.round(cy + jDia / 2),
+                            lx: Math.round(xStart + jLen / 2 - 30), ly: Math.round(cy - 30),
                             markerShape: 'default',
                             markerSize: 60,
                             triggers: [
                                 { id: `trig_ai_j_dia_${Date.now()}`, type: 'NOTIFY_SUPERVISOR', condition: 'ON_FAIL', priority: 'high', message: 'Bearing journal shaft di luar batas toleransi!', enabled: true }
                             ]
                         });
+                        dimensions.push({
+                            id: `dim_ai_j_len_${Date.now()}`,
+                            label: 'Journal Bearing Length',
+                            spec: params.journalLen.toFixed(1),
+                            tolMin: parseFloat((params.journalLen - 0.2).toFixed(2)),
+                            tolMax: parseFloat((params.journalLen + 0.2).toFixed(2)),
+                            variable: 'Custom_Param_1',
+                            unit: 'mm',
+                            category: 'dimension',
+                            measureType: 'linear_horizontal',
+                            indicatorType: 'horizontal',
+                            gdt_symbol: '',
+                            x1: Math.round(xStart), y1: Math.round(cy - jDia / 2 - 15),
+                            x2: Math.round(xStart + jLen), y2: Math.round(cy - jDia / 2 - 15),
+                            lx: Math.round(xStart + jLen / 2), ly: Math.round(cy - jDia / 2 - 30),
+                            markerShape: 'default',
+                            markerSize: 50,
+                            triggers: []
+                        });
                     } else {
-                        if (numbers.length >= 1) boxWidth = numbers[0];
-                        if (numbers.length >= 2) boxHeight = numbers[1];
-                        
-                        generatedDwgName = `Plate Bracket ${boxWidth}x${boxHeight} [AI]`;
-                        const w = Math.min(300, boxWidth * 1.5);
-                        const h = Math.min(200, boxHeight * 1.5);
+                        generatedDwgName = `Plate Bracket ${params.width}x${params.height} [AI]`;
+                        const w = Math.min(300, params.width * 1.5);
+                        const h = Math.min(200, params.height * 1.5);
+                        const scaleX = w / params.width;
+                        const xStart = cx - w / 2;
+                        const yStart = cy - h / 2;
                         
                         shapes.push({
                             id: `ai_shape_plate_${Date.now()}`,
                             type: 'rect',
-                            x: Math.round(cx - w / 2),
-                            y: Math.round(cy - h / 2),
+                            x: Math.round(xStart),
+                            y: Math.round(yStart),
                             w: Math.round(w),
                             h: Math.round(h),
                             color: '#3b82f6', strokeWidth: 2
                         });
                         
                         const offset = 20;
-                        const cornerHoles = [
-                            { x: cx - w/2 + offset, y: cy - h/2 + offset },
-                            { x: cx + w/2 - offset, y: cy - h/2 + offset },
-                            { x: cx - w/2 + offset, y: cy + h/2 - offset },
-                            { x: cx + w/2 - offset, y: cy + h/2 - offset }
-                        ];
+                        let holeCenters = [];
                         
-                        cornerHoles.forEach((hole, idx) => {
+                        if (params.holes === 4) {
+                            holeCenters = [
+                                { x: xStart + offset, y: yStart + offset },
+                                { x: xStart + w - offset, y: yStart + offset },
+                                { x: xStart + offset, y: yStart + h - offset },
+                                { x: xStart + w - offset, y: yStart + h - offset }
+                            ];
+                        } else if (params.holes === 2) {
+                            holeCenters = [
+                                { x: xStart + offset, y: cy },
+                                { x: xStart + w - offset, y: cy }
+                            ];
+                        } else if (params.holes === 6) {
+                            holeCenters = [
+                                { x: xStart + offset, y: yStart + offset },
+                                { x: xStart + w - offset, y: yStart + offset },
+                                { x: xStart + offset, y: yStart + h - offset },
+                                { x: xStart + w - offset, y: yStart + h - offset },
+                                { x: cx, y: yStart + offset },
+                                { x: cx, y: yStart + h - offset }
+                            ];
+                        } else if (params.holes > 0) {
+                            holeCenters = [{ x: cx, y: cy }];
+                        }
+                        
+                        const r = Math.max(3, Math.round((params.holeD * scaleX) / 2));
+                        holeCenters.forEach((hole, idx) => {
                             shapes.push({
                                 id: `ai_shape_hole_${idx}_${Date.now()}`,
                                 type: 'circle',
-                                cx: Math.round(hole.x), cy: Math.round(hole.y), r: 8,
+                                cx: Math.round(hole.x), cy: Math.round(hole.y), r,
                                 color: '#60a5fa', strokeWidth: 1.5
                             });
                         });
@@ -1493,18 +1632,18 @@ export default function DrawingManager() {
                         dimensions.push({
                             id: `dim_ai_w_${Date.now()}`,
                             label: 'Plate Overall Width',
-                            spec: boxWidth.toFixed(1),
-                            tolMin: parseFloat((boxWidth - 0.3).toFixed(2)),
-                            tolMax: parseFloat((boxWidth + 0.3).toFixed(2)),
+                            spec: params.width.toFixed(1),
+                            tolMin: parseFloat((params.width - 0.3).toFixed(2)),
+                            tolMax: parseFloat((params.width + 0.3).toFixed(2)),
                             variable: 'Meas_Width',
                             unit: 'mm',
                             category: 'dimension',
                             measureType: 'linear_horizontal',
                             indicatorType: 'horizontal',
                             gdt_symbol: '',
-                            x1: Math.round(cx - w / 2), y1: Math.round(cy - h / 2 - 15),
-                            x2: Math.round(cx + w / 2), y2: Math.round(cy - h / 2 - 15),
-                            lx: Math.round(cx), ly: Math.round(cy - h / 2 - 30),
+                            x1: Math.round(xStart), y1: Math.round(yStart - 15),
+                            x2: Math.round(xStart + w), y2: Math.round(yStart - 15),
+                            lx: Math.round(cx), ly: Math.round(yStart - 30),
                             markerShape: 'default',
                             markerSize: 60,
                             triggers: []
@@ -1512,45 +1651,49 @@ export default function DrawingManager() {
                         dimensions.push({
                             id: `dim_ai_h_${Date.now()}`,
                             label: 'Plate Overall Height',
-                            spec: boxHeight.toFixed(1),
-                            tolMin: parseFloat((boxHeight - 0.2).toFixed(2)),
-                            tolMax: parseFloat((boxHeight + 0.2).toFixed(2)),
+                            spec: params.height.toFixed(1),
+                            tolMin: parseFloat((params.height - 0.2).toFixed(2)),
+                            tolMax: parseFloat((params.height + 0.2).toFixed(2)),
                             variable: 'Meas_Height',
                             unit: 'mm',
                             category: 'dimension',
                             measureType: 'linear_vertical',
                             indicatorType: 'vertical',
                             gdt_symbol: '',
-                            x1: Math.round(cx - w / 2 - 15), y1: Math.round(cy - h / 2),
-                            x2: Math.round(cx - w / 2 - 15), y2: Math.round(cy + h / 2),
-                            lx: Math.round(cx - w / 2 - 30), ly: Math.round(cy),
+                            x1: Math.round(xStart - 15), y1: Math.round(yStart),
+                            x2: Math.round(xStart - 15), y2: Math.round(yStart + h),
+                            lx: Math.round(xStart - 30), ly: Math.round(cy),
                             markerShape: 'default',
                             markerSize: 60,
                             triggers: []
                         });
-                        dimensions.push({
-                            id: `dim_ai_hole_dia_${Date.now()}`,
-                            label: 'Mounting Hole Dia',
-                            spec: holeDia.toFixed(1),
-                            tolMin: parseFloat((holeDia - 0.08).toFixed(2)),
-                            tolMax: parseFloat((holeDia + 0.08).toFixed(2)),
-                            variable: 'Inner_Dia',
-                            unit: 'mm',
-                            category: 'diameter',
-                            measureType: 'diameter',
-                            indicatorType: 'radial',
-                            gdt_symbol: '⌀',
-                            x1: Math.round(cx - w/2 + offset), y1: Math.round(cy - h/2 + offset),
-                            x2: Math.round(cx - w/2 + offset + 6), y2: Math.round(cy - h/2 + offset + 6),
-                            lx: Math.round(cx - w/2 + offset + 18), ly: Math.round(cy - h/2 + offset + 18),
-                            markerShape: 'triangle',
-                            markerSize: 45,
-                            triggers: [
-                                { id: `trig_ai_hole_${Date.now()}`, type: 'ESCALATE_QUALITY', condition: 'ON_FAIL', priority: 'high', message: 'Hole diameter out of spec, mounting pins won\'t fit!', enabled: true }
-                            ]
-                        });
+                        if (params.holes > 0 && holeCenters.length > 0) {
+                            dimensions.push({
+                                id: `dim_ai_hole_dia_${Date.now()}`,
+                                label: 'Mounting Hole Dia',
+                                spec: params.holeD.toFixed(1),
+                                tolMin: parseFloat((params.holeD - 0.08).toFixed(2)),
+                                tolMax: parseFloat((params.holeD + 0.08).toFixed(2)),
+                                variable: 'Inner_Dia',
+                                unit: 'mm',
+                                category: 'diameter',
+                                measureType: 'diameter',
+                                indicatorType: 'radial',
+                                gdt_symbol: '⌀',
+                                x1: Math.round(holeCenters[0].x), y1: Math.round(holeCenters[0].y),
+                                x2: Math.round(holeCenters[0].x + r * Math.cos(-Math.PI/4)),
+                                y2: Math.round(holeCenters[0].y + r * Math.sin(-Math.PI/4)),
+                                lx: Math.round(holeCenters[0].x + (r + 15) * Math.cos(-Math.PI/4)),
+                                ly: Math.round(holeCenters[0].y + (r + 15) * Math.sin(-Math.PI/4)),
+                                markerShape: 'triangle',
+                                markerSize: 45,
+                                triggers: [
+                                    { id: `trig_ai_hole_${Date.now()}`, type: 'ESCALATE_QUALITY', condition: 'ON_FAIL', priority: 'high', message: 'Hole diameter out of spec, mounting pins won\'t fit!', enabled: true }
+                                ]
+                            });
+                        }
                     }
-
+ 
                     const newDwg = {
                         id: `dwg_ai_${Date.now()}`,
                         name: generatedDwgName,
