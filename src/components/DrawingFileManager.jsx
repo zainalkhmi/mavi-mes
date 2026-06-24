@@ -364,7 +364,7 @@ export default function DrawingFileManager() {
                     fileType: ext.toUpperCase(),
                     uploadedAt: new Date().toISOString(),
                     dimensions: result.dimensions,
-                    dataUrl: dataUrl
+                    dataUrl: result.rendered_image || dataUrl
                 };
 
                 setParseProgress(100);

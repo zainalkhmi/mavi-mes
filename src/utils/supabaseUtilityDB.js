@@ -493,7 +493,8 @@ export async function getAllDrawings() {
         const mappedData = (data || []).map(d => ({
             ...d,
             fileName: d.file_name,
-            fileType: d.file_type
+            fileType: d.file_type,
+            dataUrl: d.data_url
         }));
         
         // Sync local storage cache for offline/fallback use
@@ -593,6 +594,7 @@ export async function saveDrawing(drawing) {
                         ...payload,
                         fileName: payload.file_name,
                         fileType: payload.file_type,
+                        dataUrl: payload.data_url,
                         id: 'local-' + Math.random().toString(36).substr(2, 9),
                         created_at: payload.updated_at
                     };

@@ -221,10 +221,16 @@ fn open_device_pairing_wizard() -> Result<(), String> {
 
 #[tauri::command]
 fn start_python_server() -> Result<String, String> {
+    let mut work_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    if !work_dir.join("yolo_server.py").exists() && work_dir.join("..").join("yolo_server.py").exists() {
+        work_dir = work_dir.join("..");
+    }
+
     #[cfg(target_os = "windows")]
     {
         let child = std::process::Command::new(".venv\\Scripts\\python.exe")
             .arg("yolo_server.py")
+            .current_dir(&work_dir)
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
@@ -235,6 +241,7 @@ fn start_python_server() -> Result<String, String> {
             Err(e) => {
                 let child_fallback = std::process::Command::new("python")
                     .arg("yolo_server.py")
+                    .current_dir(&work_dir)
                     .stdin(std::process::Stdio::null())
                     .stdout(std::process::Stdio::null())
                     .stderr(std::process::Stdio::null())
@@ -251,6 +258,7 @@ fn start_python_server() -> Result<String, String> {
     {
         let child = std::process::Command::new(".venv/bin/python")
             .arg("yolo_server.py")
+            .current_dir(&work_dir)
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
@@ -261,6 +269,7 @@ fn start_python_server() -> Result<String, String> {
             Err(e) => {
                 let child_fallback = std::process::Command::new("python3")
                     .arg("yolo_server.py")
+                    .current_dir(&work_dir)
                     .stdin(std::process::Stdio::null())
                     .stdout(std::process::Stdio::null())
                     .stderr(std::process::Stdio::null())

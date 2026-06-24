@@ -1285,9 +1285,26 @@ async def parse_blueprint(file: UploadFile = File(...)):
                     }
                 ]
                 
-            return {"success": True, "dimensions": dimensions}
+            # Render first page as PNG if PyMuPDF is available
+            rendered_image = None
+            try:
+                import fitz
+                import base64
+                doc = fitz.open(stream=content, filetype="pdf")
+                if len(doc) > 0:
+                    zoom = 2.5
+                    mat = fitz.Matrix(zoom, zoom)
+                    pix = doc[0].get_pixmap(matrix=mat)
+                    png_bytes = pix.tobytes("png")
+                    base64_png = base64.b64encode(png_bytes).decode("utf-8")
+                    rendered_image = f"data:image/png;base64,{base64_png}"
+            except Exception as render_ex:
+                print(f"Failed to render PDF page: {render_ex}")
+
+            return {"success": True, "dimensions": dimensions, "rendered_image": rendered_image}
         except Exception as e:
             return {"success": False, "error": f"Failed to parse PDF file: {str(e)}", "dimensions": []}
+
             
     elif filename.endswith(".svg"):
         # SVG XML Parsing
@@ -1408,6 +1425,54 @@ async def parse_blueprint(file: UploadFile = File(...)):
             
     else:
         return {"success": False, "error": "Unsupported file format. Please upload .dxf, .pdf, or .svg.", "dimensions": []}
+
+
+class PDFConvertRequest(BaseModel):
+    pdf_data_url: str
+    page_num: Optional[int] = 0
+
+@app.post("/blueprint/pdf_to_image")
+async def convert_pdf_to_image(req: PDFConvertRequest):
+    try:
+        # pdf_data_url is like "data:application/pdf;base64,JVBERi0xLj..."
+        if "," in req.pdf_data_url:
+            base64_data = req.pdf_data_url.split(",")[1]
+        else:
+            base64_data = req.pdf_data_url
+            
+        import base64
+        pdf_bytes = base64.b64decode(base64_data)
+        
+        try:
+            import fitz  # PyMuPDF
+        except ImportError:
+            return {"success": False, "error": "PyMuPDF (fitz) is not installed on the server. Please run pip install pymupdf"}
+            
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        if len(doc) == 0:
+            return {"success": False, "error": "The PDF file is empty or invalid."}
+            
+        page_num = min(max(0, req.page_num), len(doc) - 1)
+        page = doc[page_num]
+        
+        zoom = 2.5
+        mat = fitz.Matrix(zoom, zoom)
+        pix = page.get_pixmap(matrix=mat)
+        png_bytes = pix.tobytes("png")
+        
+        base64_png = base64.b64encode(png_bytes).decode("utf-8")
+        image_url = f"data:image/png;base64,{base64_png}"
+        
+        return {
+            "success": True,
+            "image_url": image_url,
+            "width": pix.width,
+            "height": pix.height,
+            "page_count": len(doc)
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 
 
 # ─── OBD2 MANAGER & ENDPOINTS ──────────────────────────────────────────────────

@@ -370,6 +370,37 @@ export default function DrawingManager() {
         setHoveredShapeId(null);
     }, [cadTool, selectedDwgId]);
 
+    // PDF backdrop rendering state and effect
+    const [pdfBackdropUrl, setPdfBackdropUrl] = useState(null);
+    useEffect(() => {
+        const dataUrlVal = selectedDwg?.dataUrl || selectedDwg?.data_url;
+        if (selectedDwg && selectedDwg.fileType === 'PDF' && dataUrlVal) {
+            if (dataUrlVal.startsWith('data:image/')) {
+                setPdfBackdropUrl(dataUrlVal);
+            } else {
+                setPdfBackdropUrl(null);
+                fetch('http://localhost:8000/blueprint/pdf_to_image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pdf_data_url: dataUrlVal })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.image_url) {
+                        setPdfBackdropUrl(data.image_url);
+                    } else {
+                        console.error("Failed to render PDF backdrop:", data.error);
+                    }
+                })
+                .catch(err => {
+                    console.error("Error fetching PDF backdrop image:", err);
+                });
+            }
+        } else {
+            setPdfBackdropUrl(null);
+        }
+    }, [selectedDwg]);
+
     // Copilot AI state declarations
     const [copilotPrompt, setCopilotPrompt] = useState('');
     const [copilotLoading, setCopilotLoading] = useState(false);
@@ -2601,145 +2632,208 @@ export default function DrawingManager() {
     const handleFileDrop = (e) => { e.preventDefault(); setIsDragOver(false); if (e.dataTransfer.files?.length > 0) processUploadedFile(e.dataTransfer.files[0]); };
     const handleFileSelect = (e) => { if (e.target.files?.length > 0) processUploadedFile(e.target.files[0]); };
 
-    const processUploadedFile = (file) => {
+    const processUploadedFile = async (file) => {
         const extension = file.name.split('.').pop().toLowerCase();
         if (!['svg', 'dxf', 'pdf'].includes(extension)) {
             toast.error('Format tidak didukung! Gunakan .svg, .dxf, atau .pdf.');
             return;
         }
-        setIsParsing(true); setParseProgress(5);
-        setParseStatusText('Membaca berkas binary...');
+        setIsParsing(true);
+        setParseProgress(10);
+        setParseStatusText('Mengunggah berkas ke server QMS...');
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const result = event.target.result || '';
-            const fileContent = extension === 'pdf' ? '' : result;
-            const dataUrl = extension === 'pdf' ? result : undefined;
-            let extractedDims = [];
-
-            setParseProgress(30);
-            setParseStatusText('Mengekstrak vector data & geometry primitives...');
-
-            if (extension === 'svg') {
-                const circleRegex = /<circle[^>]*\sr="([^"]+)"[^>]*>/gi;
-                let match; let circleCount = 0;
-                while ((match = circleRegex.exec(fileContent)) !== null && circleCount < 3) {
-                    const radius = parseFloat(match[1]);
-                    if (!isNaN(radius)) {
-                        circleCount++;
-                        extractedDims.push({
-                            id: `dim_svg_c_${circleCount}_${Date.now()}`,
-                            label: circleCount === 1 ? 'Inner Bore Diameter' : `Hole Circle ${circleCount} Dia`,
-                            spec: (radius * 2).toFixed(1), tolMin: parseFloat((radius * 2 - 0.1).toFixed(2)), tolMax: parseFloat((radius * 2 + 0.1).toFixed(2)),
-                            variable: circleCount === 1 ? 'Meas_Bore' : 'Inner_Dia', unit: 'mm',
-                            category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀',
-                            x1: 240, y1: 170, x2: 240 + Math.round(radius), y2: 170, lx: 240 + Math.round(radius) + 15, ly: 170 - 15,
-                        });
-                    }
-                }
-                const rectRegex = /<rect[^>]*\swidth="([^"]+)"[^>]*\sheight="([^"]+)"/gi;
-                let rectMatch = rectRegex.exec(fileContent);
-                if (rectMatch) {
-                    const w = parseFloat(rectMatch[1]);
-                    const h = parseFloat(rectMatch[2]);
-                    if (!isNaN(w) && !isNaN(h)) {
-                        extractedDims.push({
-                            id: `dim_svg_w_${Date.now()}`, label: 'Overall Width', spec: w.toFixed(1),
-                            tolMin: parseFloat((w - 0.5).toFixed(2)), tolMax: parseFloat((w + 0.5).toFixed(2)),
-                            variable: 'Meas_Length', unit: 'mm', category: 'dimension', measureType: 'linear_horizontal', indicatorType: 'horizontal', gdt_symbol: '',
-                            x1: 120, y1: 260, x2: 120 + Math.round(w), y2: 260, lx: 120 + Math.round(w/2), ly: 280,
-                        });
-                        extractedDims.push({
-                            id: `dim_svg_h_${Date.now()}`, label: 'Overall Height', spec: h.toFixed(1),
-                            tolMin: parseFloat((h - 0.5).toFixed(2)), tolMax: parseFloat((h + 0.5).toFixed(2)),
-                            variable: 'Meas_Height', unit: 'mm', category: 'dimension', measureType: 'linear_vertical', indicatorType: 'vertical', gdt_symbol: '',
-                            x1: 90, y1: 80, x2: 90, y2: 80 + Math.round(h), lx: 65, ly: 80 + Math.round(h/2),
-                        });
-                        // Also extract area
-                        extractedDims.push({
-                            id: `dim_svg_area_${Date.now()}`, label: 'Cross-Section Area', spec: (w * h).toFixed(1),
-                            tolMin: parseFloat(((w - 0.5) * (h - 0.5)).toFixed(1)), tolMax: parseFloat(((w + 0.5) * (h + 0.5)).toFixed(1)),
-                            variable: 'Meas_Area', unit: 'mm²', category: 'area', measureType: 'area', indicatorType: 'area_box', gdt_symbol: '',
-                            x1: 120, y1: 80, x2: 120 + Math.round(w), y2: 80 + Math.round(h), lx: 120 + Math.round(w/2), ly: 80 + Math.round(h/2),
-                        });
-                    }
-                }
-            } else if (extension === 'dxf') {
-                const circleMatches = fileContent.match(/CIRCLE[\s\S]*?\b40\s+([0-9.]+)/gi);
-                if (circleMatches) {
-                    circleMatches.slice(0, 3).forEach((cm, idx) => {
-                        const radiusVal = parseFloat(cm.replace(/CIRCLE[\s\S]*?\b40\s+/, '').trim());
-                        if (!isNaN(radiusVal)) {
-                            extractedDims.push({
-                                id: `dim_dxf_c_${idx}_${Date.now()}`, label: `Outer Flange Diameter ${idx + 1}`,
-                                spec: (radiusVal * 2).toFixed(1), tolMin: parseFloat((radiusVal * 2 - 0.2).toFixed(2)), tolMax: parseFloat((radiusVal * 2 + 0.2).toFixed(2)),
-                                variable: 'Meas_Diameter', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀',
-                                x1: 240, y1: 170, x2: 240 + Math.round(radiusVal), y2: 170, lx: 240 + Math.round(radiusVal) + 15, ly: 170 + 20 * idx,
-                            });
-                        }
-                    });
-                }
-            }
-
-            setParseProgress(65);
-            setParseStatusText('Melakukan OCR & text parsing...');
-
-            // Fallback heuristics
-            if (extractedDims.length === 0) {
-                const nameLower = file.name.toLowerCase();
-                if (nameLower.includes('shaft') || nameLower.includes('rod') || nameLower.includes('piston')) {
-                    extractedDims = [
-                        { id: `dim_sh_1_${Date.now()}`, label: 'Shaft Length (L)', spec: '240.0', tolMin: 239.5, tolMax: 240.5, variable: 'Meas_Length', unit: 'mm', category: 'dimension', measureType: 'linear_horizontal', indicatorType: 'horizontal', gdt_symbol: '', x1: 120, y1: 240, x2: 360, y2: 240, lx: 240, ly: 255 },
-                        { id: `dim_sh_2_${Date.now()}`, label: 'Journal Diameter (d1)', spec: '35.0', tolMin: 34.98, tolMax: 35.02, variable: 'Meas_Diameter', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 120, y1: 135, x2: 120, y2: 205, lx: 95, ly: 170 },
-                        { id: `dim_sh_3_${Date.now()}`, label: 'Chamfer Angle', spec: '45.0', tolMin: 44.0, tolMax: 46.0, variable: 'Meas_Angle', unit: '°', category: 'angle', measureType: 'angle', indicatorType: 'arc', gdt_symbol: '∠', x1: 360, y1: 170, x2: 380, y2: 150, lx: 390, ly: 155, cx: 360, cy: 170, angleStart: -30, angleEnd: 0 },
-                        { id: `dim_sh_4_${Date.now()}`, label: 'Surface Finish', spec: '0.8', tolMin: 0.0, tolMax: 1.6, variable: 'Meas_Ra', unit: 'μm', category: 'roughness', measureType: 'surface_roughness', indicatorType: 'callout', gdt_symbol: 'Ra', x1: 240, y1: 280, x2: 240, y2: 280, lx: 240, ly: 300 },
-                    ];
-                } else if (nameLower.includes('gear') || nameLower.includes('pinion') || nameLower.includes('wheel')) {
-                    extractedDims = [
-                        { id: `dim_gr_1_${Date.now()}`, label: 'Outer Pitch Diameter', spec: '150.0', tolMin: 149.8, tolMax: 150.2, variable: 'Meas_Diameter', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 120, y1: 80, x2: 360, y2: 80, lx: 240, ly: 65 },
-                        { id: `dim_gr_2_${Date.now()}`, label: 'Center Hub Bore', spec: '30.0', tolMin: 29.95, tolMax: 30.05, variable: 'Meas_Bore', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 240, y1: 170, x2: 255, y2: 170, lx: 265, ly: 155 },
-                        { id: `dim_gr_3_${Date.now()}`, label: 'Tooth Angle', spec: '20.0', tolMin: 19.5, tolMax: 20.5, variable: 'Meas_Angle', unit: '°', category: 'angle', measureType: 'angle', indicatorType: 'arc', gdt_symbol: '∠', x1: 240, y1: 100, x2: 270, y2: 80, lx: 275, ly: 85, cx: 240, cy: 100, angleStart: -30, angleEnd: 0 },
-                    ];
+        const getFileDataUrl = () => {
+            return new Promise((resolve) => {
+                const r = new FileReader();
+                r.onload = (ev) => resolve(ev.target.result);
+                if (extension === 'pdf' || extension === 'svg') {
+                    r.readAsDataURL(file);
                 } else {
-                    extractedDims = [
-                        { id: `dim_gen_1_${Date.now()}`, label: 'Dimension Height (H)', spec: '50.0', tolMin: 49.5, tolMax: 50.5, variable: 'Meas_Height', unit: 'mm', category: 'dimension', measureType: 'linear_vertical', indicatorType: 'vertical', gdt_symbol: '', x1: 90, y1: 80, x2: 90, y2: 260, lx: 65, ly: 170 },
-                        { id: `dim_gen_2_${Date.now()}`, label: 'Core Diameter', spec: '12.0', tolMin: 11.9, tolMax: 12.1, variable: 'Inner_Dia', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 240, y1: 170, x2: 255, y2: 170, lx: 260, ly: 155 },
-                    ];
+                    resolve(undefined);
                 }
-            }
+            });
+        };
 
-            setParseProgress(95);
-            setParseStatusText('Membangun pemetaan koordinat interaktif...');
+        const dataUrl = await getFileDataUrl();
 
-            setTimeout(() => {
-                setParseProgress(100);
-                setIsParsing(false);
+        // 1. Try real Python parsing
+        try {
+            setParseProgress(40);
+            setParseStatusText('Melakukan geometri parsing & CAD decoding di Python...');
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const response = await fetch('http://localhost:8000/blueprint/parse', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const result = await response.json();
+
+            if (result.success && result.dimensions) {
+                setParseProgress(80);
+                setParseStatusText('Mengekstraksi anotasi GD&T & parameter toleransi...');
+
                 const newDwg = {
                     name: file.name.split('.')[0].replace(/[-_]/g, ' ').toUpperCase() + ' Blueprint',
                     fileName: file.name,
                     fileType: extension.toUpperCase(),
                     uploadedAt: new Date().toISOString(),
-                    dimensions: extractedDims,
-                    dataUrl: dataUrl
+                    dimensions: result.dimensions,
+                    dataUrl: result.rendered_image || dataUrl
                 };
-                
+
+                setParseProgress(100);
+                setIsParsing(false);
+
                 saveDrawing(newDwg).then(saved => {
                     setDrawings(prev => [saved, ...prev]);
                     setSelectedDwgId(saved.id);
                     if (saved.dimensions?.length > 0) setActiveDimId(saved.dimensions[0].id);
                     else setActiveDimId('');
-                    toast.success(`${file.name} berhasil disimpan ke database! Ditemukan ${extractedDims.length} parameter.`);
+                    toast.success(`${file.name} berhasil disimpan ke database! Ditemukan ${result.dimensions.length} parameter.`);
                 }).catch(err => {
                     console.error(err);
                     toast.error('Gagal menyimpan file drawing baru ke database.');
                 });
-            }, 800);
-        };
-        reader.onerror = () => { setIsParsing(false); toast.error('Gagal membaca berkas.'); };
-        if (extension === 'pdf') {
-            reader.readAsDataURL(file);
-        } else {
-            reader.readAsText(file);
+                return;
+            } else {
+                throw new Error(result.error || 'Parsing failed');
+            }
+        } catch (err) {
+            console.warn('Python server parsing failed or offline, using client-side fallback:', err);
+            // Fallback (original client side behavior)
+            setParseProgress(30);
+            setParseStatusText('Membaca berkas secara lokal...');
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const result = event.target.result || '';
+                const fileContent = extension === 'pdf' ? '' : result;
+                let extractedDims = [];
+
+                if (extension === 'svg') {
+                    const circleRegex = /<circle[^>]*\sr="([^"]+)"[^>]*>/gi;
+                    let match; let circleCount = 0;
+                    while ((match = circleRegex.exec(fileContent)) !== null && circleCount < 3) {
+                        const radius = parseFloat(match[1]);
+                        if (!isNaN(radius)) {
+                            circleCount++;
+                            extractedDims.push({
+                                id: `dim_svg_c_${circleCount}_${Date.now()}`,
+                                label: circleCount === 1 ? 'Inner Bore Diameter' : `Hole Circle ${circleCount} Dia`,
+                                spec: (radius * 2).toFixed(1), tolMin: parseFloat((radius * 2 - 0.1).toFixed(2)), tolMax: parseFloat((radius * 2 + 0.1).toFixed(2)),
+                                variable: circleCount === 1 ? 'Meas_Bore' : 'Inner_Dia', unit: 'mm',
+                                category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀',
+                                x1: 240, y1: 170, x2: 240 + Math.round(radius), y2: 170, lx: 240 + Math.round(radius) + 15, ly: 170 - 15,
+                            });
+                        }
+                    }
+                    const rectRegex = /<rect[^>]*\swidth="([^"]+)"[^>]*\sheight="([^"]+)"/gi;
+                    let rectMatch = rectRegex.exec(fileContent);
+                    if (rectMatch) {
+                        const w = parseFloat(rectMatch[1]);
+                        const h = parseFloat(rectMatch[2]);
+                        if (!isNaN(w) && !isNaN(h)) {
+                            extractedDims.push({
+                                id: `dim_svg_w_${Date.now()}`, label: 'Overall Width', spec: w.toFixed(1),
+                                tolMin: parseFloat((w - 0.5).toFixed(2)), tolMax: parseFloat((w + 0.5).toFixed(2)),
+                                variable: 'Meas_Length', unit: 'mm', category: 'dimension', measureType: 'linear_horizontal', indicatorType: 'horizontal', gdt_symbol: '',
+                                x1: 120, y1: 260, x2: 120 + Math.round(w), y2: 260, lx: 120 + Math.round(w/2), ly: 280,
+                            });
+                            extractedDims.push({
+                                id: `dim_svg_h_${Date.now()}`, label: 'Overall Height', spec: h.toFixed(1),
+                                tolMin: parseFloat((h - 0.5).toFixed(2)), tolMax: parseFloat((h + 0.5).toFixed(2)),
+                                variable: 'Meas_Height', unit: 'mm', category: 'dimension', measureType: 'linear_vertical', indicatorType: 'vertical', gdt_symbol: '',
+                                x1: 90, y1: 80, x2: 90, y2: 80 + Math.round(h), lx: 65, ly: 80 + Math.round(h/2),
+                            });
+                            extractedDims.push({
+                                id: `dim_svg_area_${Date.now()}`, label: 'Cross-Section Area', spec: (w * h).toFixed(1),
+                                tolMin: parseFloat(((w - 0.5) * (h - 0.5)).toFixed(1)), tolMax: parseFloat(((w + 0.5) * (h + 0.5)).toFixed(1)),
+                                variable: 'Meas_Area', unit: 'mm²', category: 'area', measureType: 'area', indicatorType: 'area_box', gdt_symbol: '',
+                                x1: 120, y1: 80, x2: 120 + Math.round(w), y2: 80 + Math.round(h), lx: 120 + Math.round(w/2), ly: 80 + Math.round(h/2),
+                            });
+                        }
+                    }
+                } else if (extension === 'dxf') {
+                    const circleMatches = fileContent.match(/CIRCLE[\s\S]*?\b40\s+([0-9.]+)/gi);
+                    if (circleMatches) {
+                        circleMatches.slice(0, 3).forEach((cm, idx) => {
+                            const radiusVal = parseFloat(cm.replace(/CIRCLE[\s\S]*?\b40\s+/, '').trim());
+                            if (!isNaN(radiusVal)) {
+                                extractedDims.push({
+                                    id: `dim_dxf_c_${idx}_${Date.now()}`, label: `Outer Flange Diameter ${idx + 1}`,
+                                    spec: (radiusVal * 2).toFixed(1), tolMin: parseFloat((radiusVal * 2 - 0.2).toFixed(2)), tolMax: parseFloat((radiusVal * 2 + 0.2).toFixed(2)),
+                                    variable: 'Meas_Diameter', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀',
+                                    x1: 240, y1: 170, x2: 240 + Math.round(radiusVal), y2: 170, lx: 240 + Math.round(radiusVal) + 15, ly: 170 + 20 * idx,
+                                });
+                            }
+                        });
+                    }
+                }
+
+                setParseProgress(65);
+                setParseStatusText('Melakukan OCR & text parsing...');
+
+                // Fallback heuristics
+                if (extractedDims.length === 0) {
+                    const nameLower = file.name.toLowerCase();
+                    if (nameLower.includes('shaft') || nameLower.includes('rod') || nameLower.includes('piston')) {
+                        extractedDims = [
+                            { id: `dim_sh_1_${Date.now()}`, label: 'Shaft Length (L)', spec: '240.0', tolMin: 239.5, tolMax: 240.5, variable: 'Meas_Length', unit: 'mm', category: 'dimension', measureType: 'linear_horizontal', indicatorType: 'horizontal', gdt_symbol: '', x1: 120, y1: 240, x2: 360, y2: 240, lx: 240, ly: 255 },
+                            { id: `dim_sh_2_${Date.now()}`, label: 'Journal Diameter (d1)', spec: '35.0', tolMin: 34.98, tolMax: 35.02, variable: 'Meas_Diameter', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 120, y1: 135, x2: 120, y2: 205, lx: 95, ly: 170 },
+                            { id: `dim_sh_3_${Date.now()}`, label: 'Chamfer Angle', spec: '45.0', tolMin: 44.0, tolMax: 46.0, variable: 'Meas_Angle', unit: '°', category: 'angle', measureType: 'angle', indicatorType: 'arc', gdt_symbol: '∠', x1: 360, y1: 170, x2: 380, y2: 150, lx: 390, ly: 155, cx: 360, cy: 170, angleStart: -30, angleEnd: 0 },
+                            { id: `dim_sh_4_${Date.now()}`, label: 'Surface Finish', spec: '0.8', tolMin: 0.0, tolMax: 1.6, variable: 'Meas_Ra', unit: 'μm', category: 'roughness', measureType: 'surface_roughness', indicatorType: 'callout', gdt_symbol: 'Ra', x1: 240, y1: 280, x2: 240, y2: 280, lx: 240, ly: 300 },
+                        ];
+                    } else if (nameLower.includes('gear') || nameLower.includes('pinion') || nameLower.includes('wheel')) {
+                        extractedDims = [
+                            { id: `dim_gr_1_${Date.now()}`, label: 'Outer Pitch Diameter', spec: '150.0', tolMin: 149.8, tolMax: 150.2, variable: 'Meas_Diameter', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 120, y1: 80, x2: 360, y2: 80, lx: 240, ly: 65 },
+                            { id: `dim_gr_2_${Date.now()}`, label: 'Center Hub Bore', spec: '30.0', tolMin: 29.95, tolMax: 30.05, variable: 'Meas_Bore', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 240, y1: 170, x2: 255, y2: 170, lx: 265, ly: 155 },
+                            { id: `dim_gr_3_${Date.now()}`, label: 'Tooth Angle', spec: '20.0', tolMin: 19.5, tolMax: 20.5, variable: 'Meas_Angle', unit: '°', category: 'angle', measureType: 'angle', indicatorType: 'arc', gdt_symbol: '∠', x1: 240, y1: 100, x2: 270, y2: 80, lx: 275, ly: 85, cx: 240, cy: 100, angleStart: -30, angleEnd: 0 },
+                        ];
+                    } else {
+                        extractedDims = [
+                            { id: `dim_gen_1_${Date.now()}`, label: 'Dimension Height (H)', spec: '50.0', tolMin: 49.5, tolMax: 50.5, variable: 'Meas_Height', unit: 'mm', category: 'dimension', measureType: 'linear_vertical', indicatorType: 'vertical', gdt_symbol: '', x1: 90, y1: 80, x2: 90, y2: 260, lx: 65, ly: 170 },
+                            { id: `dim_gen_2_${Date.now()}`, label: 'Core Diameter', spec: '12.0', tolMin: 11.9, tolMax: 12.1, variable: 'Inner_Dia', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 240, y1: 170, x2: 255, y2: 170, lx: 260, ly: 155 },
+                        ];
+                    }
+                }
+
+                setParseProgress(95);
+                setParseStatusText('Membangun pemetaan koordinat interaktif...');
+
+                setTimeout(() => {
+                    setParseProgress(100);
+                    setIsParsing(false);
+                    const newDwg = {
+                        name: file.name.split('.')[0].replace(/[-_]/g, ' ').toUpperCase() + ' Blueprint',
+                        fileName: file.name,
+                        fileType: extension.toUpperCase(),
+                        uploadedAt: new Date().toISOString(),
+                        dimensions: extractedDims,
+                        dataUrl: dataUrl
+                    };
+
+                    saveDrawing(newDwg).then(saved => {
+                        setDrawings(prev => [saved, ...prev]);
+                        setSelectedDwgId(saved.id);
+                        if (saved.dimensions?.length > 0) setActiveDimId(saved.dimensions[0].id);
+                        else setActiveDimId('');
+                        toast.success(`${file.name} berhasil disimpan ke database! Ditemukan ${extractedDims.length} parameter.`);
+                    }).catch(err => {
+                        console.error(err);
+                        toast.error('Gagal menyimpan file drawing baru ke database.');
+                    });
+                }, 800);
+            };
+            reader.onerror = () => { setIsParsing(false); toast.error('Gagal membaca berkas.'); };
+            if (extension === 'pdf') {
+                reader.readAsDataURL(file);
+            } else {
+                reader.readAsText(file);
+            }
         }
     };
 
@@ -3730,18 +3824,37 @@ export default function DrawingManager() {
                                     );
                                 })()}
 
-                                {selectedDwg && selectedDwg.fileType === 'PDF' && selectedDwg.dataUrl && (
-                                    <foreignObject x="0" y="0" width={canvasSize.width} height={canvasSize.height} style={{ pointerEvents: 'none' }}>
-                                        <iframe
-                                            src={`${selectedDwg.dataUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
-                                            style={{ width: '100%', height: '100%', border: 'none', pointerEvents: 'none' }}
-                                            title="PDF Blueprint Backdrop"
-                                        />
-                                    </foreignObject>
-                                )}
-
                                 <g transform={`translate(${canvasSize.width / 2}, ${canvasSize.height / 2}) scale(${zoom}) translate(${-canvasSize.width / 2}, ${-canvasSize.height / 2})`}>
                                     {/* Blueprint backdrop */}
+                                    {selectedDwg && selectedDwg.fileType === 'PDF' && (pdfBackdropUrl || selectedDwg.dataUrl || selectedDwg.data_url) && !(pdfBackdropUrl === null && (selectedDwg.dataUrl || selectedDwg.data_url)?.startsWith('data:application/pdf')) && (
+                                        <image
+                                            href={pdfBackdropUrl || selectedDwg.dataUrl || selectedDwg.data_url}
+                                            x="50"
+                                            y="40"
+                                            width={canvasSize.width - 100}
+                                            height={canvasSize.height - 80}
+                                            preserveAspectRatio="xMidYMid meet"
+                                            opacity="0.85"
+                                            style={{ pointerEvents: 'none' }}
+                                        />
+                                    )}
+
+                                    {selectedDwg && selectedDwg.fileType === 'PDF' && (selectedDwg.dataUrl || selectedDwg.data_url) && !pdfBackdropUrl && (selectedDwg.dataUrl || selectedDwg.data_url).startsWith('data:application/pdf') && (
+                                        <foreignObject x="50" y="80" width={canvasSize.width - 100} height={canvasSize.height - 160}>
+                                            <div style={{
+                                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                                height: '100%', padding: '20px', textAlign: 'center', backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                                                border: '1px dashed #ef4444', borderRadius: '8px', color: '#f8fafc',
+                                                fontFamily: 'sans-serif', fontSize: '0.8rem'
+                                            }}>
+                                                <span style={{ fontSize: '1.2rem', marginBottom: '8px' }}>⚠️</span>
+                                                <span style={{ fontWeight: 'bold', color: '#fca5a5', marginBottom: '4px' }}>Visual PDF Blueprint tidak aktif</span>
+                                                <span style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>
+                                                    Untuk merender gambar PDF secara visual, pastikan server Python lokal (yolo_server.py) berjalan di port 8000.
+                                                </span>
+                                            </div>
+                                        </foreignObject>
+                                    )}
                                     {selectedDwgId === 'dwg_flange_connector' ? (
                                         <>
                                             <g transform="translate(10, 0)">
@@ -3781,6 +3894,7 @@ export default function DrawingManager() {
                                         const rotationStr = shape.rotation ? `rotate(${shape.rotation}, ${shape.cx ?? center.x}, ${shape.cy ?? center.y})` : '';
                                          
                                          const isBlinking = 
+                                             selectedShapeId === shape.id ||
                                              (hoveredShapeId === shape.id && ['move', 'rotate', 'mirror', 'trim'].includes(cadTool)) ||
                                              (dragShape && dragShape.id === shape.id && ['move', 'rotate'].includes(dragShape.type)) ||
                                              (mirrorMenu && mirrorMenu.shapeId === shape.id);
@@ -3805,7 +3919,7 @@ export default function DrawingManager() {
                                                 });
                                             } else if (cadTool === 'trim' && shape.type === 'line') {
                                                 handleTrimLine(shape, coords.x, coords.y);
-                                            } else if (cadTool === 'select' && shape.type === 'image') {
+                                            } else if (cadTool === 'select') {
                                                 setSelectedShapeId(shape.id);
                                             }
                                         };
@@ -3877,13 +3991,14 @@ export default function DrawingManager() {
 
                                         const cursorStyle = 
                                             cadTool === 'erase' ? 'pointer' :
+                                            cadTool === 'select' ? 'pointer' :
                                             cadTool === 'move' ? 'move' :
                                             cadTool === 'rotate' ? 'crosshair' :
                                             cadTool === 'mirror' ? 'pointer' :
                                             (cadTool === 'trim' && shape.type === 'line') ? 'pointer' :
                                             'default';
 
-                                        const pointerEvents = ['move', 'rotate', 'mirror', 'trim', 'erase'].includes(cadTool) ? 'all' : 'none';
+                                        const pointerEvents = ['move', 'rotate', 'mirror', 'trim', 'erase', 'select'].includes(cadTool) ? 'all' : 'none';
 
                                         const commonProps = {
                                             stroke: shape.color,
@@ -4994,17 +5109,6 @@ export default function DrawingManager() {
                     {/* Right Panel: Properties + Simulation */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
                         
-                        {/* Legend */}
-                        <div style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tipe Parameter QC</div>
-                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                {PARAM_CATEGORIES.filter(c => c.key !== 'custom').map(cat => (
-                                    <span key={cat.key} style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.62rem', fontWeight: 700, color: cat.color, backgroundColor: `${cat.color}12`, padding: '2px 7px', borderRadius: '6px', border: `1px solid ${cat.color}30` }}>
-                                        <span style={{ fontSize: '0.7rem' }}>{cat.icon}</span> {cat.label}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
 
                         {/* PARAMETER PROPERTIES FORM */}
                         <div style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
