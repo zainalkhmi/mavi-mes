@@ -1,6 +1,7 @@
 import {
   Layout,
   Play,
+  StopCircle,
   Settings,
   Zap,
   ClipboardList,
@@ -83,11 +84,28 @@ const Placeholder = ({ title }) => (
   </div>
 );
 
+let tauriInvoke = null;
+async function getTauriApi() {
+  if (window.__TAURI_INTERNALS__) {
+    if (!tauriInvoke) {
+      try {
+        const core = await import('@tauri-apps/api/core');
+        tauriInvoke = core.invoke;
+      } catch (e) {
+        console.warn('Failed to load Tauri APIs:', e);
+      }
+    }
+    return { invoke: tauriInvoke };
+  }
+  return { invoke: null };
+}
+
 const App = () => {
   const [user, setUser] = useState(() => getCurrentUser());
   const location = useLocation();
   const navigate = useNavigate();
   const isOperatorRoute = location.pathname.startsWith('/player') || location.pathname.startsWith('/terminal');
+  const isOperator = user?.role === 'OPERATOR' || user?.role === 'STATION_OPERATOR';
 
   const [zoomLevel, setZoomLevel] = useState(() => {
     const saved = localStorage.getItem('mavi-zoom-level');
@@ -175,6 +193,7 @@ const App = () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
+
   const [appsMenuOpen, setAppsMenuOpen] = useState(false);
   const [analyticsMenuOpen, setAnalyticsMenuOpen] = useState(false);
   const [logicMenuOpen, setLogicMenuOpen] = useState(false);
@@ -183,6 +202,8 @@ const App = () => {
   const [visionMenuOpen, setVisionMenuOpen] = useState(false);
   const [systemMenuOpen, setSystemMenuOpen] = useState(false);
   const [drawingsMenuOpen, setDrawingsMenuOpen] = useState(false);
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+  
   const appsMenuRef = useRef(null);
   const analyticsMenuRef = useRef(null);
   const logicMenuRef = useRef(null);
@@ -191,6 +212,111 @@ const App = () => {
   const visionMenuRef = useRef(null);
   const systemMenuRef = useRef(null);
   const drawingsMenuRef = useRef(null);
+  const statusMenuRef = useRef(null);
+
+  const [pythonActive, setPythonActive] = useState(false);
+  const [supabaseActive, setSupabaseActive] = useState(false);
+  const [aiActive, setAiActive] = useState({ active: false, provider: '', model: '' });
+  const [statusLoading, setStatusLoading] = useState(false);
+
+  const updateAllStatuses = async () => {
+    setStatusLoading(true);
+    try {
+      // 1. Python sidecar
+      let py = false;
+      try {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), 1500);
+        await fetch('http://localhost:8000/', { signal: controller.signal });
+        clearTimeout(id);
+        py = true;
+      } catch (e) {
+        py = false;
+      }
+      setPythonActive(py);
+
+      // 2. Supabase DB
+      let sb = false;
+      try {
+        const { testSupabaseConnection } = await import('./utils/supabaseClient');
+        await testSupabaseConnection();
+        sb = true;
+      } catch (e) {
+        sb = false;
+      }
+      setSupabaseActive(sb);
+
+      // 3. AI assistant
+      let ai = { active: false, provider: '', model: '' };
+      try {
+        const { getIntegrationConnectors } = await import('./utils/database');
+        const all = await getIntegrationConnectors();
+        const aiConn = all.find(c => c.type === 'AI_ASSISTANT');
+        if (aiConn) {
+          const config = aiConn.aiSettings || aiConn.config || {};
+          const active = Boolean(config.provider && (config.apiKey || config.provider === 'Ollama'));
+          ai = {
+            active,
+            provider: config.provider || '',
+            model: config.modelId || ''
+          };
+        }
+      } catch (e) {
+        ai = { active: false, provider: '', model: '' };
+      }
+      setAiActive(ai);
+    } catch (err) {
+      console.warn("Failed to check status:", err);
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user && !isOperatorRoute && !isOperator) {
+      updateAllStatuses();
+      const interval = setInterval(updateAllStatuses, 25000);
+      return () => clearInterval(interval);
+    }
+  }, [user, isOperatorRoute, isOperator]);
+
+  const handleTogglePythonServer = async () => {
+    const api = await getTauriApi();
+    if (api.invoke) {
+      const toastId = toast.loading(pythonActive ? 'Stopping Python server...' : 'Starting Python server...');
+      try {
+        if (pythonActive) {
+          const res = await api.invoke('stop_python_server');
+          toast.success(res || 'Python server stopped successfully', { id: toastId });
+        } else {
+          const res = await api.invoke('start_python_server');
+          toast.success(res || 'Python server starting...', { id: toastId });
+        }
+        setTimeout(updateAllStatuses, 1500);
+      } catch (err) {
+        toast.error(`Gagal mengontrol server: ${err}`, { id: toastId });
+      }
+    } else {
+      if (pythonActive) {
+        toast.error((t) => (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <span style={{ fontWeight: 700 }}>Tauri tidak terdeteksi di browser</span>
+            <span style={{ fontSize: '0.75rem' }}>Silakan matikan server secara manual di terminal Anda (tekan <b>Ctrl+C</b> pada terminal yolo_server).</span>
+          </div>
+        ), { duration: 6000 });
+      } else {
+        toast.success((t) => (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <span style={{ fontWeight: 700 }}>Tauri tidak terdeteksi di browser</span>
+            <span style={{ fontSize: '0.75rem' }}>Silakan jalankan perintah ini di terminal Anda untuk menyalakan server:</span>
+            <code style={{ backgroundColor: '#f1f5f9', padding: '4px 6px', borderRadius: '4px', fontSize: '0.7rem', border: '1px solid #cbd5e1' }}>
+              .venv\Scripts\python yolo_server.py
+            </code>
+          </div>
+        ), { duration: 8000 });
+      }
+    }
+  };
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -218,6 +344,9 @@ const App = () => {
       }
       if (drawingsMenuRef.current && !drawingsMenuRef.current.contains(event.target)) {
         setDrawingsMenuOpen(false);
+      }
+      if (statusMenuRef.current && !statusMenuRef.current.contains(event.target)) {
+        setStatusMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -342,7 +471,6 @@ const App = () => {
   }
 
   // Operator-only routing constraint
-  const isOperator = user.role === 'OPERATOR' || user.role === 'STATION_OPERATOR';
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#f1f5f9', fontFamily: "'Inter', sans-serif" }}>
@@ -610,6 +738,219 @@ const App = () => {
           )}
 
           <Toaster position="top-right" />
+
+          {/* STATUS CONTROL MENU */}
+          <div style={{ position: 'relative' }} ref={statusMenuRef}>
+            <button
+              onClick={() => {
+                setStatusMenuOpen(!statusMenuOpen);
+                if (!statusMenuOpen) updateAllStatuses();
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '6px 12px',
+                borderRadius: '8px',
+                border: '1px solid #cbd5e1',
+                backgroundColor: '#ffffff',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                outline: 'none',
+                height: '32px',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.borderColor = '#94a3b8'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
+            >
+              <Activity size={14} color="#475569" style={{ animation: statusLoading ? 'pulse 1s infinite' : 'none' }} />
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>System</span>
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                <span
+                  style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    backgroundColor: pythonActive ? '#10b981' : '#ef4444',
+                    display: 'inline-block',
+                    boxShadow: pythonActive ? '0 0 4px #10b981' : '0 0 4px #ef4444'
+                  }}
+                  title={`Python Server: ${pythonActive ? 'Active' : 'Offline'}`}
+                />
+                <span
+                  style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    backgroundColor: supabaseActive ? '#10b981' : '#ef4444',
+                    display: 'inline-block',
+                    boxShadow: supabaseActive ? '0 0 4px #10b981' : '0 0 4px #ef4444'
+                  }}
+                  title={`Supabase DB: ${supabaseActive ? 'Active' : 'Offline'}`}
+                />
+                <span
+                  style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    backgroundColor: aiActive.active ? '#10b981' : '#ef4444',
+                    display: 'inline-block',
+                    boxShadow: aiActive.active ? '0 0 4px #10b981' : '0 0 4px #ef4444'
+                  }}
+                  title={`AI Assistant: ${aiActive.active ? 'Active' : 'Unconfigured'}`}
+                />
+              </div>
+            </button>
+            {statusMenuOpen && (
+              <div style={{
+                position: 'absolute',
+                top: 'calc(100% + 8px)',
+                right: 0,
+                backgroundColor: 'rgba(255, 255, 255, 0.96)',
+                backdropFilter: 'blur(8px)',
+                minWidth: '290px',
+                borderRadius: '12px',
+                boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)',
+                border: '1px solid #e2e8f0',
+                padding: '16px',
+                zIndex: 1001,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', borderBottom: '1px solid #f1f5f9' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a' }}>System Control & Connections</span>
+                  <button 
+                    onClick={updateAllStatuses} 
+                    disabled={statusLoading}
+                    style={{
+                      border: 'none', backgroundColor: 'transparent', color: '#2563eb', 
+                      fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer', outline: 'none'
+                    }}
+                  >
+                    {statusLoading ? 'Checking...' : 'Refresh Status'}
+                  </button>
+                </div>
+                
+                {/* 1. Python sidecar */}
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                  <div style={{ padding: '6px', borderRadius: '8px', backgroundColor: pythonActive ? '#ecfdf5' : '#fef2f2', color: pythonActive ? '#10b981' : '#ef4444', display: 'flex', alignItems: 'center' }}>
+                    <Activity size={16} />
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155' }}>Python Sidecar API</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <button
+                          onClick={handleTogglePythonServer}
+                          title={pythonActive ? "Stop Python Server" : "Start Python Server"}
+                          style={{
+                            border: 'none',
+                            backgroundColor: pythonActive ? '#fee2e2' : '#d1fae5',
+                            color: pythonActive ? '#dc2626' : '#059669',
+                            borderRadius: '4px',
+                            width: '20px',
+                            height: '20px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            padding: 0
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = pythonActive ? '#fca5a5' : '#a7f3d0';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = pythonActive ? '#fee2e2' : '#d1fae5';
+                          }}
+                        >
+                          {pythonActive ? <StopCircle size={12} /> : <Play size={12} fill="#059669" />}
+                        </button>
+                        <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '1px 6px', borderRadius: '10px', backgroundColor: pythonActive ? '#d1fae5' : '#fee2e2', color: pythonActive ? '#065f46' : '#991b1b' }}>
+                          {pythonActive ? 'ONLINE' : 'OFFLINE'}
+                        </span>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '2px' }}>
+                      {pythonActive ? 'FastAPI & YOLOv8 service active on port 8000.' : 'FastAPI offline. Click Play to start or view guide.'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 2. Supabase DB */}
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                  <div style={{ padding: '6px', borderRadius: '8px', backgroundColor: supabaseActive ? '#ecfdf5' : '#fef2f2', color: supabaseActive ? '#10b981' : '#ef4444', display: 'flex', alignItems: 'center' }}>
+                    <Database size={16} />
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155' }}>Supabase Database</span>
+                      <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '1px 6px', borderRadius: '10px', backgroundColor: supabaseActive ? '#d1fae5' : '#fee2e2', color: supabaseActive ? '#065f46' : '#991b1b' }}>
+                        {supabaseActive ? 'CONNECTED' : 'DISCONNECTED'}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '2px' }}>
+                      {supabaseActive ? 'Supabase tables and cloud storage synced.' : 'Database offline. Using localStorage fallback.'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 3. AI Assistant */}
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                  <div style={{ padding: '6px', borderRadius: '8px', backgroundColor: aiActive.active ? '#ecfdf5' : '#fef2f2', color: aiActive.active ? '#10b981' : '#ef4444', display: 'flex', alignItems: 'center' }}>
+                    <BrainCircuit size={16} />
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155' }}>AI Assistant</span>
+                      <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '1px 6px', borderRadius: '10px', backgroundColor: aiActive.active ? '#d1fae5' : '#fee2e2', color: aiActive.active ? '#065f46' : '#991b1b' }}>
+                        {aiActive.active ? 'ACTIVE' : 'INACTIVE'}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '2px' }}>
+                      {aiActive.active ? `${aiActive.provider} (${aiActive.model}) configured.` : 'No AI provider config found. Setup in System.'}
+                    </span>
+                  </div>
+                </div>
+                
+                <div style={{ height: '1px', backgroundColor: '#f1f5f9', margin: '4px 0' }} />
+                
+                {/* Navigation Shortcut */}
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {hasAccess('/supabase-settings') && (
+                    <Link
+                      to="/supabase-settings"
+                      onClick={() => setStatusMenuOpen(false)}
+                      style={{
+                        flex: 1, textDecoration: 'none', textAlign: 'center', padding: '6px 0',
+                        fontSize: '0.68rem', fontWeight: 700, backgroundColor: '#f1f5f9',
+                        color: '#475569', borderRadius: '6px', border: '1px solid #e2e8f0',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                      }}
+                    >
+                      Database Config
+                    </Link>
+                  )}
+                  {hasAccess('/ai-settings') && (
+                    <Link
+                      to="/ai-settings"
+                      onClick={() => setStatusMenuOpen(false)}
+                      style={{
+                        flex: 1, textDecoration: 'none', textAlign: 'center', padding: '6px 0',
+                        fontSize: '0.68rem', fontWeight: 700, backgroundColor: '#f0f7ff',
+                        color: '#2563eb', borderRadius: '6px', border: '1px solid #d0e7ff',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                      }}
+                    >
+                      AI Config
+                    </Link>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           <div style={{ width: '1px', height: '24px', backgroundColor: '#e2e8f0', margin: '0 8px' }}></div>
 
           {/* USER MENU & LOGOUT */}

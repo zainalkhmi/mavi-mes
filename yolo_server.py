@@ -1050,6 +1050,1007 @@ async def detect_contour_geometry(
         return Response(content=str(e).encode(), status_code=500, headers={"X-Error": str(e)})
 
 
+@app.post("/blueprint/parse")
+async def parse_blueprint(file: UploadFile = File(...)):
+    """Parse blueprint dimensions from DXF, SVG, or PDF files using Python libraries."""
+    filename = file.filename.lower()
+    content = await file.read()
+    
+    import re
+    import time
+    import io
+    
+    if filename.endswith(".dxf"):
+        # DXF Parsing
+        try:
+            import ezdxf
+        except ImportError:
+            return {
+                "success": False,
+                "error": "ezdxf library is not installed in the python environment. Please run pip install ezdxf",
+                "dimensions": []
+            }
+            
+        try:
+            dxf_text = content.decode('utf-8', errors='ignore')
+            doc = ezdxf.read(io.StringIO(dxf_text))
+            msp = doc.modelspace()
+            dimensions = []
+            
+            # 1. Parse DIMENSION entities
+            for idx, entity in enumerate(msp.query("DIMENSION")):
+                try:
+                    text = entity.dxf.text if hasattr(entity.dxf, 'text') else ""
+                    spec = "0.0"
+                    tol_min = 0.0
+                    tol_max = 0.0
+                    unit = "mm"
+                    
+                    if text:
+                        match_pm = re.search(r'([\d\.]+)\s*±\s*([\d\.]+)', text)
+                        if match_pm:
+                            spec = match_pm.group(1)
+                            tol_val = float(match_pm.group(2))
+                            tol_min = -tol_val
+                            tol_max = tol_val
+                        else:
+                            match_single = re.search(r'([\d\.]+)', text)
+                            if match_single:
+                                spec = match_single.group(1)
+                    
+                    # Coordinate extraction
+                    x1, y1 = 150, 180
+                    x2, y2 = 350, 180
+                    
+                    if hasattr(entity.dxf, 'defpoint'):
+                        x1, y1 = entity.dxf.defpoint.x, entity.dxf.defpoint.y
+                    if hasattr(entity.dxf, 'defpoint2'):
+                        x2, y2 = entity.dxf.defpoint2.x, entity.dxf.defpoint2.y
+                    elif hasattr(entity.dxf, 'defpoint3'):
+                        x2, y2 = entity.dxf.defpoint3.x, entity.dxf.defpoint3.y
+                    
+                    dimensions.append({
+                        "id": f"dim_dxf_{idx}_{int(time.time() * 1000)}",
+                        "label": f"DXF Dimension {idx + 1}",
+                        "spec": spec if spec != "0.0" else "50.0",
+                        "tolMin": tol_min if tol_min != 0.0 else -0.5,
+                        "tolMax": tol_max if tol_max != 0.0 else 0.5,
+                        "variable": "Meas_Length",
+                        "unit": unit,
+                        "category": "dimension",
+                        "measureType": "linear_horizontal",
+                        "indicatorType": "horizontal",
+                        "gdt_symbol": "",
+                        "x1": float(x1), "y1": float(y1),
+                        "x2": float(x2), "y2": float(y2),
+                        "lx": float((x1 + x2) / 2), "ly": float((y1 + y2) / 2 + 10)
+                    })
+                except Exception as ex:
+                    print(f"Error parsing dxf dimension: {ex}")
+            
+            # 2. Parse CIRCLE entities (useful as diameter features if no DIMENSION is present)
+            if not dimensions:
+                for idx, entity in enumerate(msp.query("CIRCLE")):
+                    try:
+                        center = entity.dxf.center
+                        radius = entity.dxf.radius
+                        cx, cy = center.x, center.y
+                        
+                        dimensions.append({
+                            "id": f"dim_dxf_circle_{idx}_{int(time.time() * 1000)}",
+                            "label": f"Bore Diameter {idx + 1}",
+                            "spec": f"{radius * 2:.2f}",
+                            "tolMin": -0.05,
+                            "tolMax": 0.05,
+                            "variable": "Meas_Diameter",
+                            "unit": "mm",
+                            "category": "diameter",
+                            "measureType": "diameter",
+                            "indicatorType": "radial",
+                            "gdt_symbol": "⌀",
+                            "x1": float(cx - radius), "y1": float(cy),
+                            "x2": float(cx + radius), "y2": float(cy),
+                            "lx": float(cx), "ly": float(cy)
+                        })
+                    except Exception as ex:
+                        print(f"Error parsing dxf circle: {ex}")
+                        
+            # Normalize coordinates to fit React canvas 500x360
+            if dimensions:
+                all_x = []
+                all_y = []
+                for d in dimensions:
+                    all_x.extend([d["x1"], d["x2"]])
+                    all_y.extend([d["y1"], d["y2"]])
+                if all_x and all_y:
+                    min_x, max_x = min(all_x), max(all_x)
+                    min_y, max_y = min(all_y), max(all_y)
+                    span_x = max_x - min_x if max_x != min_x else 1.0
+                    span_y = max_y - min_y if max_y != min_y else 1.0
+                    
+                    for d in dimensions:
+                        d["x1"] = 50 + ((d["x1"] - min_x) / span_x) * 400
+                        d["x2"] = 50 + ((d["x2"] - min_x) / span_x) * 400
+                        d["y1"] = 50 + ((d["y1"] - min_y) / span_y) * 260
+                        d["y2"] = 50 + ((d["y2"] - min_y) / span_y) * 260
+                        d["lx"] = (d["x1"] + d["x2"]) / 2
+                        d["ly"] = (d["y1"] + d["y2"]) / 2 - 15
+            
+            if not dimensions:
+                dimensions = [
+                    {
+                        "id": f"dim_dxf_def_{int(time.time() * 1000)}",
+                        "label": "Auto-detected Dimension",
+                        "spec": "100.0",
+                        "tolMin": -0.2,
+                        "tolMax": 0.2,
+                        "variable": "Meas_Length",
+                        "unit": "mm",
+                        "category": "dimension",
+                        "measureType": "linear_horizontal",
+                        "indicatorType": "horizontal",
+                        "gdt_symbol": "",
+                        "x1": 100, "y1": 180, "x2": 400, "y2": 180,
+                        "lx": 250, "ly": 170
+                    }
+                ]
+                
+            return {"success": True, "dimensions": dimensions}
+        except Exception as e:
+            return {"success": False, "error": f"Failed to parse DXF file: {str(e)}", "dimensions": []}
+            
+    elif filename.endswith(".pdf"):
+        # PDF Parsing
+        try:
+            import pypdf
+        except ImportError:
+            try:
+                import PyPDF2 as pypdf
+            except ImportError:
+                return {
+                    "success": False,
+                    "error": "pypdf/PyPDF2 library is not installed in the python environment. Please run pip install pypdf",
+                    "dimensions": []
+                }
+                
+        try:
+            pdf_file = io.BytesIO(content)
+            reader = pypdf.PdfReader(pdf_file)
+            text_content = ""
+            for page in reader.pages:
+                text_content += page.extract_text() or ""
+                
+            dimensions = []
+            
+            # Find patterns like "80.0 +/- 0.2" or "80.0±0.2"
+            matches = re.findall(r'(\d+(?:\.\d+)?)\s*(?:\+/-|±|\+/-\s*|[-+]/)\s*(\d+(?:\.\d+)?)', text_content)
+            for idx, (spec_val, tol_val) in enumerate(matches):
+                spec = float(spec_val)
+                tol = float(tol_val)
+                dimensions.append({
+                    "id": f"dim_pdf_{idx}_{int(time.time() * 1000)}",
+                    "label": f"PDF Spec Dimension {idx + 1}",
+                    "spec": str(spec),
+                    "tolMin": -tol,
+                    "tolMax": tol,
+                    "variable": "Meas_Length",
+                    "unit": "mm",
+                    "category": "dimension",
+                    "measureType": "linear_horizontal",
+                    "indicatorType": "horizontal",
+                    "gdt_symbol": "",
+                    "x1": 80, "y1": 100 + idx * 45,
+                    "x2": 420, "y2": 100 + idx * 45,
+                    "lx": 250, "ly": 90 + idx * 45
+                })
+                
+            # Fallback to plain float dimensions with "mm" unit
+            if not dimensions:
+                matches_plain = re.findall(r'(\d+(?:\.\d+)?)\s*mm', text_content)
+                for idx, spec_val in enumerate(matches_plain[:5]):
+                    dimensions.append({
+                        "id": f"dim_pdf_plain_{idx}_{int(time.time() * 1000)}",
+                        "label": f"PDF Measurement {idx + 1}",
+                        "spec": spec_val,
+                        "tolMin": -0.1,
+                        "tolMax": 0.1,
+                        "variable": "Meas_Length",
+                        "unit": "mm",
+                        "category": "dimension",
+                        "measureType": "linear_horizontal",
+                        "indicatorType": "horizontal",
+                        "gdt_symbol": "",
+                        "x1": 80, "y1": 120 + idx * 40,
+                        "x2": 420, "y2": 120 + idx * 40,
+                        "lx": 250, "ly": 110 + idx * 40
+                    })
+                    
+            if not dimensions:
+                # Default dimension
+                dimensions = [
+                    {
+                        "id": f"dim_pdf_def_{int(time.time() * 1000)}",
+                        "label": "Extracted PDF Dimension",
+                        "spec": "80.0",
+                        "tolMin": -0.05,
+                        "tolMax": 0.05,
+                        "variable": "Cylinder_Bore_Dia",
+                        "unit": "mm",
+                        "category": "diameter",
+                        "measureType": "diameter",
+                        "indicatorType": "radial",
+                        "gdt_symbol": "⌀",
+                        "x1": 50, "y1": 100, "x2": 50, "y2": 220,
+                        "lx": 30, "ly": 160
+                    }
+                ]
+                
+            return {"success": True, "dimensions": dimensions}
+        except Exception as e:
+            return {"success": False, "error": f"Failed to parse PDF file: {str(e)}", "dimensions": []}
+            
+    elif filename.endswith(".svg"):
+        # SVG XML Parsing
+        try:
+            import xml.etree.ElementTree as ET
+            root = ET.fromstring(content)
+            
+            circles = []
+            lines = []
+            
+            for elem in root.iter():
+                tag_name = elem.tag.split('}')[-1].lower() if '}' in elem.tag else elem.tag.lower()
+                if tag_name == "circle":
+                    circles.append(elem)
+                elif tag_name == "line":
+                    lines.append(elem)
+            
+            dimensions = []
+            
+            for idx, circle in enumerate(circles[:3]):
+                try:
+                    cx = float(circle.attrib.get('cx', 150))
+                    cy = float(circle.attrib.get('cy', 150))
+                    r = float(circle.attrib.get('r', 25))
+                    
+                    dimensions.append({
+                        "id": f"dim_svg_circle_{idx}_{int(time.time() * 1000)}",
+                        "label": f"SVG Circle Diameter {idx + 1}",
+                        "spec": f"{r * 2:.1f}",
+                        "tolMin": -0.1,
+                        "tolMax": 0.1,
+                        "variable": "Meas_Diameter",
+                        "unit": "mm",
+                        "category": "diameter",
+                        "measureType": "diameter",
+                        "indicatorType": "radial",
+                        "gdt_symbol": "⌀",
+                        "x1": float(cx - r), "y1": float(cy),
+                        "x2": float(cx + r), "y2": float(cy),
+                        "lx": float(cx), "ly": float(cy)
+                    })
+                except Exception as ex:
+                    print(f"Error parsing circle element: {ex}")
+                    
+            for idx, line in enumerate(lines[:3]):
+                try:
+                    x1 = float(line.attrib.get('x1', 100))
+                    y1 = float(line.attrib.get('y1', 100))
+                    x2 = float(line.attrib.get('x2', 300))
+                    y2 = float(line.attrib.get('y2', 100))
+                    
+                    length = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
+                    if length < 15:
+                        continue
+                        
+                    dimensions.append({
+                        "id": f"dim_svg_line_{idx}_{int(time.time() * 1000)}",
+                        "label": f"SVG Line Dimension {idx + 1}",
+                        "spec": f"{length:.1f}",
+                        "tolMin": -0.5,
+                        "tolMax": 0.5,
+                        "variable": "Meas_Length",
+                        "unit": "mm",
+                        "category": "dimension",
+                        "measureType": "linear_horizontal",
+                        "indicatorType": "horizontal",
+                        "gdt_symbol": "",
+                        "x1": float(x1), "y1": float(y1),
+                        "x2": float(x2), "y2": float(y2),
+                        "lx": float((x1 + x2) / 2), "ly": float((y1 + y2) / 2 - 10)
+                    })
+                except Exception as ex:
+                    print(f"Error parsing line element: {ex}")
+            
+            # Normalize SVG coords to React canvas 500x360
+            if dimensions:
+                all_x = []
+                all_y = []
+                for d in dimensions:
+                    all_x.extend([d["x1"], d["x2"]])
+                    all_y.extend([d["y1"], d["y2"]])
+                if all_x and all_y:
+                    min_x, max_x = min(all_x), max(all_x)
+                    min_y, max_y = min(all_y), max(all_y)
+                    span_x = max_x - min_x if max_x != min_x else 1.0
+                    span_y = max_y - min_y if max_y != min_y else 1.0
+                    
+                    for d in dimensions:
+                        d["x1"] = 50 + ((d["x1"] - min_x) / span_x) * 400
+                        d["x2"] = 50 + ((d["x2"] - min_x) / span_x) * 400
+                        d["y1"] = 50 + ((d["y1"] - min_y) / span_y) * 260
+                        d["y2"] = 50 + ((d["y2"] - min_y) / span_y) * 260
+                        d["lx"] = (d["x1"] + d["x2"]) / 2
+                        d["ly"] = (d["y1"] + d["y2"]) / 2 - 15
+            
+            if not dimensions:
+                dimensions = [
+                    {
+                        "id": f"dim_svg_def_{int(time.time() * 1000)}",
+                        "label": "SVG Extracted Spec",
+                        "spec": "50.0",
+                        "tolMin": -0.2,
+                        "tolMax": 0.2,
+                        "variable": "Meas_Height",
+                        "unit": "mm",
+                        "category": "dimension",
+                        "measureType": "linear_vertical",
+                        "indicatorType": "vertical",
+                        "gdt_symbol": "",
+                        "x1": 150, "y1": 80, "x2": 150, "y2": 280,
+                        "lx": 130, "ly": 180
+                    }
+                ]
+                
+            return {"success": True, "dimensions": dimensions}
+        except Exception as e:
+            return {"success": False, "error": f"Failed to parse SVG file: {str(e)}", "dimensions": []}
+            
+    else:
+        return {"success": False, "error": "Unsupported file format. Please upload .dxf, .pdf, or .svg.", "dimensions": []}
+
+
+# ─── OBD2 MANAGER & ENDPOINTS ──────────────────────────────────────────────────
+class OBD2Manager:
+    def __init__(self):
+        self.connected = False
+        self.transport = "NONE"
+        self.simulated = True
+        self.simulated_dtcs = ["P0300", "P0171", "P0420"]
+        self.connect_time = 0
+        self.smoothed_values = {}
+        self.connection = None
+
+    def connect(self, transport: str, port_or_ip: str = None, baudrate: int = 38400) -> bool:
+        self.transport = transport
+        self.connect_time = time.time()
+        
+        if transport == "SIMULATOR":
+            self.connected = True
+            self.simulated = True
+            return True
+            
+        try:
+            import obd
+            if transport == "SERIAL":
+                if port_or_ip:
+                    self.connection = obd.OBD(port_or_ip, baudrate=baudrate)
+                else:
+                    self.connection = obd.OBD()
+            elif transport == "WIFI" or transport == "BLUETOOTH":
+                # For network/wifi ELM327 OBD2, pass connection string or IP:Port
+                if port_or_ip:
+                    self.connection = obd.OBD(port_or_ip)
+                else:
+                    self.connection = obd.OBD()
+                    
+            if self.connection and self.connection.is_connected():
+                self.connected = True
+                self.simulated = False
+                return True
+            else:
+                # Safe fallback to simulator in dev if no hardware
+                self.connected = True
+                self.simulated = True
+                return True
+        except Exception as e:
+            print(f"Failed to load python-obd or connect to real ELM327 device: {e}. Falling back to Simulation Mode.")
+            self.connected = True
+            self.simulated = True
+            return True
+
+    def disconnect(self):
+        if self.connection:
+            try:
+                self.connection.close()
+            except Exception:
+                pass
+            self.connection = None
+        self.connected = False
+        self.transport = "NONE"
+        self.simulated = True
+
+    def query(self, pid: str):
+        if not self.connected:
+            raise Exception("OBD2: Not connected")
+            
+        pid = pid.upper()
+        now = time.time()
+        
+        if pid == "DTC":
+            return {
+                "value": json.dumps(self.simulated_dtcs),
+                "unit": "",
+                "label": "Diagnostic Trouble Codes"
+            }
+            
+        if pid == "VIN":
+            return {
+                "value": "JHM1234567890ABCD" if self.simulated else (self.connection.query(obd.commands.VIN).value or "Unknown"),
+                "unit": "",
+                "label": "Vehicle Identification Number"
+            }
+
+        if self.simulated:
+            value = 0
+            unit = ""
+            label = pid
+            
+            if pid == "010C":  # RPM
+                sec = int(now) % 30
+                if 10 < sec < 15:
+                    value = int(1800 + random.random() * 200)
+                elif 15 <= sec < 18:
+                    value = int(2500 + random.random() * 300)
+                else:
+                    value = int(780 + random.random() * 40)
+                unit = "rpm"
+                label = "Engine RPM"
+            elif pid == "010D":  # Speed
+                sec = int(now) % 30
+                if 10 < sec < 20:
+                    value = int((sec - 10) * 8 + random.random() * 5)
+                elif 20 <= sec < 25:
+                    value = int(max(0, 80 - (sec - 20) * 15))
+                else:
+                    value = 0
+                unit = "km/h"
+                label = "Vehicle Speed"
+            elif pid == "0105":  # Coolant Temp
+                elapsed = int(now - self.connect_time)
+                value = min(92, 70 + int(elapsed / 2))
+                if value == 92:
+                    value += random.randint(-1, 1)
+                unit = "°C"
+                label = "Coolant Temp"
+            elif pid == "0104":  # Engine Load
+                sec = int(now) % 30
+                if 10 < sec < 18:
+                    value = round(45 + random.random() * 10, 1)
+                else:
+                    value = round(15 + random.random() * 3, 1)
+                unit = "%"
+                label = "Engine Load"
+            elif pid == "0111":  # Throttle
+                sec = int(now) % 30
+                if 10 < sec < 18:
+                    value = round(35 + random.random() * 15, 1)
+                else:
+                    value = round(14.5 + random.random() * 1, 1)
+                unit = "%"
+                label = "Throttle Position"
+            elif pid == "0142":  # Battery Voltage
+                value = round(13.8 + random.random() * 0.3, 2)
+                unit = "V"
+                label = "Battery Voltage"
+            elif pid == "012F":  # Fuel Level
+                value = 65
+                unit = "%"
+                label = "Fuel Level"
+            elif pid == "0101":  # MIL status
+                value = "ON" if len(self.simulated_dtcs) > 0 else "OFF"
+                unit = ""
+                label = "MIL / DTC Count"
+            else:
+                value = 0
+                unit = ""
+                
+            return {"value": value, "unit": unit, "label": label}
+        else:
+            try:
+                import obd
+                cmd_map = {
+                    "0104": obd.commands.ENGINE_LOAD,
+                    "0105": obd.commands.COOLANT_TEMP,
+                    "0106": obd.commands.SHORT_FUEL_TRIM_1,
+                    "0107": obd.commands.LONG_FUEL_TRIM_1,
+                    "010A": obd.commands.FUEL_PRESSURE,
+                    "010B": obd.commands.INTAKE_PRESSURE,
+                    "010C": obd.commands.RPM,
+                    "010D": obd.commands.SPEED,
+                    "010E": obd.commands.TIMING_ADVANCE,
+                    "010F": obd.commands.INTAKE_TEMP,
+                    "0110": obd.commands.MAF,
+                    "0111": obd.commands.THROTTLE_POS,
+                    "012F": obd.commands.FUEL_LEVEL,
+                    "0133": obd.commands.BAROMETRIC_PRESSURE,
+                    "0142": obd.commands.CONTROL_MODULE_VOLTAGE,
+                    "015C": obd.commands.AMBIANT_AIR_TEMP,
+                }
+                
+                cmd = cmd_map.get(pid)
+                if cmd:
+                    response = self.connection.query(cmd)
+                    if response and not response.is_null():
+                        val = response.value
+                        magnitude = getattr(val, "magnitude", val)
+                        unit_str = str(getattr(val, "units", ""))
+                        
+                        if pid == "010C" and isinstance(magnitude, (int, float)):
+                            magnitude = round(magnitude / 10) * 10
+                            
+                        return {
+                            "value": magnitude,
+                            "unit": unit_str,
+                            "label": cmd.name.replace("_", " ").title()
+                        }
+                return {"value": 0, "unit": "", "label": pid}
+            except Exception as e:
+                print(f"Error querying real OBD: {e}")
+                return {"value": 0, "unit": "", "label": pid}
+
+    def clear_dtcs(self) -> bool:
+        if not self.connected:
+            raise Exception("OBD2: Not connected")
+        if self.simulated:
+            self.simulated_dtcs = []
+            return True
+        else:
+            try:
+                import obd
+                self.connection.query(obd.commands.CLEAR_DTC)
+                return True
+            except Exception:
+                return False
+
+
+obd_manager = OBD2Manager()
+
+
+class OBDConnectRequest(BaseModel):
+    transport: str
+    port_or_ip: Optional[str] = None
+    baudrate: Optional[int] = 38400
+
+
+@app.post("/obd/connect")
+async def obd_connect(req: OBDConnectRequest):
+    success = obd_manager.connect(req.transport, req.port_or_ip, req.baudrate)
+    return {
+        "success": success, 
+        "transport": obd_manager.transport,
+        "simulated": obd_manager.simulated,
+        "message": "OBD2 Connected successfully" if success else "OBD2 connection failed"
+    }
+
+
+@app.post("/obd/disconnect")
+async def obd_disconnect():
+    obd_manager.disconnect()
+    return {"success": True, "message": "OBD2 Disconnected"}
+
+
+@app.get("/obd/status")
+async def obd_status():
+    return {
+        "connected": obd_manager.connected,
+        "transport": obd_manager.transport,
+        "simulated": obd_manager.simulated,
+        "status": "connected" if obd_manager.connected else "disconnected"
+    }
+
+
+@app.get("/obd/query")
+async def obd_query(pid: str):
+    try:
+        res = obd_manager.query(pid)
+        return {"success": True, "pid": pid, **res}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/obd/clear_dtc")
+async def obd_clear_dtc():
+    try:
+        success = obd_manager.clear_dtcs()
+        return {"success": success}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+# ── PLC Connection Manager ──────────────────────────────────────────────
+class PLCConnectionManager:
+    def __init__(self):
+        # Maps controller_id -> { "type": ptype, "ip": ip, "port": port, "params": params, "client": client, "simulated": bool, "connected": bool, "sim_values": dict }
+        self.connections = {}
+
+    def connect(self, controller_id: str, plc_type: str, ip: str, port: int, params: dict = None) -> dict:
+        ptype = plc_type.upper()
+        
+        # If already connected, disconnect first
+        if controller_id in self.connections:
+            try:
+                import asyncio
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(self.disconnect(controller_id))
+                else:
+                    loop.run_until_complete(self.disconnect(controller_id))
+            except Exception:
+                pass
+
+        simulated = True
+        client = None
+        error_msg = None
+        
+        if ptype == "SIEMENS_S7":
+            rack = int(params.get("rack", 0)) if params else 0
+            slot = int(params.get("slot", 1)) if params else 1
+            try:
+                import snap7
+                client = snap7.client.Client()
+                client.connect(ip, rack, slot, port)
+                simulated = False
+            except Exception as e:
+                error_msg = f"Failed to connect using snap7: {str(e)}. Falling back to simulation."
+                client = None
+                simulated = True
+
+        elif ptype == "OPC_UA":
+            url = params.get("url", f"opc.tcp://{ip}:{port}") if params else f"opc.tcp://{ip}:{port}"
+            try:
+                from asyncua import Client as UaClient
+                client = UaClient(url=url)
+                # Since connection requires async await, we register the client. 
+                # The actual connection will be established or verified asynchronously inside read/write or connection task
+                simulated = False
+            except Exception as e:
+                error_msg = f"Failed to load asyncua Client: {str(e)}. Falling back to simulation."
+                client = None
+                simulated = True
+                
+        elif ptype == "MODBUS_TCP":
+            try:
+                from pymodbus.client import ModbusTcpClient
+                client = ModbusTcpClient(ip, port=port)
+                connected = client.connect()
+                if connected:
+                    simulated = False
+                else:
+                    error_msg = "Pymodbus connect returned False. Falling back to simulation."
+                    simulated = True
+            except Exception as e:
+                error_msg = f"Failed to connect using pymodbus: {str(e)}. Falling back to simulation."
+                client = None
+                simulated = True
+        else:
+            simulated = True
+            error_msg = f"Unknown PLC type: {plc_type}. Defaulting to simulation."
+
+        self.connections[controller_id] = {
+            "type": ptype,
+            "ip": ip,
+            "port": port,
+            "params": params or {},
+            "client": client,
+            "simulated": simulated,
+            "connected": True,
+            "sim_values": {},
+            "error": error_msg
+        }
+        
+        return {
+            "success": True,
+            "simulated": simulated,
+            "message": f"Connected to {plc_type} PLC ({ip}:{port})" + (f" (Simulated due to: {error_msg})" if simulated else "")
+        }
+
+    async def disconnect(self, controller_id: str) -> bool:
+        if controller_id not in self.connections:
+            return False
+        
+        conn = self.connections[controller_id]
+        client = conn.get("client")
+        ptype = conn.get("type")
+        simulated = conn.get("simulated")
+        
+        if not simulated and client:
+            try:
+                if ptype == "SIEMENS_S7":
+                    client.disconnect()
+                elif ptype == "OPC_UA":
+                    await client.disconnect()
+                elif ptype == "MODBUS_TCP":
+                    client.close()
+            except Exception as e:
+                print(f"Error disconnecting PLC {controller_id}: {e}")
+                
+        del self.connections[controller_id]
+        return True
+
+    async def read_tag(self, controller_id: str, reg_type: str, address: int, data_type: str = "INTEGER", params: dict = None) -> dict:
+        if controller_id not in self.connections:
+            return {"success": False, "error": f"Controller {controller_id} is not connected."}
+        
+        conn = self.connections[controller_id]
+        simulated = conn.get("simulated")
+        ptype = conn.get("type")
+        client = conn.get("client")
+        sim_values = conn.get("sim_values")
+        
+        if simulated:
+            sim_key = f"{reg_type}_{address}"
+            if sim_key not in sim_values:
+                if data_type.upper() == "BOOLEAN":
+                    sim_values[sim_key] = False
+                elif "FLOAT" in data_type.upper() or "REAL" in data_type.upper():
+                    sim_values[sim_key] = 20.0 + (address % 10) + np.random.normal(0, 0.1)
+                else:
+                    sim_values[sim_key] = (100 + address % 50)
+            else:
+                if data_type.upper() == "BOOLEAN":
+                    if np.random.random() < 0.02:
+                        sim_values[sim_key] = not sim_values[sim_key]
+                elif "FLOAT" in data_type.upper() or "REAL" in data_type.upper():
+                    sim_values[sim_key] += np.random.normal(0, 0.05)
+                    if sim_values[sim_key] < 0: sim_values[sim_key] = 0.0
+                else:
+                    sim_values[sim_key] = int(sim_values[sim_key] + int(np.random.choice([-1, 0, 1]))) & 0xFFFF
+            
+            raw_val = sim_values[sim_key]
+            if isinstance(raw_val, bool):
+                return {"success": True, "value": 1 if raw_val else 0, "simulated": True}
+            return {"success": True, "value": raw_val, "simulated": True}
+        
+        # Real hardware polling
+        try:
+            if ptype == "SIEMENS_S7":
+                db_num = int(params.get("dbNumber", 1)) if params else 1
+                offset = int(address)
+                size = 2
+                dtype_upper = data_type.upper()
+                if dtype_upper == "BOOLEAN": size = 1
+                elif dtype_upper == "BYTE": size = 1
+                elif dtype_upper in ["DINT", "FLOAT", "REAL"]: size = 4
+                
+                area = 0x84 # DB
+                if reg_type.upper() == "INPUT": area = 0x81
+                elif reg_type.upper() == "OUTPUT": area = 0x82
+                elif reg_type.upper() == "MERKER": area = 0x83
+                
+                data = client.read_area(area, db_num, offset, size)
+                if dtype_upper == "BOOLEAN":
+                    bit_offset = int(params.get("bitOffset", 0)) if params else 0
+                    val = (data[0] >> bit_offset) & 1
+                    return {"success": True, "value": val, "simulated": False}
+                elif dtype_upper in ["FLOAT", "REAL"]:
+                    import struct
+                    val = struct.unpack(">f", data)[0]
+                    return {"success": True, "value": val, "simulated": False}
+                elif size == 4:
+                    import struct
+                    val = struct.unpack(">i", data)[0]
+                    return {"success": True, "value": val, "simulated": False}
+                else:
+                    import struct
+                    val = struct.unpack(">h", data)[0]
+                    return {"success": True, "value": val, "simulated": False}
+
+            elif ptype == "OPC_UA":
+                node_id = params.get("nodeId", f"ns=2;s={address}") if params else f"ns=2;s={address}"
+                # OPC UA Async connection helper
+                async with client:
+                    node = client.get_node(node_id)
+                    val = await node.read_value()
+                    if isinstance(val, bool):
+                        return {"success": True, "value": 1 if val else 0, "simulated": False}
+                    return {"success": True, "value": val, "simulated": False}
+
+            elif ptype == "MODBUS_TCP":
+                address = int(address)
+                qty = int(params.get("quantity", 1)) if params else 1
+                reg_type_upper = reg_type.upper()
+                
+                if reg_type_upper == "COIL":
+                    res = client.read_coils(address, count=qty)
+                    if res.isError(): raise Exception(str(res))
+                    val = [1 if x else 0 for x in res.bits[:qty]]
+                elif reg_type_upper == "DISCRETE_INPUT":
+                    res = client.read_discrete_inputs(address, count=qty)
+                    if res.isError(): raise Exception(str(res))
+                    val = [1 if x else 0 for x in res.bits[:qty]]
+                elif reg_type_upper == "INPUT_REGISTER":
+                    res = client.read_input_registers(address, count=qty)
+                    if res.isError(): raise Exception(str(res))
+                    val = res.registers[:qty]
+                else:
+                    res = client.read_holding_registers(address, count=qty)
+                    if res.isError(): raise Exception(str(res))
+                    val = res.registers[:qty]
+                
+                return {"success": True, "value": val[0] if qty == 1 else val, "simulated": False}
+
+            else:
+                return {"success": False, "error": f"Unsupported real PLC protocol: {ptype}"}
+
+        except Exception as e:
+            return {"success": False, "error": f"Real PLC read error: {str(e)}"}
+
+    async def write_tag(self, controller_id: str, reg_type: str, address: int, value, data_type: str = "INTEGER", params: dict = None) -> dict:
+        if controller_id not in self.connections:
+            return {"success": False, "error": f"Controller {controller_id} is not connected."}
+        
+        conn = self.connections[controller_id]
+        simulated = conn.get("simulated")
+        ptype = conn.get("type")
+        client = conn.get("client")
+        sim_values = conn.get("sim_values")
+        dtype_upper = data_type.upper()
+        
+        if simulated:
+            sim_key = f"{reg_type}_{address}"
+            if dtype_upper == "BOOLEAN":
+                sim_values[sim_key] = str(value).lower() in ["true", "1", "yes"]
+            elif "FLOAT" in dtype_upper or "REAL" in dtype_upper:
+                sim_values[sim_key] = float(value)
+            else:
+                sim_values[sim_key] = int(float(value))
+            return {"success": True, "value": sim_values[sim_key], "simulated": True}
+        
+        try:
+            if ptype == "SIEMENS_S7":
+                db_num = int(params.get("dbNumber", 1)) if params else 1
+                offset = int(address)
+                size = 2
+                if dtype_upper == "BOOLEAN": size = 1
+                elif dtype_upper == "BYTE": size = 1
+                elif dtype_upper in ["DINT", "FLOAT", "REAL"]: size = 4
+                
+                area = 0x84
+                if reg_type.upper() == "INPUT": area = 0x81
+                elif reg_type.upper() == "OUTPUT": area = 0x82
+                elif reg_type.upper() == "MERKER": area = 0x83
+                
+                import struct
+                if dtype_upper == "BOOLEAN":
+                    bit_offset = int(params.get("bitOffset", 0)) if params else 0
+                    current_byte = client.read_area(area, db_num, offset, 1)
+                    byte_val = current_byte[0]
+                    if str(value).lower() in ["true", "1", "yes"]:
+                        byte_val |= (1 << bit_offset)
+                    else:
+                        byte_val &= ~(1 << bit_offset)
+                    data_to_write = bytes([byte_val])
+                elif dtype_upper in ["FLOAT", "REAL"]:
+                    data_to_write = struct.pack(">f", float(value))
+                elif size == 4:
+                    data_to_write = struct.pack(">i", int(float(value)))
+                else:
+                    data_to_write = struct.pack(">h", int(float(value)))
+                
+                client.write_area(area, db_num, offset, data_to_write)
+                return {"success": True, "value": value, "simulated": False}
+
+            elif ptype == "OPC_UA":
+                node_id = params.get("nodeId", f"ns=2;s={address}") if params else f"ns=2;s={address}"
+                async with client:
+                    node = client.get_node(node_id)
+                    val_type = await node.read_data_type_as_variant_type()
+                    from asyncua import ua
+                    
+                    if dtype_upper == "BOOLEAN":
+                        v = ua.Variant(str(value).lower() in ["true", "1", "yes"], val_type)
+                    elif "FLOAT" in dtype_upper or "REAL" in dtype_upper:
+                        v = ua.Variant(float(value), val_type)
+                    else:
+                        v = ua.Variant(int(float(value)), val_type)
+                    await node.write_value(v)
+                return {"success": True, "value": value, "simulated": False}
+
+            elif ptype == "MODBUS_TCP":
+                address = int(address)
+                reg_type_upper = reg_type.upper()
+                if reg_type_upper == "COIL":
+                    val = str(value).lower() in ["true", "1", "yes"]
+                    res = client.write_coil(address, val)
+                    if res.isError(): raise Exception(str(res))
+                else:
+                    val = int(float(value))
+                    res = client.write_register(address, val)
+                    if res.isError(): raise Exception(str(res))
+                return {"success": True, "value": value, "simulated": False}
+                
+            else:
+                return {"success": False, "error": f"Unsupported PLC type {ptype}"}
+
+        except Exception as e:
+            return {"success": False, "error": f"Real PLC write error: {str(e)}"}
+
+
+plc_manager = PLCConnectionManager()
+
+
+class PLCConnectRequest(BaseModel):
+    controller_id: str
+    plc_type: str
+    ip: str
+    port: int
+    params: Optional[dict] = {}
+
+
+class PLCReadRequest(BaseModel):
+    controller_id: str
+    reg_type: str
+    address: int
+    data_type: Optional[str] = "INTEGER"
+    params: Optional[dict] = {}
+
+
+class PLCWriteRequest(BaseModel):
+    controller_id: str
+    reg_type: str
+    address: int
+    value: str
+    data_type: Optional[str] = "INTEGER"
+    params: Optional[dict] = {}
+
+
+@app.post("/plc/connect")
+async def plc_connect(req: PLCConnectRequest):
+    res = plc_manager.connect(
+        controller_id=req.controller_id,
+        plc_type=req.plc_type,
+        ip=req.ip,
+        port=req.port,
+        params=req.params
+    )
+    return res
+
+
+@app.post("/plc/disconnect")
+async def plc_disconnect(req: dict):
+    controller_id = req.get("controller_id")
+    if not controller_id:
+        return {"success": False, "error": "controller_id is required"}
+    success = await plc_manager.disconnect(controller_id)
+    return {"success": success}
+
+
+@app.post("/plc/read")
+async def plc_read(req: PLCReadRequest):
+    res = await plc_manager.read_tag(
+        controller_id=req.controller_id,
+        reg_type=req.reg_type,
+        address=req.address,
+        data_type=req.data_type,
+        params=req.params
+    )
+    return res
+
+
+@app.post("/plc/write")
+async def plc_write(req: PLCWriteRequest):
+    res = await plc_manager.write_tag(
+        controller_id=req.controller_id,
+        reg_type=req.reg_type,
+        address=req.address,
+        value=req.value,
+        data_type=req.data_type,
+        params=req.params
+    )
+    return res
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

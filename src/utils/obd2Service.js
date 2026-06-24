@@ -332,227 +332,55 @@ class OBD2Service {
         await this._sendRaw('ATSP0');      // Auto-detect OBD protocol
     }
 
-    // ── Bluetooth Connect ──────────────────────────────────────────────────────
-    async connectBluetooth() {
-        if (!navigator.bluetooth) {
-            console.warn('[OBD2] Web Bluetooth not supported. Falling back to Simulation Mode...');
-            return this.connectSimulated('BLUETOOTH');
-        }
+    // ── Python API Connect Helper ──────────────────────────────────────────────
+    async _connectToPython(transport, portOrIp = null, baudrate = 38400) {
         this._setStatus('connecting');
         try {
-            this._btDevice = await navigator.bluetooth.requestDevice({
-                filters: [
-                    { namePrefix: 'OBD'   },
-                    { namePrefix: 'ELM'   },
-                    { namePrefix: 'OBDII' },
-                    { namePrefix: 'Kiwi'  },
-                    { namePrefix: 'Vlink' },
-                    { namePrefix: 'VEEPEAK' },
-                    { namePrefix: 'iCar'  },
-                ],
-                optionalServices: [
-                    BLE_UUID.FFE0_SVC,
-                    BLE_UUID.FFF0_SVC,
-                ],
+            const res = await fetch('http://localhost:8000/obd/connect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transport, port_or_ip: portOrIp, baudrate })
             });
-
-            const server = await this._btDevice.gatt.connect();
-
-            // Try FFE0 first, fallback to FFF0
-            let service, char;
-            try {
-                service = await server.getPrimaryService(BLE_UUID.FFE0_SVC);
-                char    = await service.getCharacteristic(BLE_UUID.FFE1_CHAR);
-            } catch {
-                service = await server.getPrimaryService(BLE_UUID.FFF0_SVC);
-                char    = await service.getCharacteristic(BLE_UUID.FFF1_CHAR);
+            if (!res.ok) throw new Error('Failed to connect via Python OBD2 API');
+            const data = await res.json();
+            if (data.success) {
+                this.connected = true;
+                this.simulated = data.simulated;
+                this.transport = data.transport;
+                this._setStatus('connected');
+                return true;
+            } else {
+                throw new Error(data.message || 'Connection rejected');
             }
-
-            this._btChar  = char;
-            this.transport = 'BLUETOOTH';
-
-            // Subscribe to notifications (incoming data from ELM327)
-            await char.startNotifications();
-            char.addEventListener('characteristicvaluechanged', (e) => {
-                this._handleChunk(new TextDecoder().decode(e.target.value));
-            });
-
-            this._btDevice.addEventListener('gattserverdisconnected', () => {
-                this.connected = false;
-                this._setStatus('disconnected');
-            });
-
-            await this._initELM327();
+        } catch (err) {
+            console.warn('[OBD2 Python] Connection failed, falling back to local simulation mode:', err.message);
+            // Local fallback simulation mode in JS as safety net if Python API is offline
+            this.transport = `${transport} (LOCAL SIMULATOR)`;
             this.connected = true;
-            this.simulated = false;
+            this.simulated = true;
+            this._connectTime = Date.now();
             this._setStatus('connected');
             return true;
-        } catch (err) {
-            console.warn('[OBD2] Bluetooth connect failed. Falling back to Simulation Mode:', err.message);
-            return this.connectSimulated('BLUETOOTH');
         }
+    }
+
+    // ── Bluetooth Connect ──────────────────────────────────────────────────────
+    async connectBluetooth() {
+        return this._connectToPython('BLUETOOTH');
     }
 
     // ── Serial (USB) Connect ───────────────────────────────────────────────────
     async connectSerial(baudRate = 38400) {
-        if (!navigator.serial) {
-            console.warn('[OBD2] Web Serial not supported. Falling back to Simulation Mode...');
-            return this.connectSimulated('SERIAL');
-        }
-        this._setStatus('connecting');
-        try {
-            this._serialPort = await navigator.serial.requestPort({
-                filters: [
-                    { usbVendorId: 0x0403 }, // FTDI (common ELM327 clone)
-                    { usbVendorId: 0x10C4 }, // Silicon Labs CP210x
-                    { usbVendorId: 0x1A86 }, // CH340 (cheap clones)
-                ],
-            });
-            await this._serialPort.open({ baudRate });
-
-            // Write stream
-            const encStream = new TextEncoderStream();
-            encStream.readable.pipeTo(this._serialPort.writable);
-            this._serialWrite = encStream.writable.getWriter();
-
-            // Read stream (async loop)
-            this.transport = 'SERIAL';
-            this._startSerialReadLoop();
-
-            await this._initELM327();
-            this.connected = true;
-            this.simulated = false;
-            this._setStatus('connected');
-            return true;
-        } catch (err) {
-            console.warn('[OBD2] Serial connect failed. Falling back to Simulation Mode:', err.message);
-            return this.connectSimulated('SERIAL');
-        }
+        return this._connectToPython('SERIAL', null, baudRate);
     }
 
     async connectSimulated(transport = 'BLUETOOTH') {
-        this._setStatus('connecting');
-        await new Promise(r => setTimeout(r, 800)); // Simulate connection delay
-        this.transport = `${transport} (SIMULATOR)`;
-        this.connected = true;
-        this.simulated = true;
-        this._connectTime = Date.now();
-        this._simulatedDTCs = ['P0300', 'P0171', 'P0420']; // Reset simulated codes on new connect
-        this._setStatus('connected');
-        return true;
-    }
-
-    async _startSerialReadLoop() {
-        while (this._serialPort && this._serialPort.readable) {
-            const reader = this._serialPort.readable.getReader();
-            this._serialRead = reader;
-            try {
-                while (true) {
-                    const { value, done } = await reader.read();
-                    if (done) break;
-                    this._handleChunk(new TextDecoder().decode(value));
-                }
-            } catch { /* port closed */ }
-            finally { reader.releaseLock(); }
-        }
+        return this._connectToPython('SIMULATOR');
     }
 
     // ── WiFi Connect ───────────────────────────────────────────────────────────
     async connectWiFi(ipAddress = '192.168.0.10', port = 35000) {
-        this._setStatus('connecting');
-        
-        // Native TCP via Tauri
-        const { invoke, listen } = await getTauriApi();
-        if (invoke && listen) {
-            try {
-                await invoke('tcp_connect', { ip: ipAddress, port });
-                
-                // Cleanup previous listener if any
-                if (tauriUnlisten) {
-                    tauriUnlisten();
-                    tauriUnlisten = null;
-                }
-
-                // Listen for incoming data
-                const unlistenData = await listen('tcp-data', (event) => {
-                    if (event.payload) {
-                        this._handleChunk(event.payload);
-                    }
-                });
-                
-                const unlistenDisconnect = await listen('tcp-disconnect', () => {
-                    if (this.transport === 'WIFI_TAURI') {
-                        this.connected = false;
-                        this._setStatus('disconnected');
-                    }
-                });
-
-                tauriUnlisten = () => {
-                    unlistenData();
-                    unlistenDisconnect();
-                };
-
-                this.transport = 'WIFI_TAURI';
-                await this._initELM327();
-                this.connected = true;
-                this._setStatus('connected');
-                return true;
-            } catch (err) {
-                this._setStatus('error');
-                throw new Error(err.message || String(err));
-            }
-        }
-        
-        try {
-            // Fallback for Web Browser using WebSocket proxy
-            const wsUrl = `ws://${ipAddress}:${port}`;
-            this._wsPort = new WebSocket(wsUrl);
-
-            await new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => {
-                    if (this._wsPort) this._wsPort.close();
-                    reject(new Error('WiFi connection timeout. Ensure proxy is running.'));
-                }, 5000);
-
-                this._wsPort.onopen = () => {
-                    clearTimeout(timeout);
-                    resolve();
-                };
-
-                this._wsPort.onerror = (err) => {
-                    clearTimeout(timeout);
-                    reject(new Error('WiFi connection failed. Ensure target is reachable.'));
-                };
-            });
-
-            this._wsPort.onmessage = (event) => {
-                if (event.data instanceof Blob) {
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                        this._handleChunk(reader.result);
-                    };
-                    reader.readAsText(event.data);
-                } else {
-                    this._handleChunk(event.data);
-                }
-            };
-
-            this._wsPort.onclose = () => {
-                if (this.transport === 'WIFI') {
-                    this.connected = false;
-                    this._setStatus('disconnected');
-                }
-            };
-
-            this.transport = 'WIFI';
-            await this._initELM327();
-            this.connected = true;
-            this._setStatus('connected');
-            return true;
-        } catch (err) {
-            this._setStatus('error');
-            throw err;
-        }
+        return this._connectToPython('WIFI', `${ipAddress}:${port}`);
     }
 
     async connectWifi(ipAddress = '192.168.0.10', port = 35000) {
@@ -568,41 +396,10 @@ class OBD2Service {
      */
     async queryPID(pid) {
         if (!this.connected) throw new Error('OBD2: Not connected');
-
         const normalizedPid = String(pid || '').toUpperCase();
 
-        // Special handling for derived DTC queries
-        if (normalizedPid === 'DTC') {
-            try {
-                const dtcs = await this.readDTC();
-                const result = { value: JSON.stringify(dtcs), unit: '', label: 'Diagnostic Trouble Codes' };
-                this._emitPIDData('DTC', { ...result, timestamp: Date.now() });
-                return result;
-            } catch (err) {
-                console.warn(`[OBD2] queryPID(DTC) error:`, err.message);
-                return null;
-            }
-        }
-
-        // Special handling for VIN queries
-        if (normalizedPid === 'VIN') {
-            try {
-                const vinInfo = await this.readVIN();
-                const result = { 
-                    value: vinInfo ? vinInfo.vin : 'Unknown', 
-                    unit: '', 
-                    label: 'Vehicle Identification Number', 
-                    extra: vinInfo 
-                };
-                this._emitPIDData('VIN', { ...result, timestamp: Date.now() });
-                return result;
-            } catch (err) {
-                console.warn(`[OBD2] queryPID(VIN) error:`, err.message);
-                return null;
-            }
-        }
-
-        if (this.simulated) {
+        // If we are in local simulator mode (Python fell back)
+        if (this.simulated && this.transport.includes('LOCAL')) {
             let value = 0;
             let unit = '';
             let label = pid;
@@ -676,51 +473,19 @@ class OBD2Service {
             return result;
         }
 
-        if (DERIVED_PIDS.has(normalizedPid)) return null; 
-
+        // Standard Python OBD API query path
         try {
-            // Optimization: tell ELM327 to return exactly 1 frame for Mode 01 real-time params.
-            // This bypasses the internal timeout, making polling lightning fast.
-            let cmd = pid;
-            if (pid.length === 4 && pid.startsWith('01') && pid !== '0100' && pid !== '0120' && pid !== '0140' && pid !== '0160') {
-                cmd = pid + '1';
-            }
-            const raw = await this._sendRaw(cmd, 3500);
-            if (pid === '010C') console.log(`[OBD2 DEBUG] PID: ${pid}, Raw: "${raw}"`);
-            const result = parseOBDResponse(raw, pid);
-            if (result) {
-                // Apply Exponential Moving Average (EMA) for smoother number transitions
-                if (typeof result.value === 'number') {
-                    const isInt = Number.isInteger(result.value);
-                    const alpha = 0.08; // Much smoother / heavier filtering
-                    
-                    if (this._smoothedValues[pid] === undefined) {
-                        this._smoothedValues[pid] = result.value;
-                    } else {
-                        // Snap if there is a massive sudden change to avoid dragging
-                        if (Math.abs(result.value - this._smoothedValues[pid]) > Math.max(250, result.value * 0.35)) {
-                            this._smoothedValues[pid] = result.value;
-                        } else {
-                            this._smoothedValues[pid] = (alpha * result.value) + ((1 - alpha) * this._smoothedValues[pid]);
-                        }
-                    }
-                    
-                    // Format back to readable precision
-                    if (pid === '010C') {
-                        // Engine RPM: Round to nearest 10 to stop digital text flickering
-                        result.value = Math.round(this._smoothedValues[pid] / 10) * 10;
-                    } else if (isInt) {
-                        result.value = Math.round(this._smoothedValues[pid]);
-                    } else {
-                        result.value = Number(this._smoothedValues[pid].toFixed(2));
-                    }
-                }
-                
+            const res = await fetch(`http://localhost:8000/obd/query?pid=${normalizedPid}`);
+            if (!res.ok) throw new Error('Python OBD Query failed');
+            const data = await res.json();
+            if (data.success) {
+                const result = { value: data.value, unit: data.unit, label: data.label };
                 this._emitPIDData(pid, { ...result, timestamp: Date.now() });
+                return result;
             }
-            return result;
+            return null;
         } catch (err) {
-            console.warn(`[OBD2] queryPID(${pid}) error:`, err.message);
+            console.warn(`[OBD2 Python] Query for PID ${pid} failed:`, err.message);
             return null;
         }
     }
@@ -732,33 +497,21 @@ class OBD2Service {
      */
     async readVIN() {
         if (!this.connected) throw new Error('OBD2: Not connected');
-        if (this.simulated) {
+        
+        if (this.simulated && this.transport.includes('LOCAL')) {
             return { vin: 'JHM1234567890ABCD', brand: 'Honda', country: 'Japan' };
         }
-        
+
         try {
-            const raw = await this._sendRaw('0902', 8000);
-            const clean = raw.replace(/[\r\n\s]/g, '').toUpperCase();
-            if (clean.includes('NODATA') || clean.includes('ERROR')) return null;
-
-            let asciiStr = '';
-            for (let i = 0; i + 1 < clean.length; i += 2) {
-                const code = parseInt(clean.substring(i, i + 2), 16);
-                if (code >= 32 && code <= 126) {
-                    asciiStr += String.fromCharCode(code);
-                }
+            const res = await fetch('http://localhost:8000/obd/query?pid=VIN');
+            if (!res.ok) throw new Error('Python OBD VIN read failed');
+            const data = await res.json();
+            if (data.success) {
+                return { vin: data.value, brand: 'Unknown', country: 'Unknown' };
             }
-
-            const vinMatch = asciiStr.match(/[A-HJ-NPR-Z0-9]{17}/);
-            if (!vinMatch) {
-                return { vin: 'Unknown', brand: 'Unknown', country: 'Unknown', raw: asciiStr };
-            }
-            
-            const vin = vinMatch[0];
-            const wmiInfo = this.decodeWMI(vin.substring(0, 3));
-            return { vin, ...wmiInfo };
-        } catch (e) {
-            console.warn('[OBD2] Error reading VIN:', e.message);
+            return null;
+        } catch (err) {
+            console.warn('[OBD2 Python] readVIN failed:', err.message);
             return null;
         }
     }
@@ -831,53 +584,29 @@ class OBD2Service {
      * Read Diagnostic Trouble Codes (Mode 03).
      * @returns {string[]} e.g. ['P0300', 'P0420']
      */
-    async isProtocolCAN() {
-        if (this.simulated) return false;
-        try {
-            const raw = await this._sendRaw('ATDPN', 2000);
-            if (raw) {
-                const clean = raw.replace(/[\r\n\s]/g, '').toUpperCase();
-                if (clean.length > 0) {
-                    const lastChar = clean.slice(-1);
-                    if (['6', '7', '8', '9', 'A', 'B', 'C'].includes(lastChar)) {
-                        return true;
-                    }
-                }
-            }
-        } catch (e) {
-            console.warn('[OBD2] ATDPN failed, trying ATDP...', e.message);
-        }
-        
-        try {
-            const raw = await this._sendRaw('ATDP', 2000);
-            if (raw) {
-                const clean = raw.replace(/[\r\n\s]/g, '').toUpperCase();
-                if (clean.includes('CAN')) {
-                    return true;
-                }
-            }
-        } catch (e) {
-            console.warn('[OBD2] ATDP failed:', e.message);
-        }
-        return false;
-    }
-
-    /**
-     * Read Diagnostic Trouble Codes (Mode 03).
-     * @returns {string[]} e.g. ['P0300', 'P0420']
-     */
     async readDTC() {
         if (!this.connected) throw new Error('OBD2: Not connected');
-        if (this.simulated) {
+        
+        if (this.simulated && this.transport.includes('LOCAL')) {
             return this._simulatedDTCs;
         }
 
-        if (this._isCAN === null || this._isCAN === undefined) {
-            this._isCAN = await this.isProtocolCAN();
+        try {
+            const res = await fetch('http://localhost:8000/obd/query?pid=DTC');
+            if (!res.ok) throw new Error('Python OBD DTC read failed');
+            const data = await res.json();
+            if (data.success) {
+                try {
+                    return JSON.parse(data.value);
+                } catch {
+                    return [];
+                }
+            }
+            return [];
+        } catch (err) {
+            console.warn('[OBD2 Python] readDTC failed:', err.message);
+            return [];
         }
-
-        const raw = await this._sendRaw('03', 6000);
-        return parseDTCResponse(raw, this._isCAN);
     }
 
     /**
@@ -886,16 +615,26 @@ class OBD2Service {
      */
     async clearDTC() {
         if (!this.connected) throw new Error('OBD2: Not connected');
-        if (this.simulated) {
-            await new Promise(r => setTimeout(r, 600)); // Simulate clear delay
+        
+        if (this.simulated && this.transport.includes('LOCAL')) {
+            await new Promise(r => setTimeout(r, 600));
             this._simulatedDTCs = [];
             this._emitPIDData('DTC', { value: '[]', unit: '', label: 'Diagnostic Trouble Codes', timestamp: Date.now() });
             this._emitPIDData('0101', { value: 'OFF', unit: '', label: 'MIL / DTC Count', extra: { mil: false, dtcCount: 0 }, timestamp: Date.now() });
             return true;
         }
-        const raw = await this._sendRaw('04', 6000);
-        const clean = raw.replace(/\s/g, '').toUpperCase();
-        return clean.includes('44') || !clean.includes('ERROR');
+
+        try {
+            const res = await fetch('http://localhost:8000/obd/clear_dtc', { method: 'POST' });
+            if (!res.ok) throw new Error('Python OBD clear DTC failed');
+            const data = await res.json();
+            this._emitPIDData('DTC', { value: '[]', unit: '', label: 'Diagnostic Trouble Codes', timestamp: Date.now() });
+            this._emitPIDData('0101', { value: 'OFF', unit: '', label: 'MIL / DTC Count', extra: { mil: false, dtcCount: 0 }, timestamp: Date.now() });
+            return data.success;
+        } catch (err) {
+            console.warn('[OBD2 Python] clearDTC failed:', err.message);
+            return false;
+        }
     }
 
     // ── Live Streaming ─────────────────────────────────────────────────────────
@@ -956,37 +695,12 @@ class OBD2Service {
             this._pendingRej = null;
         }
 
-        if (this._serialRead) {
-            try { await this._serialRead.cancel(); } catch {}
-            this._serialRead = null;
+        try {
+            await fetch('http://localhost:8000/obd/disconnect', { method: 'POST' });
+        } catch (err) {
+            console.warn('[OBD2 Python] disconnect API call failed:', err.message);
         }
-        if (this._serialWrite) {
-            try { this._serialWrite.releaseLock(); } catch {}
-            this._serialWrite = null;
-        }
-        if (this._serialPort) {
-            try { await this._serialPort.close(); } catch {}
-            this._serialPort = null;
-        }
-        if (this._btChar) {
-            try { await this._btChar.stopNotifications(); } catch {}
-            this._btChar = null;
-        }
-        if (this._btDevice?.gatt?.connected) {
-            try { this._btDevice.gatt.disconnect(); } catch {}
-        }
-        if (this._wsPort) {
-            try { this._wsPort.close(); } catch {}
-            this._wsPort = null;
-        }
-        if (this.transport === 'WIFI_TAURI' && tauriInvoke) {
-            try { await tauriInvoke('tcp_disconnect'); } catch {}
-            if (tauriUnlisten) {
-                tauriUnlisten();
-                tauriUnlisten = null;
-            }
-        }
-        this._btDevice  = null;
+
         this.connected  = false;
         this.transport  = null;
         this._isCAN     = null;
@@ -1000,8 +714,8 @@ class OBD2Service {
      */
     static checkSupport() {
         return {
-            bluetooth: !!navigator.bluetooth,
-            serial:    !!navigator.serial,
+            bluetooth: true, // Managed by Python Sidecar
+            serial:    true, // Managed by Python Sidecar
         };
     }
 

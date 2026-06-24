@@ -309,7 +309,7 @@ export default function DrawingFileManager() {
         }
     };
 
-    const processFile = (file) => {
+    const processFile = async (file) => {
         const ext = file.name.split('.').pop().toLowerCase();
         if (!['svg', 'dxf', 'pdf'].includes(ext)) {
             toast.error('Format tidak didukung! Gunakan .svg, .dxf, atau .pdf.');
@@ -320,71 +320,124 @@ export default function DrawingFileManager() {
         setParseProgress(10);
         setParseStatusText('Mengunggah berkas ke server QMS...');
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const dataUrl = ext === 'pdf' ? event.target.result : undefined;
+        // Helper to load file as dataURL for display
+        const getFileDataUrl = () => {
+            return new Promise((resolve) => {
+                const r = new FileReader();
+                r.onload = (ev) => resolve(ev.target.result);
+                if (ext === 'pdf' || ext === 'svg') {
+                    r.readAsDataURL(file);
+                } else {
+                    resolve(undefined);
+                }
+            });
+        };
 
-            // Simulate progress bar increments
+        const dataUrl = await getFileDataUrl();
+
+        // 1. Try real Python parsing
+        try {
+            setParseProgress(40);
+            setParseStatusText('Melakukan geometri parsing & CAD decoding di Python...');
+            
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const response = await fetch('http://localhost:8000/blueprint/parse', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            
+            if (result.success && result.dimensions) {
+                setParseProgress(80);
+                setParseStatusText('Mengekstraksi anotasi GD&T & parameter toleransi...');
+                
+                const newDwg = {
+                    name: file.name.split('.')[0].replace(/[-_]/g, ' ').toUpperCase() + ' Blueprint',
+                    fileName: file.name,
+                    fileType: ext.toUpperCase(),
+                    uploadedAt: new Date().toISOString(),
+                    dimensions: result.dimensions,
+                    dataUrl: dataUrl
+                };
+
+                setParseProgress(100);
+                const saved = await saveDrawing(newDwg);
+                setDrawings(prev => [saved, ...prev]);
+                localStorage.setItem('mavi_selected_dwg_id', saved.id);
+                toast.success(`Ekstraksi Python berhasil! Ditemukan ${result.dimensions.length} parameter pada "${file.name}".`);
+                setIsParsing(false);
+                return;
+            } else {
+                console.warn('Python parser returned unsuccessful parsing, falling back:', result.error);
+                throw new Error(result.error || 'Unknown parsing failure');
+            }
+        } catch (err) {
+            console.warn('Koneksi Python server gagal atau error. Menggunakan fallback simulasi:', err);
+            
+            // Fallback Simulation logic (original behavior)
+            setParseProgress(45);
+            setParseStatusText('Jatuh kembali ke geometri parsing simulasi...');
+            
             const timer1 = setTimeout(() => {
-                setParseProgress(40);
-                setParseStatusText('Melakukan geometri parsing & CAD decoding...');
+                setParseProgress(75);
+                setParseStatusText('Mengekstraksi parameter toleransi simulasi...');
             }, 600);
 
             const timer2 = setTimeout(() => {
-                setParseProgress(75);
-                setParseStatusText('Mengekstraksi anotasi GD&T & parameter toleransi...');
-            }, 1300);
+                setParseProgress(95);
+                setParseStatusText('Membangun visualisasi model simulasi...');
+            }, 1200);
 
             const timer3 = setTimeout(() => {
-                setParseProgress(95);
-                setParseStatusText('Membangun visualisasi model & variabel mapping...');
-            }, 2000);
-
-            const timer4 = setTimeout(() => {
                 setParseProgress(100);
                 setIsParsing(false);
 
-                // Generate dimensions based on file name characteristics
                 const nameLower = file.name.toLowerCase();
                 let extracted = [];
                 if (nameLower.includes('shaft') || nameLower.includes('rod') || nameLower.includes('piston')) {
-                extracted = [
-                    { id: `dim_sh_1_${Date.now()}`, label: 'Shaft Length (L)', spec: '240.0', tolMin: 239.5, tolMax: 240.5, variable: 'Meas_Length', unit: 'mm', category: 'dimension', measureType: 'linear_horizontal', indicatorType: 'horizontal', gdt_symbol: '', x1: 120, y1: 240, x2: 360, y2: 240, lx: 240, ly: 255 },
-                    { id: `dim_sh_2_${Date.now()}`, label: 'Journal Diameter (d1)', spec: '35.0', tolMin: 34.98, tolMax: 35.02, variable: 'Meas_Diameter', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 120, y1: 135, x2: 120, y2: 205, lx: 95, ly: 170 },
-                    { id: `dim_sh_3_${Date.now()}`, label: 'Chamfer Angle', spec: '45.0', tolMin: 44.0, tolMax: 46.0, variable: 'Meas_Angle', unit: '°', category: 'angle', measureType: 'angle', indicatorType: 'arc', gdt_symbol: '∠', x1: 360, y1: 170, x2: 380, y2: 150, lx: 390, ly: 155, cx: 360, cy: 170, angleStart: -30, angleEnd: 0 },
-                ];
-            } else if (nameLower.includes('gear') || nameLower.includes('pinion') || nameLower.includes('wheel')) {
-                extracted = [
-                    { id: `dim_gr_1_${Date.now()}`, label: 'Outer Pitch Diameter', spec: '150.0', tolMin: 149.8, tolMax: 150.2, variable: 'Meas_Diameter', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 120, y1: 80, x2: 360, y2: 80, lx: 240, ly: 65 },
-                    { id: `dim_gr_2_${Date.now()}`, label: 'Center Hub Bore', spec: '30.0', tolMin: 29.95, tolMax: 30.05, variable: 'Meas_Bore', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 240, y1: 170, x2: 255, y2: 170, lx: 265, ly: 155 },
-                ];
-            } else {
-                extracted = [
-                    { id: `dim_gen_1_${Date.now()}`, label: 'Dimension Height (H)', spec: '50.0', tolMin: 49.5, tolMax: 50.5, variable: 'Meas_Height', unit: 'mm', category: 'dimension', measureType: 'linear_vertical', indicatorType: 'vertical', gdt_symbol: '', x1: 90, y1: 80, x2: 90, y2: 260, lx: 65, ly: 170 },
-                    { id: `dim_gen_2_${Date.now()}`, label: 'Core Diameter', spec: '12.0', tolMin: 11.9, tolMax: 12.1, variable: 'Inner_Dia', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 240, y1: 170, x2: 250, y2: 170, lx: 260, ly: 155 },
-                ];
-            }
+                    extracted = [
+                        { id: `dim_sh_1_${Date.now()}`, label: 'Shaft Length (L)', spec: '240.0', tolMin: 239.5, tolMax: 240.5, variable: 'Meas_Length', unit: 'mm', category: 'dimension', measureType: 'linear_horizontal', indicatorType: 'horizontal', gdt_symbol: '', x1: 120, y1: 240, x2: 360, y2: 240, lx: 240, ly: 255 },
+                        { id: `dim_sh_2_${Date.now()}`, label: 'Journal Diameter (d1)', spec: '35.0', tolMin: 34.98, tolMax: 35.02, variable: 'Meas_Diameter', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 120, y1: 135, x2: 120, y2: 205, lx: 95, ly: 170 },
+                        { id: `dim_sh_3_${Date.now()}`, label: 'Chamfer Angle', spec: '45.0', tolMin: 44.0, tolMax: 46.0, variable: 'Meas_Angle', unit: '°', category: 'angle', measureType: 'angle', indicatorType: 'arc', gdt_symbol: '∠', x1: 360, y1: 170, x2: 380, y2: 150, lx: 390, ly: 155, cx: 360, cy: 170, angleStart: -30, angleEnd: 0 },
+                    ];
+                } else if (nameLower.includes('gear') || nameLower.includes('pinion') || nameLower.includes('wheel')) {
+                    extracted = [
+                        { id: `dim_gr_1_${Date.now()}`, label: 'Outer Pitch Diameter', spec: '150.0', tolMin: 149.8, tolMax: 150.2, variable: 'Meas_Diameter', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 120, y1: 80, x2: 360, y2: 80, lx: 240, ly: 65 },
+                        { id: `dim_gr_2_${Date.now()}`, label: 'Center Hub Bore', spec: '30.0', tolMin: 29.95, tolMax: 30.05, variable: 'Meas_Bore', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 240, y1: 170, x2: 255, y2: 170, lx: 265, ly: 155 },
+                    ];
+                } else {
+                    extracted = [
+                        { id: `dim_gen_1_${Date.now()}`, label: 'Dimension Height (H)', spec: '50.0', tolMin: 49.5, tolMax: 50.5, variable: 'Meas_Height', unit: 'mm', category: 'dimension', measureType: 'linear_vertical', indicatorType: 'vertical', gdt_symbol: '', x1: 90, y1: 80, x2: 90, y2: 260, lx: 65, ly: 170 },
+                        { id: `dim_gen_2_${Date.now()}`, label: 'Core Diameter', spec: '12.0', tolMin: 11.9, tolMax: 12.1, variable: 'Inner_Dia', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 240, y1: 170, x2: 250, y2: 170, lx: 260, ly: 155 },
+                    ];
+                }
 
-            const newDwgId = `dwg_${Date.now()}`;
-            const newDwg = {
-                name: file.name.split('.')[0].replace(/[-_]/g, ' ').toUpperCase() + ' Blueprint',
-                fileName: file.name,
-                fileType: ext.toUpperCase(),
-                uploadedAt: new Date().toISOString(),
-                dimensions: extracted,
-                dataUrl: dataUrl
-            };
+                const newDwg = {
+                    name: file.name.split('.')[0].replace(/[-_]/g, ' ').toUpperCase() + ' Blueprint (Simulasi)',
+                    fileName: file.name,
+                    fileType: ext.toUpperCase(),
+                    uploadedAt: new Date().toISOString(),
+                    dimensions: extracted,
+                    dataUrl: dataUrl
+                };
 
-            saveDrawing(newDwg).then(saved => {
-                setDrawings(prev => [saved, ...prev]);
-                localStorage.setItem('mavi_selected_dwg_id', saved.id);
-                toast.success(`Unggah berhasil disimpan ke database! Ditemukan ${extracted.length} parameter pada "${file.name}".`);
-            }).catch(err => {
-                console.error(err);
-                toast.error('Gagal menyimpan file blueprint baru ke database.');
-            });
-            }, 2500);
-        };
+                saveDrawing(newDwg).then(saved => {
+                    setDrawings(prev => [saved, ...prev]);
+                    localStorage.setItem('mavi_selected_dwg_id', saved.id);
+                    toast.success(`Unggah berhasil disimpan secara simulasi! Ditemukan ${extracted.length} parameter pada "${file.name}".`);
+                }).catch(saveErr => {
+                    console.error(saveErr);
+                    toast.error('Gagal menyimpan file blueprint simulasi.');
+                });
+            }, 1800);
+        }
         
         if (ext === 'pdf') {
             reader.readAsDataURL(file);

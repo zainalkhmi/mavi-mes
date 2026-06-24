@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
     Ruler,
+    Scale,
+    Activity,
     Upload,
+    Download,
     FileCode,
     Settings,
     CheckCircle,
@@ -41,7 +44,10 @@ import {
     Globe,
     Power,
     ImagePlus,
-    Move
+    Move,
+    Scissors,
+    RotateCw,
+    FlipHorizontal
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getAllDrawings, saveDrawing, deleteDrawing } from '../utils/supabaseUtilityDB';
@@ -299,6 +305,7 @@ export default function DrawingManager() {
 
     // AutoCAD CAD Editor States
     const [cadTool, setCadTool] = useState('select'); // select, line, circle, rect, text, erase
+    const [mirrorMenu, setMirrorMenu] = useState(null); // { shapeId, x, y }
     const [cadColor, setCadColor] = useState('#3b82f6');
     const [cadWidth, setCadWidth] = useState(2);
     const [gridSnap, setGridSnap] = useState(false);
@@ -308,6 +315,38 @@ export default function DrawingManager() {
     const [textInputPos, setTextInputPos] = useState(null); // { x, y, top, left }
     const [textInputValue, setTextInputValue] = useState('');
     const [zoom, setZoom] = useState(1.0);
+    const [hoveredShapeId, setHoveredShapeId] = useState(null);
+
+    // AutoCAD UI/UX states
+    const [ribbonTab, setRibbonTab] = useState('home');
+    const [commandInput, setCommandInput] = useState('');
+    const [commandHistory, setCommandHistory] = useState([
+        'MaviCAD 2026 [Version 1.0.0] - AutoCAD Style Interface',
+        'Type "help" to see available CAD commands. Press ENTER to execute.'
+    ]);
+    const [activeSpace, setActiveSpace] = useState('model'); // model, layout1, layout2
+    const [crosshairPos, setCrosshairPos] = useState({ x: 0, y: 0 });
+    const [showCrosshair, setShowCrosshair] = useState(false);
+    const [orthoMode, setOrthoMode] = useState(false);
+
+    // Scale Calibration States
+    const [scaleDrawState, setScaleDrawState] = useState('idle'); // idle, drawing
+    const [scaleDraftCoords, setScaleDraftCoords] = useState(null);
+    const [isScaleModalOpen, setIsScaleModalOpen] = useState(false);
+    const [scaleModalPx, setScaleModalPx] = useState(0);
+    const [scaleModalValue, setScaleModalValue] = useState('');
+
+    // Dimension Creation States
+    const [dimDrawState, setDimDrawState] = useState('idle'); // idle, waiting_end, waiting_offset
+    const [dimDraftCoords, setDimDraftCoords] = useState(null);
+    const [isDimModalOpen, setIsDimModalOpen] = useState(false);
+    const [dimModalData, setDimModalData] = useState(null);
+
+    // Arc and Polyline States
+    const [arcDrawState, setArcDrawState] = useState('idle'); // idle, waiting_radius, waiting_end
+    const [arcDraftCoords, setArcDraftCoords] = useState(null);
+    const [polylineDraftPoints, setPolylineDraftPoints] = useState([]);
+    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
     // UI states
     const [isDragOver, setIsDragOver] = useState(false);
@@ -328,6 +367,7 @@ export default function DrawingManager() {
     // Clear selection on tool or drawing change
     useEffect(() => {
         setSelectedShapeId(null);
+        setHoveredShapeId(null);
     }, [cadTool, selectedDwgId]);
 
     // Copilot AI state declarations
@@ -740,6 +780,260 @@ export default function DrawingManager() {
 
     // SVG Ref for coordinate calculation
     const svgRef = useRef(null);
+    const [canvasSize, setCanvasSize] = useState({ width: 500, height: 360 });
+    const [dragShape, setDragShape] = useState(null);
+
+    const getShapeCenter = (shape) => {
+        if (shape.type === 'line') {
+            return { x: (shape.x1 + shape.x2) / 2, y: (shape.y1 + shape.y2) / 2 };
+        } else if (shape.type === 'circle' || shape.type === 'arc') {
+            return { x: shape.cx, y: shape.cy };
+        } else if (shape.type === 'rect' || shape.type === 'image') {
+            return { x: shape.x + shape.w / 2, y: shape.y + shape.h / 2 };
+        } else if (shape.type === 'text') {
+            return { x: shape.x, y: shape.y };
+        } else if (shape.type === 'polyline') {
+            const points = shape.points || [];
+            if (points.length === 0) return { x: canvasSize.width / 2, y: canvasSize.height / 2 };
+            const xs = points.map(p => p.x);
+            const ys = points.map(p => p.y);
+            const minX = Math.min(...xs);
+            const maxX = Math.max(...xs);
+            const minY = Math.min(...ys);
+            const maxY = Math.max(...ys);
+            return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+        }
+        return { x: canvasSize.width / 2, y: canvasSize.height / 2 };
+    };
+
+    const getLineLineIntersection = (l1, l2) => {
+        const x1 = l1.x1, y1 = l1.y1, x2 = l1.x2, y2 = l1.y2;
+        const x3 = l2.x1, y3 = l2.y1, x4 = l2.x2, y4 = l2.y2;
+        
+        const denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
+        if (denom === 0) return null; // parallel
+        
+        const ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom;
+        const ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denom;
+        
+        // Check if intersection lies on both line segments
+        if (ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1) {
+            return {
+                x: x1 + ua * (x2 - x1),
+                y: y1 + ua * (y2 - y1)
+            };
+        }
+        return null;
+    };
+
+    const handleMirrorShape = (shapeId, direction) => {
+        if (!selectedDwg) return;
+        const currentShapes = selectedDwg.shapes || [];
+        const updated = currentShapes.map(shape => {
+            if (shape.id === shapeId) {
+                const cx_cy = getShapeCenter(shape);
+                const cx = cx_cy.x;
+                const cy = cx_cy.y;
+                
+                if (shape.type === 'line') {
+                    if (direction === 'horizontal') {
+                        return { ...shape, x1: 2 * cx - shape.x1, x2: 2 * cx - shape.x2 };
+                    } else {
+                        return { ...shape, y1: 2 * cy - shape.y1, y2: 2 * cy - shape.y2 };
+                    }
+                } else if (shape.type === 'rect' || shape.type === 'image') {
+                    if (direction === 'horizontal') {
+                        return { ...shape, x: 2 * cx - shape.x - shape.w };
+                    } else {
+                        return { ...shape, y: 2 * cy - shape.y - shape.h };
+                    }
+                } else if (shape.type === 'circle') {
+                    return shape;
+                } else if (shape.type === 'arc') {
+                    if (direction === 'horizontal') {
+                        return {
+                            ...shape,
+                            startAngle: Math.round(180 - shape.endAngle),
+                            endAngle: Math.round(180 - shape.startAngle)
+                        };
+                    } else {
+                        return {
+                            ...shape,
+                            startAngle: Math.round(-shape.endAngle),
+                            endAngle: Math.round(-shape.startAngle)
+                        };
+                    }
+                } else if (shape.type === 'polyline') {
+                    if (direction === 'horizontal') {
+                        return { ...shape, points: (shape.points || []).map(p => ({ x: 2 * cx - p.x, y: p.y })) };
+                    } else {
+                        return { ...shape, points: (shape.points || []).map(p => ({ x: p.x, y: 2 * cy - p.y })) };
+                    }
+                } else if (shape.type === 'text') {
+                    if (direction === 'horizontal') {
+                        return { ...shape, x: 2 * cx - shape.x };
+                    } else {
+                        return { ...shape, y: 2 * cy - shape.y };
+                    }
+                }
+            }
+            return shape;
+        });
+        updateShapes(updated);
+        setMirrorMenu(null);
+        toast.success(`Bentuk dicerminkan secara ${direction === 'horizontal' ? 'Horizontal' : 'Vertikal'}.`);
+    };
+
+    const handleTrimLine = (targetLine, clickX, clickY) => {
+        if (!selectedDwg) return;
+        const currentShapes = selectedDwg.shapes || [];
+        
+        const dx = targetLine.x2 - targetLine.x1;
+        const dy = targetLine.y2 - targetLine.y1;
+        const lengthSq = dx * dx + dy * dy;
+        if (lengthSq === 0) return;
+        
+        // 1. Calculate click parameter t_click
+        let tClick = ((clickX - targetLine.x1) * dx + (clickY - targetLine.y1) * dy) / lengthSq;
+        tClick = Math.max(0, Math.min(1, tClick));
+        
+        // 2. Find all intersections with other shapes
+        const tIntersections = [0, 1]; // start and end points of target line
+        
+        currentShapes.forEach(shape => {
+            if (shape.id === targetLine.id) return;
+            
+            if (shape.type === 'line') {
+                const pt = getLineLineIntersection(targetLine, shape);
+                if (pt) {
+                    const t = ((pt.x - targetLine.x1) * dx + (pt.y - targetLine.y1) * dy) / lengthSq;
+                    if (t > 0.001 && t < 0.999) tIntersections.push(t);
+                }
+            } else if (shape.type === 'rect') {
+                const x = shape.x;
+                const y = shape.y;
+                const w = shape.w;
+                const h = shape.h;
+                const segments = [
+                    { x1: x, y1: y, x2: x + w, y2: y },
+                    { x1: x + w, y1: y, x2: x + w, y2: y + h },
+                    { x1: x + w, y1: y + h, x2: x, y2: y + h },
+                    { x1: x, y1: y + h, x2: x, y2: y }
+                ];
+                segments.forEach(seg => {
+                    const pt = getLineLineIntersection(targetLine, seg);
+                    if (pt) {
+                        const t = ((pt.x - targetLine.x1) * dx + (pt.y - targetLine.y1) * dy) / lengthSq;
+                        if (t > 0.001 && t < 0.999) tIntersections.push(t);
+                    }
+                });
+            } else if (shape.type === 'polyline') {
+                const pts = shape.points || [];
+                for (let i = 0; i < pts.length - 1; i++) {
+                    const seg = { x1: pts[i].x, y1: pts[i].y, x2: pts[i + 1].x, y2: pts[i + 1].y };
+                    const pt = getLineLineIntersection(targetLine, seg);
+                    if (pt) {
+                        const t = ((pt.x - targetLine.x1) * dx + (pt.y - targetLine.y1) * dy) / lengthSq;
+                        if (t > 0.001 && t < 0.999) tIntersections.push(t);
+                    }
+                }
+            } else if (shape.type === 'circle') {
+                const cx = shape.cx, cy = shape.cy, r = shape.r;
+                const b = 2 * (dx * (targetLine.x1 - cx) + dy * (targetLine.y1 - cy));
+                const c = (targetLine.x1 - cx) * (targetLine.x1 - cx) + (targetLine.y1 - cy) * (targetLine.y1 - cy) - r * r;
+                const disc = b * b - 4 * lengthSq * c;
+                if (disc >= 0) {
+                    const t1 = (-b - Math.sqrt(disc)) / (2 * lengthSq);
+                    const t2 = (-b + Math.sqrt(disc)) / (2 * lengthSq);
+                    if (t1 > 0.001 && t1 < 0.999) tIntersections.push(t1);
+                    if (t2 > 0.001 && t2 < 0.999) tIntersections.push(t2);
+                }
+            } else if (shape.type === 'arc') {
+                const cx = shape.cx, cy = shape.cy, r = shape.r;
+                const b = 2 * (dx * (targetLine.x1 - cx) + dy * (targetLine.y1 - cy));
+                const c = (targetLine.x1 - cx) * (targetLine.x1 - cx) + (targetLine.y1 - cy) * (targetLine.y1 - cy) - r * r;
+                const disc = b * b - 4 * lengthSq * c;
+                if (disc >= 0) {
+                    const t1 = (-b - Math.sqrt(disc)) / (2 * lengthSq);
+                    const t2 = (-b + Math.sqrt(disc)) / (2 * lengthSq);
+                    
+                    const checkArcAngle = (t) => {
+                        const px = targetLine.x1 + t * dx;
+                        const py = targetLine.y1 + t * dy;
+                        let angle = Math.atan2(py - cy, px - cx) * (180 / Math.PI);
+                        let sa = shape.startAngle ?? 0;
+                        let ea = shape.endAngle ?? 90;
+                        while (sa < 0) sa += 360;
+                        while (ea < 0) ea += 360;
+                        while (angle < 0) angle += 360;
+                        if (sa > ea) {
+                            return angle >= sa || angle <= ea;
+                        } else {
+                            return angle >= sa && angle <= ea;
+                        }
+                    };
+
+                    if (t1 > 0.001 && t1 < 0.999 && checkArcAngle(t1)) tIntersections.push(t1);
+                    if (t2 > 0.001 && t2 < 0.999 && checkArcAngle(t2)) tIntersections.push(t2);
+                }
+            }
+        });
+        
+        const uniqueT = Array.from(new Set(tIntersections)).sort((a, b) => a - b);
+        
+        let clickedSegIdx = -1;
+        for (let i = 0; i < uniqueT.length - 1; i++) {
+            if (tClick >= uniqueT[i] && tClick <= uniqueT[i + 1]) {
+                clickedSegIdx = i;
+                break;
+            }
+        }
+        
+        if (clickedSegIdx === -1) {
+            toast.error('Gagal memotong segmen.');
+            return;
+        }
+        
+        const remainingSegments = [];
+        for (let i = 0; i < uniqueT.length - 1; i++) {
+            if (i === clickedSegIdx) continue;
+            
+            remainingSegments.push({
+                ...targetLine,
+                id: `shape_line_${Date.now()}_${Math.floor(Math.random() * 1000)}_${i}`,
+                x1: Math.round(targetLine.x1 + uniqueT[i] * dx),
+                y1: Math.round(targetLine.y1 + uniqueT[i] * dy),
+                x2: Math.round(targetLine.x1 + uniqueT[i + 1] * dx),
+                y2: Math.round(targetLine.y1 + uniqueT[i + 1] * dy)
+            });
+        }
+        
+        const filteredShapes = currentShapes.filter(s => s.id !== targetLine.id);
+        updateShapes([...filteredShapes, ...remainingSegments]);
+        toast.success('Segmen garis dipotong.');
+    };
+
+    // Measure parent container of SVG to fit screen dynamically
+    useEffect(() => {
+        if (!svgRef.current) return;
+        const parent = svgRef.current.parentElement;
+        if (!parent) return;
+
+        const updateSize = () => {
+            const rect = parent.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+                setCanvasSize({
+                    width: Math.round(rect.width),
+                    height: Math.round(rect.height)
+                });
+            }
+        };
+
+        updateSize();
+        const observer = new ResizeObserver(updateSize);
+        observer.observe(parent);
+        return () => observer.disconnect();
+    }, []);
 
     // Clear history and text input on selected blueprint change
     useEffect(() => {
@@ -753,13 +1047,16 @@ export default function DrawingManager() {
         if (!svgRef.current) return { x: 0, y: 0 };
         const rect = svgRef.current.getBoundingClientRect();
         
-        // Client click relative to SVG viewBox dimension limits
-        const clickX = ((e.clientX - rect.left) / rect.width) * 500;
-        const clickY = ((e.clientY - rect.top) / rect.height) * 360;
+        // Client click relative to SVG client dimensions
+        const clickX = e.clientX - rect.left;
+        const clickY = e.clientY - rect.top;
         
-        // Reverse scale relative to the coordinate center (250, 180):
-        let x = 250 + (clickX - 250) / zoom;
-        let y = 180 + (clickY - 180) / zoom;
+        const cx = canvasSize.width / 2;
+        const cy = canvasSize.height / 2;
+        
+        // Reverse scale relative to the coordinate center (cx, cy):
+        let x = cx + (clickX - cx) / zoom;
+        let y = cy + (clickY - cy) / zoom;
         
         if (gridSnap) {
             x = Math.round(x / 10) * 10;
@@ -770,8 +1067,8 @@ export default function DrawingManager() {
         }
         
         // Clamp bounds to prevent drawings from exceeding viewport limits
-        x = Math.max(0, Math.min(500, x));
-        y = Math.max(0, Math.min(360, y));
+        x = Math.max(0, Math.min(canvasSize.width, x));
+        y = Math.max(0, Math.min(canvasSize.height, y));
         
         return { x, y };
     };
@@ -818,8 +1115,217 @@ export default function DrawingManager() {
         saveDrawing(updatedDwg).catch(err => console.error(err));
     };
 
+    const handleExecuteCommand = (cmdText) => {
+        const text = cmdText.trim().toLowerCase();
+        if (!text) return;
+
+        setCommandHistory(prev => [...prev, `Command: ${cmdText}`]);
+
+        let successMessage = '';
+        let matched = true;
+
+        switch (text) {
+            case 'line':
+                setCadTool('line');
+                successMessage = 'LINE Command activated. Click first point, then second point.';
+                break;
+            case 'circle':
+                setCadTool('circle');
+                successMessage = 'CIRCLE Command activated. Click center point, drag to set radius.';
+                break;
+            case 'rect':
+            case 'rectangle':
+                setCadTool('rect');
+                successMessage = 'RECTANGLE Command activated. Click corner point, drag to opposite corner.';
+                break;
+            case 'arc':
+                setArcDrawState('idle');
+                setArcDraftCoords(null);
+                setCadTool('arc');
+                successMessage = 'ARC Command activated. Click Center, then start angle point, then end angle.';
+                break;
+            case 'polyline':
+                setPolylineDraftPoints([]);
+                setCadTool('polyline');
+                successMessage = 'POLYLINE Command activated. Click points to draw segments, double-click to close.';
+                break;
+            case 'text':
+                setCadTool('text');
+                successMessage = 'TEXT Command activated. Click where you want to place the text.';
+                break;
+            case 'image':
+                setCadTool('image');
+                if (imageInsertRef.current) {
+                    imageInsertRef.current.click();
+                    successMessage = 'IMAGE Command activated. File selection dialog opened.';
+                } else {
+                    successMessage = 'IMAGE Command failed. File selector not ready.';
+                }
+                break;
+            case 'move':
+                setCadTool('move');
+                successMessage = 'MOVE Command activated. Click and drag shapes to move them.';
+                break;
+            case 'rotate':
+                setCadTool('rotate');
+                successMessage = 'ROTATE Command activated. Click shape center, drag to rotate.';
+                break;
+            case 'mirror':
+                setCadTool('mirror');
+                successMessage = 'MIRROR Command activated. Click a shape to open options.';
+                break;
+            case 'trim':
+                setCadTool('trim');
+                successMessage = 'TRIM Command activated. Hover and click intersecting line segment to cut it.';
+                break;
+            case 'erase':
+                setCadTool('erase');
+                successMessage = 'ERASER Command activated. Click shape vector to remove it.';
+                break;
+            case 'select':
+                setCadTool('select');
+                successMessage = 'SELECT Mode activated.';
+                break;
+            case 'undo':
+                handleUndo();
+                successMessage = 'UNDO executed.';
+                break;
+            case 'redo':
+                handleRedo();
+                successMessage = 'REDO executed.';
+                break;
+            case 'grid':
+            case 'snap':
+                setGridSnap(g => !g);
+                successMessage = `GRID SNAP toggled.`;
+                break;
+            case 'ortho':
+                setOrthoMode(o => !o);
+                successMessage = `ORTHO MODE toggled.`;
+                break;
+            case 'clear':
+                updateShapes([]);
+                successMessage = 'Canvas shapes cleared.';
+                break;
+            case 'help':
+                setCommandHistory(prev => [
+                    ...prev,
+                    'Available commands: LINE, CIRCLE, RECT, ARC, POLYLINE, TEXT, IMAGE',
+                    'Editing commands: MOVE, ROTATE, MIRROR, TRIM, ERASE, SELECT, UNDO, REDO',
+                    'Toggles: GRID (toggle snap), ORTHO (toggle drawing lock), CLEAR (clear shapes), HELP'
+                ]);
+                matched = false;
+                break;
+            default:
+                setCommandHistory(prev => [...prev, `Unknown command: "${cmdText}". Type "help" for a list of commands.`]);
+                matched = false;
+                break;
+        }
+
+        if (matched && successMessage) {
+            setCommandHistory(prev => [...prev, successMessage]);
+            toast.success(successMessage, { id: 'cmd-feedback' });
+        }
+    };
+
+    // Scale Calibration Helper
+    const handleSaveScaleFactor = async (mmVal) => {
+        const mm = parseFloat(mmVal);
+        if (isNaN(mm) || mm <= 0 || scaleModalPx <= 0) {
+            toast.error('Nilai kalibrasi tidak valid.');
+            return;
+        }
+        const calculatedFactor = mm / scaleModalPx;
+        const updatedDwg = {
+            ...selectedDwg,
+            scaleFactor: calculatedFactor
+        };
+
+        try {
+            const saved = await saveDrawing(updatedDwg);
+            setDrawings(prev => prev.map(d => d.id === selectedDwgId ? saved : d));
+            toast.success(`Kalibrasi sukses! Skala: ${calculatedFactor.toFixed(4)} mm/px`);
+        } catch (err) {
+            console.error('Failed to save scale factor:', err);
+            toast.error('Gagal menyimpan skala ke database.');
+            setDrawings(prev => prev.map(d => d.id === selectedDwgId ? updatedDwg : d));
+        }
+        setIsScaleModalOpen(false);
+    };
+
+    // Dimension Creation Helper
+    const handleSaveNewDimension = async (formData) => {
+        const newDim = {
+            id: generateDimId(formData.category),
+            label: formData.label,
+            spec: formData.spec,
+            tolMin: parseFloat(formData.tolMin) || 0,
+            tolMax: parseFloat(formData.tolMax) || 0,
+            variable: formData.variable,
+            unit: formData.unit,
+            category: formData.category,
+            measureType: formData.measureType,
+            indicatorType: formData.indicatorType,
+            gdt_symbol: formData.gdt_symbol,
+            x1: formData.x1,
+            y1: formData.y1,
+            x2: formData.x2,
+            y2: formData.y2,
+            lx: formData.lx,
+            ly: formData.ly,
+            cx: formData.cx,
+            cy: formData.cy,
+            angleStart: parseFloat(formData.angleStart) || 0,
+            angleEnd: parseFloat(formData.angleEnd) || 90,
+            markerShape: formData.markerShape || 'default',
+            markerSize: parseInt(formData.markerSize) || 60,
+            triggers: []
+        };
+
+        const updatedDwg = {
+            ...selectedDwg,
+            dimensions: [...(selectedDwg.dimensions || []), newDim]
+        };
+
+        try {
+            const saved = await saveDrawing(updatedDwg);
+            setDrawings(prev => prev.map(d => d.id === selectedDwgId ? saved : d));
+            setActiveDimId(newDim.id);
+            toast.success(`Dimensi "${formData.label}" berhasil disimpan.`);
+        } catch (err) {
+            console.error('Failed to save new dimension:', err);
+            toast.error('Gagal menyimpan dimensi ke database.');
+            setDrawings(prev => prev.map(d => d.id === selectedDwgId ? updatedDwg : d));
+        }
+        setIsDimModalOpen(false);
+        setDimModalData(null);
+    };
+
+    const handleSvgDoubleClick = (e) => {
+        if (cadTool === 'polyline' && polylineDraftPoints.length > 2) {
+            e.stopPropagation();
+            e.preventDefault();
+            
+            const points = polylineDraftPoints.slice(0, -1);
+            if (points.length >= 2) {
+                const newPolyline = {
+                    id: `shape_poly_${Date.now()}`,
+                    type: 'polyline',
+                    points: points,
+                    color: cadColor,
+                    strokeWidth: cadWidth
+                };
+                
+                const currentShapes = selectedDwg.shapes || [];
+                updateShapes([...currentShapes, newPolyline]);
+                toast.success('Polyline berhasil ditambahkan.');
+            }
+            setPolylineDraftPoints([]);
+        }
+    };
+
     const handleSvgMouseDown = (e) => {
-        if (cadTool === 'select') return;
+        if (cadTool === 'select' || cadTool === 'move' || cadTool === 'rotate' || cadTool === 'mirror' || cadTool === 'trim') return;
         if (e.button !== 0) return; // left click only
         
         if (!selectedDwg) {
@@ -878,12 +1384,218 @@ export default function DrawingManager() {
             if (imageInsertRef.current) {
                 imageInsertRef.current.click();
             }
+        } else if (cadTool === 'dimension') {
+            if (dimDrawState === 'idle') {
+                setDimDraftCoords({
+                    x1: coords.x,
+                    y1: coords.y,
+                    x2: coords.x,
+                    y2: coords.y,
+                    lx: coords.x,
+                    ly: coords.y
+                });
+                setDimDrawState('waiting_end');
+                toast.success('Titik awal ditempatkan. Klik titik kedua.');
+            } else if (dimDrawState === 'waiting_end') {
+                setDimDraftCoords(prev => ({
+                    ...prev,
+                    x2: coords.x,
+                    y2: coords.y
+                }));
+                setDimDrawState('waiting_offset');
+                toast.success('Titik kedua ditempatkan. Gerakkan kursor dan klik titik ketiga untuk offset.');
+            } else if (dimDrawState === 'waiting_offset') {
+                const x1 = dimDraftCoords.x1;
+                const y1 = dimDraftCoords.y1;
+                const x2 = dimDraftCoords.x2;
+                const y2 = dimDraftCoords.y2;
+                const lx = coords.x;
+                const ly = coords.y;
+                
+                const pxDist = Math.sqrt((x2 - x1)**2 + (y2 - y1)**2);
+                const currentScale = selectedDwg?.scaleFactor || 1.0;
+                const initialSpec = (pxDist * currentScale).toFixed(2);
+
+                setDimModalData({
+                    x1, y1, x2, y2, lx, ly,
+                    cx: Math.round((x1 + x2) / 2),
+                    cy: Math.round((y1 + y2) / 2),
+                    spec: initialSpec,
+                    label: 'Dimensi Baru',
+                    category: 'dimension',
+                    measureType: 'linear_horizontal',
+                    indicatorType: 'horizontal',
+                    unit: 'mm',
+                    gdt_symbol: '',
+                    tolMin: (parseFloat(initialSpec) - 0.1).toFixed(2),
+                    tolMax: (parseFloat(initialSpec) + 0.1).toFixed(2),
+                    variable: 'Meas_Length',
+                    angleStart: 0,
+                    angleEnd: 90,
+                    markerShape: 'default',
+                    markerSize: 60
+                });
+                setIsDimModalOpen(true);
+                setDimDrawState('idle');
+                setDimDraftCoords(null);
+            }
+        } else if (cadTool === 'scale') {
+            if (scaleDrawState === 'idle') {
+                setScaleDraftCoords({
+                    x1: coords.x,
+                    y1: coords.y,
+                    x2: coords.x,
+                    y2: coords.y
+                });
+                setScaleDrawState('drawing');
+            }
+        } else if (cadTool === 'arc') {
+            if (arcDrawState === 'idle') {
+                setArcDraftCoords({
+                    cx: coords.x,
+                    cy: coords.y,
+                    x1: coords.x,
+                    y1: coords.y,
+                    x2: coords.x,
+                    y2: coords.y,
+                    r: 0,
+                    startAngle: 0,
+                    endAngle: 0
+                });
+                setArcDrawState('waiting_radius');
+                toast.success('Pusat busur (Center) ditentukan. Klik titik kedua untuk radius.');
+            } else if (arcDrawState === 'waiting_radius') {
+                const dx = coords.x - arcDraftCoords.cx;
+                const dy = coords.y - arcDraftCoords.cy;
+                const r = Math.sqrt(dx * dx + dy * dy);
+                const startAngle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+                setArcDraftCoords(prev => ({
+                    ...prev,
+                    x1: coords.x,
+                    y1: coords.y,
+                    r,
+                    startAngle
+                }));
+                setArcDrawState('waiting_end');
+                toast.success('Radius & sudut mulai ditentukan. Klik titik ketiga untuk sudut akhir.');
+            } else if (arcDrawState === 'waiting_end') {
+                const dx = coords.x - arcDraftCoords.cx;
+                const dy = coords.y - arcDraftCoords.cy;
+                const endAngle = Math.atan2(dy, dx) * (180 / Math.PI);
+                
+                const finalArc = {
+                    id: `shape_arc_${Date.now()}`,
+                    type: 'arc',
+                    cx: arcDraftCoords.cx,
+                    cy: arcDraftCoords.cy,
+                    r: Math.round(arcDraftCoords.r),
+                    startAngle: Math.round(arcDraftCoords.startAngle),
+                    endAngle: Math.round(endAngle),
+                    color: cadColor,
+                    strokeWidth: cadWidth
+                };
+
+                const currentShapes = selectedDwg.shapes || [];
+                updateShapes([...currentShapes, finalArc]);
+                setArcDrawState('idle');
+                setArcDraftCoords(null);
+                toast.success('Busur (Arc) berhasil ditambahkan.');
+            }
+        } else if (cadTool === 'polyline') {
+            if (polylineDraftPoints.length === 0) {
+                setPolylineDraftPoints([coords, coords]);
+                toast.success('Polyline dimulai. Klik untuk tambah titik, double-klik untuk menutup.');
+            } else {
+                setPolylineDraftPoints(prev => [...prev.slice(0, -1), coords, coords]);
+            }
         }
     };
 
     const handleSvgMouseMove = (e) => {
+        const coords = getCanvasCoords(e);
+        setCrosshairPos(coords);
+        if (dragShape) {
+            const currentShapes = selectedDwg.shapes || [];
+            const startShape = dragShape.startShape;
+            
+            if (dragShape.type === 'move') {
+                const dx = coords.x - dragShape.startX;
+                const dy = coords.y - dragShape.startY;
+                
+                const updatedShapes = currentShapes.map(s => {
+                    if (s.id === dragShape.id) {
+                        if (s.type === 'line') {
+                            return {
+                                ...s,
+                                x1: Math.round(startShape.x1 + dx),
+                                y1: Math.round(startShape.y1 + dy),
+                                x2: Math.round(startShape.x2 + dx),
+                                y2: Math.round(startShape.y2 + dy)
+                            };
+                        } else if (s.type === 'circle' || s.type === 'arc') {
+                            return {
+                                ...s,
+                                cx: Math.round(startShape.cx + dx),
+                                cy: Math.round(startShape.cy + dy)
+                            };
+                        } else if (s.type === 'rect' || s.type === 'image') {
+                            return {
+                                ...s,
+                                x: Math.round(startShape.x + dx),
+                                y: Math.round(startShape.y + dy)
+                            };
+                        } else if (s.type === 'text') {
+                            return {
+                                ...s,
+                                x: Math.round(startShape.x + dx),
+                                y: Math.round(startShape.y + dy)
+                            };
+                        } else if (s.type === 'polyline') {
+                            return {
+                                ...s,
+                                points: startShape.points.map(p => ({
+                                    x: Math.round(p.x + dx),
+                                    y: Math.round(p.y + dy)
+                                }))
+                            };
+                        }
+                    }
+                    return s;
+                });
+                
+                const updatedDwg = {
+                    ...selectedDwg,
+                    shapes: updatedShapes
+                };
+                setDrawings(prev => prev.map(d => d.id === selectedDwgId ? updatedDwg : d));
+            } else if (dragShape.type === 'rotate') {
+                const angleStart = Math.atan2(dragShape.startY - dragShape.center.y, dragShape.startX - dragShape.center.x);
+                const angleCurrent = Math.atan2(coords.y - dragShape.center.y, coords.x - dragShape.center.x);
+                const deltaRotation = (angleCurrent - angleStart) * (180 / Math.PI);
+                
+                const updatedShapes = currentShapes.map(s => {
+                    if (s.id === dragShape.id) {
+                        return {
+                            ...s,
+                            rotation: Math.round((startShape.rotation || 0) + deltaRotation),
+                            cx: dragShape.center.x,
+                            cy: dragShape.center.y
+                        };
+                    }
+                    return s;
+                });
+                
+                const updatedDwg = {
+                    ...selectedDwg,
+                    shapes: updatedShapes
+                };
+                setDrawings(prev => prev.map(d => d.id === selectedDwgId ? updatedDwg : d));
+            }
+            return;
+        }
+
         if (dragImageShape) {
-            const coords = getCanvasCoords(e);
             const dx = coords.x - dragImageShape.startX;
             const dy = coords.y - dragImageShape.startY;
             
@@ -949,14 +1661,77 @@ export default function DrawingManager() {
             }));
             return;
         }
+
+        setMousePos(coords);
+        
+        if (cadTool === 'dimension' && dimDraftCoords) {
+            if (dimDrawState === 'waiting_end') {
+                setDimDraftCoords(prev => ({ ...prev, x2: coords.x, y2: coords.y }));
+            } else if (dimDrawState === 'waiting_offset') {
+                setDimDraftCoords(prev => ({ ...prev, lx: coords.x, ly: coords.y }));
+            }
+            return;
+        }
+
+        if (cadTool === 'scale' && scaleDraftCoords && scaleDrawState === 'drawing') {
+            setScaleDraftCoords(prev => ({ ...prev, x2: coords.x, y2: coords.y }));
+            return;
+        }
+
+        if (cadTool === 'arc' && arcDraftCoords) {
+            if (arcDrawState === 'waiting_radius') {
+                const dx = coords.x - arcDraftCoords.cx;
+                const dy = coords.y - arcDraftCoords.cy;
+                const r = Math.sqrt(dx * dx + dy * dy);
+                const startAngle = Math.atan2(dy, dx) * (180 / Math.PI);
+                setArcDraftCoords(prev => ({ ...prev, r, startAngle, x1: coords.x, y1: coords.y }));
+            } else if (arcDrawState === 'waiting_end') {
+                const dx = coords.x - arcDraftCoords.cx;
+                const dy = coords.y - arcDraftCoords.cy;
+                const endAngle = Math.atan2(dy, dx) * (180 / Math.PI);
+                setArcDraftCoords(prev => ({ ...prev, endAngle, x2: coords.x, y2: coords.y }));
+            }
+            return;
+        }
+
+        if (cadTool === 'polyline' && polylineDraftPoints.length > 0) {
+            setPolylineDraftPoints(prev => {
+                const next = [...prev];
+                let targetCoords = coords;
+                if (orthoMode && prev.length > 1) {
+                    const lastPoint = prev[prev.length - 2];
+                    const dx = Math.abs(targetCoords.x - lastPoint.x);
+                    const dy = Math.abs(targetCoords.y - lastPoint.y);
+                    if (dx > dy) {
+                        targetCoords = { x: targetCoords.x, y: lastPoint.y };
+                    } else {
+                        targetCoords = { x: lastPoint.x, y: targetCoords.y };
+                    }
+                }
+                next[next.length - 1] = targetCoords;
+                return next;
+            });
+            return;
+        }
+
         if (!drawingShape) return;
-        const coords = getCanvasCoords(e);
         
         if (drawingShape.type === 'line') {
+            let targetX = coords.x;
+            let targetY = coords.y;
+            if (orthoMode) {
+                const dx = Math.abs(targetX - drawingShape.x1);
+                const dy = Math.abs(targetY - drawingShape.y1);
+                if (dx > dy) {
+                    targetY = drawingShape.y1;
+                } else {
+                    targetX = drawingShape.x1;
+                }
+            }
             setDrawingShape(prev => ({
                 ...prev,
-                x2: coords.x,
-                y2: coords.y
+                x2: targetX,
+                y2: targetY
             }));
         } else if (drawingShape.type === 'circle') {
             const dx = coords.x - drawingShape.cx;
@@ -982,6 +1757,14 @@ export default function DrawingManager() {
     };
 
     const handleSvgMouseUp = () => {
+        if (dragShape) {
+            if (selectedDwg) {
+                saveDrawing(selectedDwg).catch(err => console.error('Failed to save CAD shapes:', err));
+            }
+            setDragShape(null);
+            return;
+        }
+
         if (dragImageShape) {
             const currentShapes = selectedDwg.shapes || [];
             const updatedShapes = currentShapes.map(s => {
@@ -1001,6 +1784,22 @@ export default function DrawingManager() {
             setDragImageShape(null);
             return;
         }
+
+        if (cadTool === 'scale' && scaleDraftCoords && scaleDrawState === 'drawing') {
+            const pxDistance = Math.sqrt(
+                (scaleDraftCoords.x2 - scaleDraftCoords.x1) ** 2 +
+                (scaleDraftCoords.y2 - scaleDraftCoords.y1) ** 2
+            );
+            if (pxDistance > 2) {
+                setScaleModalPx(pxDistance);
+                setScaleModalValue('');
+                setIsScaleModalOpen(true);
+            }
+            setScaleDrawState('idle');
+            setScaleDraftCoords(null);
+            return;
+        }
+
         if (!drawingShape) return;
         if (!selectedDwg) {
             setDrawingShape(null);
@@ -2558,6 +3357,13 @@ export default function DrawingManager() {
                                     0%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px rgba(99, 102, 241, 0.4)); }
                                     50% { transform: scale(1.1); filter: drop-shadow(0 0 8px rgba(99, 102, 241, 0.8)); }
                                 }
+                                @keyframes cadBlink {
+                                    0%, 100% { opacity: 1; }
+                                    50% { opacity: 0.25; }
+                                }
+                                .cad-blink {
+                                    animation: cadBlink 0.4s infinite ease-in-out;
+                                }
                             `}</style>
                         </div>
 
@@ -2603,340 +3409,239 @@ export default function DrawingManager() {
                     {/* Interactive Editor Canvas */}
                     <div style={{ backgroundColor: '#0b1d33', borderRadius: '16px', border: '1px solid #1e3a8a', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
                         
-                        {/* Canvas toolbar */}
-                        <div style={{ padding: '14px 16px', borderBottom: '1px solid #1e3a8a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 10 }}>
-                            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#93c5fd', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                CAD Canvas View
-                            </span>
-                            <div style={{ display: 'flex', gap: '8px', fontSize: '0.62rem', color: '#94a3b8' }}>
-                                <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: '#10b981' }}></span>PASS</span>
-                                <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: '#ef4444' }}></span>FAIL</span>
-                                <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: '#3b82f6' }}></span>ACTIVE</span>
-                            </div>
-                        </div>
-
-                        {/* AutoCAD Premium Toolbar */}
+                        {/* AutoCAD Window Title Bar */}
                         <div style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '12px',
-                            padding: '8px 16px',
+                            justifyContent: 'space-between',
+                            padding: '4px 10px',
+                            backgroundColor: '#0f172a',
+                            borderBottom: '1px solid #1e293b',
+                            zIndex: 11,
+                            userSelect: 'none',
+                            fontFamily: "'Inter', sans-serif"
+                        }}>
+                            {/* Left: Application Logo + Quick Access */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{
+                                    backgroundColor: '#b91c1c', color: 'white', fontWeight: 900,
+                                    fontSize: '0.75rem', width: '18px', height: '18px',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    borderRadius: '3px', fontFamily: "'Outfit', sans-serif"
+                                }}>A</span>
+                                <div style={{ width: '1px', height: '12px', backgroundColor: '#334155' }}></div>
+                                <button title="Undo" disabled={undoStack.length === 0} onClick={handleUndo} style={{ background: 'none', border: 'none', color: undoStack.length === 0 ? '#475569' : '#94a3b8', cursor: undoStack.length === 0 ? 'not-allowed' : 'pointer', padding: '2px' }}><Undo size={11} /></button>
+                                <button title="Redo" disabled={redoStack.length === 0} onClick={handleRedo} style={{ background: 'none', border: 'none', color: redoStack.length === 0 ? '#475569' : '#94a3b8', cursor: redoStack.length === 0 ? 'not-allowed' : 'pointer', padding: '2px' }}><Redo size={11} /></button>
+                                <button title="Clear vector drawing overlay" onClick={() => { if (window.confirm('Hapus semua coretan/gambar CAD kustom?')) updateShapes([]); }} style={{ background: 'none', border: 'none', color: '#fca5a5', cursor: 'pointer', padding: '2px' }}><Trash2 size={11} /></button>
+                            </div>
+
+                            {/* Center: File name tab title */}
+                            <div style={{ fontSize: '0.62rem', color: '#94a3b8', fontWeight: 600 }}>
+                                MaviCAD 2026 - [ {selectedDwg ? selectedDwg.fileName : 'New Drawing.dwg'} ]
+                            </div>
+
+                            {/* Right: Window control icons */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.65rem', color: '#475569' }}>
+                                <span style={{ cursor: 'pointer' }} title="Minimize">─</span>
+                                <span style={{ cursor: 'pointer' }} title="Maximize">▢</span>
+                                <span style={{ cursor: 'pointer', color: '#ef4444' }} title="Close">✕</span>
+                            </div>
+                        </div>
+
+                        {/* AutoCAD Classic Compact Toolbar */}
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '4px 10px',
                             backgroundColor: '#0f172a',
                             borderBottom: '1px solid #1e3a8a',
-                            flexWrap: 'wrap',
-                            zIndex: 10
+                            gap: '6px',
+                            overflowX: 'auto',
+                            scrollbarWidth: 'none',
+                            msOverflowStyle: 'none',
+                            zIndex: 10,
+                            userSelect: 'none',
+                            fontFamily: "'Inter', sans-serif",
+                            minHeight: '32px'
                         }}>
-                            {/* Tool selection buttons */}
-                            <div style={{ display: 'flex', gap: '4px', borderRight: '1px solid #334155', paddingRight: '12px' }}>
-                                <button
-                                    title="Select / Move Hotspot"
-                                    onClick={() => setCadTool('select')}
-                                    style={{
-                                        background: cadTool === 'select' ? '#2563eb' : 'transparent',
-                                        border: 'none',
-                                        color: 'white',
-                                        padding: '6px',
-                                        borderRadius: '4px',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        transition: 'background-color 0.2s'
-                                    }}
-                                >
-                                    <MousePointer size={16} />
+                            {/* DRAW GROUP */}
+                            <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+                                <button title="Select Tool" onClick={() => setCadTool('select')} style={{ background: cadTool === 'select' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '4px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <MousePointer size={13} />
                                 </button>
-                                <button
-                                    title="Line Tool"
-                                    onClick={() => setCadTool('line')}
-                                    style={{
-                                        background: cadTool === 'line' ? '#2563eb' : 'transparent',
-                                        border: 'none',
-                                        color: 'white',
-                                        padding: '6px',
-                                        borderRadius: '4px',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        transition: 'background-color 0.2s'
-                                    }}
-                                >
-                                    <Slash size={16} />
+                                <button title="Line Tool (line)" onClick={() => setCadTool('line')} style={{ background: cadTool === 'line' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '4px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Slash size={13} />
                                 </button>
-                                <button
-                                    title="Circle Tool"
-                                    onClick={() => setCadTool('circle')}
-                                    style={{
-                                        background: cadTool === 'circle' ? '#2563eb' : 'transparent',
-                                        border: 'none',
-                                        color: 'white',
-                                        padding: '6px',
-                                        borderRadius: '4px',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        transition: 'background-color 0.2s'
-                                    }}
-                                >
-                                    <Circle size={16} />
+                                <button title="Circle Tool (circle)" onClick={() => setCadTool('circle')} style={{ background: cadTool === 'circle' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '4px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Circle size={13} />
                                 </button>
-                                <button
-                                    title="Rectangle Tool"
-                                    onClick={() => setCadTool('rect')}
-                                    style={{
-                                        background: cadTool === 'rect' ? '#2563eb' : 'transparent',
-                                        border: 'none',
-                                        color: 'white',
-                                        padding: '6px',
-                                        borderRadius: '4px',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        transition: 'background-color 0.2s'
-                                    }}
-                                >
-                                    <Square size={16} />
+                                <button title="Rectangle Tool (rect)" onClick={() => setCadTool('rect')} style={{ background: cadTool === 'rect' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '4px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Square size={13} />
                                 </button>
-                                <button
-                                    title="Text Tool"
-                                    onClick={() => setCadTool('text')}
-                                    style={{
-                                        background: cadTool === 'text' ? '#2563eb' : 'transparent',
-                                        border: 'none',
-                                        color: 'white',
-                                        padding: '6px',
-                                        borderRadius: '4px',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        transition: 'background-color 0.2s'
-                                    }}
-                                >
-                                    <Type size={16} />
+                                <button title="Arc Tool (arc)" onClick={() => setArcDrawState('idle') || setArcDraftCoords(null) || setCadTool('arc')} style={{ background: cadTool === 'arc' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '4px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M4 20 A 16 16 0 0 1 20 4"/></svg>
                                 </button>
-                                <button
-                                    title="Eraser Tool"
-                                    onClick={() => setCadTool('erase')}
-                                    style={{
-                                        background: cadTool === 'erase' ? '#ef4444' : 'transparent',
-                                        border: 'none',
-                                        color: 'white',
-                                        padding: '6px',
-                                        borderRadius: '4px',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        transition: 'background-color 0.2s'
-                                    }}
-                                >
-                                    <Eraser size={16} />
+                                <button title="Polyline Tool (polyline)" onClick={() => setPolylineDraftPoints([]) || setCadTool('polyline')} style={{ background: cadTool === 'polyline' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '4px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="4 20 10 8 16 16 20 4"/></svg>
                                 </button>
-                                <button
-                                    title="Insert Image / Sisipkan Gambar"
-                                    onClick={() => {
-                                        setCadTool('image');
-                                        if (imageInsertRef.current) {
-                                            imageInsertRef.current.click();
-                                        }
-                                    }}
-                                    style={{
-                                        background: cadTool === 'image' ? '#10b981' : 'transparent',
-                                        border: 'none',
-                                        color: 'white',
-                                        padding: '6px',
-                                        borderRadius: '4px',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        transition: 'background-color 0.2s'
-                                    }}
-                                >
-                                    <ImagePlus size={16} />
+                                <button title="Text Tool (text)" onClick={() => setCadTool('text')} style={{ background: cadTool === 'text' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '4px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Type size={13} />
+                                </button>
+                                <button title="Insert Image (image)" onClick={() => { setCadTool('image'); if (imageInsertRef.current) imageInsertRef.current.click(); }} style={{ background: cadTool === 'image' ? '#10b981' : 'transparent', border: 'none', color: 'white', padding: '4px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <ImagePlus size={13} />
                                 </button>
                             </div>
 
-                            {/* Color swatches */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', borderRight: '1px solid #334155', paddingRight: '12px' }}>
-                                <span style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Color:</span>
-                                {['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#ffffff'].map(color => (
-                                    <button
-                                        key={color}
-                                        onClick={() => setCadColor(color)}
-                                        style={{
-                                            width: '16px',
-                                            height: '16px',
-                                            borderRadius: '50%',
-                                            backgroundColor: color,
-                                            border: cadColor === color ? '2px solid white' : '1px solid rgba(255,255,255,0.3)',
-                                            cursor: 'pointer',
-                                            padding: 0,
-                                            boxShadow: cadColor === color ? '0 0 8px ' + color : 'none',
-                                            transition: 'all 0.2s'
+                            {/* Separator */}
+                            <div style={{ width: '1px', height: '16px', backgroundColor: '#334155', margin: '0 4px' }} />
+
+                            {/* MODIFY GROUP */}
+                            <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+                                <button title="Move Tool (move)" onClick={() => setCadTool('move')} style={{ background: cadTool === 'move' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '4px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Move size={13} />
+                                </button>
+                                <button title="Rotate Tool (rotate)" onClick={() => setCadTool('rotate')} style={{ background: cadTool === 'rotate' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '4px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <RotateCw size={13} />
+                                </button>
+                                <button title="Mirror Tool (mirror)" onClick={() => setCadTool('mirror')} style={{ background: cadTool === 'mirror' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '4px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <FlipHorizontal size={13} />
+                                </button>
+                                <button title="Trim Tool (trim)" onClick={() => setCadTool('trim')} style={{ background: cadTool === 'trim' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '4px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Scissors size={13} />
+                                </button>
+                                <button title="Erase Tool (erase)" onClick={() => setCadTool('erase')} style={{ background: cadTool === 'erase' ? '#ef4444' : 'transparent', border: 'none', color: 'white', padding: '4px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Eraser size={13} />
+                                </button>
+                            </div>
+
+                            {/* Separator */}
+                            <div style={{ width: '1px', height: '16px', backgroundColor: '#334155', margin: '0 4px' }} />
+
+                            {/* ANNOTATION GROUP */}
+                            <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+                                <button title="Interactive Dimension Tool (dimension)" onClick={() => setDimDrawState('idle') || setDimDraftCoords(null) || setCadTool('dimension')} style={{ background: cadTool === 'dimension' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '4px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Ruler size={13} />
+                                </button>
+                                <button title="Scale Calibration Tool (scale)" onClick={() => setScaleDrawState('idle') || setScaleDraftCoords(null) || setCadTool('scale')} style={{ background: cadTool === 'scale' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '4px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Scale size={13} />
+                                </button>
+                            </div>
+
+                            {/* Separator */}
+                            <div style={{ width: '1px', height: '16px', backgroundColor: '#334155', margin: '0 4px' }} />
+
+                            {/* PROPERTIES GROUP */}
+                            <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+                                    {['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#ffffff'].map(color => (
+                                        <button
+                                            key={color}
+                                            onClick={() => setCadColor(color)}
+                                            style={{
+                                                width: '10px', height: '10px', borderRadius: '50%', backgroundColor: color,
+                                                border: cadColor === color ? '1.5px solid white' : '1px solid rgba(255,255,255,0.2)',
+                                                cursor: 'pointer', padding: 0
+                                            }}
+                                            title={`Active Color: ${color}`}
+                                        />
+                                    ))}
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginLeft: '2px' }}>
+                                    <span style={{ fontSize: '0.58rem', color: '#94a3b8', fontWeight: 800 }}>{cadWidth}px</span>
+                                    <input type="range" min="1" max="8" value={cadWidth} onChange={(e) => setCadWidth(parseInt(e.target.value))} style={{ width: '35px', accentColor: '#2563eb', cursor: 'pointer', height: '3px', margin: 0 }} title="Line Thickness" />
+                                </div>
+                            </div>
+
+                            {/* Separator */}
+                            <div style={{ width: '1px', height: '16px', backgroundColor: '#334155', margin: '0 4px' }} />
+
+                            {/* UTILITIES GROUP */}
+                            <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+                                <button title="Export Drawing Schema" onClick={handleExportSchema} style={{ background: 'transparent', border: 'none', color: '#60a5fa', padding: '4px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Download size={13} />
+                                </button>
+                                <button title="Import Drawing Schema" onClick={() => { if (fileSchemaRef.current) fileSchemaRef.current.click(); }} style={{ background: 'transparent', border: 'none', color: '#34d399', padding: '4px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Upload size={13} />
+                                </button>
+                                <button title="Reset Template blueprint" onClick={handleResetToDefault} style={{ background: 'transparent', border: 'none', color: '#f87171', padding: '4px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <RefreshCw size={13} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* AutoCAD File tab strip */}
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            backgroundColor: '#090d16',
+                            borderBottom: '1px solid #1e3a8a',
+                            padding: '3px 8px 0 8px',
+                            gap: '2px',
+                            userSelect: 'none',
+                            fontFamily: "'Inter', sans-serif"
+                        }}>
+                            {drawings.map(dwg => {
+                                const isSelected = dwg.id === selectedDwgId;
+                                return (
+                                    <div
+                                        key={dwg.id}
+                                        onClick={() => {
+                                            setSelectedDwgId(dwg.id);
+                                            setActiveDimId(dwg.dimensions?.length > 0 ? dwg.dimensions[0].id : '');
                                         }}
-                                    />
-                                ))}
-                            </div>
-
-                            {/* Line width */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderRight: '1px solid #334155', paddingRight: '12px' }}>
-                                <span style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Width: {cadWidth}px</span>
-                                <input
-                                    type="range"
-                                    min="1"
-                                    max="8"
-                                    value={cadWidth}
-                                    onChange={(e) => setCadWidth(parseInt(e.target.value))}
-                                    style={{ width: '60px', accentColor: '#2563eb', cursor: 'pointer' }}
-                                />
-                            </div>
-
-                            {/* Magnet Grid Snap */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', borderRight: '1px solid #334155', paddingRight: '12px' }}>
-                                <button
-                                    title="Toggle Grid Snapping (10px)"
-                                    onClick={() => setGridSnap(!gridSnap)}
-                                    style={{
-                                        background: gridSnap ? '#10b981' : 'transparent',
-                                        border: gridSnap ? 'none' : '1px solid #475569',
-                                        color: 'white',
-                                        padding: '4px 8px',
-                                        borderRadius: '4px',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '4px',
-                                        fontSize: '0.65rem',
-                                        fontWeight: 700,
-                                        transition: 'all 0.2s'
-                                    }}
-                                >
-                                    <Magnet size={12} />
-                                    Snap
-                                </button>
-                            </div>
-
-                            {/* History controls (Undo/Redo) */}
-                            <div style={{ display: 'flex', gap: '4px', borderRight: '1px solid #334155', paddingRight: '12px' }}>
-                                <button
-                                    title="Undo"
-                                    disabled={undoStack.length === 0}
-                                    onClick={handleUndo}
-                                    style={{
-                                        background: 'transparent',
-                                        border: 'none',
-                                        color: undoStack.length === 0 ? '#475569' : 'white',
-                                        padding: '6px',
-                                        borderRadius: '4px',
-                                        cursor: undoStack.length === 0 ? 'not-allowed' : 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        transition: 'background-color 0.2s'
-                                    }}
-                                    onMouseEnter={(e) => { if (undoStack.length > 0) e.currentTarget.style.backgroundColor = '#1e293b'; }}
-                                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                                >
-                                    <Undo size={16} />
-                                </button>
-                                <button
-                                    title="Redo"
-                                    disabled={redoStack.length === 0}
-                                    onClick={handleRedo}
-                                    style={{
-                                        background: 'transparent',
-                                        border: 'none',
-                                        color: redoStack.length === 0 ? '#475569' : 'white',
-                                        padding: '6px',
-                                        borderRadius: '4px',
-                                        cursor: redoStack.length === 0 ? 'not-allowed' : 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        transition: 'background-color 0.2s'
-                                    }}
-                                    onMouseEnter={(e) => { if (redoStack.length > 0) e.currentTarget.style.backgroundColor = '#1e293b'; }}
-                                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                                >
-                                    <Redo size={16} />
-                                </button>
-                            </div>
-
-                            {/* Zoom controls */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', borderRight: '1px solid #334155', paddingRight: '12px' }}>
-                                <span style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Zoom:</span>
-                                <button
-                                    title="Zoom Out"
-                                    onClick={() => setZoom(z => Math.max(0.5, Math.round((z - 0.2) * 10) / 10))}
-                                    style={{
-                                        background: 'transparent', border: '1px solid #475569', color: 'white',
-                                        width: '20px', height: '20px', borderRadius: '4px', cursor: 'pointer',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 'bold'
-                                    }}
-                                >
-                                    -
-                                </button>
-                                <span style={{ color: 'white', fontSize: '0.68rem', fontWeight: 800, minWidth: '35px', textAlign: 'center' }}>
-                                    {Math.round(zoom * 100)}%
-                                </span>
-                                <button
-                                    title="Zoom In"
-                                    onClick={() => setZoom(z => Math.min(3.0, Math.round((z + 0.2) * 10) / 10))}
-                                    style={{
-                                        background: 'transparent', border: '1px solid #475569', color: 'white',
-                                        width: '20px', height: '20px', borderRadius: '4px', cursor: 'pointer',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 'bold'
-                                    }}
-                                >
-                                    +
-                                </button>
-                                <button
-                                    title="Reset Zoom"
-                                    onClick={() => setZoom(1.0)}
-                                    style={{
-                                        background: 'transparent', border: '1px solid #475569', color: '#94a3b8',
-                                        padding: '1px 6px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.6rem', fontWeight: 800
-                                    }}
-                                    onMouseEnter={e => e.currentTarget.style.color = 'white'}
-                                    onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
-                                >
-                                    1:1
-                                </button>
-                            </div>
-
-                            {/* Clear all overlay vectors button */}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            backgroundColor: isSelected ? '#1e293b' : '#0f172a60',
+                                            border: '1px solid #1e3a8a',
+                                            borderBottom: 'none',
+                                            padding: '4px 8px',
+                                            borderRadius: '4px 4px 0 0',
+                                            cursor: 'pointer',
+                                            transition: 'background-color 0.2s',
+                                        }}
+                                    >
+                                        <span style={{ fontSize: '0.58rem', color: isSelected ? '#60a5fa' : '#64748b', fontWeight: 800 }}>📁</span>
+                                        <span style={{ fontSize: '0.58rem', color: isSelected ? '#f8fafc' : '#94a3b8', fontWeight: 700 }}>
+                                            {dwg.fileName || dwg.name}
+                                        </span>
+                                        {drawings.length > 1 && (
+                                            <button
+                                                onClick={(e) => handleDeleteDwg(dwg.id, e)}
+                                                style={{
+                                                    background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '0.55rem', padding: '0 2px'
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                                                onMouseLeave={e => e.currentTarget.style.color = '#64748b'}
+                                            >
+                                                ✕
+                                            </button>
+                                        )}
+                                    </div>
+                                );
+                            })}
                             <button
-                                title="Clear Custom CAD Overlay"
-                                onClick={() => {
-                                    if (window.confirm('Hapus semua coretan/gambar CAD kustom di blueprint ini?')) {
-                                        updateShapes([]);
-                                    }
-                                }}
+                                title="Create Blank Blueprint Design"
+                                onClick={handleCreateBlankDrawing}
                                 style={{
-                                    marginLeft: 'auto',
-                                    background: 'transparent',
-                                    border: '1px solid #ef4444',
-                                    color: '#fca5a5',
-                                    padding: '4px 8px',
-                                    borderRadius: '4px',
+                                    background: 'none',
+                                    border: '1px dashed #475569',
+                                    color: '#64748b',
+                                    padding: '2px 6px',
+                                    borderRadius: '3px',
                                     cursor: 'pointer',
+                                    fontSize: '0.58rem',
+                                    fontWeight: 'bold',
+                                    marginLeft: '4px',
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: '4px',
-                                    fontSize: '0.65rem',
-                                    fontWeight: 700,
-                                    transition: 'all 0.2s'
+                                    justifyContent: 'center',
                                 }}
-                                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#7f1d1d'; }}
-                                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                onMouseEnter={e => e.currentTarget.style.color = 'white'}
+                                onMouseLeave={e => e.currentTarget.style.color = '#64748b'}
                             >
-                                <Trash2 size={12} />
-                                Reset CAD
+                                +
                             </button>
                         </div>
 
@@ -2950,25 +3655,27 @@ export default function DrawingManager() {
                         />
 
                         {/* Canvas SVG */}
-                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', position: 'relative', width: '100%', minHeight: 0 }}>
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0px', position: 'relative', width: '100%', minHeight: 0 }}>
                             <svg
                                 ref={svgRef}
-                                viewBox="0 0 500 360"
+                                viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
                                 onMouseDown={handleSvgMouseDown}
                                 onMouseMove={handleSvgMouseMove}
                                 onMouseUp={handleSvgMouseUp}
+                                onDoubleClick={handleSvgDoubleClick}
                                 onClick={handleCanvasClick}
+                                onMouseEnter={() => setShowCrosshair(true)}
+                                onMouseLeave={() => setShowCrosshair(false)}
                                 style={{
-                                    maxWidth: '100%',
-                                    maxHeight: '100%',
-                                    width: 'auto',
-                                    height: 'auto',
-                                    aspectRatio: '500 / 360',
-                                    cursor: dragImageShape
-                                        ? 'grabbing'
-                                        : (cadTool === 'select'
-                                            ? (activeDim ? 'crosshair' : 'default')
-                                            : (cadTool === 'erase' ? 'pointer' : 'crosshair'))
+                                    width: '100%',
+                                    height: '100%',
+                                    cursor: showCrosshair
+                                        ? 'none'
+                                        : (dragImageShape
+                                            ? 'grabbing'
+                                            : (cadTool === 'select'
+                                                ? (activeDim ? 'crosshair' : 'default')
+                                                : (cadTool === 'erase' ? 'pointer' : 'crosshair')))
                                 }}
                             >
                                 <defs>
@@ -2976,12 +3683,55 @@ export default function DrawingManager() {
                                         <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1e3a8a" strokeWidth="0.5" strokeOpacity="0.25" />
                                     </pattern>
                                 </defs>
-                                <rect width="100%" height="100%" fill="url(#canvas_grid)" />
-                                <rect x="5" y="5" width="490" height="350" fill="none" stroke="#1e40af" strokeWidth="1" />
-                                <rect x="8" y="8" width="484" height="344" fill="none" stroke="#1e3a8a" strokeWidth="0.5" strokeOpacity="0.5" />
+                                {activeSpace === 'model' ? (
+                                    <>
+                                        <rect width="100%" height="100%" fill="url(#canvas_grid)" />
+                                        <rect x="5" y="5" width={canvasSize.width - 10} height={canvasSize.height - 10} fill="none" stroke="#1e40af" strokeWidth="1" />
+                                        <rect x="8" y="8" width={canvasSize.width - 16} height={canvasSize.height - 16} fill="none" stroke="#1e3a8a" strokeWidth="0.5" strokeOpacity="0.5" />
+                                    </>
+                                ) : (() => {
+                                    const sheetWidth = canvasSize.width * 0.9;
+                                    const sheetHeight = canvasSize.height * 0.85;
+                                    const sheetX = canvasSize.width * 0.05;
+                                    const sheetY = canvasSize.height * 0.07;
+                                    
+                                    const titleBlockWidth = 140;
+                                    const titleBlockHeight = 45;
+                                    const titleBlockX = sheetX + sheetWidth - 15 - titleBlockWidth;
+                                    const titleBlockY = sheetY + sheetHeight - 15 - titleBlockHeight;
+                                    
+                                    return (
+                                        <>
+                                            {/* Dark background for layout workspace */}
+                                            <rect width="100%" height="100%" fill="#1e293b" />
+                                            
+                                            {/* Paper sheet shadow */}
+                                            <rect x={sheetX + 4} y={sheetY + 4} width={sheetWidth} height={sheetHeight} fill="#090d16" opacity="0.4" rx="2" />
+                                            
+                                            {/* Paper sheet body */}
+                                            <rect x={sheetX} y={sheetY} width={sheetWidth} height={sheetHeight} fill="#f8fafc" rx="2" />
+                                            
+                                            {/* Printable margin dashed border */}
+                                            <rect x={sheetX + 15} y={sheetY + 15} width={sheetWidth - 30} height={sheetHeight - 30} fill="none" stroke="#cbd5e1" strokeWidth="0.75" strokeDasharray="3,3" />
+                                            
+                                            {/* AutoCAD Title Block */}
+                                            <g style={{ userSelect: 'none' }}>
+                                                <rect x={titleBlockX} y={titleBlockY} width={titleBlockWidth} height={titleBlockHeight} fill="#f8fafc" stroke="#64748b" strokeWidth="1" />
+                                                <line x1={titleBlockX + 70} y1={titleBlockY} x2={titleBlockX + 70} y2={titleBlockY + titleBlockHeight} stroke="#64748b" strokeWidth="0.75" />
+                                                <line x1={titleBlockX} y1={titleBlockY + 15} x2={titleBlockX + titleBlockWidth} y2={titleBlockY + 15} stroke="#64748b" strokeWidth="0.75" />
+                                                <line x1={titleBlockX} y1={titleBlockY + 30} x2={titleBlockX + titleBlockWidth} y2={titleBlockY + 30} stroke="#64748b" strokeWidth="0.75" />
+                                                <text x={titleBlockX + 5} y={titleBlockY + 10} fill="#475569" fontSize="6.5" fontWeight="900" fontFamily="sans-serif">PROJECT: MAVI-MES QC</text>
+                                                <text x={titleBlockX + 5} y={titleBlockY + 23} fill="#64748b" fontSize="5" fontFamily="sans-serif">DWG: {selectedDwg ? selectedDwg.fileName : 'New Drawing.dwg'}</text>
+                                                <text x={titleBlockX + 75} y={titleBlockY + 23} fill="#2563eb" fontSize="5" fontWeight="800" fontFamily="sans-serif">SPACE: {activeSpace.toUpperCase()}</text>
+                                                <text x={titleBlockX + 5} y={titleBlockY + 38} fill="#64748b" fontSize="5" fontFamily="sans-serif">BY: QC INSPECTOR</text>
+                                                <text x={titleBlockX + 75} y={titleBlockY + 38} fill="#64748b" fontSize="5" fontFamily="sans-serif">SCALE: {selectedDwg?.scaleFactor ? 'CALIBRATED' : '1:1'}</text>
+                                            </g>
+                                        </>
+                                    );
+                                })()}
 
                                 {selectedDwg && selectedDwg.fileType === 'PDF' && selectedDwg.dataUrl && (
-                                    <foreignObject x="0" y="0" width="500" height="360" style={{ pointerEvents: 'none' }}>
+                                    <foreignObject x="0" y="0" width={canvasSize.width} height={canvasSize.height} style={{ pointerEvents: 'none' }}>
                                         <iframe
                                             src={`${selectedDwg.dataUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
                                             style={{ width: '100%', height: '100%', border: 'none', pointerEvents: 'none' }}
@@ -2990,7 +3740,7 @@ export default function DrawingManager() {
                                     </foreignObject>
                                 )}
 
-                                <g transform={`translate(250, 180) scale(${zoom}) translate(-250, -180)`}>
+                                <g transform={`translate(${canvasSize.width / 2}, ${canvasSize.height / 2}) scale(${zoom}) translate(${-canvasSize.width / 2}, ${-canvasSize.height / 2})`}>
                                     {/* Blueprint backdrop */}
                                     {selectedDwgId === 'dwg_flange_connector' ? (
                                         <>
@@ -3027,97 +3777,254 @@ export default function DrawingManager() {
 
                                     {/* Custom CAD Drawing Overlay */}
                                     {selectedDwg && (selectedDwg.shapes || []).map((shape) => {
-                                        const handleShapeClick = (e) => {
+                                        const center = getShapeCenter(shape);
+                                        const rotationStr = shape.rotation ? `rotate(${shape.rotation}, ${shape.cx ?? center.x}, ${shape.cy ?? center.y})` : '';
+                                         
+                                         const isBlinking = 
+                                             (hoveredShapeId === shape.id && ['move', 'rotate', 'mirror', 'trim'].includes(cadTool)) ||
+                                             (dragShape && dragShape.id === shape.id && ['move', 'rotate'].includes(dragShape.type)) ||
+                                             (mirrorMenu && mirrorMenu.shapeId === shape.id);
+                                         const gClassName = isBlinking ? 'cad-blink' : '';
+                                        
+                                        const handleLocalClick = (e) => {
+                                            e.stopPropagation();
+                                            const coords = getCanvasCoords(e);
+                                            
                                             if (cadTool === 'erase') {
-                                                e.stopPropagation();
                                                 const currentShapes = selectedDwg.shapes || [];
                                                 updateShapes(currentShapes.filter(s => s.id !== shape.id));
                                                 toast.success('Bentuk terhapus', { id: 'erase-shape' });
+                                            } else if (cadTool === 'mirror') {
+                                                const parentRect = svgRef.current.parentElement.getBoundingClientRect();
+                                                const top = e.clientY - parentRect.top;
+                                                const left = e.clientX - parentRect.left;
+                                                setMirrorMenu({
+                                                    shapeId: shape.id,
+                                                    x: left,
+                                                    y: top
+                                                });
+                                            } else if (cadTool === 'trim' && shape.type === 'line') {
+                                                handleTrimLine(shape, coords.x, coords.y);
                                             } else if (cadTool === 'select' && shape.type === 'image') {
+                                                setSelectedShapeId(shape.id);
+                                            }
+                                        };
+
+                                        const handleLocalMouseDown = (e) => {
+                                            if (e.button !== 0) return; // left click only
+                                            if (cadTool === 'move') {
                                                 e.stopPropagation();
+                                                e.preventDefault();
+                                                const coords = getCanvasCoords(e);
+                                                setDragShape({
+                                                    id: shape.id,
+                                                    type: 'move',
+                                                    startX: coords.x,
+                                                    startY: coords.y,
+                                                    startShape: JSON.parse(JSON.stringify(shape))
+                                                });
+                                            } else if (cadTool === 'rotate') {
+                                                e.stopPropagation();
+                                                e.preventDefault();
+                                                const coords = getCanvasCoords(e);
+                                                const shapeCenter = getShapeCenter(shape);
+                                                setDragShape({
+                                                    id: shape.id,
+                                                    type: 'rotate',
+                                                    startX: coords.x,
+                                                    startY: coords.y,
+                                                    center: shapeCenter,
+                                                    startShape: JSON.parse(JSON.stringify(shape))
+                                                });
                                             }
                                         };
-                                        
-                                        const shapeProps = {
-                                            key: shape.id,
-                                            stroke: shape.color,
-                                            strokeWidth: shape.strokeWidth || shape.width || 2,
-                                            onClick: handleShapeClick,
-                                            style: {
-                                                cursor: cadTool === 'erase' ? 'pointer' : 'default',
-                                                transition: 'all 0.1s'
-                                            },
-                                            onMouseEnter: (e) => {
-                                                if (cadTool === 'erase') {
-                                                    e.currentTarget.style.stroke = '#ef4444';
-                                                    e.currentTarget.style.strokeDasharray = '4,2';
+
+                                        const handleShapeMouseEnter = (e) => {
+                                            setHoveredShapeId(shape.id);
+                                            if (cadTool === 'erase') {
+                                                const els = e.currentTarget.querySelectorAll('line, circle, rect, path, polyline');
+                                                els.forEach(el => {
+                                                    if (el.getAttribute('stroke') !== 'transparent') {
+                                                        el.style.stroke = '#ef4444';
+                                                        el.style.strokeDasharray = '4,2';
+                                                    }
+                                                });
+                                                const textEl = e.currentTarget.querySelector('text');
+                                                if (textEl) textEl.style.fill = '#ef4444';
+                                            } else if (cadTool === 'trim' && shape.type === 'line') {
+                                                const els = e.currentTarget.querySelectorAll('line');
+                                                els.forEach(el => {
+                                                    if (el.getAttribute('stroke') !== 'transparent') {
+                                                        el.style.stroke = '#ef4444';
+                                                        el.style.strokeDasharray = '4,2';
+                                                    }
+                                                });
+                                            }
+                                        };
+
+                                        const handleShapeMouseLeave = (e) => {
+                                             setHoveredShapeId(null);
+                                            const els = e.currentTarget.querySelectorAll('line, circle, rect, path, polyline');
+                                            els.forEach(el => {
+                                                if (el.getAttribute('stroke') !== 'transparent') {
+                                                    el.style.stroke = shape.color;
+                                                    el.style.strokeDasharray = 'none';
                                                 }
-                                            },
-                                            onMouseLeave: (e) => {
-                                                e.currentTarget.style.stroke = shape.color;
-                                                e.currentTarget.style.strokeDasharray = 'none';
-                                            }
+                                            });
+                                            const textEl = e.currentTarget.querySelector('text');
+                                            if (textEl) textEl.style.fill = shape.color;
                                         };
-                                        
+
+                                        const cursorStyle = 
+                                            cadTool === 'erase' ? 'pointer' :
+                                            cadTool === 'move' ? 'move' :
+                                            cadTool === 'rotate' ? 'crosshair' :
+                                            cadTool === 'mirror' ? 'pointer' :
+                                            (cadTool === 'trim' && shape.type === 'line') ? 'pointer' :
+                                            'default';
+
+                                        const pointerEvents = ['move', 'rotate', 'mirror', 'trim', 'erase'].includes(cadTool) ? 'all' : 'none';
+
+                                        const commonProps = {
+                                            stroke: shape.color,
+                                            strokeWidth: shape.strokeWidth || 2,
+                                            style: { transition: 'all 0.1s' }
+                                        };
+
                                         if (shape.type === 'line') {
                                             return (
-                                                <line
-                                                    {...shapeProps}
-                                                    x1={shape.x1}
-                                                    y1={shape.y1}
-                                                    x2={shape.x2}
-                                                    y2={shape.y2}
-                                                />
+                                                <g
+                                                    key={shape.id}
+                                                    className={gClassName}
+                                                    transform={rotationStr}
+                                                    onClick={handleLocalClick}
+                                                    onMouseDown={handleLocalMouseDown}
+                                                    onMouseEnter={handleShapeMouseEnter}
+                                                    onMouseLeave={handleShapeMouseLeave}
+                                                    style={{ cursor: cursorStyle }}
+                                                    pointerEvents={pointerEvents}
+                                                >
+                                                    <line x1={shape.x1} y1={shape.y1} x2={shape.x2} y2={shape.y2} stroke="transparent" strokeWidth="15" fill="none" />
+                                                    <line x1={shape.x1} y1={shape.y1} x2={shape.x2} y2={shape.y2} {...commonProps} fill="none" />
+                                                </g>
                                             );
                                         } else if (shape.type === 'circle') {
                                             return (
-                                                <circle
-                                                    {...shapeProps}
-                                                    cx={shape.cx}
-                                                    cy={shape.cy}
-                                                    r={shape.r}
-                                                    fill="none"
-                                                />
+                                                <g
+                                                    key={shape.id}
+                                                    className={gClassName}
+                                                    transform={rotationStr}
+                                                    onClick={handleLocalClick}
+                                                    onMouseDown={handleLocalMouseDown}
+                                                    onMouseEnter={handleShapeMouseEnter}
+                                                    onMouseLeave={handleShapeMouseLeave}
+                                                    style={{ cursor: cursorStyle }}
+                                                    pointerEvents={pointerEvents}
+                                                >
+                                                    <circle cx={shape.cx} cy={shape.cy} r={shape.r} stroke="transparent" strokeWidth="15" fill="none" />
+                                                    <circle cx={shape.cx} cy={shape.cy} r={shape.r} {...commonProps} fill="none" />
+                                                </g>
                                             );
                                         } else if (shape.type === 'rect') {
                                             return (
-                                                <rect
-                                                    {...shapeProps}
-                                                    x={shape.x}
-                                                    y={shape.y}
-                                                    width={shape.w}
-                                                    height={shape.h}
-                                                    fill="none"
-                                                />
+                                                <g
+                                                    key={shape.id}
+                                                    className={gClassName}
+                                                    transform={rotationStr}
+                                                    onClick={handleLocalClick}
+                                                    onMouseDown={handleLocalMouseDown}
+                                                    onMouseEnter={handleShapeMouseEnter}
+                                                    onMouseLeave={handleShapeMouseLeave}
+                                                    style={{ cursor: cursorStyle }}
+                                                    pointerEvents={pointerEvents}
+                                                >
+                                                    <rect x={shape.x} y={shape.y} width={shape.w} height={shape.h} stroke="transparent" strokeWidth="15" fill="none" />
+                                                    <rect x={shape.x} y={shape.y} width={shape.w} height={shape.h} {...commonProps} fill="none" />
+                                                </g>
+                                            );
+                                        } else if (shape.type === 'arc') {
+                                            const sa = shape.startAngle ?? 0;
+                                            const ea = shape.endAngle ?? 90;
+                                            const saRad = sa * (Math.PI / 180);
+                                            const eaRad = ea * (Math.PI / 180);
+                                            const sx = shape.cx + shape.r * Math.cos(saRad);
+                                            const sy = shape.cy + shape.r * Math.sin(saRad);
+                                            const ex = shape.cx + shape.r * Math.cos(eaRad);
+                                            const ey = shape.cy + shape.r * Math.sin(eaRad);
+                                            const largeArc = Math.abs(ea - sa) > 180 ? 1 : 0;
+                                            const sweepFlag = ea > sa ? 1 : 0;
+                                            const pathD = `M ${sx},${sy} A ${shape.r},${shape.r} 0 ${largeArc},${sweepFlag} ${ex},${ey}`;
+                                            return (
+                                                <g
+                                                    key={shape.id}
+                                                    className={gClassName}
+                                                    transform={rotationStr}
+                                                    onClick={handleLocalClick}
+                                                    onMouseDown={handleLocalMouseDown}
+                                                    onMouseEnter={handleShapeMouseEnter}
+                                                    onMouseLeave={handleShapeMouseLeave}
+                                                    style={{ cursor: cursorStyle }}
+                                                    pointerEvents={pointerEvents}
+                                                >
+                                                    <path d={pathD} stroke="transparent" strokeWidth="15" fill="none" />
+                                                    <path d={pathD} {...commonProps} fill="none" />
+                                                </g>
+                                            );
+                                        } else if (shape.type === 'polyline') {
+                                            const pointsStr = (shape.points || []).map(p => `${p.x},${p.y}`).join(' ');
+                                            return (
+                                                <g
+                                                    key={shape.id}
+                                                    className={gClassName}
+                                                    transform={rotationStr}
+                                                    onClick={handleLocalClick}
+                                                    onMouseDown={handleLocalMouseDown}
+                                                    onMouseEnter={handleShapeMouseEnter}
+                                                    onMouseLeave={handleShapeMouseLeave}
+                                                    style={{ cursor: cursorStyle }}
+                                                    pointerEvents={pointerEvents}
+                                                >
+                                                    <polyline points={pointsStr} stroke="transparent" strokeWidth="15" fill="none" />
+                                                    <polyline points={pointsStr} {...commonProps} fill="none" />
+                                                </g>
                                             );
                                         } else if (shape.type === 'text') {
                                             return (
-                                                <text
+                                                <g
                                                     key={shape.id}
-                                                    x={shape.x}
-                                                    y={shape.y}
-                                                    fill={shape.color}
-                                                    fontSize={shape.fontSize || 14}
-                                                    onClick={handleShapeClick}
-                                                    textAnchor="middle"
-                                                    dominantBaseline="middle"
-                                                    style={{
-                                                        cursor: cadTool === 'erase' ? 'pointer' : 'default',
-                                                        fontFamily: 'monospace',
-                                                        fontWeight: 'bold',
-                                                        userSelect: 'none'
-                                                    }}
-                                                    onMouseEnter={(e) => {
-                                                        if (cadTool === 'erase') {
-                                                            e.currentTarget.style.fill = '#ef4444';
-                                                        }
-                                                    }}
-                                                    onMouseLeave={(e) => {
-                                                        e.currentTarget.style.fill = shape.color;
-                                                    }}
+                                                    className={gClassName}
+                                                    transform={rotationStr}
+                                                    onClick={handleLocalClick}
+                                                    onMouseDown={handleLocalMouseDown}
+                                                    onMouseEnter={handleShapeMouseEnter}
+                                                    onMouseLeave={handleShapeMouseLeave}
+                                                    style={{ cursor: cursorStyle }}
+                                                    pointerEvents={pointerEvents}
                                                 >
-                                                    {shape.text}
-                                                </text>
+                                                    {/* Extra wide invisible click background block for text */}
+                                                    <rect
+                                                        x={shape.x - 30}
+                                                        y={shape.y - 12}
+                                                        width="60"
+                                                        height="24"
+                                                        fill="transparent"
+                                                    />
+                                                    <text
+                                                        x={shape.x}
+                                                        y={shape.y}
+                                                        fill={shape.color}
+                                                        fontSize={shape.fontSize || 14}
+                                                        textAnchor="middle"
+                                                        dominantBaseline="middle"
+                                                        style={{
+                                                            fontFamily: 'monospace',
+                                                            fontWeight: 'bold',
+                                                            userSelect: 'none'
+                                                        }}
+                                                    >
+                                                        {shape.text}
+                                                    </text>
+                                                </g>
                                             );
                                         } else if (shape.type === 'image') {
                                             const isDraggingThis = dragImageShape && dragImageShape.id === shape.id;
@@ -3133,8 +4040,75 @@ export default function DrawingManager() {
 
                                             const isSelected = selectedShapeId === shape.id;
 
+                                            const handleImageClick = (e) => {
+                                                if (cadTool === 'erase' || cadTool === 'mirror') {
+                                                    handleLocalClick(e);
+                                                } else if (cadTool === 'select') {
+                                                    e.stopPropagation();
+                                                    setSelectedShapeId(shape.id);
+                                                }
+                                            };
+
+                                            const handleImageMouseDown = (e) => {
+                                                if (cadTool === 'move' || cadTool === 'rotate') {
+                                                    handleLocalMouseDown(e);
+                                                } else if (cadTool === 'select') {
+                                                    e.stopPropagation();
+                                                    e.preventDefault();
+                                                    const coords = getCanvasCoords(e);
+                                                    setSelectedShapeId(shape.id);
+                                                    setDragImageShape({
+                                                        id: shape.id,
+                                                        type: 'move',
+                                                        startX: coords.x,
+                                                        startY: coords.y,
+                                                        offsetX: coords.x - shape.x,
+                                                        offsetY: coords.y - shape.y,
+                                                        startShape: shape,
+                                                        currentX: shape.x,
+                                                        currentY: shape.y,
+                                                        currentW: shape.w,
+                                                        currentH: shape.h,
+                                                        currentCrop: crop
+                                                    });
+                                                }
+                                            };
+
+                                            const handleImageMouseEnter = (e) => {
+                                                 setHoveredShapeId(shape.id);
+                                                if (cadTool === 'erase') {
+                                                    const imgEl = e.currentTarget.querySelector('svg');
+                                                    if (imgEl) {
+                                                        imgEl.style.opacity = '0.3';
+                                                        imgEl.style.outline = '2px dashed #ef4444';
+                                                    }
+                                                }
+                                            };
+
+                                            const handleImageMouseLeave = (e) => {
+                                                 setHoveredShapeId(null);
+                                                const imgEl = e.currentTarget.querySelector('svg');
+                                                if (imgEl) {
+                                                    imgEl.style.opacity = shape.opacity || 0.85;
+                                                    imgEl.style.outline = 'none';
+                                                }
+                                            };
+
+                                            const imageCursorStyle = cadTool === 'erase' ? 'pointer' : (cadTool === 'select' ? (isDraggingThis ? 'grabbing' : 'grab') : cursorStyle);
+                                            const imagePointerEvents = ['move', 'rotate', 'mirror', 'erase', 'select'].includes(cadTool) ? 'all' : 'none';
+
                                             return (
-                                                <g key={shape.id}>
+                                                <g
+                                                    key={shape.id}
+                                                    className={gClassName}
+                                                    transform={rotationStr}
+                                                    onClick={handleImageClick}
+                                                    onMouseDown={handleImageMouseDown}
+                                                    onMouseEnter={handleImageMouseEnter}
+                                                    onMouseLeave={handleImageMouseLeave}
+                                                    style={{ cursor: imageCursorStyle }}
+                                                    pointerEvents={imagePointerEvents}
+                                                >
                                                     {/* Cropped Image using nested <svg> viewport */}
                                                     <svg
                                                         x={displayX}
@@ -3144,50 +4118,8 @@ export default function DrawingManager() {
                                                         viewBox={`${crop.x} ${crop.y} ${crop.w} ${crop.h}`}
                                                         preserveAspectRatio="none"
                                                         opacity={shape.opacity || 0.85}
-                                                        onClick={(e) => {
-                                                            if (cadTool === 'erase') {
-                                                                handleShapeClick(e);
-                                                            } else if (cadTool === 'select') {
-                                                                e.stopPropagation();
-                                                                setSelectedShapeId(shape.id);
-                                                            }
-                                                        }}
-                                                        onMouseDown={(e) => {
-                                                            if (cadTool !== 'select') return;
-                                                            e.stopPropagation();
-                                                            e.preventDefault();
-                                                            const coords = getCanvasCoords(e);
-                                                            setSelectedShapeId(shape.id);
-                                                            setDragImageShape({
-                                                                id: shape.id,
-                                                                type: 'move',
-                                                                startX: coords.x,
-                                                                startY: coords.y,
-                                                                offsetX: coords.x - shape.x,
-                                                                offsetY: coords.y - shape.y,
-                                                                startShape: shape,
-                                                                currentX: shape.x,
-                                                                currentY: shape.y,
-                                                                currentW: shape.w,
-                                                                currentH: shape.h,
-                                                                currentCrop: crop
-                                                            });
-                                                        }}
                                                         style={{
-                                                            cursor: cadTool === 'erase'
-                                                                ? 'pointer'
-                                                                : (cadTool === 'select' ? (isDraggingThis ? 'grabbing' : 'grab') : 'default'),
                                                             transition: isDraggingThis ? 'none' : 'opacity 0.2s',
-                                                        }}
-                                                        onMouseEnter={(e) => {
-                                                            if (cadTool === 'erase') {
-                                                                e.currentTarget.style.opacity = '0.3';
-                                                                e.currentTarget.style.outline = '2px dashed #ef4444';
-                                                            }
-                                                        }}
-                                                        onMouseLeave={(e) => {
-                                                            e.currentTarget.style.opacity = shape.opacity || 0.85;
-                                                            e.currentTarget.style.outline = 'none';
                                                         }}
                                                     >
                                                         <image
@@ -3216,7 +4148,6 @@ export default function DrawingManager() {
                                                     {isSelected && cadTool === 'select' && (
                                                         <>
                                                             {/* Corner Resize Handles */}
-                                                            {/* Top-Left */}
                                                             <rect
                                                                 x={displayX - 4}
                                                                 y={displayY - 4}
@@ -3244,7 +4175,6 @@ export default function DrawingManager() {
                                                                     });
                                                                 }}
                                                             />
-                                                            {/* Top-Right */}
                                                             <rect
                                                                 x={displayX + displayW - 4}
                                                                 y={displayY - 4}
@@ -3272,7 +4202,6 @@ export default function DrawingManager() {
                                                                     });
                                                                 }}
                                                             />
-                                                            {/* Bottom-Left */}
                                                             <rect
                                                                 x={displayX - 4}
                                                                 y={displayY + displayH - 4}
@@ -3300,7 +4229,6 @@ export default function DrawingManager() {
                                                                     });
                                                                 }}
                                                             />
-                                                            {/* Bottom-Right */}
                                                             <rect
                                                                 x={displayX + displayW - 4}
                                                                 y={displayY + displayH - 4}
@@ -3328,9 +4256,7 @@ export default function DrawingManager() {
                                                                     });
                                                                 }}
                                                             />
-
                                                             {/* Edge Crop Handles */}
-                                                            {/* Top Crop */}
                                                             <rect
                                                                 x={displayX + displayW / 2 - 8}
                                                                 y={displayY - 3}
@@ -3358,7 +4284,6 @@ export default function DrawingManager() {
                                                                     });
                                                                 }}
                                                             />
-                                                            {/* Bottom Crop */}
                                                             <rect
                                                                 x={displayX + displayW / 2 - 8}
                                                                 y={displayY + displayH - 1}
@@ -3386,7 +4311,6 @@ export default function DrawingManager() {
                                                                     });
                                                                 }}
                                                             />
-                                                            {/* Left Crop */}
                                                             <rect
                                                                 x={displayX - 3}
                                                                 y={displayY + displayH / 2 - 8}
@@ -3414,7 +4338,6 @@ export default function DrawingManager() {
                                                                     });
                                                                 }}
                                                             />
-                                                            {/* Right Crop */}
                                                             <rect
                                                                 x={displayX + displayW - 1}
                                                                 y={displayY + displayH / 2 - 8}
@@ -3442,7 +4365,6 @@ export default function DrawingManager() {
                                                                     });
                                                                 }}
                                                             />
-
                                                             {/* Contextual Toolbar */}
                                                             <foreignObject
                                                                 x={displayX}
@@ -3583,7 +4505,272 @@ export default function DrawingManager() {
                                         }
                                         return null;
                                     })()}
+
+                                    {/* Real-time measurement tooltips for active line/circle/rect drawing */}
+                                    {drawingShape && (() => {
+                                        if (drawingShape.type === 'line') {
+                                            const dx = drawingShape.x2 - drawingShape.x1;
+                                            const dy = drawingShape.y2 - drawingShape.y1;
+                                            const px = Math.sqrt(dx * dx + dy * dy);
+                                            const factor = selectedDwg?.scaleFactor || 1.0;
+                                            const text = selectedDwg?.scaleFactor ? `${(px * factor).toFixed(2)} mm` : `${px.toFixed(1)} px`;
+                                            return (
+                                                <g style={{ pointerEvents: 'none' }} transform={`translate(${mousePos.x + 15}, ${mousePos.y - 15})`}>
+                                                    <rect x="0" y="-8" width="85" height="18" rx="3" fill="#0f172ae6" stroke="#3b82f6" strokeWidth="1" />
+                                                    <text x="42.5" y="4" fill="#3b82f6" fontSize="8.5" fontWeight="bold" textAnchor="middle">{text}</text>
+                                                </g>
+                                            );
+                                        } else if (drawingShape.type === 'circle') {
+                                            const px = drawingShape.r;
+                                            const factor = selectedDwg?.scaleFactor || 1.0;
+                                            const text = selectedDwg?.scaleFactor ? `⌀ ${(px * 2 * factor).toFixed(2)} mm` : `⌀ ${(px * 2).toFixed(1)} px`;
+                                            return (
+                                                <g style={{ pointerEvents: 'none' }} transform={`translate(${mousePos.x + 15}, ${mousePos.y - 15})`}>
+                                                    <rect x="0" y="-8" width="85" height="18" rx="3" fill="#0f172ae6" stroke="#3b82f6" strokeWidth="1" />
+                                                    <text x="42.5" y="4" fill="#3b82f6" fontSize="8.5" fontWeight="bold" textAnchor="middle">{text}</text>
+                                                </g>
+                                            );
+                                        } else if (drawingShape.type === 'rect') {
+                                            const factor = selectedDwg?.scaleFactor || 1.0;
+                                            const w = drawingShape.w * factor;
+                                            const h = drawingShape.h * factor;
+                                            const unit = selectedDwg?.scaleFactor ? 'mm' : 'px';
+                                            return (
+                                                <g style={{ pointerEvents: 'none' }} transform={`translate(${mousePos.x + 15}, ${mousePos.y - 15})`}>
+                                                    <rect x="0" y="-8" width="95" height="18" rx="3" fill="#0f172ae6" stroke="#3b82f6" strokeWidth="1" />
+                                                    <text x="47.5" y="4" fill="#3b82f6" fontSize="8" fontWeight="bold" textAnchor="middle">{`${w.toFixed(1)}x${h.toFixed(1)} ${unit}`}</text>
+                                                </g>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
+
+                                    {/* Scale Calibration Line Draft Preview */}
+                                    {cadTool === 'scale' && scaleDraftCoords && (
+                                        <g style={{ pointerEvents: 'none' }}>
+                                            <line x1={scaleDraftCoords.x1} y1={scaleDraftCoords.y1} x2={scaleDraftCoords.x2} y2={scaleDraftCoords.y2} stroke="#10b981" strokeWidth="2.5" />
+                                            <circle cx={scaleDraftCoords.x1} cy={scaleDraftCoords.y1} r="4" fill="#10b981" />
+                                            <circle cx={scaleDraftCoords.x2} cy={scaleDraftCoords.y2} r="4" fill="#10b981" />
+                                            {(() => {
+                                                const px = Math.sqrt((scaleDraftCoords.x2 - scaleDraftCoords.x1)**2 + (scaleDraftCoords.y2 - scaleDraftCoords.y1)**2);
+                                                return (
+                                                    <g transform={`translate(${(scaleDraftCoords.x1 + scaleDraftCoords.x2)/2}, ${(scaleDraftCoords.y1 + scaleDraftCoords.y2)/2 - 15})`}>
+                                                        <rect x="-40" y="-8" width="80" height="16" rx="2" fill="#0f172a" stroke="#10b981" strokeWidth="1" />
+                                                        <text x="0" y="4" fill="#10b981" fontSize="9" fontWeight="bold" textAnchor="middle">{px.toFixed(1)} px</text>
+                                                    </g>
+                                                );
+                                            })()}
+                                        </g>
+                                    )}
+
+                                    {/* Dimension Drafting Previews */}
+                                    {cadTool === 'dimension' && dimDraftCoords && (
+                                        <g style={{ pointerEvents: 'none' }}>
+                                            {dimDrawState === 'waiting_end' && (
+                                                <>
+                                                    <line x1={dimDraftCoords.x1} y1={dimDraftCoords.y1} x2={dimDraftCoords.x2} y2={dimDraftCoords.y2} stroke="#3b82f6" strokeWidth="1.5" strokeDasharray="3,3" />
+                                                    <circle cx={dimDraftCoords.x1} cy={dimDraftCoords.y1} r="4" fill="#3b82f6" />
+                                                    <circle cx={dimDraftCoords.x2} cy={dimDraftCoords.y2} r="4" fill="#3b82f6" />
+                                                    {(() => {
+                                                        const px = Math.sqrt((dimDraftCoords.x2 - dimDraftCoords.x1)**2 + (dimDraftCoords.y2 - dimDraftCoords.y1)**2);
+                                                        const factor = selectedDwg?.scaleFactor || 1.0;
+                                                        const text = selectedDwg?.scaleFactor ? `${(px * factor).toFixed(2)} mm` : `${px.toFixed(1)} px`;
+                                                        return (
+                                                            <g transform={`translate(${(dimDraftCoords.x1 + dimDraftCoords.x2)/2}, ${(dimDraftCoords.y1 + dimDraftCoords.y2)/2 - 15})`}>
+                                                                <rect x="-40" y="-8" width="80" height="16" rx="2" fill="#0f172a" stroke="#3b82f6" strokeWidth="1" />
+                                                                <text x="0" y="4" fill="#3b82f6" fontSize="9" fontWeight="bold" textAnchor="middle">{text}</text>
+                                                            </g>
+                                                        );
+                                                    })()}
+                                                </>
+                                            )}
+                                            {dimDrawState === 'waiting_offset' && (
+                                                <>
+                                                    <line x1={dimDraftCoords.x1} y1={dimDraftCoords.y1} x2={dimDraftCoords.x1} y2={dimDraftCoords.ly} stroke="rgba(148,163,184,0.4)" strokeWidth="0.75" strokeDasharray="2,2" />
+                                                    <line x1={dimDraftCoords.x2} y1={dimDraftCoords.y2} x2={dimDraftCoords.x2} y2={dimDraftCoords.ly} stroke="rgba(148,163,184,0.4)" strokeWidth="0.75" strokeDasharray="2,2" />
+                                                    <line x1={dimDraftCoords.x1} y1={dimDraftCoords.ly} x2={dimDraftCoords.x2} y2={dimDraftCoords.ly} stroke="#3b82f6" strokeWidth="1.5" />
+                                                    <polygon points={`${dimDraftCoords.x1},${dimDraftCoords.ly} ${dimDraftCoords.x1+8},${dimDraftCoords.ly-3} ${dimDraftCoords.x1+8},${dimDraftCoords.ly+3}`} fill="#3b82f6" />
+                                                    <polygon points={`${dimDraftCoords.x2},${dimDraftCoords.ly} ${dimDraftCoords.x2-8},${dimDraftCoords.ly-3} ${dimDraftCoords.x2-8},${dimDraftCoords.ly+3}`} fill="#3b82f6" />
+                                                    
+                                                    <g transform={`translate(${dimDraftCoords.lx}, ${dimDraftCoords.ly - 10})`}>
+                                                        <rect x="-45" y="-8" width="90" height="16" rx="2" fill="#0f172a" stroke="#3b82f6" strokeWidth="1" />
+                                                        <text x="0" y="4" fill="#3b82f6" fontSize="9" fontWeight="bold" textAnchor="middle">
+                                                            {(() => {
+                                                                const px = Math.sqrt((dimDraftCoords.x2 - dimDraftCoords.x1)**2 + (dimDraftCoords.y2 - dimDraftCoords.y1)**2);
+                                                                const factor = selectedDwg?.scaleFactor || 1.0;
+                                                                return selectedDwg?.scaleFactor ? `${(px * factor).toFixed(2)} mm` : `${px.toFixed(1)} px`;
+                                                            })()}
+                                                        </text>
+                                                    </g>
+                                                </>
+                                            )}
+                                        </g>
+                                    )}
+
+                                    {/* Arc Drafting Previews */}
+                                    {cadTool === 'arc' && arcDraftCoords && (
+                                        <g style={{ pointerEvents: 'none' }}>
+                                            <circle cx={arcDraftCoords.cx} cy={arcDraftCoords.cy} r="3" fill="#60a5fa" />
+                                            {arcDrawState === 'waiting_radius' && (
+                                                <>
+                                                    <line x1={arcDraftCoords.cx} y1={arcDraftCoords.cy} x2={mousePos.x} y2={mousePos.y} stroke="#60a5fa" strokeDasharray="3,3" strokeWidth="1" />
+                                                    <circle cx={arcDraftCoords.cx} cy={arcDraftCoords.cy} r={arcDraftCoords.r} fill="none" stroke="#60a5fa" strokeDasharray="3,3" strokeWidth="1" />
+                                                    {(() => {
+                                                        const factor = selectedDwg?.scaleFactor || 1.0;
+                                                        const text = selectedDwg?.scaleFactor ? `R: ${(arcDraftCoords.r * factor).toFixed(2)} mm` : `R: ${arcDraftCoords.r.toFixed(1)} px`;
+                                                        return (
+                                                            <g transform={`translate(${(arcDraftCoords.cx + mousePos.x)/2}, ${(arcDraftCoords.cy + mousePos.y)/2 - 10})`}>
+                                                                <rect x="-40" y="-8" width="80" height="16" rx="2" fill="#0f172a" stroke="#60a5fa" strokeWidth="1" />
+                                                                <text x="0" y="4" fill="#60a5fa" fontSize="8" fontWeight="bold" textAnchor="middle">{text}</text>
+                                                            </g>
+                                                        );
+                                                    })()}
+                                                </>
+                                            )}
+                                            {arcDrawState === 'waiting_end' && (
+                                                <>
+                                                    <line x1={arcDraftCoords.cx} y1={arcDraftCoords.cy} x2={arcDraftCoords.x1} y2={arcDraftCoords.y1} stroke="#60a5fa" strokeWidth="1" strokeDasharray="3,3" />
+                                                    <line x1={arcDraftCoords.cx} y1={arcDraftCoords.cy} x2={mousePos.x} y2={mousePos.y} stroke="#60a5fa" strokeWidth="1" strokeDasharray="3,3" />
+                                                    {(() => {
+                                                        const cx = arcDraftCoords.cx;
+                                                        const cy = arcDraftCoords.cy;
+                                                        const r = arcDraftCoords.r;
+                                                        const sa = arcDraftCoords.startAngle;
+                                                        const eaRad = Math.atan2(mousePos.y - cy, mousePos.x - cx);
+                                                        const eaDeg = eaRad * (180 / Math.PI);
+                                                        const saRad = sa * (Math.PI / 180);
+                                                        const sx = cx + r * Math.cos(saRad);
+                                                        const sy = cy + r * Math.sin(saRad);
+                                                        const ex = cx + r * Math.cos(eaRad);
+                                                        const ey = cy + r * Math.sin(eaRad);
+                                                        const largeArc = Math.abs(eaDeg - sa) > 180 ? 1 : 0;
+                                                        const sweepFlag = eaDeg > sa ? 1 : 0;
+                                                        return (
+                                                            <path
+                                                                d={`M ${sx},${sy} A ${r},${r} 0 ${largeArc},${sweepFlag} ${ex},${ey}`}
+                                                                fill="none"
+                                                                stroke={cadColor}
+                                                                strokeWidth={cadWidth}
+                                                            />
+                                                        );
+                                                    })()}
+                                                    {(() => {
+                                                        const cx = arcDraftCoords.cx;
+                                                        const cy = arcDraftCoords.cy;
+                                                        const sa = arcDraftCoords.startAngle;
+                                                        const eaDeg = Math.atan2(mousePos.y - cy, mousePos.x - cx) * (180 / Math.PI);
+                                                        let angleDiff = Math.abs(eaDeg - sa);
+                                                        if (angleDiff > 180) angleDiff = 360 - angleDiff;
+                                                        return (
+                                                            <g transform={`translate(${mousePos.x}, ${mousePos.y - 15})`}>
+                                                                <rect x="-30" y="-8" width="60" height="16" rx="2" fill="#0f172a" stroke="#60a5fa" strokeWidth="1" />
+                                                                <text x="0" y="4" fill="#60a5fa" fontSize="8" fontWeight="bold" textAnchor="middle">{angleDiff.toFixed(1)}°</text>
+                                                            </g>
+                                                        );
+                                                    })()}
+                                                </>
+                                            )}
+                                        </g>
+                                    )}
+
+                                    {/* Polyline Drafting Previews */}
+                                    {cadTool === 'polyline' && polylineDraftPoints.length > 0 && (
+                                        <g style={{ pointerEvents: 'none' }}>
+                                            <polyline
+                                                points={polylineDraftPoints.map(p => `${p.x},${p.y}`).join(' ')}
+                                                fill="none"
+                                                stroke={cadColor}
+                                                strokeWidth={cadWidth}
+                                                strokeDasharray="4,2"
+                                            />
+                                            {polylineDraftPoints.slice(0, -1).map((p, idx) => (
+                                                <circle key={idx} cx={p.x} cy={p.y} r="3" fill="#10b981" />
+                                            ))}
+                                            <circle cx={polylineDraftPoints[polylineDraftPoints.length - 1].x} cy={polylineDraftPoints[polylineDraftPoints.length - 1].y} r="3" fill="#ef4444" />
+                                            {polylineDraftPoints.length > 1 && (() => {
+                                                const p1 = polylineDraftPoints[polylineDraftPoints.length - 2];
+                                                const p2 = polylineDraftPoints[polylineDraftPoints.length - 1];
+                                                const px = Math.sqrt((p2.x - p1.x)**2 + (p2.y - p1.y)**2);
+                                                const factor = selectedDwg?.scaleFactor || 1.0;
+                                                const text = selectedDwg?.scaleFactor ? `${(px * factor).toFixed(2)} mm` : `${px.toFixed(1)} px`;
+                                                return (
+                                                    <g transform={`translate(${p2.x}, ${p2.y - 15})`}>
+                                                        <rect x="-35" y="-8" width="70" height="16" rx="2" fill="#0f172a" stroke="#10b981" strokeWidth="1" />
+                                                        <text x="0" y="4" fill="#10b981" fontSize="8" fontWeight="bold" textAnchor="middle">{text}</text>
+                                                    </g>
+                                                );
+                                            })()}
+                                        </g>
+                                    )}
                                 </g>
+
+                                {/* UCS Coordinate Axis Indicator */}
+                                <g transform={`translate(35, ${canvasSize.height - 35})`} style={{ pointerEvents: 'none' }}>
+                                    <line x1="0" y1="0" x2="20" y2="0" stroke="#ef4444" strokeWidth="1.5" />
+                                    <polygon points="20,-2 25,0 20,2" fill="#ef4444" />
+                                    <text x="28" y="3" fill="#ef4444" fontSize="7" fontWeight="bold" fontFamily="sans-serif">X</text>
+
+                                    <line x1="0" y1="0" x2="0" y2="-20" stroke="#10b981" strokeWidth="1.5" />
+                                    <polygon points="-2,-20 0,-25 2,-20" fill="#10b981" />
+                                    <text x="4" y="-22" fill="#10b981" fontSize="7" fontWeight="bold" fontFamily="sans-serif">Y</text>
+
+                                    <rect x="-3" y="-3" width="6" height="6" fill="none" stroke="#e2e8f0" strokeWidth="1" />
+                                    <circle cx="0" cy="0" r="1" fill="#e2e8f0" />
+                                </g>
+
+                                {/* Circular Compass View Navigation Widget */}
+                                <g transform={`translate(${canvasSize.width - 60}, 60)`} style={{ pointerEvents: 'none', opacity: 0.85 }}>
+                                    <circle cx="0" cy="0" r="28" fill="#1e293b" stroke="#334155" strokeWidth="1.5" />
+                                    <circle cx="0" cy="0" r="22" fill="#0f172a" stroke="#1e293b" strokeWidth="1" />
+                                    
+                                    <line x1="0" y1="-28" x2="0" y2="-22" stroke="#475569" strokeWidth="1" />
+                                    <line x1="0" y1="28" x2="0" y2="22" stroke="#475569" strokeWidth="1" />
+                                    <line x1="-28" y1="0" x2="-22" y2="0" stroke="#475569" strokeWidth="1" />
+                                    <line x1="28" y1="0" x2="22" y2="0" stroke="#475569" strokeWidth="1" />
+
+                                    <text x="0" y="-14" fill="#94a3b8" fontSize="6.5" fontWeight="900" textAnchor="middle">N</text>
+                                    <text x="0" y="19" fill="#94a3b8" fontSize="6.5" fontWeight="900" textAnchor="middle">S</text>
+                                    <text x="-16" y="2.5" fill="#94a3b8" fontSize="6.5" fontWeight="900" textAnchor="middle">W</text>
+                                    <text x="16" y="2.5" fill="#94a3b8" fontSize="6.5" fontWeight="900" textAnchor="middle">E</text>
+
+                                    <rect x="-14" y="-6" width="28" height="12" rx="2" fill="#1e293b" stroke="#3b82f6" strokeWidth="0.75" />
+                                    <text x="0" y="3" fill="#60a5fa" fontSize="6.5" fontWeight="bold" textAnchor="middle">TOP</text>
+                                </g>
+
+                                {/* Selection Crosshair cursor */}
+                                {showCrosshair && (
+                                    <g style={{ pointerEvents: 'none' }}>
+                                        <line
+                                            x1={crosshairPos.x}
+                                            y1={0}
+                                            x2={crosshairPos.x}
+                                            y2={canvasSize.height}
+                                            stroke="#94a3b8"
+                                            strokeWidth="0.5"
+                                            strokeDasharray="2,2"
+                                            opacity="0.6"
+                                        />
+                                        <line
+                                            x1={0}
+                                            y1={crosshairPos.y}
+                                            x2={canvasSize.width}
+                                            y2={crosshairPos.y}
+                                            stroke="#94a3b8"
+                                            strokeWidth="0.5"
+                                            strokeDasharray="2,2"
+                                            opacity="0.6"
+                                        />
+                                        <rect
+                                            x={crosshairPos.x - 4}
+                                            y={crosshairPos.y - 4}
+                                            width="8"
+                                            height="8"
+                                            fill="none"
+                                            stroke="#2563eb"
+                                            strokeWidth="1"
+                                        />
+                                    </g>
+                                )}
                             </svg>
 
                             {/* Absolutely positioned Text Input widget */}
@@ -3632,14 +4819,175 @@ export default function DrawingManager() {
                                     }}
                                 />
                             )}
+
+                            {/* Absolutely positioned Mirror Tool Menu */}
+                            {mirrorMenu && (
+                                <div style={{
+                                    position: 'absolute',
+                                    top: `${mirrorMenu.y}px`,
+                                    left: `${mirrorMenu.x}px`,
+                                    transform: 'translate(-50%, -100%) translateY(-10px)',
+                                    backgroundColor: '#0f172ae6',
+                                    border: '1px solid #3b82f6',
+                                    borderRadius: '8px',
+                                    padding: '6px 10px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '6px',
+                                    zIndex: 1000,
+                                    boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+                                    fontFamily: "'Inter', sans-serif"
+                                }}>
+                                    <div style={{ fontSize: '0.6rem', color: '#93c5fd', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                        Cermin Bentuk (Mirror)
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                        <button
+                                            onClick={() => handleMirrorShape(mirrorMenu.shapeId, 'horizontal')}
+                                            style={{
+                                                padding: '4px 8px', backgroundColor: '#2563eb', color: 'white',
+                                                border: 'none', borderRadius: '4px', fontSize: '0.65rem',
+                                                fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px'
+                                            }}
+                                        >
+                                            Horizontal
+                                        </button>
+                                        <button
+                                            onClick={() => handleMirrorShape(mirrorMenu.shapeId, 'vertical')}
+                                            style={{
+                                                padding: '4px 8px', backgroundColor: '#2563eb', color: 'white',
+                                                border: 'none', borderRadius: '4px', fontSize: '0.65rem',
+                                                fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px'
+                                            }}
+                                        >
+                                            Vertical
+                                        </button>
+                                    </div>
+                                    <button
+                                        onClick={() => setMirrorMenu(null)}
+                                        style={{
+                                            background: 'transparent', border: 'none', color: '#94a3b8',
+                                            fontSize: '0.6rem', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center',
+                                            padding: '2px 0'
+                                        }}
+                                        onMouseEnter={e => e.currentTarget.style.color = 'white'}
+                                        onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                                    >
+                                        Batal
+                                    </button>
+                                </div>
+                            )}
+
                         </div>
 
-                        {/* Tips footer */}
-                        <div style={{ padding: '10px 16px', backgroundColor: 'rgba(30, 58, 138, 0.2)', borderTop: '1px solid #1e3a8a', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            <HelpCircle size={14} color="#60a5fa" style={{ flexShrink: 0 }} />
-                            <span style={{ fontSize: '0.68rem', color: '#93c5fd' }}>
-                                <b>Tips:</b> Klik label pada canvas untuk memilih, lalu <b>klik di mana saja</b> untuk reposisi. Gunakan <b>🖼 Insert Image</b> untuk menyisipkan gambar ke canvas. Warna berubah berdasarkan status QC.
-                            </span>
+                        {/* AutoCAD Status Bar */}
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            backgroundColor: '#0f172a',
+                            borderTop: '1px solid #1e293b',
+                            padding: '4px 12px',
+                            color: '#94a3b8',
+                            fontSize: '0.65rem',
+                            fontFamily: "'Inter', sans-serif",
+                            userSelect: 'none',
+                            zIndex: 11
+                        }}>
+                            {/* Left Side: Model / Layout Tabs */}
+                            <div style={{ display: 'flex', alignItems: 'stretch', gap: '1px', backgroundColor: '#090d16', padding: '2px', borderRadius: '4px' }}>
+                                {[
+                                    { id: 'model', label: 'Model' },
+                                    { id: 'layout1', label: 'Layout 1' },
+                                    { id: 'layout2', label: 'Layout 2' }
+                                ].map(tab => {
+                                    const isActive = activeSpace === tab.id;
+                                    return (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setActiveSpace(tab.id)}
+                                            style={{
+                                                backgroundColor: isActive ? '#2563eb' : 'transparent',
+                                                color: isActive ? '#ffffff' : '#64748b',
+                                                border: 'none',
+                                                borderRadius: '3px',
+                                                padding: '2px 8px',
+                                                fontSize: '0.58rem',
+                                                fontWeight: 800,
+                                                cursor: 'pointer',
+                                                transition: 'all 0.15s'
+                                            }}
+                                        >
+                                            {tab.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Right Side: Coordinates, snap, ortho, scale */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{
+                                    fontFamily: 'monospace',
+                                    backgroundColor: '#090d16',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    color: '#38bdf8',
+                                    fontSize: '0.58rem',
+                                    border: '1px solid #1e293b'
+                                }}>
+                                    {crosshairPos.x.toFixed(1)}, {crosshairPos.y.toFixed(1)}, 0.0
+                                </div>
+
+                                <div style={{ width: '1px', height: '12px', backgroundColor: '#334155' }}></div>
+
+                                <div style={{ display: 'flex', gap: '4px' }}>
+                                    <button
+                                        onClick={() => setGridSnap(g => !g)}
+                                        title="Grid Snap (GRID)"
+                                        style={{
+                                            backgroundColor: gridSnap ? '#2563eb20' : 'transparent',
+                                            border: '1px solid ' + (gridSnap ? '#2563eb' : '#334155'),
+                                            color: gridSnap ? '#60a5fa' : '#64748b',
+                                            borderRadius: '4px',
+                                            padding: '2px 6px',
+                                            fontSize: '0.55rem',
+                                            fontWeight: 'bold',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '2px'
+                                        }}
+                                    >
+                                        <Magnet size={9} /> SNAP
+                                    </button>
+                                    
+                                    <button
+                                        onClick={() => setOrthoMode(o => !o)}
+                                        title="Ortho Mode Lock (ORTHO)"
+                                        style={{
+                                            backgroundColor: orthoMode ? '#2563eb20' : 'transparent',
+                                            border: '1px solid ' + (orthoMode ? '#2563eb' : '#334155'),
+                                            color: orthoMode ? '#60a5fa' : '#64748b',
+                                            borderRadius: '4px',
+                                            padding: '2px 6px',
+                                            fontSize: '0.55rem',
+                                            fontWeight: 'bold',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '2px'
+                                        }}
+                                    >
+                                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M4 20 L20 20 M4 20 L4 4" /></svg> ORTHO
+                                    </button>
+                                </div>
+
+                                <div style={{ width: '1px', height: '12px', backgroundColor: '#334155' }}></div>
+
+                                <div style={{ fontSize: '0.58rem', fontWeight: 600, color: '#64748b' }}>
+                                    SCALE: {selectedDwg?.scaleFactor ? `1:${(1 / selectedDwg.scaleFactor).toFixed(1)}` : '1:1'} ({Math.round(zoom * 100)}%)
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -4168,6 +5516,260 @@ export default function DrawingManager() {
 
                     </div>
                 </div>
-            </div>
-        );
-    }
+
+            {/* Scale Calibration Overlay Modal */}
+            {isScaleModalOpen && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+                    backgroundColor: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(4px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+                }}>
+                    <div style={{
+                        backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0',
+                        width: '380px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+                        display: 'flex', flexDirection: 'column', gap: '16px', fontFamily: "'Inter', sans-serif"
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '1.4rem' }}>📏</span>
+                                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 900, color: '#0f172a' }}>Kalibrasi Skala Fisik</h3>
+                            </div>
+                            <button
+                                onClick={() => setIsScaleModalOpen(false)}
+                                style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8' }}
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+                        
+                        <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748b', lineHeight: '1.5' }}>
+                            Garis referensi sepanjang <b>{scaleModalPx.toFixed(1)} piksel</b> telah ditarik. Masukkan jarak nyata dalam satuan milimeter (mm) untuk mengkalibrasi kanvas.
+                        </p>
+
+                        <div>
+                            <label style={labelStyle}>Jarak Nyata (mm)</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                placeholder="Contoh: 15.0"
+                                value={scaleModalValue}
+                                onChange={(e) => setScaleModalValue(e.target.value)}
+                                style={{ ...inputStyle, fontSize: '0.9rem', padding: '10px 12px' }}
+                                autoFocus
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveScaleFactor(scaleModalValue);
+                                }}
+                            />
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                            <button
+                                onClick={() => setIsScaleModalOpen(false)}
+                                style={{ flex: 1, padding: '10px', backgroundColor: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.78rem' }}
+                            >
+                                Batal
+                            </button>
+                            <button
+                                onClick={() => handleSaveScaleFactor(scaleModalValue)}
+                                style={{ flex: 1, padding: '10px', background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.78rem' }}
+                            >
+                                Simpan Kalibrasi
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Dimension Creation Overlay Modal */}
+            {isDimModalOpen && dimModalData && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+                    backgroundColor: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(4px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+                }}>
+                    <div style={{
+                        backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0',
+                        width: '450px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+                        display: 'flex', flexDirection: 'column', gap: '14px', maxHeight: '90vh', overflowY: 'auto', fontFamily: "'Inter', sans-serif"
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '1.3rem' }}>📏</span>
+                                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 900, color: '#0f172a' }}>Tambah Dimensi QC Baru</h3>
+                            </div>
+                            <button
+                                onClick={() => { setIsDimModalOpen(false); setDimModalData(null); }}
+                                style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8' }}
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* Form Fields inside Dimension Modal */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                            <div>
+                                <label style={labelStyle}>Kategori</label>
+                                <select
+                                    value={dimModalData.category}
+                                    onChange={(e) => {
+                                        const cat = e.target.value;
+                                        const catDef = getCategoryDef(cat);
+                                        setDimModalData(prev => ({
+                                            ...prev,
+                                            category: cat,
+                                            measureType: catDef.defaultMeasure,
+                                            indicatorType: catDef.defaultIndicator,
+                                            unit: catDef.defaultUnit,
+                                            gdt_symbol: catDef.symbol
+                                        }));
+                                    }}
+                                    style={selectStyle}
+                                >
+                                    {PARAM_CATEGORIES.map(cat => (
+                                        <option key={cat.key} value={cat.key}>{cat.icon} {cat.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label style={labelStyle}>Tipe Pengukuran</label>
+                                <select
+                                    value={dimModalData.measureType}
+                                    onChange={(e) => setDimModalData(prev => ({ ...prev, measureType: e.target.value }))}
+                                    style={selectStyle}
+                                >
+                                    {(MEASURE_TYPE_OPTIONS[dimModalData.category] || []).map(opt => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label style={labelStyle}>Nama / Label Parameter</label>
+                            <input
+                                type="text"
+                                value={dimModalData.label}
+                                onChange={(e) => setDimModalData(prev => ({ ...prev, label: e.target.value }))}
+                                style={inputStyle}
+                                autoFocus
+                            />
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '10px' }}>
+                            <div>
+                                <label style={labelStyle}>Spec Target Nominal</label>
+                                <input
+                                    type="text"
+                                    value={dimModalData.spec}
+                                    onChange={(e) => setDimModalData(prev => ({ ...prev, spec: e.target.value }))}
+                                    style={inputStyle}
+                                />
+                            </div>
+                            <div>
+                                <label style={labelStyle}>Satuan</label>
+                                <input
+                                    type="text"
+                                    value={dimModalData.unit}
+                                    onChange={(e) => setDimModalData(prev => ({ ...prev, unit: e.target.value }))}
+                                    style={inputStyle}
+                                />
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                            <div>
+                                <label style={labelStyle}>Toleransi Min</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value={dimModalData.tolMin}
+                                    onChange={(e) => setDimModalData(prev => ({ ...prev, tolMin: e.target.value }))}
+                                    style={inputStyle}
+                                />
+                            </div>
+                            <div>
+                                <label style={labelStyle}>Toleransi Max</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value={dimModalData.tolMax}
+                                    onChange={(e) => setDimModalData(prev => ({ ...prev, tolMax: e.target.value }))}
+                                    style={inputStyle}
+                                />
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                            <div>
+                                <label style={labelStyle}>Simbol GD&T</label>
+                                <input
+                                    type="text"
+                                    value={dimModalData.gdt_symbol}
+                                    onChange={(e) => setDimModalData(prev => ({ ...prev, gdt_symbol: e.target.value }))}
+                                    placeholder="Misal: ⌀, R, ∠"
+                                    style={inputStyle}
+                                />
+                            </div>
+                            <div>
+                                <label style={labelStyle}>Variabel QMS</label>
+                                <select
+                                    value={dimModalData.variable}
+                                    onChange={(e) => setDimModalData(prev => ({ ...prev, variable: e.target.value }))}
+                                    style={selectStyle}
+                                >
+                                    <option value="">-- Pilih Variabel --</option>
+                                    {(QMS_VARIABLES_BY_CATEGORY[dimModalData.category] || []).map(v => (
+                                        <option key={v} value={v}>{v}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                            <div>
+                                <label style={labelStyle}>Tipe Indikator Canvas</label>
+                                <select
+                                    value={dimModalData.indicatorType}
+                                    onChange={(e) => setDimModalData(prev => ({ ...prev, indicatorType: e.target.value }))}
+                                    style={selectStyle}
+                                >
+                                    {(INDICATOR_TYPE_OPTIONS[dimModalData.category] || INDICATOR_TYPE_OPTIONS.custom).map(opt => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label style={labelStyle}>Bentuk Marker</label>
+                                <select
+                                    value={dimModalData.markerShape || 'default'}
+                                    onChange={(e) => setDimModalData(prev => ({ ...prev, markerShape: e.target.value }))}
+                                    style={selectStyle}
+                                >
+                                    <option value="default">Bawaan Indikator</option>
+                                    <option value="circle">● Bulat (Circle)</option>
+                                    <option value="square">■ Kotak (Square)</option>
+                                    <option value="triangle">▲ Segitiga (Triangle)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+                            <button
+                                onClick={() => { setIsDimModalOpen(false); setDimModalData(null); }}
+                                style={{ flex: 1, padding: '10px', backgroundColor: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.78rem' }}
+                            >
+                                Batal
+                            </button>
+                            <button
+                                onClick={() => handleSaveNewDimension(dimModalData)}
+                                style={{ flex: 1, padding: '10px', background: 'linear-gradient(135deg, #2563eb, #7c3aed)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.78rem' }}
+                            >
+                                Simpan Dimensi
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}

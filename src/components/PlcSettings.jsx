@@ -13,7 +13,8 @@ import PlcHelpAssistant from './PlcHelpAssistant';
 const CONTROLLER_TYPES = [
   { value: 'MODBUS_TCP', label: 'Modbus TCP', icon: Database, color: '#6366f1', desc: 'Direct Modbus registers over TCP/IP' },
   { value: 'MODBUS_RTU', label: 'Modbus RTU', icon: Radio, color: '#10b981', desc: 'Modbus serial communications over RS485/RTU' },
-  { value: 'OPC_UA', label: 'OPC UA', icon: Cpu, color: '#8b5cf6', desc: 'Secure Unified Architecture nodes' },
+  { value: 'OPC_UA', label: 'OPC UA (Python)', icon: Cpu, color: '#8b5cf6', desc: 'Secure Unified Architecture nodes via Python' },
+  { value: 'SIEMENS_S7', label: 'Siemens S7 (Python)', icon: Server, color: '#ec4899', desc: 'Siemens S7-300/400/1200/1500 connection via snap7' },
   { value: 'MQTT', label: 'MQTT Broker', icon: Zap, color: '#f59e0b', desc: 'Telemetry subscription over MQTT Broker' }
 ];
 
@@ -172,20 +173,52 @@ export default function PlcSettings() {
       if (!api.invoke) return;
       
       for (const ctrl of activeControllers) {
-        if (ctrl.type === 'MODBUS_TCP' && ctrl.status === 'connected') {
-          addLog('INFO', `Initializing startup connection for Modbus PLC: ${ctrl.name}...`);
-          try {
-            await api.invoke('modbus_connect', {
-              id: ctrl.id,
-              ip: ctrl.ip,
-              port: parseInt(ctrl.port) || 502,
-              unitId: parseInt(ctrl.unitId) || 1
-            });
-            addLog('SUCCESS', `Startup connection successful for: ${ctrl.name}`);
-          } catch (err) {
-            addLog('ERROR', `Startup connection failed for ${ctrl.name}: ${err}`);
-            // Set status to disconnected since we failed to connect on startup
-            setControllers(prev => (prev || []).map(c => c.id === ctrl.id ? { ...c, status: 'disconnected', latency: 0 } : c));
+        if (ctrl.status === 'connected') {
+          if (ctrl.type === 'MODBUS_TCP') {
+            addLog('INFO', `Initializing startup connection for Modbus PLC: ${ctrl.name}...`);
+            try {
+              await api.invoke('modbus_connect', {
+                id: ctrl.id,
+                ip: ctrl.ip,
+                port: parseInt(ctrl.port) || 502,
+                unitId: parseInt(ctrl.unitId) || 1
+              });
+              addLog('SUCCESS', `Startup connection successful for: ${ctrl.name}`);
+            } catch (err) {
+              addLog('ERROR', `Startup connection failed for ${ctrl.name}: ${err}`);
+              setControllers(prev => (prev || []).map(c => c.id === ctrl.id ? { ...c, status: 'disconnected', latency: 0 } : c));
+            }
+          } else if (['SIEMENS_S7', 'OPC_UA'].includes(ctrl.type)) {
+            addLog('INFO', `Initializing startup connection for Python PLC: ${ctrl.name}...`);
+            try {
+              const params = {};
+              if (ctrl.type === 'SIEMENS_S7') {
+                params.rack = parseInt(ctrl.rack) || 0;
+                params.slot = parseInt(ctrl.slot) || 1;
+              } else if (ctrl.type === 'OPC_UA') {
+                params.url = ctrl.ip;
+              }
+              const res = await fetch('http://localhost:8000/plc/connect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  controller_id: ctrl.id,
+                  plc_type: ctrl.type,
+                  ip: ctrl.ip,
+                  port: parseInt(ctrl.port) || (ctrl.type === 'SIEMENS_S7' ? 102 : 4840),
+                  params
+                })
+              });
+              const data = await res.json();
+              if (data && data.success) {
+                addLog('SUCCESS', `Startup connection successful for Python PLC: ${ctrl.name}`);
+              } else {
+                throw new Error(data?.error || 'Backend failed');
+              }
+            } catch (err) {
+              addLog('ERROR', `Startup connection failed for Python PLC ${ctrl.name}: ${err}`);
+              setControllers(prev => (prev || []).map(c => c.id === ctrl.id ? { ...c, status: 'disconnected', latency: 0 } : c));
+            }
           }
         }
       }
@@ -230,7 +263,8 @@ export default function PlcSettings() {
         // Skip simulated updates for real Modbus PLCs running in Tauri
         const controller = (controllers || []).find(c => c.id === currentTag.controllerId);
         const isRealModbus = controller?.type === 'MODBUS_TCP' && controller?.status === 'connected' && !!window.__TAURI_INTERNALS__;
-        if (isRealModbus) return prev;
+        const isRealPython = ['SIEMENS_S7', 'OPC_UA'].includes(controller?.type) && controller?.status === 'connected';
+        if (isRealModbus || isRealPython) return prev;
 
         let newVal = currentTag.value;
         if (currentTag.dataType === 'BOOLEAN') {
@@ -248,7 +282,8 @@ export default function PlcSettings() {
         
         // Log the read
         let protocol = 'Modbus';
-        if (controller?.type === 'OPC_UA') protocol = 'OPC UA';
+        if (controller?.type === 'OPC_UA') protocol = 'OPC UA (Python)';
+        else if (controller?.type === 'SIEMENS_S7') protocol = 'Siemens S7 (Python)';
         else if (controller?.type === 'MQTT') protocol = 'MQTT';
         else if (controller?.type === 'MODBUS_RTU') protocol = 'Modbus RTU';
         else if (controller?.type === 'MODBUS_TCP') protocol = 'Modbus TCP';
@@ -269,7 +304,7 @@ export default function PlcSettings() {
     return () => clearInterval(interval);
   }, [simulationActive, controllers]);
 
-  // ─── REAL MODBUS BACKEND POLLING ──────────────────────────────────────────
+  // ─── REAL PLC BACKEND POLLING (Rust Modbus & Python PLC Gateway) ──────────
   useEffect(() => {
     const apiPromise = getTauriApi();
     let isMounted = true;
@@ -277,103 +312,183 @@ export default function PlcSettings() {
 
     const startPolling = async () => {
       const api = await apiPromise;
-      if (!api.invoke) return;
 
       // Clean up previous intervals
       activeIntervals.forEach(clearInterval);
       activeIntervals = [];
 
       controllers.forEach(ctrl => {
-        if (ctrl.type === 'MODBUS_TCP' && ctrl.status === 'connected') {
-          const intervalId = setInterval(async () => {
-            if (!isMounted) return;
+        if (ctrl.status === 'connected') {
+          const isPythonType = ['SIEMENS_S7', 'OPC_UA'].includes(ctrl.type);
+          const isRustType = ctrl.type === 'MODBUS_TCP';
+          
+          if (isRustType || isPythonType) {
+            const intervalId = setInterval(async () => {
+              if (!isMounted) return;
 
-            // 1. Poll registered tags for this controller
-            const ctrlTags = (tags || []).filter(t => t.controllerId === ctrl.id);
-            for (const tag of ctrlTags) {
-              let addr = parseInt(tag.address);
-              if (isNaN(addr)) continue;
+              // 1. Poll registered tags for this controller
+              const ctrlTags = (tags || []).filter(t => t.controllerId === ctrl.id);
+              for (const tag of ctrlTags) {
+                let addr = parseInt(tag.address);
+                if (isNaN(addr)) continue;
 
-              let offset = addr;
-              if (tag.regType === 'COIL') offset = addr - 1;
-              else if (tag.regType === 'DISCRETE_INPUT') offset = addr - 10001;
-              else if (tag.regType === 'INPUT_REGISTER') offset = addr - 30001;
-              else if (tag.regType === 'HOLDING_REGISTER') offset = addr - 40001;
-              if (offset < 0) offset = 0;
+                if (isRustType && api.invoke) {
+                  // Tauri Rust Modbus Path
+                  let offset = addr;
+                  if (tag.regType === 'COIL') offset = addr - 1;
+                  else if (tag.regType === 'DISCRETE_INPUT') offset = addr - 10001;
+                  else if (tag.regType === 'INPUT_REGISTER') offset = addr - 30001;
+                  else if (tag.regType === 'HOLDING_REGISTER') offset = addr - 40001;
+                  if (offset < 0) offset = 0;
 
-              try {
-                const res = await api.invoke('modbus_read', {
-                  id: ctrl.id,
-                  regType: tag.regType,
-                  address: offset,
-                  quantity: 1
-                });
-                if (Array.isArray(res) && res.length > 0 && isMounted) {
-                  const rawVal = res[0];
-                  let scaledVal = rawVal;
-                  
-                  if (tag.dataType === 'BOOLEAN') {
-                    scaledVal = rawVal !== 0 ? 'true' : 'false';
-                  } else if (tag.dataType === 'FLOAT') {
-                    scaledVal = (rawVal * (tag.multiplier || 1)).toFixed(2);
-                  } else {
-                    scaledVal = String(Math.round(rawVal * (tag.multiplier || 1)));
-                  }
-
-                  setTags(prev => (prev || []).map(t => t.id === tag.id ? { ...t, value: String(scaledVal) } : t));
-                  addLog('READ', `[Modbus Real] Read ${tag.name} (${tag.address}): ${scaledVal}`);
-                }
-              } catch (err) {
-                console.error(`Error polling tag ${tag.name}:`, err);
-                addLog('ERROR', `Error polling tag ${tag.name}: ${err}`);
-              }
-            }
-
-            // 2. Poll scanner grid (if scanner active & selected ctrl is this one)
-            if (activeTab === 'scanner' && scannerControllerId === ctrl.id) {
-              const baseAddr = parseInt(scannerAddressRange) || 40001;
-              const isCoil = baseAddr < 10000;
-              const isDiscIn = baseAddr >= 10000 && baseAddr < 30000;
-              const isInputReg = baseAddr >= 30000 && baseAddr < 40000;
-              const isHolding = baseAddr >= 40000;
-
-              let regType = 'HOLDING_REGISTER';
-              let baseOffset = baseAddr - 40001;
-              if (isCoil) { regType = 'COIL'; baseOffset = baseAddr - 1; }
-              else if (isDiscIn) { regType = 'DISCRETE_INPUT'; baseOffset = baseAddr - 10001; }
-              else if (isInputReg) { regType = 'INPUT_REGISTER'; baseOffset = baseAddr - 30001; }
-              if (baseOffset < 0) baseOffset = 0;
-
-              try {
-                const res = await api.invoke('modbus_read', {
-                  id: ctrl.id,
-                  regType,
-                  address: baseOffset,
-                  quantity: 20
-                });
-
-                if (Array.isArray(res) && res.length > 0 && isMounted) {
-                  setScannerData(prev => {
-                    return (prev || []).map((reg, idx) => {
-                      const val = res[idx] !== undefined ? res[idx] : reg.decimal;
-                      return {
-                        ...reg,
-                        decimal: val,
-                        hex: '0x' + val.toString(16).toUpperCase().padStart(4, '0'),
-                        binary: val.toString(2).padStart(16, '0').match(/.{4}/g).join(' ')
-                      };
+                  try {
+                    const res = await api.invoke('modbus_read', {
+                      id: ctrl.id,
+                      regType: tag.regType,
+                      address: offset,
+                      quantity: 1
                     });
-                  });
+                    if (Array.isArray(res) && res.length > 0 && isMounted) {
+                      const rawVal = res[0];
+                      let scaledVal = rawVal;
+                      
+                      if (tag.dataType === 'BOOLEAN') {
+                        scaledVal = rawVal !== 0 ? 'true' : 'false';
+                      } else if (tag.dataType === 'FLOAT') {
+                        scaledVal = (rawVal * (tag.multiplier || 1)).toFixed(2);
+                      } else {
+                        scaledVal = String(Math.round(rawVal * (tag.multiplier || 1)));
+                      }
+
+                      setTags(prev => (prev || []).map(t => t.id === tag.id ? { ...t, value: String(scaledVal) } : t));
+                      addLog('READ', `[Modbus Real] Read ${tag.name} (${tag.address}): ${scaledVal}`);
+                    }
+                  } catch (err) {
+                    console.error(`Error polling tag ${tag.name}:`, err);
+                    addLog('ERROR', `Error polling tag ${tag.name}: ${err}`);
+                  }
+                } else {
+                  // Python PLC Gateway Path (SIEMENS_S7, OPC_UA, or fallback MODBUS)
+                  try {
+                    const params = {};
+                    if (ctrl.type === 'SIEMENS_S7') {
+                      params.dbNumber = parseInt(tag.dbNumber) || 1;
+                      params.bitOffset = parseInt(tag.bitOffset) || 0;
+                    } else if (ctrl.type === 'OPC_UA') {
+                      params.nodeId = tag.address;
+                    }
+
+                    const res = await fetch('http://localhost:8000/plc/read', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        controller_id: ctrl.id,
+                        reg_type: tag.regType || 'DB',
+                        address: addr,
+                        data_type: tag.dataType || 'INTEGER',
+                        params
+                      })
+                    });
+                    const data = await res.json();
+                    if (data && data.success && isMounted) {
+                      const rawVal = data.value;
+                      let scaledVal = rawVal;
+
+                      if (tag.dataType === 'BOOLEAN') {
+                        scaledVal = rawVal ? 'true' : 'false';
+                      } else if (tag.dataType === 'FLOAT') {
+                        scaledVal = (rawVal * (tag.multiplier || 1)).toFixed(2);
+                      } else {
+                        scaledVal = String(Math.round(rawVal * (tag.multiplier || 1)));
+                      }
+
+                      setTags(prev => (prev || []).map(t => t.id === tag.id ? { ...t, value: String(scaledVal) } : t));
+                      addLog('READ', `[Python Real] Read ${tag.name} (${tag.address}): ${scaledVal} (simulated=${!!data.simulated})`);
+                    }
+                  } catch (err) {
+                    console.error(`Error polling tag ${tag.name} via Python:`, err);
+                    addLog('ERROR', `Error polling tag ${tag.name} via Python: ${err}`);
+                  }
                 }
-              } catch (err) {
-                console.error('Error scanning Modbus registers:', err);
-                addLog('ERROR', `Error scanning Modbus registers: ${err}`);
               }
-            }
 
-          }, ctrl.pollingInterval || 2000);
+              // 2. Poll scanner grid (if scanner active & selected ctrl is this one)
+              if (activeTab === 'scanner' && scannerControllerId === ctrl.id) {
+                const baseAddr = parseInt(scannerAddressRange) || 40001;
+                const isCoil = baseAddr < 10000;
+                const isDiscIn = baseAddr >= 10000 && baseAddr < 30000;
+                const isInputReg = baseAddr >= 30000 && baseAddr < 40000;
+                const isHolding = baseAddr >= 40000;
 
-          activeIntervals.push(intervalId);
+                let regType = 'HOLDING_REGISTER';
+                let baseOffset = baseAddr - 40001;
+                if (isCoil) { regType = 'COIL'; baseOffset = baseAddr - 1; }
+                else if (isDiscIn) { regType = 'DISCRETE_INPUT'; baseOffset = baseAddr - 10001; }
+                else if (isInputReg) { regType = 'INPUT_REGISTER'; baseOffset = baseAddr - 30001; }
+                if (baseOffset < 0) baseOffset = 0;
+
+                if (isRustType && api.invoke) {
+                  try {
+                    const res = await api.invoke('modbus_read', {
+                      id: ctrl.id,
+                      regType,
+                      address: baseOffset,
+                      quantity: 20
+                    });
+
+                    if (Array.isArray(res) && res.length > 0 && isMounted) {
+                      setScannerData(prev => {
+                        return (prev || []).map((reg, idx) => {
+                          const val = res[idx] !== undefined ? res[idx] : reg.decimal;
+                          return {
+                            ...reg,
+                            decimal: val,
+                            hex: '0x' + val.toString(16).toUpperCase().padStart(4, '0'),
+                            binary: val.toString(2).padStart(16, '0').match(/.{4}/g).join(' ')
+                          };
+                        });
+                      });
+                    }
+                  } catch (err) {
+                    console.error('Error polling scanner Modbus:', err);
+                  }
+                } else {
+                  try {
+                    const res = await fetch('http://localhost:8000/plc/read', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        controller_id: ctrl.id,
+                        reg_type: regType,
+                        address: baseAddr,
+                        data_type: 'INTEGER',
+                        params: { quantity: 20 }
+                      })
+                    });
+                    const data = await res.json();
+                    if (data && data.success && isMounted) {
+                      const valArray = Array.isArray(data.value) ? data.value : [data.value];
+                      setScannerData(prev => {
+                        return (prev || []).map((reg, idx) => {
+                          const val = valArray[idx] !== undefined ? valArray[idx] : reg.decimal;
+                          return {
+                            ...reg,
+                            decimal: val,
+                            hex: '0x' + val.toString(16).toUpperCase().padStart(4, '0'),
+                            binary: val.toString(2).padStart(16, '0').match(/.{4}/g).join(' ')
+                          };
+                        });
+                      });
+                    }
+                  } catch (err) {
+                    console.error('Error polling scanner via Python:', err);
+                  }
+                }
+              }
+            }, ctrl.pollingInterval || 2000);
+
+            activeIntervals.push(intervalId);
+          }
         }
       });
     };
@@ -454,8 +569,8 @@ export default function PlcSettings() {
     if (!controller) return;
 
     const nextStatus = currentStatus === 'connected' ? 'disconnected' : 'connected';
+    const isPythonType = ['SIEMENS_S7', 'OPC_UA'].includes(controller.type);
     
-    // Connect/Disconnect Modbus in Backend if Tauri is available and type is MODBUS_TCP
     const api = await getTauriApi();
     if (api.invoke && controller.type === 'MODBUS_TCP') {
       if (nextStatus === 'connected') {
@@ -483,6 +598,54 @@ export default function PlcSettings() {
           console.warn('Disconnect error:', err);
         }
       }
+    } else if (isPythonType) {
+      if (nextStatus === 'connected') {
+        const loadingToast = toast.loading(`Connecting to PLC ${controller.name} (${controller.ip}:${controller.port}) via Python...`);
+        try {
+          const params = {};
+          if (controller.type === 'SIEMENS_S7') {
+            params.rack = parseInt(controller.rack) || 0;
+            params.slot = parseInt(controller.slot) || 1;
+          } else if (controller.type === 'OPC_UA') {
+            params.url = controller.ip;
+          }
+          const res = await fetch('http://localhost:8000/plc/connect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              controller_id: controller.id,
+              plc_type: controller.type,
+              ip: controller.ip,
+              port: parseInt(controller.port) || (controller.type === 'SIEMENS_S7' ? 102 : 4840),
+              params
+            })
+          });
+          const data = await res.json();
+          toast.dismiss(loadingToast);
+          if (data && data.success) {
+            toast.success(data.simulated ? `Connected to Simulated PLC: ${controller.name}` : `Connected to PLC: ${controller.name}`);
+            addLog('SUCCESS', `Python PLC connection: ${data.message}`);
+          } else {
+            throw new Error(data?.error || 'Backend failed');
+          }
+        } catch (err) {
+          toast.dismiss(loadingToast);
+          toast.error(`PLC connection failed: ${err.message || err}`);
+          addLog('ERROR', `Failed to connect to ${controller.name}: ${err}`);
+          return;
+        }
+      } else {
+        try {
+          await fetch('http://localhost:8000/plc/disconnect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ controller_id: controller.id })
+          });
+          toast.success(`Disconnected from PLC: ${controller.name}`);
+        } catch (err) {
+          console.warn('Disconnect error:', err);
+        }
+      }
     }
 
     const updatedCtrls = controllers.map(c => c.id === id ? {
@@ -493,7 +656,7 @@ export default function PlcSettings() {
     setControllers(updatedCtrls);
     saveToDb(updatedCtrls, tags);
     addLog(nextStatus === 'connected' ? 'SUCCESS' : 'WARNING', `Controller status changed: ${nextStatus.toUpperCase()}`);
-    if (!api.invoke || controller.type !== 'MODBUS_TCP') {
+    if (!api.invoke && !isPythonType) {
       toast.success(`Controller status: ${nextStatus}`);
     }
   };
@@ -526,10 +689,17 @@ export default function PlcSettings() {
   // Auto-adjust default regType based on selected controller's protocol
   const handleTagControllerChange = (cId) => {
     const parent = controllers.find(c => c.id === cId);
+    let defaultReg = 'HOLDING_REGISTER';
+    if (parent?.type === 'OPC_UA') defaultReg = 'NODE';
+    else if (parent?.type === 'MQTT') defaultReg = 'MQTT_TOPIC';
+    else if (parent?.type === 'SIEMENS_S7') defaultReg = 'DB';
+
     setTagForm(prev => ({
       ...prev,
       controllerId: cId,
-      regType: parent?.type === 'OPC_UA' ? 'NODE' : 'HOLDING_REGISTER'
+      regType: defaultReg,
+      dbNumber: parent?.type === 'SIEMENS_S7' ? 1 : undefined,
+      bitOffset: parent?.type === 'SIEMENS_S7' ? 0 : undefined
     }));
   };
 
@@ -735,8 +905,10 @@ export default function PlcSettings() {
 
     const activeCtrl = controllers.find(c => c.id === scannerControllerId);
     const api = await getTauriApi();
+    const isPythonType = activeCtrl && ['SIEMENS_S7', 'OPC_UA'].includes(activeCtrl.type);
+    const isRustType = activeCtrl && activeCtrl.type === 'MODBUS_TCP';
 
-    if (api.invoke && activeCtrl && activeCtrl.status === 'connected' && activeCtrl.type === 'MODBUS_TCP') {
+    if (isRustType && api.invoke && activeCtrl.status === 'connected') {
       const loadingToast = toast.loading(`Menulis nilai ${parsed} ke Register ${baseAddr}...`);
       try {
         await api.invoke('modbus_write', {
@@ -771,6 +943,61 @@ export default function PlcSettings() {
         toast.error(`Gagal menulis: ${err}`);
         addLog('ERROR', `Failed to write Register ${baseAddr}: ${err}`);
       }
+    } else if (isPythonType && activeCtrl.status === 'connected') {
+      const loadingToast = toast.loading(`Menulis nilai ${parsed} ke PLC ${activeCtrl.name}...`);
+      try {
+        const params = {};
+        if (activeCtrl.type === 'SIEMENS_S7') {
+          const matchingTag = tags.find(t => t.controllerId === scannerControllerId && parseInt(t.address) === baseAddr);
+          params.dbNumber = parseInt(matchingTag?.dbNumber) || 1;
+          params.bitOffset = parseInt(matchingTag?.bitOffset) || 0;
+        } else if (activeCtrl.type === 'OPC_UA') {
+          const matchingTag = tags.find(t => t.controllerId === scannerControllerId && parseInt(t.address) === baseAddr);
+          params.nodeId = matchingTag?.nodeId || `ns=2;s=${baseAddr}`;
+        }
+
+        const res = await fetch('http://localhost:8000/plc/write', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            controller_id: scannerControllerId,
+            reg_type: isCoil ? 'COIL' : 'HOLDING_REGISTER',
+            address: baseAddr,
+            value: String(parsed),
+            data_type: 'INTEGER',
+            params
+          })
+        });
+        const data = await res.json();
+        toast.dismiss(loadingToast);
+        
+        if (data && data.success) {
+          const matchingTag = tags.find(t => 
+            t.controllerId === scannerControllerId && 
+            (parseInt(t.address) === baseAddr || t.address === String(baseAddr))
+          );
+
+          if (matchingTag) {
+            setTags(prev => (prev || []).map(t => t.id === matchingTag.id ? { ...t, value: String(parsed) } : t));
+          }
+
+          setScannerData(prev => (prev || []).map(reg => reg.address === baseAddr ? {
+            ...reg,
+            decimal: parsed,
+            hex: '0x' + Math.round(parsed).toString(16).toUpperCase().padStart(4, '0'),
+            binary: Math.round(parsed).toString(2).padStart(16, '0').match(/.{4}/g).join(' ')
+          } : reg));
+
+          addLog('WRITE', `[Python Real] Write Register ${baseAddr} -> SUCCESS (Value: ${parsed}) (simulated=${!!data.simulated})`);
+          toast.success(`Berhasil menulis ${parsed} ke Register ${baseAddr}`);
+        } else {
+          throw new Error(data?.error || 'Backend failed');
+        }
+      } catch (err) {
+        toast.dismiss(loadingToast);
+        toast.error(`Gagal menulis via Python: ${err.message || err}`);
+        addLog('ERROR', `Failed to write Register ${baseAddr} via Python: ${err}`);
+      }
     } else {
       // Mock write
       const matchingTag = tags.find(t => 
@@ -789,7 +1016,7 @@ export default function PlcSettings() {
         binary: Math.round(parsed).toString(2).padStart(16, '0').match(/.{4}/g).join(' ')
       } : reg));
 
-      addLog('WRITE', `[Modbus Simulation] Write Register ${baseAddr} -> SUCCESS (Value: ${parsed})`);
+      addLog('WRITE', `[PLC Simulation] Write Register ${baseAddr} -> SUCCESS (Value: ${parsed})`);
       toast.success(`Berhasil menulis ${parsed} ke Register ${baseAddr}`);
     }
 
@@ -1112,7 +1339,8 @@ export default function PlcSettings() {
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: '#64748b' }}>Tipe Protokol</span>
                         <span style={{ color: '#cbd5e1', fontWeight: 700 }}>
-                          {ctrl.type === 'OPC_UA' ? 'OPC UA' :
+                          {ctrl.type === 'OPC_UA' ? 'OPC UA (Python)' :
+                           ctrl.type === 'SIEMENS_S7' ? 'Siemens S7 (Python)' :
                            ctrl.type === 'MODBUS_RTU' ? 'Modbus RTU' :
                            ctrl.type === 'MQTT' ? 'MQTT Broker' : 'Modbus TCP'}
                         </span>
@@ -1127,6 +1355,12 @@ export default function PlcSettings() {
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                           <span style={{ color: '#64748b' }}>Port & Unit ID</span>
                           <span style={{ color: '#cbd5e1' }}>Port {ctrl.port} / Slave #{ctrl.unitId}</span>
+                        </div>
+                      )}
+                      {ctrl.type === 'SIEMENS_S7' && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#64748b' }}>Rack & Slot / Port</span>
+                          <span style={{ color: '#cbd5e1' }}>Rack {ctrl.rack || 0} / Slot {ctrl.slot || 1} / Port {ctrl.port || 102}</span>
                         </div>
                       )}
                       {ctrl.type === 'MODBUS_RTU' && (
@@ -1284,11 +1518,11 @@ export default function PlcSettings() {
                     onChange={e => setScannerControllerId(e.target.value)}
                     style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#111827', color: 'white', fontSize: '0.8rem', outline: 'none' }}
                   >
-                    {controllers.filter(c => c.type === 'MODBUS_TCP').map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
+                    {controllers.filter(c => ['MODBUS_TCP', 'SIEMENS_S7', 'OPC_UA'].includes(c.type)).map(c => (
+                      <option key={c.id} value={c.id}>{c.name} ({c.type})</option>
                     ))}
-                    {controllers.filter(c => c.type === 'MODBUS_TCP').length === 0 && (
-                      <option value="">No Modbus PLCs</option>
+                    {controllers.filter(c => ['MODBUS_TCP', 'SIEMENS_S7', 'OPC_UA'].includes(c.type)).length === 0 && (
+                      <option value="">No Writable PLCs</option>
                     )}
                   </select>
                 </div>
@@ -1456,12 +1690,17 @@ export default function PlcSettings() {
                   <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Tipe Protokol</label>
                   <select
                     value={ctrlForm.type}
-                    onChange={e => setCtrlForm({...ctrlForm, type: e.target.value, port: e.target.value === 'OPC_UA' ? 4840 : (e.target.value === 'MQTT' ? 1883 : 502)})}
+                    onChange={e => {
+                      const type = e.target.value;
+                      const port = type === 'OPC_UA' ? 4840 : (type === 'SIEMENS_S7' ? 102 : (type === 'MQTT' ? 1883 : 502));
+                      setCtrlForm({...ctrlForm, type, port});
+                    }}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
                   >
-                    <option value="MODBUS_TCP">Modbus TCP</option>
-                    <option value="MODBUS_RTU">Modbus RTU</option>
-                    <option value="OPC_UA">OPC UA</option>
+                    <option value="MODBUS_TCP">Modbus TCP (Tauri Native)</option>
+                    <option value="MODBUS_RTU">Modbus RTU (Tauri Native)</option>
+                    <option value="OPC_UA">OPC UA (Python)</option>
+                    <option value="SIEMENS_S7">Siemens S7 (Python)</option>
                     <option value="MQTT">MQTT Broker</option>
                   </select>
                 </div>
@@ -1497,6 +1736,38 @@ export default function PlcSettings() {
                       type="number"
                       value={ctrlForm.unitId}
                       onChange={e => setCtrlForm({...ctrlForm, unitId: parseInt(e.target.value)})}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {ctrlForm.type === 'SIEMENS_S7' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Port TCP</label>
+                    <input
+                      type="number"
+                      value={ctrlForm.port || 102}
+                      onChange={e => setCtrlForm({...ctrlForm, port: parseInt(e.target.value)})}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Rack</label>
+                    <input
+                      type="number"
+                      value={ctrlForm.rack !== undefined ? ctrlForm.rack : 0}
+                      onChange={e => setCtrlForm({...ctrlForm, rack: parseInt(e.target.value) || 0})}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Slot</label>
+                    <input
+                      type="number"
+                      value={ctrlForm.slot !== undefined ? ctrlForm.slot : 1}
+                      onChange={e => setCtrlForm({...ctrlForm, slot: parseInt(e.target.value) || 0})}
                       style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
                     />
                   </div>
@@ -1679,9 +1950,18 @@ export default function PlcSettings() {
                     {(() => {
                       const cType = controllers.find(c => c.id === tagForm.controllerId)?.type;
                       if (cType === 'OPC_UA') {
-                        return <option value="NODE">OPC UA Node</option>;
+                        return <option value="NODE">OPC UA Node ID</option>;
                       } else if (cType === 'MQTT') {
                         return <option value="MQTT_TOPIC">MQTT Topic</option>;
+                      } else if (cType === 'SIEMENS_S7') {
+                        return (
+                          <>
+                            <option value="DB">Data Block (DB)</option>
+                            <option value="INPUT">Inputs (I)</option>
+                            <option value="OUTPUT">Outputs (Q)</option>
+                            <option value="MERKER">Merkers (M)</option>
+                          </>
+                        );
                       } else {
                         return MODBUS_REG_TYPES.map(r => (
                           <option key={r.value} value={r.value}>{r.label}</option>
@@ -1692,33 +1972,95 @@ export default function PlcSettings() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>
-                    {tagForm.regType === 'NODE' ? 'Node ID' : tagForm.regType === 'MQTT_TOPIC' ? 'MQTT Topic' : 'Register Address'}
-                  </label>
-                  <input
-                    type="text"
-                    value={tagForm.address}
-                    onChange={e => setTagForm({...tagForm, address: e.target.value})}
-                    placeholder={tagForm.regType === 'NODE' ? 'ns=2;s=Device.TagName' : tagForm.regType === 'MQTT_TOPIC' ? 'e.g. telemetry/temperature' : 'e.g. 40001'}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
-                  />
-                </div>
+              {(() => {
+                const cType = controllers.find(c => c.id === tagForm.controllerId)?.type;
+                if (cType === 'SIEMENS_S7') {
+                  return (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: tagForm.regType === 'DB' ? '1fr 1.2fr' : '1fr', gap: '8px' }}>
+                          {tagForm.regType === 'DB' && (
+                            <div>
+                              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>DB No.</label>
+                              <input
+                                type="number"
+                                value={tagForm.dbNumber !== undefined ? tagForm.dbNumber : 1}
+                                onChange={e => setTagForm({...tagForm, dbNumber: parseInt(e.target.value) || 1})}
+                                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                              />
+                            </div>
+                          )}
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Byte Address</label>
+                            <input
+                              type="number"
+                              value={tagForm.address}
+                              onChange={e => setTagForm({...tagForm, address: e.target.value})}
+                              placeholder="e.g. 0"
+                              style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                            />
+                          </div>
+                        </div>
+                        {tagForm.dataType === 'BOOLEAN' && (
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Bit Offset (0-7)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="7"
+                              value={tagForm.bitOffset !== undefined ? tagForm.bitOffset : 0}
+                              onChange={e => setTagForm({...tagForm, bitOffset: parseInt(e.target.value) || 0})}
+                              style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Tipe Data</label>
+                        <select
+                          value={tagForm.dataType}
+                          onChange={e => setTagForm({...tagForm, dataType: e.target.value})}
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                        >
+                          {DATA_TYPES.map(d => (
+                            <option key={d.value} value={d.value}>{d.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  );
+                }
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Tipe Data</label>
-                  <select
-                    value={tagForm.dataType}
-                    onChange={e => setTagForm({...tagForm, dataType: e.target.value})}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
-                  >
-                    {DATA_TYPES.map(d => (
-                      <option key={d.value} value={d.value}>{d.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>
+                        {tagForm.regType === 'NODE' ? 'Node ID' : tagForm.regType === 'MQTT_TOPIC' ? 'MQTT Topic' : 'Register Address'}
+                      </label>
+                      <input
+                        type="text"
+                        value={tagForm.address}
+                        onChange={e => setTagForm({...tagForm, address: e.target.value})}
+                        placeholder={tagForm.regType === 'NODE' ? 'ns=2;s=Device.TagName' : tagForm.regType === 'MQTT_TOPIC' ? 'e.g. telemetry/temperature' : 'e.g. 40001'}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Tipe Data</label>
+                      <select
+                        value={tagForm.dataType}
+                        onChange={e => setTagForm({...tagForm, dataType: e.target.value})}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                      >
+                        {DATA_TYPES.map(d => (
+                          <option key={d.value} value={d.value}>{d.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
