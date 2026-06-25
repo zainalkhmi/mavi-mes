@@ -72,7 +72,7 @@ import FileExplorer from './components/FileExplorer';
 import BuildManager from './components/BuildManager';
 import GlobalHelpAssistant from './components/GlobalHelpAssistant';
 import VoiceControlledCaliperInspection from './components/VoiceControlledCaliperInspection';
-import GlobalVoiceAssistant from './components/GlobalVoiceAssistant';
+// import GlobalVoiceAssistant from './components/GlobalVoiceAssistant';
 import DrawingManager from './components/DrawingManager';
 import DrawingFileManager from './components/DrawingFileManager';
 import { Toaster } from 'react-hot-toast';
@@ -561,7 +561,7 @@ const App = () => {
                 </button>
                 {drawingsMenuOpen && (
                   <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, backgroundColor: 'white', minWidth: '220px', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)', padding: '8px 0', display: 'flex', flexDirection: 'column', zIndex: 1001, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                    <Link to="/drawings" onClick={() => setDrawingsMenuOpen(false)} style={dropdownItemStyle('/drawings')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/drawings' ? '#f0f7ff' : 'transparent'}><Layout size={16} /> Drawing Canvas & Mapping</Link>
+                    <Link to="/drawings" onClick={() => setDrawingsMenuOpen(false)} style={dropdownItemStyle('/drawings')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/drawings' ? '#f0f7ff' : 'transparent'}><Layout size={16} /> Inspector Designer</Link>
                     <Link to="/drawings/files" onClick={() => setDrawingsMenuOpen(false)} style={dropdownItemStyle('/drawings/files')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/drawings/files' ? '#f0f7ff' : 'transparent'}><FileCode size={16} /> Drawing File Management</Link>
                   </div>
                 )}
@@ -1193,7 +1193,7 @@ const App = () => {
           </>
         )}
       </div>
-      <GlobalVoiceAssistant />
+      {/* <GlobalVoiceAssistant /> */}
     </div>
   );
 };

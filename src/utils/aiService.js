@@ -404,7 +404,7 @@ const getBuilderSystemPrompt = (context) => {
   const previewOrientation = context?.previewOrientation || 'PORTRAIT';
 
   // Load drawings from localStorage if running in browser
-  let drawingsStr = '  - No drawings saved in Drawing & CAD Blueprint Manager yet.';
+  let drawingsStr = '  - No drawings saved in Inspector Designer yet.';
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
       const drawings = JSON.parse(window.localStorage.getItem('mavi_drawings') || '[]');
@@ -829,7 +829,7 @@ CURRENT CONTEXT:
 - ⭐ CURRENTLY SELECTED WIDGET: ${context.selectedWidget ? JSON.stringify({ id: context.selectedWidget.id, type: context.selectedWidget.type, name: context.selectedWidget.displayName || context.selectedWidget.props?.label || context.selectedWidget.type, existingTriggers: (context.selectedWidget.props?.triggers || []).map(t => ({ id: t.id, name: t.name, event: t.event })) }) : 'none (no widget selected)'}
 - 📖 EXISTING HELP GUIDE: ${context.helpGuide ? `(guide exists, ${context.helpGuide.length} chars — update it)` : '(no guide yet — create from scratch)'}
 - 🔗 INTEGRASI APLIKASI TERKAIT (RELATED APPS - the user wants to connect with these apps): ${JSON.stringify(context.relatedApps || [])}
-- 📐 DRAWINGS & BLUEPRINTS DATABASE (tersimpan di Drawing & CAD Blueprint Manager):
+- 📐 DRAWINGS & BLUEPRINTS DATABASE (tersimpan di Inspector Designer):
 ${drawingsStr}
 
 IMPORTANT: When the user says "add trigger", "add function", "tambahkan trigger", "tambahkan function" WITHOUT specifying a widget name, ALWAYS target the CURRENTLY SELECTED WIDGET above. Use its exact "name" as the widgetId in CREATE_TRIGGER commands.

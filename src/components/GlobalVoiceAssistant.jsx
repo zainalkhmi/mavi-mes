@@ -291,75 +291,7 @@ export default function GlobalVoiceAssistant() {
     }
   };
 
-  return (
-    <div style={styles.floatingWrapper}>
-      {isListening && (
-        <div style={styles.transcriptBubble}>
-          <div style={styles.bubbleArrow} />
-          <div style={styles.bubbleHeader}>
-            <span style={styles.bubbleTitle}>Global Voice Typing</span>
-            {activeInputType ? (
-              <span style={styles.activeFieldBadge}>
-                <Keyboard size={10} style={{ marginRight: '4px' }} /> Focus: {activeInputType}
-              </span>
-            ) : (
-              <span style={styles.noFieldBadge}>
-                <AlertCircle size={10} style={{ marginRight: '4px' }} /> Klik Kolom Input dahulu
-              </span>
-            )}
-          </div>
-          <p style={styles.bubbleText}>
-            {transcript || 'Silakan mulai mendikte ke kolom input...'}
-          </p>
-        </div>
-      )}
-
-      {/* Floating Action Button */}
-      <div style={styles.fabContainer}>
-        <button 
-          onClick={toggleListening}
-          style={{
-            ...styles.fab,
-            background: isListening 
-              ? 'linear-gradient(135deg, #ef4444, #dc2626)' 
-              : 'linear-gradient(135deg, #1e293b, #0f172a)',
-            boxShadow: isListening 
-              ? '0 10px 25px -5px rgba(239, 68, 68, 0.5)' 
-              : '0 10px 25px -5px rgba(15, 23, 42, 0.4)',
-            border: isListening ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(255, 255, 255, 0.1)'
-          }}
-          title="Aktifkan Pendiktean Suara Global"
-        >
-          {isListening ? (
-            <div style={styles.micIconContainer}>
-              <MicOff size={20} color="#ffffff" />
-              <div style={styles.waves}>
-                <span style={styles.wave} />
-                <span style={styles.wave} />
-              </div>
-            </div>
-          ) : (
-            <Mic size={20} color="#60a5fa" />
-          )}
-        </button>
-
-        {/* Global Gamepad Connection Indicator */}
-        {gamepadConnected && (
-          <div style={styles.gamepadFabIndicator} title="Controller Stick Aktif">
-            <Gamepad size={12} color="#10b981" />
-          </div>
-        )}
-      </div>
-
-      <style>{`
-        @keyframes soundwave {
-          0% { transform: scale(1.0); opacity: 0.8; }
-          50% { transform: scale(1.4); opacity: 0.2; }
-          100% { transform: scale(1.0); opacity: 0.8; }
-        }
-      `}</style>
-    </div>
-  );
+  return null;
 }
 
 const styles = {

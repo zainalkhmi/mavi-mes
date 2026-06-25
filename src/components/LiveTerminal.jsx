@@ -12983,7 +12983,7 @@ const LiveTerminal = () => {
       )}
 
       {/* MAIN CONTENT AREA */}
-      <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'auto' }}>
 
 
 
@@ -12996,7 +12996,8 @@ const LiveTerminal = () => {
             flexDirection: 'column',
             padding: (selectedApp || selectedManual) ? '0' : '20px',
             backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc',
-            overflowY: (selectedApp || selectedManual) ? 'hidden' : 'auto'
+            overflowY: 'auto',
+            overflowX: 'auto'
           }}
         >
           <div style={{
@@ -13010,7 +13011,7 @@ const LiveTerminal = () => {
             display: 'flex',
             flexDirection: 'column',
             position: 'relative',
-            overflow: (selectedApp || selectedManual) ? 'hidden' : 'auto'
+            overflow: 'auto'
           }}>
             {selectedApp && !selectedApp.is_published && (
               <div style={{

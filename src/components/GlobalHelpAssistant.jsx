@@ -838,7 +838,7 @@ Filter **Dimension Measurement** pada widget **OpenCV Camera** memungkinkan peng
     content: `
 ### Panduan Integrasi Drawing & CAD Blueprint di Mavi HMI
 
-Drawing & CAD Blueprint Manager memungkinkan Anda mengunggah berkas gambar teknik (.svg, .dxf, .pdf), memetakan koordinat dimensi secara visual ke variabel Quality Management System (QMS), dan melakukan judgment Pass/Fail otomatis di stasiun operator.
+Inspector Designer memungkinkan Anda mengunggah berkas gambar teknik (.svg, .dxf, .pdf), memetakan koordinat dimensi secara visual ke variabel Quality Management System (QMS), dan melakukan judgment Pass/Fail otomatis di stasiun operator.
 
 ---
 
