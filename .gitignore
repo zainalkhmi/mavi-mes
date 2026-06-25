@@ -26,3 +26,7 @@ dist-ssr
 
 # Office temp lock files
 ~$*
+
+# Build and binary folders
+build/
+src-tauri/binaries/
