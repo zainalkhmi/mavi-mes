@@ -330,6 +330,7 @@ export default function DrawingManager() {
     const [coordControlMode, setCoordControlMode] = useState('slider'); // 'slider' | 'joystick'
     const [joystickTarget, setJoystickTarget] = useState('label'); // 'label' | 'x1y1' | 'x2y2'
     const [joystickPos, setJoystickPos] = useState({ x: 0, y: 0 });
+    const joystickPosRef = useRef({ x: 0, y: 0 });
     const [isDraggingJoystick, setIsDraggingJoystick] = useState(false);
     const joystickRef = useRef(null);
     const editValuesRef = useRef({ lx: 250, ly: 200, x1: 150, y1: 180, x2: 350, y2: 180 });
@@ -346,13 +347,16 @@ export default function DrawingManager() {
         };
     }, [editLx, editLy, editX1, editY1, editX2, editY2]);
 
-    // Handle relative joystick movements
+    // Handle relative joystick movements continuously at 50ms intervals while dragging
     useEffect(() => {
-        if (isDraggingJoystick && (joystickPos.x !== 0 || joystickPos.y !== 0)) {
+        if (isDraggingJoystick) {
             const interval = setInterval(() => {
+                const pos = joystickPosRef.current;
+                if (pos.x === 0 && pos.y === 0) return;
+
                 const speedFactor = 0.15; // Speed multiplier for dragging
-                const deltaX = joystickPos.x * speedFactor;
-                const deltaY = joystickPos.y * speedFactor;
+                const deltaX = pos.x * speedFactor;
+                const deltaY = pos.y * speedFactor;
                 const vals = editValuesRef.current;
 
                 if (joystickTarget === 'label') {
@@ -375,11 +379,12 @@ export default function DrawingManager() {
 
             return () => clearInterval(interval);
         }
-    }, [isDraggingJoystick, joystickPos.x, joystickPos.y, joystickTarget]);
+    }, [isDraggingJoystick, joystickTarget]);
 
     const handleJoystickStart = (e) => {
         e.preventDefault();
         setIsDraggingJoystick(true);
+        joystickPosRef.current = { x: 0, y: 0 };
         window.addEventListener('mousemove', handleJoystickMove);
         window.addEventListener('mouseup', handleJoystickEnd);
     };
@@ -401,11 +406,13 @@ export default function DrawingManager() {
         }
 
         setJoystickPos({ x: dx, y: dy });
+        joystickPosRef.current = { x: dx, y: dy };
     };
 
     const handleJoystickEnd = () => {
         setIsDraggingJoystick(false);
         setJoystickPos({ x: 0, y: 0 });
+        joystickPosRef.current = { x: 0, y: 0 };
         window.removeEventListener('mousemove', handleJoystickMove);
         window.removeEventListener('mouseup', handleJoystickEnd);
     };
@@ -4448,21 +4455,20 @@ export default function DrawingManager() {
                                     }}
                                     style={{
                                         background: isBalloonMode ? '#ef4444' : 'transparent',
-                                        border: 'none',
+                                        border: '1px solid #ef4444',
                                         color: isBalloonMode ? 'white' : '#ef4444',
-                                        padding: '2px 8px',
-                                        borderRadius: '4px',
+                                        width: '28px',
+                                        height: '28px',
+                                        borderRadius: '6px',
                                         cursor: 'pointer',
                                         display: 'flex',
                                         alignItems: 'center',
-                                        gap: '4px',
-                                        fontSize: '0.62rem',
-                                        fontWeight: 'bold',
+                                        justifyContent: 'center',
                                         transition: 'all 0.2s',
                                         outline: 'none'
                                     }}
                                 >
-                                    ≡ƒÄê <span style={{ fontSize: '0.58rem' }}>DISCUS Mode</span>
+                                    <Circle size={14} strokeWidth={isBalloonMode ? 3 : 2} fill={isBalloonMode ? 'white' : 'transparent'} />
                                 </button>
 
                                 <button
@@ -4473,21 +4479,20 @@ export default function DrawingManager() {
                                     }}
                                     style={{
                                         background: showQCInspector ? '#2563eb' : 'transparent',
-                                        border: 'none',
+                                        border: '1px solid #2563eb',
                                         color: showQCInspector ? 'white' : '#60a5fa',
-                                        padding: '2px 8px',
-                                        borderRadius: '4px',
+                                        width: '28px',
+                                        height: '28px',
+                                        borderRadius: '6px',
                                         cursor: 'pointer',
                                         display: 'flex',
                                         alignItems: 'center',
-                                        gap: '4px',
-                                        fontSize: '0.62rem',
-                                        fontWeight: 'bold',
+                                        justifyContent: 'center',
                                         transition: 'all 0.2s',
                                         outline: 'none'
                                     }}
                                 >
-                                    ≡ƒöì <span style={{ fontSize: '0.58rem' }}>QC Inspector</span>
+                                    <Sliders size={14} />
                                 </button>
 
                                 <button
@@ -4498,21 +4503,20 @@ export default function DrawingManager() {
                                     }}
                                     style={{
                                         background: showBocTable ? '#10b981' : 'transparent',
-                                        border: 'none',
+                                        border: '1px solid #10b981',
                                         color: showBocTable ? 'white' : '#34d399',
-                                        padding: '2px 8px',
-                                        borderRadius: '4px',
+                                        width: '28px',
+                                        height: '28px',
+                                        borderRadius: '6px',
                                         cursor: 'pointer',
                                         display: 'flex',
                                         alignItems: 'center',
-                                        gap: '4px',
-                                        fontSize: '0.62rem',
-                                        fontWeight: 'bold',
+                                        justifyContent: 'center',
                                         transition: 'all 0.2s',
                                         outline: 'none'
                                     }}
                                 >
-                                    ≡ƒôï <span style={{ fontSize: '0.58rem' }}>Tabel Karakteristik</span>
+                                    <ClipboardList size={14} />
                                 </button>
                             </div>
                         </div>
@@ -6632,7 +6636,7 @@ export default function DrawingManager() {
                                                             outline: 'none'
                                                         }}
                                                     >
-                                                        ≡ƒÄ« Joystick
+                                                        🎮 Joystick
                                                     </button>
                                                 </div>
                                             </div>
@@ -6794,7 +6798,7 @@ export default function DrawingManager() {
                                                                     style={{ position: 'absolute', top: '6px', width: '30px', height: '30px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: 'white', color: '#475569', fontSize: '0.85rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', outline: 'none' }}
                                                                     title="Naik 1px"
                                                                 >
-                                                                    Γû▓
+                                                                    ▲
                                                                 </button>
                                                                 {/* LEFT */}
                                                                 <button
@@ -6802,7 +6806,7 @@ export default function DrawingManager() {
                                                                     style={{ position: 'absolute', left: '6px', width: '30px', height: '30px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: 'white', color: '#475569', fontSize: '0.85rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', outline: 'none' }}
                                                                     title="Kiri 1px"
                                                                 >
-                                                                    ΓùÇ
+                                                                    ◀
                                                                 </button>
                                                                 {/* CENTER Indicator */}
                                                                 <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: '#94a3b8' }} />
@@ -6812,7 +6816,7 @@ export default function DrawingManager() {
                                                                     style={{ position: 'absolute', right: '6px', width: '30px', height: '30px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: 'white', color: '#475569', fontSize: '0.85rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', outline: 'none' }}
                                                                     title="Kanan 1px"
                                                                 >
-                                                                    Γû╢
+                                                                    ▶
                                                                 </button>
                                                                 {/* DOWN */}
                                                                 <button
@@ -6820,7 +6824,7 @@ export default function DrawingManager() {
                                                                     style={{ position: 'absolute', bottom: '6px', width: '30px', height: '30px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: 'white', color: '#475569', fontSize: '0.85rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', outline: 'none' }}
                                                                     title="Turun 1px"
                                                                 >
-                                                                    Γû╝
+                                                                    ▼
                                                                 </button>
                                                             </div>
                                                             <span style={{ fontSize: '0.62rem', color: '#94a3b8', fontWeight: 'bold' }}>FINE TUNE (1px)</span>
