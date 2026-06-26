@@ -53,6 +53,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getAllDrawings, saveDrawing, deleteDrawing } from '../utils/supabaseUtilityDB';
+import { CADViewer3DEditor } from './CADViewer3D';
 
 // ─────────────────────────────────────────
 // GD&T PARAMETER CATEGORY DEFINITIONS
@@ -208,6 +209,24 @@ const DEFAULT_DRAWINGS = [
             { id: 'hc_stroke', label: 'Stroke Length', spec: '500.0', tolMin: 499.5, tolMax: 500.5, variable: 'Stroke_Length_Actual', unit: 'mm', category: 'dimension', measureType: 'linear_horizontal', indicatorType: 'horizontal', gdt_symbol: '', x1: 60, y1: 240, x2: 280, y2: 240, lx: 170, ly: 240, triggers: [] },
             { id: 'hc_area', label: 'Piston Area', spec: '5026.5', tolMin: 5000.0, tolMax: 5050.0, variable: 'Meas_Area', unit: 'mm²', category: 'area', measureType: 'area', indicatorType: 'area_box', gdt_symbol: '', x1: 100, y1: 120, x2: 230, y2: 200, lx: 165, ly: 160, triggers: [] },
         ]
+    },
+    {
+        id: 'dwg_product_checking',
+        name: 'Product Checking Template',
+        fileName: 'product-checking-template.pdf',
+        fileType: 'PDF',
+        uploadedAt: '2026-06-26T12:00:00Z',
+        dimensions: [
+            { id: 'linear_2d', label: '2D Length Dimension', spec: '50.0', tolMin: 49.8, tolMax: 50.2, variable: 'Linear_2D_Val', unit: 'mm', category: 'dimension', measureType: 'linear_horizontal', indicatorType: 'horizontal', gdt_symbol: '', x1: 50, y1: 300, x2: 250, y2: 300, lx: 150, ly: 320, triggers: [] },
+            { id: 'pdf_height', label: 'PDF Thickness Check', spec: '12.0', tolMin: 11.8, tolMax: 12.2, variable: 'PDF_Thickness_Val', unit: 'mm', category: 'dimension', measureType: 'linear_vertical', indicatorType: 'vertical', gdt_symbol: '', x1: 400, y1: 100, x2: 400, y2: 200, lx: 420, ly: 150, triggers: [] },
+            { id: 'balloon_mark', label: 'Balloon Marker', spec: '10.0', tolMin: 9.5, tolMax: 10.5, variable: 'Balloon_Marker', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 200, y1: 200, lx: 250, ly: 200, triggers: [] },
+            { id: 'cad_angle', label: '3D Included Angle', spec: '90.0', tolMin: 89.5, tolMax: 90.5, variable: 'CAD_Angle_Val', unit: '°', category: 'angle', measureType: 'angle', indicatorType: 'arc', gdt_symbol: '∠', x1: 350, y1: 250, x2: 450, y2: 350, lx: 470, ly: 280, triggers: [] },
+            { id: 'qc_check', label: 'QC Check Status', spec: 'PASS', tolMin: 1, tolMax: 1, variable: 'QC_Check_Status', unit: '', category: 'custom', measureType: 'custom', indicatorType: 'callout', gdt_symbol: 'QC', x1: 100, y1: 100, lx: 150, ly: 100, triggers: [] },
+            { id: 'trigger_check', label: 'Trigger Check', spec: '1.0', tolMin: 1.0, tolMax: 1.0, variable: 'Trigger_Output', unit: '', category: 'custom', measureType: 'custom', indicatorType: 'callout', gdt_symbol: '⚡', x1: 300, y1: 150, lx: 350, ly: 150, triggers: [
+                { id: 'trig_p1', type: 'STOP_MACHINE', condition: 'ON_FAIL', priority: 'critical', message: 'Trigger failed! Stopping machine.', enabled: true }
+            ] },
+            { id: 'camera_check', label: 'Camera/Vision Check', spec: '24.0', tolMin: 23.5, tolMax: 24.5, variable: 'Vision_Camera_Val', unit: 'fps', category: 'roughness', measureType: 'surface_roughness', indicatorType: 'callout', gdt_symbol: 'Ra', x1: 150, y1: 250, lx: 200, ly: 270, triggers: [] }
+        ]
     }
 ];
 
@@ -253,7 +272,16 @@ export default function DrawingManager() {
         const saved = localStorage.getItem('mavi_drawings');
         if (saved) {
             try {
-                return migrateDrawings(JSON.parse(saved));
+                const parsed = migrateDrawings(JSON.parse(saved));
+                if (!parsed.some(d => d.id === 'dwg_product_checking')) {
+                    const templateDwg = DEFAULT_DRAWINGS.find(d => d.id === 'dwg_product_checking');
+                    if (templateDwg) {
+                        const updated = [...parsed, templateDwg];
+                        localStorage.setItem('mavi_drawings', JSON.stringify(updated));
+                        return updated;
+                    }
+                }
+                return parsed;
             } catch { return migrateDrawings(DEFAULT_DRAWINGS); }
         }
         return migrateDrawings(DEFAULT_DRAWINGS);
@@ -315,16 +343,20 @@ export default function DrawingManager() {
     const [editGdtSymbol, setEditGdtSymbol] = useState('');
     const [editX1, setEditX1] = useState(150);
     const [editY1, setEditY1] = useState(180);
+    const [editZ1, setEditZ1] = useState(0);
     const [editX2, setEditX2] = useState(350);
     const [editY2, setEditY2] = useState(180);
+    const [editZ2, setEditZ2] = useState(0);
     const [editLx, setEditLx] = useState(250);
     const [editLy, setEditLy] = useState(200);
+    const [editLz, setEditLz] = useState(0);
     const [editCx, setEditCx] = useState(250);
     const [editCy, setEditCy] = useState(180);
     const [editAngleStart, setEditAngleStart] = useState(0);
     const [editAngleEnd, setEditAngleEnd] = useState(90);
     const [editMarkerShape, setEditMarkerShape] = useState('default');
     const [editMarkerSize, setEditMarkerSize] = useState(60);
+    const [editLineWidth, setEditLineWidth] = useState(2);
 
     // Coordinate Joystick Control States
     const [coordControlMode, setCoordControlMode] = useState('slider'); // 'slider' | 'joystick'
@@ -333,19 +365,22 @@ export default function DrawingManager() {
     const joystickPosRef = useRef({ x: 0, y: 0 });
     const [isDraggingJoystick, setIsDraggingJoystick] = useState(false);
     const joystickRef = useRef(null);
-    const editValuesRef = useRef({ lx: 250, ly: 200, x1: 150, y1: 180, x2: 350, y2: 180 });
+    const editValuesRef = useRef({ lx: 250, ly: 200, lz: 0, x1: 150, y1: 180, z1: 0, x2: 350, y2: 180, z2: 0 });
 
     // Update the ref so the joystick interval always has the latest coordinate values
     useEffect(() => {
         editValuesRef.current = {
             lx: editLx,
             ly: editLy,
+            lz: editLz,
             x1: editX1,
             y1: editY1,
+            z1: editZ1,
             x2: editX2,
-            y2: editY2
+            y2: editY2,
+            z2: editZ2
         };
-    }, [editLx, editLy, editX1, editY1, editX2, editY2]);
+    }, [editLx, editLy, editLz, editX1, editY1, editZ1, editX2, editY2, editZ2]);
 
     // Handle relative joystick movements continuously at 50ms intervals while dragging
     useEffect(() => {
@@ -632,7 +667,7 @@ export default function DrawingManager() {
     const [pdfBackdropUrl, setPdfBackdropUrl] = useState(null);
     useEffect(() => {
         const dataUrlVal = selectedDwg?.dataUrl || selectedDwg?.data_url;
-        if (selectedDwg && selectedDwg.fileType === 'PDF' && dataUrlVal) {
+        if (selectedDwg && (selectedDwg.fileType === 'PDF' || selectedDwg.fileType === 'DWG') && dataUrlVal) {
             if (dataUrlVal.startsWith('data:image/')) {
                 setPdfBackdropUrl(dataUrlVal);
             } else {
@@ -801,16 +836,20 @@ export default function DrawingManager() {
             setEditGdtSymbol(activeDim.gdt_symbol || '');
             setEditX1(activeDim.x1 !== undefined ? activeDim.x1 : 150);
             setEditY1(activeDim.y1 !== undefined ? activeDim.y1 : 180);
+            setEditZ1(activeDim.z1 !== undefined ? activeDim.z1 : 0);
             setEditX2(activeDim.x2 !== undefined ? activeDim.x2 : 350);
             setEditY2(activeDim.y2 !== undefined ? activeDim.y2 : 180);
+            setEditZ2(activeDim.z2 !== undefined ? activeDim.z2 : 0);
             setEditLx(activeDim.lx !== undefined ? activeDim.lx : 250);
             setEditLy(activeDim.ly !== undefined ? activeDim.ly : 200);
+            setEditLz(activeDim.lz !== undefined ? activeDim.lz : 0);
             setEditCx(activeDim.cx !== undefined ? activeDim.cx : 250);
             setEditCy(activeDim.cy !== undefined ? activeDim.cy : 180);
             setEditAngleStart(activeDim.angleStart !== undefined ? activeDim.angleStart : 0);
             setEditAngleEnd(activeDim.angleEnd !== undefined ? activeDim.angleEnd : 90);
             setEditMarkerShape(activeDim.markerShape || 'default');
             setEditMarkerSize(activeDim.markerSize !== undefined ? activeDim.markerSize : 60);
+            setEditLineWidth(activeDim.lineWidth !== undefined ? activeDim.lineWidth : 2);
             setEditSeverity(activeDim.severity || 'Minor');
             setEditInspectionMethod(activeDim.inspection_method || 'Caliper');
             setCustomVarMode(false);
@@ -853,21 +892,23 @@ export default function DrawingManager() {
             label: setEditLabel, spec: setEditSpec, tolMin: setEditTolMin, tolMax: setEditTolMax,
             variable: setEditVariable, unit: setEditUnit, category: setEditCategory,
             measureType: setEditMeasureType, indicatorType: setEditIndicatorType, gdt_symbol: setEditGdtSymbol,
-            x1: setEditX1, y1: setEditY1, x2: setEditX2, y2: setEditY2,
-            lx: setEditLx, ly: setEditLy, cx: setEditCx, cy: setEditCy,
+            x1: setEditX1, y1: setEditY1, z1: setEditZ1, x2: setEditX2, y2: setEditY2, z2: setEditZ2,
+            lx: setEditLx, ly: setEditLy, lz: setEditLz, cx: setEditCx, cy: setEditCy,
             angleStart: setEditAngleStart, angleEnd: setEditAngleEnd,
-            markerShape: setEditMarkerShape, markerSize: setEditMarkerSize,
+            markerShape: setEditMarkerShape, markerSize: setEditMarkerSize, lineWidth: setEditLineWidth,
             severity: setEditSeverity, inspection_method: setEditInspectionMethod,
         };
         if (setters[field]) setters[field](value);
+
+        const is3D = selectedDwg && ['STL', 'OBJ', 'GLTF', 'GLB'].includes(selectedDwg.fileType);
 
         const updatedDwg = {
             ...selectedDwg,
             dimensions: selectedDwg.dimensions.map(dim => {
                 if (dim.id === activeDimId) {
                     let parsedVal = value;
-                    if (['x1', 'y1', 'x2', 'y2', 'lx', 'ly', 'cx', 'cy', 'markerSize'].includes(field)) {
-                        parsedVal = parseInt(value) || 0;
+                    if (['x1', 'y1', 'z1', 'x2', 'y2', 'z2', 'lx', 'ly', 'lz', 'cx', 'cy', 'markerSize', 'lineWidth'].includes(field)) {
+                        parsedVal = is3D ? (parseFloat(value) || 0) : (parseInt(value) || 0);
                     } else if (['tolMin', 'tolMax', 'angleStart', 'angleEnd'].includes(field)) {
                         parsedVal = parseFloat(value) || 0;
                     }
@@ -895,6 +936,7 @@ export default function DrawingManager() {
 
     const handleSaveMapping = async () => {
         if (!activeDim) return;
+        const is3D = selectedDwg && ['STL', 'OBJ', 'GLTF', 'GLB'].includes(selectedDwg.fileType);
         const updatedDwg = {
             ...selectedDwg,
             dimensions: selectedDwg.dimensions.map(dim => {
@@ -904,11 +946,21 @@ export default function DrawingManager() {
                         label: editLabel, spec: editSpec, tolMin: parseFloat(editTolMin), tolMax: parseFloat(editTolMax),
                         variable: editVariable, unit: editUnit, category: editCategory, measureType: editMeasureType,
                         indicatorType: editIndicatorType, gdt_symbol: editGdtSymbol,
-                        x1: parseInt(editX1), y1: parseInt(editY1), x2: parseInt(editX2), y2: parseInt(editY2),
-                        lx: parseInt(editLx), ly: parseInt(editLy), cx: parseInt(editCx), cy: parseInt(editCy),
+                        x1: is3D ? parseFloat(editX1) : parseInt(editX1), 
+                        y1: is3D ? parseFloat(editY1) : parseInt(editY1), 
+                        z1: parseFloat(editZ1 || 0),
+                        x2: is3D ? parseFloat(editX2) : parseInt(editX2), 
+                        y2: is3D ? parseFloat(editY2) : parseInt(editY2), 
+                        z2: parseFloat(editZ2 || 0),
+                        lx: is3D ? parseFloat(editLx) : parseInt(editLx), 
+                        ly: is3D ? parseFloat(editLy) : parseInt(editLy), 
+                        lz: parseFloat(editLz || 0),
+                        cx: is3D ? parseFloat(editCx) : parseInt(editCx), 
+                        cy: is3D ? parseFloat(editCy) : parseInt(editCy),
                         angleStart: parseFloat(editAngleStart), angleEnd: parseFloat(editAngleEnd),
                         markerShape: editMarkerShape,
                         markerSize: parseInt(editMarkerSize) || 60,
+                        lineWidth: parseInt(editLineWidth) || 2,
                         severity: editSeverity,
                         inspection_method: editInspectionMethod,
                     };
@@ -926,6 +978,54 @@ export default function DrawingManager() {
             toast.error('Gagal menyimpan ke database, disimpan secara lokal.');
             setDrawings(prev => prev.map(d => d.id === selectedDwgId ? updatedDwg : d));
         }
+    };
+
+    // ─── Add 3D dimension from raycast ───
+    const handleAdd3DDimension = (x, y, z) => {
+        if (!selectedDwg) {
+            toast.error('Pilih model blueprint terlebih dahulu.');
+            return;
+        }
+        const categoryKey = 'dimension';
+        const catDef = getCategoryDef(categoryKey);
+        const newDimId = generateDimId(categoryKey);
+
+        const specs = { spec: '1.0', tolMin: 0.9, tolMax: 1.1 };
+
+        const newDim = {
+            id: newDimId,
+            label: `${catDef.labelId} Baru`,
+            spec: specs.spec,
+            tolMin: specs.tolMin,
+            tolMax: specs.tolMax,
+            variable: '',
+            unit: catDef.defaultUnit,
+            category: categoryKey,
+            measureType: catDef.defaultMeasure,
+            indicatorType: catDef.defaultIndicator,
+            gdt_symbol: catDef.symbol,
+            x1: parseFloat(x.toFixed(3)),
+            y1: parseFloat(y.toFixed(3)),
+            z1: parseFloat(z.toFixed(3)),
+            x2: parseFloat(x.toFixed(3)),
+            y2: parseFloat(y.toFixed(3)),
+            z2: parseFloat(z.toFixed(3)),
+            lx: parseFloat(x.toFixed(3)),
+            ly: parseFloat(y.toFixed(3)),
+            lz: parseFloat(z.toFixed(3)),
+            cx: parseFloat(x.toFixed(3)),
+            cy: parseFloat(y.toFixed(3)),
+            markerShape: 'default',
+            markerSize: 60,
+            triggers: [],
+            severity: 'Minor',
+            inspection_method: 'Caliper',
+        };
+
+        const updatedDwg = { ...selectedDwg, dimensions: [...selectedDwg.dimensions, newDim] };
+        setDrawings(prev => prev.map(d => d.id === selectedDwgId ? updatedDwg : d));
+        setActiveDimId(newDimId);
+        toast.success(`Parameter 3D ditambahkan pada koordinat (${x.toFixed(2)}, ${y.toFixed(2)}, ${z.toFixed(2)})`);
     };
 
     // ─── Add new dimension by category ───
@@ -966,6 +1066,7 @@ export default function DrawingManager() {
             cx: 250, cy: 180, angleStart: 0, angleEnd: 90,
             markerShape: 'default',
             markerSize: 60,
+            lineWidth: 2,
             triggers: [],
             severity: 'Minor',
             inspection_method: 'Caliper',
@@ -3213,10 +3314,49 @@ export default function DrawingManager() {
 
     const processUploadedFile = async (file) => {
         const extension = file.name.split('.').pop().toLowerCase();
-        if (!['svg', 'dxf', 'pdf'].includes(extension)) {
-            toast.error('Format tidak didukung! Gunakan .svg, .dxf, atau .pdf.');
+        if (!['svg', 'dxf', 'pdf', 'dwg', 'stl', 'obj', 'gltf', 'glb'].includes(extension)) {
+            toast.error('Format tidak didukung! Gunakan .svg, .dxf, .pdf, .dwg, .stl, .obj, .gltf, atau .glb.');
             return;
         }
+
+        // Handle 3D formats client-side directly
+        if (['stl', 'obj', 'gltf', 'glb'].includes(extension)) {
+            setIsParsing(true);
+            setParseProgress(30);
+            setParseStatusText('Membaca berkas 3D...');
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const dataUrl = event.target.result || '';
+                setParseProgress(90);
+                setParseStatusText('Menyimpan model 3D...');
+                setTimeout(() => {
+                    setParseProgress(100);
+                    setIsParsing(false);
+                    const newDwg = {
+                        name: file.name.split('.')[0].replace(/[-_]/g, ' ').toUpperCase() + ' 3D Model',
+                        fileName: file.name,
+                        fileType: extension.toUpperCase(),
+                        uploadedAt: new Date().toISOString(),
+                        dimensions: [],
+                        dataUrl: dataUrl
+                    };
+                    saveDrawing(newDwg).then(saved => {
+                        setDrawings(prev => [saved, ...prev]);
+                        setSelectedDwgId(saved.id);
+                        if (saved.dimensions?.length > 0) setActiveDimId(saved.dimensions[0].id);
+                        else setActiveDimId('');
+                        toast.success(`${file.name} berhasil disimpan ke database!`);
+                    }).catch(err => {
+                        console.error(err);
+                        toast.error('Gagal menyimpan model 3D ke database.');
+                    });
+                }, 600);
+            };
+            reader.onerror = () => { setIsParsing(false); toast.error('Gagal membaca berkas.'); };
+            reader.readAsDataURL(file);
+            return;
+        }
+
         setIsParsing(true);
         setParseProgress(10);
         setParseStatusText('Mengunggah berkas ke server QMS...');
@@ -3351,6 +3491,12 @@ export default function DrawingManager() {
                             }
                         });
                     }
+                } else if (extension === 'dwg') {
+                    // Fallback heuristics for DWG when backend is offline
+                    extractedDims = [
+                        { id: `dim_dwg_1_${Date.now()}`, label: 'DWG Shaft Length', spec: '180.0', tolMin: 179.5, tolMax: 180.5, variable: 'Meas_Length', unit: 'mm', category: 'dimension', measureType: 'linear_horizontal', indicatorType: 'horizontal', gdt_symbol: '', x1: 80, y1: 240, x2: 420, y2: 240, lx: 250, ly: 255 },
+                        { id: `dim_dwg_2_${Date.now()}`, label: 'DWG Outer Diameter', spec: '45.0', tolMin: 44.95, tolMax: 45.05, variable: 'Meas_Diameter', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 240, y1: 170, x2: 285, y2: 170, lx: 295, ly: 155 }
+                    ];
                 }
 
                 setParseProgress(65);
@@ -3408,7 +3554,7 @@ export default function DrawingManager() {
                 }, 800);
             };
             reader.onerror = () => { setIsParsing(false); toast.error('Gagal membaca berkas.'); };
-            if (extension === 'pdf') {
+            if (extension === 'pdf' || extension === 'dwg') {
                 reader.readAsDataURL(file);
             } else {
                 reader.readAsText(file);
@@ -3569,16 +3715,19 @@ export default function DrawingManager() {
             const color = getStatusColor(valStatus, isActive);
 
             const labelText = `${dim.gdt_symbol || ''}${dim.gdt_symbol ? ' ' : ''}${dim.spec}`;
-            const strokeW = isActive ? 2.5 : 1.5;
+            const baseWidth = dim.lineWidth !== undefined ? dim.lineWidth : 2;
+            const strokeW = isActive ? baseWidth + 1.0 : baseWidth;
+            const arrowLen = Math.max(8, baseWidth * 4.5);
+            const arrowWidth = Math.max(4, baseWidth * 2.2);
 
             if (indicatorType === 'horizontal') {
                 return (
                     <g key={dim.id} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setActiveDimId(dim.id); }}>
                         <line x1={x1} y1={y1} x2={x1} y2={ly} stroke="rgba(148,163,184,0.3)" strokeWidth="0.75" strokeDasharray="2,2" />
                         <line x1={x2} y1={y2} x2={x2} y2={ly} stroke="rgba(148,163,184,0.3)" strokeWidth="0.75" strokeDasharray="2,2" />
-                        <line x1={x1 + 8} y1={ly - 5} x2={x2 - 8} y2={ly - 5} stroke={color} strokeWidth={strokeW} />
-                        <polygon points={`${x1},${ly - 5} ${x1+10},${ly - 8} ${x1+10},${ly - 2}`} fill={color} />
-                        <polygon points={`${x2},${ly - 5} ${x2-10},${ly - 8} ${x2-10},${ly - 2}`} fill={color} />
+                        <line x1={x1 + arrowLen - 2} y1={ly - 5} x2={x2 - arrowLen + 2} y2={ly - 5} stroke={color} strokeWidth={strokeW} />
+                        <polygon points={`${x1},${ly - 5} ${x1 + arrowLen},${ly - 5 - arrowWidth} ${x1 + arrowLen},${ly - 5 + arrowWidth}`} fill={color} />
+                        <polygon points={`${x2},${ly - 5} ${x2 - arrowLen},${ly - 5 - arrowWidth} ${x2 - arrowLen},${ly - 5 + arrowWidth}`} fill={color} />
                         {renderLabelBadge(dim, color, labelText, isActive)}
                     </g>
                 );
@@ -3587,9 +3736,9 @@ export default function DrawingManager() {
                     <g key={dim.id} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setActiveDimId(dim.id); }}>
                         <line x1={x1} y1={y1} x2={lx} y2={y1} stroke="rgba(148,163,184,0.3)" strokeWidth="0.75" strokeDasharray="2,2" />
                         <line x1={x2} y1={y2} x2={lx} y2={y2} stroke="rgba(148,163,184,0.3)" strokeWidth="0.75" strokeDasharray="2,2" />
-                        <line x1={lx - 5} y1={y1 + 8} x2={lx - 5} y2={y2 - 8} stroke={color} strokeWidth={strokeW} />
-                        <polygon points={`${lx - 5},${y1} ${lx - 8},${y1+10} ${lx - 2},${y1+10}`} fill={color} />
-                        <polygon points={`${lx - 5},${y2} ${lx - 8},${y2-10} ${lx - 2},${y2-10}`} fill={color} />
+                        <line x1={lx - 5} y1={y1 + arrowLen - 2} x2={lx - 5} y2={y2 - arrowLen + 2} stroke={color} strokeWidth={strokeW} />
+                        <polygon points={`${lx - 5},${y1} ${lx - 5 - arrowWidth},${y1 + arrowLen} ${lx - 5 + arrowWidth},${y1 + arrowLen}`} fill={color} />
+                        <polygon points={`${lx - 5},${y2} ${lx - 5 - arrowWidth},${y2 - arrowLen} ${lx - 5 + arrowWidth},${y2 - arrowLen}`} fill={color} />
                         {renderLabelBadge(dim, color, labelText, isActive)}
                     </g>
                 );
@@ -3622,8 +3771,8 @@ export default function DrawingManager() {
                         {/* Arc */}
                         <path d={`M ${sx},${sy} A ${arcRadius},${arcRadius} 0 ${largeArc},${sweepFlag} ${ex},${ey}`} fill="none" stroke={color} strokeWidth={strokeW} />
                         {/* Arrow tips */}
-                        <circle cx={sx} cy={sy} r="2.5" fill={color} />
-                        <circle cx={ex} cy={ey} r="2.5" fill={color} />
+                        <circle cx={sx} cy={sy} r={Math.max(2, baseWidth * 1.25)} fill={color} />
+                        <circle cx={ex} cy={ey} r={Math.max(2, baseWidth * 1.25)} fill={color} />
                         {renderLabelBadge(dim, color, `∠ ${dim.spec}°`, isActive)}
                     </g>
                 );
@@ -3639,7 +3788,7 @@ export default function DrawingManager() {
                         {/* Cross-hatch */}
                         <line x1={bx} y1={by} x2={bx + bw} y2={by + bh} stroke={color} strokeWidth="0.5" strokeOpacity="0.3" />
                         <line x1={bx + bw} y1={by} x2={bx} y2={by + bh} stroke={color} strokeWidth="0.5" strokeOpacity="0.3" />
-                        {renderLabelBadge(dim, color, `▢ ${dim.spec} {dim.unit}`, isActive)}
+                        {renderLabelBadge(dim, color, `▢ ${dim.spec} ${dim.unit}`, isActive)}
                     </g>
                 );
             } else if (indicatorType === 'callout') {
@@ -3648,13 +3797,13 @@ export default function DrawingManager() {
                 return (
                     <g key={dim.id} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setActiveDimId(dim.id); }}>
                         {/* Leader line */}
-                        <line x1={x1} y1={y1} x2={lx} y2={ly - 14} stroke={color} strokeWidth="1" />
-                        <circle cx={x1} cy={y1} r="3" fill="none" stroke={color} strokeWidth="1.5" />
+                        <line x1={x1} y1={y1} x2={lx} y2={ly - 14} stroke={color} strokeWidth={strokeW} />
+                        <circle cx={x1} cy={y1} r={Math.max(2.5, baseWidth * 1.5)} fill="none" stroke={color} strokeWidth={strokeW} />
                         {/* Roughness symbol (triangle) */}
                         {dim.category === 'roughness' && (
                             <g>
-                                <path d={`M ${lx - 8},${ly + 8} L ${lx},${ly - 6} L ${lx + 8},${ly + 8}`} fill="none" stroke={color} strokeWidth="1.5" />
-                                <line x1={lx - 12} y1={ly + 8} x2={lx + 12} y2={ly + 8} stroke={color} strokeWidth="1" />
+                                <path d={`M ${lx - 8},${ly + 8} L ${lx},${ly - 6} L ${lx + 8},${ly + 8}`} fill="none" stroke={color} strokeWidth={strokeW} />
+                                <line x1={lx - 12} y1={ly + 8} x2={lx + 12} y2={ly + 8} stroke={color} strokeWidth={strokeW} />
                             </g>
                         )}
                         {renderLabelBadge(dim, color, `${symbolChar} ${dim.spec} ${dim.unit}`, isActive)}
@@ -3667,11 +3816,10 @@ export default function DrawingManager() {
                         <path d={`M ${x1},${y1} L ${x2},${y2} L ${lx},${ly}`} fill="none" stroke={color} strokeWidth={strokeW} />
                         {(() => {
                              const angle = Math.atan2(y2 - y1, x2 - x1);
-                             const arrowLength = 10;
-                             const ax1 = x1 + arrowLength * Math.cos(angle - 0.25);
-                             const ay1 = y1 + arrowLength * Math.sin(angle - 0.25);
-                             const ax2 = x1 + arrowLength * Math.cos(angle + 0.25);
-                             const ay2 = y1 + arrowLength * Math.sin(angle + 0.25);
+                             const ax1 = x1 + arrowLen * Math.cos(angle - 0.25);
+                             const ay1 = y1 + arrowLen * Math.sin(angle - 0.25);
+                             const ax2 = x1 + arrowLen * Math.cos(angle + 0.25);
+                             const ay2 = y1 + arrowLen * Math.sin(angle + 0.25);
                              return <polygon points={`${x1},${y1} ${ax1},${ay1} ${ax2},${ay2}`} fill={color} />;
                         })()}
                         {renderLabelBadge(dim, color, labelText, isActive)}
@@ -3804,7 +3952,7 @@ export default function DrawingManager() {
                             ref={fileInputRef}
                             style={{ display: 'none' }}
                             onChange={handleFileSelect}
-                            accept=".svg,.dxf,.pdf"
+                            accept=".svg,.dxf,.pdf,.dwg,.stl,.obj,.gltf,.glb"
                         />
                         {isParsing ? (
                             <button
@@ -4698,8 +4846,17 @@ export default function DrawingManager() {
 
                                 {/* Canvas SVG */}
                                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0px', position: 'relative', width: '100%', minHeight: 0 }}>
-                            <svg
-                                ref={svgRef}
+                            {selectedDwg && ['STL', 'OBJ', 'GLTF', 'GLB'].includes(selectedDwg.fileType) ? (
+                                <CADViewer3DEditor
+                                    drawing={selectedDwg}
+                                    dimensions={selectedDwg.dimensions || []}
+                                    activeDimId={activeDimId}
+                                    onAddDimension={handleAdd3DDimension}
+                                    onSelectDimension={(id) => setActiveDimId(id)}
+                                />
+                            ) : (
+                                <svg
+                                    ref={svgRef}
                                 viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
                                 onMouseDown={handleSvgMouseDown}
                                 onMouseMove={handleSvgMouseMove}
@@ -4778,7 +4935,7 @@ export default function DrawingManager() {
 
                                 <g transform={`translate(${canvasSize.width / 2 + panOffset.x}, ${canvasSize.height / 2 + panOffset.y}) scale(${zoom}) translate(${-canvasSize.width / 2}, ${-canvasSize.height / 2})`}>
                                     {/* Blueprint backdrop */}
-                                    {selectedDwg && selectedDwg.fileType === 'PDF' && (pdfBackdropUrl || selectedDwg.dataUrl || selectedDwg.data_url) && !(pdfBackdropUrl === null && (selectedDwg.dataUrl || selectedDwg.data_url)?.startsWith('data:application/pdf')) && (
+                                    {selectedDwg && (selectedDwg.fileType === 'PDF' || selectedDwg.fileType === 'DWG') && (pdfBackdropUrl || selectedDwg.dataUrl || selectedDwg.data_url) && !(pdfBackdropUrl === null && (selectedDwg.dataUrl || selectedDwg.data_url)?.startsWith('data:application/pdf')) && (
                                         <image
                                             href={pdfBackdropUrl || selectedDwg.dataUrl || selectedDwg.data_url}
                                             x="50"
@@ -4803,6 +4960,23 @@ export default function DrawingManager() {
                                                 <span style={{ fontWeight: 'bold', color: '#fca5a5', marginBottom: '4px' }}>Visual PDF Blueprint tidak aktif</span>
                                                 <span style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>
                                                     Untuk merender gambar PDF secara visual, pastikan server Python lokal (yolo_server.py) berjalan di port 8000.
+                                                </span>
+                                            </div>
+                                        </foreignObject>
+                                    )}
+
+                                    {selectedDwg && selectedDwg.fileType === 'DWG' && !selectedDwg.dataUrl && !pdfBackdropUrl && (
+                                        <foreignObject x="50" y="80" width={canvasSize.width - 100} height={canvasSize.height - 160}>
+                                            <div style={{
+                                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                                height: '100%', padding: '20px', textAlign: 'center', backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                                                border: '1px dashed #3b82f6', borderRadius: '8px', color: '#f8fafc',
+                                                fontFamily: 'sans-serif', fontSize: '0.8rem'
+                                            }}>
+                                                <span style={{ fontSize: '1.2rem', marginBottom: '8px' }}>⚠️</span>
+                                                <span style={{ fontWeight: 'bold', color: '#93c5fd', marginBottom: '4px' }}>Visual DWG Blueprint tidak aktif</span>
+                                                <span style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>
+                                                    Untuk merender visualisasi DWG, pastikan server Python lokal (yolo_server.py) berjalan dengan library ezdwg terpasang.
                                                 </span>
                                             </div>
                                         </foreignObject>
@@ -4834,6 +5008,52 @@ export default function DrawingManager() {
                                             <rect x="280" y="130" width="140" height="60" fill="none" stroke="#60a5fa" strokeWidth="2" />
                                             <circle cx="435" cy="160" r="15" fill="none" stroke="#3b82f6" strokeWidth="2" />
                                             <line x1="20" y1="160" x2="450" y2="160" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="15,4,2,4" />
+                                        </g>
+                                    ) : selectedDwgId === 'dwg_product_checking' ? (
+                                        <g>
+                                            {/* Technical background blueprint legend/texts */}
+                                            <text x="50" y="70" fill="#38bdf8" fontSize="7" fontFamily="monospace" opacity="0.6">UNSPECIFIED TOLERANCES ISO 2768-m</text>
+                                            <text x="50" y="80" fill="#38bdf8" fontSize="7" fontFamily="monospace" opacity="0.6">ALL DIMENSIONS IN MM</text>
+                                            
+                                            {/* Stepped plate outline */}
+                                            <path d="M 30,350 L 30,300 L 50,300 L 250,300 L 270,300 L 270,350 L 350,350 L 350,250 L 470,250 L 470,350 Z" fill="none" stroke="#3b82f6" strokeWidth="1.5" />
+                                            <line x1="30" y1="300" x2="270" y2="300" stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="10,4,2,4" />
+                                            
+                                            {/* Circle for balloon mark */}
+                                            <g>
+                                                <circle cx="200" cy="200" r="15" fill="none" stroke="#3b82f6" strokeWidth="1.5" />
+                                                <circle cx="200" cy="200" r="8" fill="none" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="3,3" />
+                                                <line x1="170" y1="200" x2="230" y2="200" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="10,2,2,2" />
+                                                <line x1="200" y1="170" x2="200" y2="230" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="10,2,2,2" />
+                                            </g>
+                                            
+                                            {/* Vertical cylinder/boss for pdf height */}
+                                            <g>
+                                                <rect x="385" y="100" width="30" height="100" fill="none" stroke="#60a5fa" strokeWidth="1.5" />
+                                                <line x1="400" y1="80" x2="400" y2="220" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="5,2,1,2" />
+                                            </g>
+                                            
+                                            {/* OpenCV Vision calibration target marker at (150, 250) */}
+                                            <g>
+                                                <circle cx="150" cy="250" r="10" fill="none" stroke="#3b82f6" strokeWidth="1" />
+                                                <line x1="135" y1="250" x2="165" y2="250" stroke="#3b82f6" strokeWidth="0.5" />
+                                                <line x1="150" y1="235" x2="150" y2="265" stroke="#3b82f6" strokeWidth="0.5" />
+                                                <path d="M 150,250 L 156,250 A 6,6 0 0,1 150,256 Z" fill="#3b82f6" />
+                                                <path d="M 150,250 L 144,250 A 6,6 0 0,1 150,244 Z" fill="#3b82f6" />
+                                            </g>
+                                            
+                                            {/* QC Check test square pad at (100, 100) */}
+                                            <g>
+                                                <rect x="90" y="90" width="20" height="20" fill="none" stroke="#60a5fa" strokeWidth="1" />
+                                                <line x1="90" y1="90" x2="110" y2="110" stroke="#60a5fa" strokeWidth="0.5" strokeDasharray="2,2" />
+                                                <line x1="110" y1="90" x2="90" y2="110" stroke="#60a5fa" strokeWidth="0.5" strokeDasharray="2,2" />
+                                            </g>
+                                            
+                                            {/* Trigger switch sensor at (300, 150) */}
+                                            <g>
+                                                <rect x="290" y="140" width="20" height="20" fill="none" stroke="#3b82f6" strokeWidth="1" rx="2" />
+                                                <path d="M 300,143 L 295,150 L 300,150 L 298,157 L 305,149 L 299,149 Z" fill="#f59e0b" stroke="none" />
+                                            </g>
                                         </g>
                                     ) : null}
 
@@ -5828,6 +6048,7 @@ export default function DrawingManager() {
                                     );
                                 })()}
                             </svg>
+                            )}
 
                             {/* Custom Floating Horizontal Scrollbar */}
                             {zoom > 0.5 && (() => {
@@ -6436,6 +6657,7 @@ export default function DrawingManager() {
                                                         </div>
                                                         <div>
                                                             <label style={{ ...labelStyle, color: '#92400e' }}>Sudut Akhir (┬░)</label>
+                                                            <label style={{ ...labelStyle, color: '#92400e' }}>Sudut Akhir (°)</label>
                                                             <input type="number" value={editAngleEnd} onChange={(e) => updateActiveDimProp('angleEnd', e.target.value)} style={inputStyle} />
                                                         </div>
                                                     </div>
@@ -6462,9 +6684,9 @@ export default function DrawingManager() {
                                                         <label style={labelStyle}>Bentuk Marker</label>
                                                         <select value={editMarkerShape || 'default'} onChange={(e) => updateActiveDimProp('markerShape', e.target.value)} style={selectStyle}>
                                                             <option value="default">Bawaan Indikator</option>
-                                                            <option value="circle">ΓùÅ Bulat (Circle)</option>
-                                                            <option value="square">Γûá Kotak (Square)</option>
-                                                            <option value="triangle">Γû▓ Segitiga (Triangle)</option>
+                                                            <option value="circle">● Bulat (Circle)</option>
+                                                            <option value="square">■ Kotak (Square)</option>
+                                                            <option value="triangle">▲ Segitiga (Triangle)</option>
                                                         </select>
                                                     </div>
                                                     <div>
@@ -6479,9 +6701,20 @@ export default function DrawingManager() {
                                                         />
                                                     </div>
                                                 </div>
+                                                <div style={{ marginTop: '4px' }}>
+                                                    <label style={labelStyle}>Tebal Garis: {editLineWidth || 2}px</label>
+                                                    <input
+                                                        type="range"
+                                                        min="1"
+                                                        max="10"
+                                                        value={editLineWidth || 2}
+                                                        onChange={(e) => updateActiveDimProp('lineWidth', e.target.value)}
+                                                        style={{ width: '100%', accentColor: getCategoryColor(editCategory), height: '4px' }}
+                                                    />
+                                                </div>
                                             </div>
 
-                                            {/* Feature Trigger ΓÇö Out-of-Spec Actions */}
+                                            {/* Feature Trigger — Out-of-Spec Actions */}
                                             <div style={{ backgroundColor: '#0f172a', padding: '12px', borderRadius: '10px', border: '1px solid #1e3a8a', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                     <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -6642,7 +6875,51 @@ export default function DrawingManager() {
                                             </div>
 
                                             {/* Coordinate groups */}
-                                            {coordControlMode === 'slider' ? (
+                                            {selectedDwg && ['STL', 'OBJ', 'GLTF', 'GLB'].includes(selectedDwg.fileType) ? (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                    {/* Group for Balloon (Mark/Label) */}
+                                                    <div style={{ backgroundColor: 'rgba(248, 250, 252, 0.8)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(226, 232, 240, 0.8)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                        <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                            <Sliders size={12} color="#2563eb" /> Koordinat Balloon (X, Y, Z)
+                                                        </div>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
+                                                            <div>
+                                                                <label style={{ display: 'block', fontSize: '0.58rem', color: '#64748b', fontWeight: 600 }}>X</label>
+                                                                <input type="number" step="0.01" value={editLx} onChange={(e) => updateActiveDimProp('lx', e.target.value)} style={{ width: '100%', padding: '4px 6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.65rem', backgroundColor: 'white', color: '#1e293b' }} />
+                                                            </div>
+                                                            <div>
+                                                                <label style={{ display: 'block', fontSize: '0.58rem', color: '#64748b', fontWeight: 600 }}>Y</label>
+                                                                <input type="number" step="0.01" value={editLy} onChange={(e) => updateActiveDimProp('ly', e.target.value)} style={{ width: '100%', padding: '4px 6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.65rem', backgroundColor: 'white', color: '#1e293b' }} />
+                                                            </div>
+                                                            <div>
+                                                                <label style={{ display: 'block', fontSize: '0.58rem', color: '#64748b', fontWeight: 600 }}>Z</label>
+                                                                <input type="number" step="0.01" value={editLz} onChange={(e) => updateActiveDimProp('lz', e.target.value)} style={{ width: '100%', padding: '4px 6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.65rem', backgroundColor: 'white', color: '#1e293b' }} />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Group for Contact Point P1 */}
+                                                    <div style={{ backgroundColor: 'rgba(248, 250, 252, 0.8)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(226, 232, 240, 0.8)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                        <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                            <Ruler size={12} color="#3b82f6" /> Koordinat Kontak P1 (X, Y, Z)
+                                                        </div>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
+                                                            <div>
+                                                                <label style={{ display: 'block', fontSize: '0.58rem', color: '#64748b', fontWeight: 600 }}>X</label>
+                                                                <input type="number" step="0.01" value={editX1} onChange={(e) => updateActiveDimProp('x1', e.target.value)} style={{ width: '100%', padding: '4px 6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.65rem', backgroundColor: 'white', color: '#1e293b' }} />
+                                                            </div>
+                                                            <div>
+                                                                <label style={{ display: 'block', fontSize: '0.58rem', color: '#64748b', fontWeight: 600 }}>Y</label>
+                                                                <input type="number" step="0.01" value={editY1} onChange={(e) => updateActiveDimProp('y1', e.target.value)} style={{ width: '100%', padding: '4px 6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.65rem', backgroundColor: 'white', color: '#1e293b' }} />
+                                                            </div>
+                                                            <div>
+                                                                <label style={{ display: 'block', fontSize: '0.58rem', color: '#64748b', fontWeight: 600 }}>Z</label>
+                                                                <input type="number" step="0.01" value={editZ1} onChange={(e) => updateActiveDimProp('z1', e.target.value)} style={{ width: '100%', padding: '4px 6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.65rem', backgroundColor: 'white', color: '#1e293b' }} />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : coordControlMode === 'slider' ? (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                     {/* Group for Mark/Label */}
                                                     <div style={{ backgroundColor: 'rgba(248, 250, 252, 0.8)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(226, 232, 240, 0.8)', display: 'flex', flexDirection: 'column', gap: '6px' }}>

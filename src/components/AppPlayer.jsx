@@ -12,6 +12,7 @@ import { getStations, getEdgeDevices, createTable, getTables } from '../utils/da
 import iotConnector from '../utils/iotConnector';
 import { useLanguage } from '../contexts/LanguageContext';
 import { createIncomingInspectionTemplate } from '../utils/incomingInspectionTemplate';
+import { createProductDrawingInspectionTemplate } from '../utils/productDrawingInspectionTemplate';
 import { logout } from '../utils/auth';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -595,6 +596,14 @@ function NewAppModal({ onConfirm, onCancel }) {
             icon: <Search size={24} color="#0284c7" />,
             bg: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
             accent: '#0284c7'
+        },
+        {
+            id: 'product-drawing-inspection',
+            name: 'Product Drawing QC Terminal',
+            description: 'Interactive quality terminal using 2D engineering blueprints and 3D CAD digital twins.',
+            icon: <PenTool size={24} color="#8b5cf6" />,
+            bg: 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)',
+            accent: '#8b5cf6'
         }
     ];
 
@@ -1132,26 +1141,61 @@ const AppPlayer = () => {
         setIsCreating(true);
         try {
             let templateApp;
-            templateApp = createIncomingInspectionTemplate();
-            try {
-                const iqcTable = await createTable({
-                    name: 'IQC_Inspections',
-                    fields: [
-                        { name: 'Part_Number', type: 'text' },
-                        { name: 'Lot_Number', type: 'text' },
-                        { name: 'Supplier', type: 'text' },
-                        { name: 'Received_Qty', type: 'number' },
-                        { name: 'Overall_Result', type: 'text' },
-                        { name: 'Timestamp', type: 'datetime' }
-                    ]
-                });
-                if (iqcTable && iqcTable.id) {
-                    const appStr = JSON.stringify(templateApp).replace(/iqc_inspections/g, iqcTable.id);
+            if (templateId === 'product-drawing-inspection') {
+                templateApp = createProductDrawingInspectionTemplate();
+                try {
+                    const plTable = await createTable({
+                        name: 'Inspection_Plans',
+                        fields: [
+                            { name: 'Product_ID', type: 'text' },
+                            { name: 'Inspection_Name', type: 'text' },
+                            { name: 'Inspection_Description', type: 'text' },
+                            { name: 'Target', type: 'number' },
+                            { name: 'UoM', type: 'text' }
+                        ]
+                    });
+                    const rsTable = await createTable({
+                        name: 'Inspection_Results',
+                        fields: [
+                            { name: 'Work_Order_ID', type: 'text' },
+                            { name: 'Inspection_Plan_ID', type: 'text' },
+                            { name: 'Operator', type: 'text' },
+                            { name: 'Recorded_Value', type: 'number' },
+                            { name: 'Status', type: 'text' },
+                            { name: 'Comments', type: 'text' }
+                        ]
+                    });
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (plTable && plTable.id) { appStr = appStr.replace(/tbl_qi_inspection_plans/g, plTable.id); tIds.push(plTable.id); }
+                    if (rsTable && rsTable.id) { appStr = appStr.replace(/tbl_qi_inspection_results/g, rsTable.id); tIds.push(rsTable.id); }
                     templateApp = JSON.parse(appStr);
-                    templateApp.config.appTables = [iqcTable.id];
+                    templateApp.config.appTables = tIds;
+                } catch (qiErr) {
+                    console.warn('Could not create Quality Inspection tables for product drawing inspection:', qiErr);
                 }
-            } catch (tErr) {
-                console.warn('Could not create IQC table:', tErr);
+            } else {
+                templateApp = createIncomingInspectionTemplate();
+                try {
+                    const iqcTable = await createTable({
+                        name: 'IQC_Inspections',
+                        fields: [
+                            { name: 'Part_Number', type: 'text' },
+                            { name: 'Lot_Number', type: 'text' },
+                            { name: 'Supplier', type: 'text' },
+                            { name: 'Received_Qty', type: 'number' },
+                            { name: 'Overall_Result', type: 'text' },
+                            { name: 'Timestamp', type: 'datetime' }
+                        ]
+                    });
+                    if (iqcTable && iqcTable.id) {
+                        const appStr = JSON.stringify(templateApp).replace(/iqc_inspections/g, iqcTable.id);
+                        templateApp = JSON.parse(appStr);
+                        templateApp.config.appTables = [iqcTable.id];
+                    }
+                } catch (tErr) {
+                    console.warn('Could not create IQC table:', tErr);
+                }
             }
 
             // Save the new app

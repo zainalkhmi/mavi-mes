@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import QRCode from 'react-qr-code';
 import ReactMarkdown from 'react-markdown';
 import { Wallet } from 'lucide-react';
+import { CADViewer3D } from './CADViewer3D';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -455,13 +456,26 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables }) => {
           </>
         ) : (
           <>
-            {/* ── GENERIC BLUEPRINT FOR NEW DRAWINGS ── */}
-            <g transform="translate(40, 20)">
-              <rect x="120" y="80" width="240" height="180" fill="none" stroke="#3b82f6" strokeWidth="2" />
-              <circle cx="240" cy="170" r="45" fill="none" stroke="#60a5fa" strokeWidth="1.5" />
-              <line x1="240" y1="50" x2="240" y2="290" stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="10,5" />
-              <line x1="80" y1="170" x2="400" y2="170" stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="10,5" />
-            </g>
+            {selectedDwg && (selectedDwg.dataUrl || selectedDwg.data_url) ? (
+              <image
+                href={selectedDwg.dataUrl || selectedDwg.data_url}
+                x="50"
+                y="40"
+                width="400"
+                height="280"
+                preserveAspectRatio="xMidYMid meet"
+                opacity="0.85"
+                style={{ pointerEvents: 'none' }}
+              />
+            ) : (
+              /* ── GENERIC BLUEPRINT FOR NEW DRAWINGS ── */
+              <g transform="translate(40, 20)">
+                <rect x="120" y="80" width="240" height="180" fill="none" stroke="#3b82f6" strokeWidth="2" />
+                <circle cx="240" cy="170" r="45" fill="none" stroke="#60a5fa" strokeWidth="1.5" />
+                <line x1="240" y1="50" x2="240" y2="290" stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="10,5" />
+                <line x1="80" y1="170" x2="400" y2="170" stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="10,5" />
+              </g>
+            )}
 
             {/* Render custom indicators using absolute coordinates */}
             {selectedDwg.dimensions.map((dim, idx) => {
@@ -478,14 +492,19 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables }) => {
               const ly = hasCustomCoords ? dim.ly : (idx === 0 ? 190 : 130);
               const type = dim.type || (idx === 0 ? 'vertical' : 'radial');
 
+              const baseWidth = dim.lineWidth !== undefined ? dim.lineWidth : 2;
+              const strokeW = isActive ? baseWidth + 1.0 : baseWidth;
+              const arrowLen = Math.max(8, baseWidth * 4.5);
+              const arrowWidth = Math.max(4, baseWidth * 2.2);
+
               if (type === 'horizontal') {
                 return (
                   <g key={dim.id} style={{ cursor: 'pointer' }} onClick={() => selectDim(dim.variable)}>
                     <line x1={x1} y1={y1} x2={x1} y2={ly} stroke="rgba(148,163,184,0.3)" strokeWidth="0.75" strokeDasharray="2,2" />
                     <line x1={x2} y1={y2} x2={x2} y2={ly} stroke="rgba(148,163,184,0.3)" strokeWidth="0.75" strokeDasharray="2,2" />
-                    <line x1={x1 + 8} y1={ly - 5} x2={x2 - 8} y2={ly - 5} stroke={strokeColor} strokeWidth={isActive ? "2.5" : "1.5"} />
-                    <polygon points={`${x1},${ly - 5} ${x1+10},${ly - 8} ${x1+10},${ly - 2}`} fill={strokeColor} />
-                    <polygon points={`${x2},${ly - 5} ${x2-10},${ly - 8} ${x2-10},${ly - 2}`} fill={strokeColor} />
+                    <line x1={x1 + arrowLen - 2} y1={ly - 5} x2={x2 - arrowLen + 2} y2={ly - 5} stroke={strokeColor} strokeWidth={strokeW} />
+                    <polygon points={`${x1},${ly - 5} ${x1 + arrowLen},${ly - 5 - arrowWidth} ${x1 + arrowLen},${ly - 5 + arrowWidth}`} fill={strokeColor} />
+                    <polygon points={`${x2},${ly - 5} ${x2 - arrowLen},${ly - 5 - arrowWidth} ${x2 - arrowLen},${ly - 5 + arrowWidth}`} fill={strokeColor} />
                     <rect x={lx - 40} y={ly - 17} width="80" height="24" rx="4" fill="#0f172a" stroke={strokeColor} strokeWidth={isActive ? 2 : 1} />
                     <text x={lx} y={ly - 2} textAnchor="middle" fill={strokeColor} fontSize="9" fontWeight="bold">
                       {dim.label ? dim.label.split(' ')[0] : 'Dim'}: {dim.spec}
@@ -503,9 +522,9 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables }) => {
                   <g key={dim.id} style={{ cursor: 'pointer' }} onClick={() => selectDim(dim.variable)}>
                     <line x1={x1} y1={y1} x2={lx} y2={y1} stroke="rgba(148,163,184,0.3)" strokeWidth="0.75" strokeDasharray="2,2" />
                     <line x1={x2} y1={y2} x2={lx} y2={y2} stroke="rgba(148,163,184,0.3)" strokeWidth="0.75" strokeDasharray="2,2" />
-                    <line x1={lx - 5} y1={y1 + 8} x2={lx - 5} y2={y2 - 8} stroke={strokeColor} strokeWidth={isActive ? "2.5" : "1.5"} />
-                    <polygon points={`${lx - 5},${y1} ${lx - 8},${y1+10} ${lx - 2},${y1+10}`} fill={strokeColor} />
-                    <polygon points={`${lx - 5},${y2} ${lx - 8},${y2-10} ${lx - 2},${y2-10}`} fill={strokeColor} />
+                    <line x1={lx - 5} y1={y1 + arrowLen - 2} x2={lx - 5} y2={y2 - arrowLen + 2} stroke={strokeColor} strokeWidth={strokeW} />
+                    <polygon points={`${lx - 5},${y1} ${lx - 5 - arrowWidth},${y1 + arrowLen} ${lx - 5 + arrowWidth},${y1 + arrowLen}`} fill={strokeColor} />
+                    <polygon points={`${lx - 5},${y2} ${lx - 5 - arrowWidth},${y2 - arrowLen} ${lx - 5 + arrowWidth},${y2 - arrowLen}`} fill={strokeColor} />
                     <rect x={lx - 40} y={ly - 12} width="80" height="24" rx="4" fill="#0f172a" stroke={strokeColor} strokeWidth={isActive ? 2 : 1} />
                     <text x={lx} y={ly + 4} textAnchor="middle" fill={strokeColor} fontSize="9" fontWeight="bold">
                       {dim.label ? dim.label.split(' ')[0] : 'Dim'}: {dim.spec}
@@ -521,14 +540,13 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables }) => {
               } else {
                 return (
                   <g key={dim.id} style={{ cursor: 'pointer' }} onClick={() => selectDim(dim.variable)}>
-                    <path d={`M ${x1},${y1} L ${x2},${y2} L ${lx},${ly}`} fill="none" stroke={strokeColor} strokeWidth={isActive ? "2" : "1.5"} />
+                    <path d={`M ${x1},${y1} L ${x2},${y2} L ${lx},${ly}`} fill="none" stroke={strokeColor} strokeWidth={strokeW} />
                     {(() => {
                       const angle = Math.atan2(y2 - y1, x2 - x1);
-                      const arrowLength = 10;
-                      const ax1 = x1 + arrowLength * Math.cos(angle - 0.25);
-                      const ay1 = y1 + arrowLength * Math.sin(angle - 0.25);
-                      const ax2 = x1 + arrowLength * Math.cos(angle + 0.25);
-                      const ay2 = y1 + arrowLength * Math.sin(angle + 0.25);
+                      const ax1 = x1 + arrowLen * Math.cos(angle - 0.25);
+                      const ay1 = y1 + arrowLen * Math.sin(angle - 0.25);
+                      const ax2 = x1 + arrowLen * Math.cos(angle + 0.25);
+                      const ay2 = y1 + arrowLen * Math.sin(angle + 0.25);
                       return (
                         <polygon points={`${x1},${y1} ${ax1},${ay1} ${ax2},${ay2}`} fill={strokeColor} />
                       );
@@ -559,420 +577,7 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables }) => {
   );
 };
 
-const CADViewer3D = ({ appVariables, setAppVariables }) => {
-  const canvasRef = useRef(null);
-  
-  // Track rotation angles (in radians)
-  const [yaw, setYaw] = useState(0.8);
-  const [pitch, setPitch] = useState(0.6);
-  const [zoom, setZoom] = useState(2.3);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isRotating, setIsRotating] = useState(false);
-  const lastMousePos = useRef({ x: 0, y: 0 });
-
-  // Auto-rotation (Fly Rotate) effect
-  useEffect(() => {
-    if (!isRotating) return;
-    let animId;
-    const tick = () => {
-      setYaw(prev => prev + 0.015);
-      animId = requestAnimationFrame(tick);
-    };
-    animId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(animId);
-  }, [isRotating]);
-
-  // Get current visual inspection values
-  const weldStatus = appVariables.find(v => v.name === 'Visual_Weld')?.value || 'PENDING';
-  const screwsStatus = appVariables.find(v => v.name === 'Visual_Screws')?.value || 'PENDING';
-
-  // Generate 3D vertices for a mechanical flange
-  const createFlangeGeometry = useCallback(() => {
-    const vertices = [];
-    const segments = 16;
-
-    // Helper to generate a ring
-    const addRing = (z, radius) => {
-      for (let i = 0; i < segments; i++) {
-        const angle = (i * 2 * Math.PI) / segments;
-        vertices.push({
-          x: radius * Math.cos(angle),
-          y: radius * Math.sin(angle),
-          z: z,
-          ringId: z + '_' + radius
-        });
-      }
-    };
-
-    // 1. Neck Front Ring (Z = -30, R = 28)
-    addRing(-30, 28);
-    // 2. Neck Flange Joint Ring (Z = 5, R = 28)
-    addRing(5, 28);
-    // 3. Flange Rim Start (Z = 5, R = 60)
-    addRing(5, 60);
-    // 4. Flange Rim End (Z = 20, R = 60)
-    addRing(20, 60);
-    
-    // Bore inner tunnel
-    // 5. Bore Front (Z = -30, R = 14)
-    addRing(-30, 14);
-    // 6. Bore Back (Z = 20, R = 14)
-    addRing(20, 14);
-
-    return { vertices, segments };
-  }, []);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    
-    // Handle retina display
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
-
-    const width = rect.width;
-    const height = rect.height;
-    const cx = width / 2;
-    const cy = height / 2;
-
-    const { vertices, segments } = createFlangeGeometry();
-
-    const render = () => {
-      ctx.clearRect(0, 0, width, height);
-
-      // Draw workspace background gradient inside canvas
-      const grad = ctx.createRadialGradient(cx, cy, 10, cx, cy, Math.max(cx, cy));
-      grad.addColorStop(0, '#0f172a');
-      grad.addColorStop(1, '#020617');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, width, height);
-
-      // Rotate vertices
-      const cosY = Math.cos(yaw);
-      const sinY = Math.sin(yaw);
-      const cosP = Math.cos(pitch);
-      const sinP = Math.sin(pitch);
-
-      const projected = vertices.map(v => {
-        // Yaw (Rotate Y)
-        const x1 = v.x * cosY - v.z * sinY;
-        const z1 = v.x * sinY + v.z * cosY;
-
-        // Pitch (Rotate X)
-        const y2 = v.y * cosP - z1 * sinP;
-        const z2 = v.y * sinP + z1 * cosP;
-
-        // Perspective or Orthographic Scale
-        const scaleFactor = zoom * (250 / (250 + z2)); // Subtle perspective
-        
-        return {
-          projX: cx + x1 * scaleFactor,
-          projY: cy + y2 * scaleFactor,
-          depth: z2,
-          orig: v
-        };
-      });
-
-      // Drawing Helper for rings
-      const drawRing = (ringIndex, color, lineWidth, isDashed = false) => {
-        ctx.strokeStyle = color;
-        ctx.lineWidth = lineWidth;
-        ctx.beginPath();
-        if (isDashed) ctx.setLineDash([4, 4]);
-        else ctx.setLineDash([]);
-
-        const startIdx = ringIndex * segments;
-        ctx.moveTo(projected[startIdx].projX, projected[startIdx].projY);
-        for (let i = 1; i < segments; i++) {
-          ctx.lineTo(projected[startIdx + i].projX, projected[startIdx + i].projY);
-        }
-        ctx.closePath();
-        ctx.stroke();
-      };
-
-      // Draw solid surface fills for depth simulation (back to front)
-      const drawShadedCylinder = (ringIdxStart, ringIdxEnd, baseColor, opacity) => {
-        const startA = ringIdxStart * segments;
-        const startB = ringIdxEnd * segments;
-        
-        for (let i = 0; i < segments; i++) {
-          const nextI = (i + 1) % segments;
-          const pA1 = projected[startA + i];
-          const pA2 = projected[startA + nextI];
-          const pB1 = projected[startB + i];
-          const pB2 = projected[startB + nextI];
-          
-          // Shading intensity based on depth alignment (lighting from top-left)
-          const lightFactor = Math.max(0.1, 0.4 + 0.6 * Math.sin(i * 2 * Math.PI / segments + yaw));
-          
-          ctx.fillStyle = `rgba(14, 165, 233, ${opacity * lightFactor})`;
-          ctx.beginPath();
-          ctx.moveTo(pA1.projX, pA1.projY);
-          ctx.lineTo(pA2.projX, pA2.projY);
-          ctx.lineTo(pB2.projX, pB2.projY);
-          ctx.lineTo(pB1.projX, pB1.projY);
-          ctx.closePath();
-          ctx.fill();
-        }
-      };
-
-      // 1. Shaded neck assembly
-      drawShadedCylinder(0, 1, 'rgba(14, 165, 233, 0.05)', 0.15);
-      // 2. Shaded flange rim
-      drawShadedCylinder(2, 3, 'rgba(14, 165, 233, 0.08)', 0.2);
-
-      // Draw wireframe rings (back to front depending on depth)
-      drawRing(0, '#1e3a8a', 1, true); // Neck Front (dashed)
-      drawRing(4, '#0f172a', 1, true); // Bore Front
-      drawRing(5, '#3b82f6', 1); // Bore Back
-      drawRing(1, '#1e40af', 1.5); // Joint
-      drawRing(2, '#3b82f6', 1.5); // Flange Shoulder
-      drawRing(3, '#60a5fa', 2); // Flange Rim
-
-      // Draw longitudinal connecting edges
-      ctx.setLineDash([]);
-      ctx.lineWidth = 1;
-      for (let i = 0; i < segments; i += 2) {
-        const idx0 = i;
-        const idx1 = segments + i;
-        const idx2 = 2 * segments + i;
-        const idx3 = 3 * segments + i;
-        const idx4 = 4 * segments + i;
-        const idx5 = 5 * segments + i;
-
-        // Draw neck edge
-        ctx.strokeStyle = '#1e40af';
-        ctx.beginPath();
-        ctx.moveTo(projected[idx0].projX, projected[idx0].projY);
-        ctx.lineTo(projected[idx1].projX, projected[idx1].projY);
-        ctx.stroke();
-
-        // Draw flange edge
-        ctx.strokeStyle = '#3b82f6';
-        ctx.beginPath();
-        ctx.moveTo(projected[idx2].projX, projected[idx2].projY);
-        ctx.lineTo(projected[idx3].projX, projected[idx3].projY);
-        ctx.stroke();
-
-        // Draw bore tunnel edge
-        ctx.strokeStyle = '#1d4ed8';
-        ctx.beginPath();
-        ctx.moveTo(projected[idx4].projX, projected[idx4].projY);
-        ctx.lineTo(projected[idx5].projX, projected[idx5].projY);
-        ctx.stroke();
-      }
-
-      // ── GLOWING WELD SEAM (Z = 5, R = 28) ──
-      let weldColor = '#06b6d4'; // Cyan default
-      let weldText = 'SAMBUNGAN LAS: PENDING';
-      if (weldStatus === 'PASS') { weldColor = '#10b981'; weldText = 'SAMBUNGAN LAS: PASS'; }
-      else if (weldStatus === 'FAIL') { weldColor = '#ef4444'; weldText = 'SAMBUNGAN LAS: FAIL'; }
-
-      // Draw weld seam path thicker
-      drawRing(1, weldColor, 3.5);
-      
-      // Draw 3D Weld Seam Hotspot Marker at ring 1, index 2
-      const weldPoint = projected[segments + 2];
-      ctx.beginPath();
-      ctx.arc(weldPoint.projX, weldPoint.projY, 8, 0, 2 * Math.PI);
-      ctx.fillStyle = weldColor;
-      ctx.shadowColor = weldColor;
-      ctx.shadowBlur = 12;
-      ctx.fill();
-      ctx.shadowBlur = 0; // reset
-
-      // Draw pointer line to label
-      ctx.strokeStyle = weldColor;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(weldPoint.projX, weldPoint.projY);
-      ctx.lineTo(weldPoint.projX - 45, weldPoint.projY - 35);
-      ctx.lineTo(weldPoint.projX - 145, weldPoint.projY - 35);
-      ctx.stroke();
-
-      // Draw label background and text
-      ctx.fillStyle = '#0f172a';
-      ctx.strokeStyle = weldColor;
-      ctx.lineWidth = 1;
-      ctx.fillRect(weldPoint.projX - 145, weldPoint.projY - 51, 100, 20);
-      ctx.strokeRect(weldPoint.projX - 145, weldPoint.projY - 51, 100, 20);
-      
-      ctx.fillStyle = '#f8fafc';
-      ctx.font = 'bold 8px sans-serif';
-      ctx.fillText(weldText, weldPoint.projX - 139, weldPoint.projY - 38);
-
-      // ── GLOWING BOLT HOLES (Z = 12, R = 45) ──
-      let screwsColor = '#eab308'; // Yellow default
-      let screwsText = 'BAUT: PENDING';
-      if (screwsStatus === 'PASS') { screwsColor = '#10b981'; screwsText = 'BAUT: LENGKAP'; }
-      else if (screwsStatus === 'FAIL') { screwsColor = '#ef4444'; screwsText = 'BAUT: reject'; }
-
-      // Let's place 8 bolt hole markers projected in 3D
-      const boltRadius = 45;
-      const boltZ = 12; // halfway
-      const boltProjectedPoints = [];
-
-      for (let i = 0; i < 8; i++) {
-        const bAngle = (i * 2 * Math.PI) / 8 + Math.PI/8;
-        const bx = boltRadius * Math.cos(bAngle);
-        const by = boltRadius * Math.sin(bAngle);
-
-        // Rotate
-        const bx1 = bx * cosY - boltZ * sinY;
-        const bz1 = bx * sinY + boltZ * cosY;
-        const by2 = by * cosP - bz1 * sinP;
-        const bz2 = by * sinP + bz1 * cosP;
-        const bScale = zoom * (250 / (250 + bz2));
-
-        const px = cx + bx1 * bScale;
-        const py = cy + by2 * bScale;
-        boltProjectedPoints.push({ x: px, y: py });
-
-        // Draw bolt node
-        ctx.beginPath();
-        ctx.arc(px, py, 4, 0, 2 * Math.PI);
-        ctx.fillStyle = screwsColor;
-        ctx.fill();
-        ctx.strokeStyle = '#020617';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      }
-
-      // Draw pointer line to bolts label (pointer from first bolt point)
-      const boltPoint = boltProjectedPoints[1];
-      ctx.strokeStyle = screwsColor;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(boltPoint.x, boltPoint.y);
-      ctx.lineTo(boltPoint.x + 45, boltPoint.y - 25);
-      ctx.lineTo(boltPoint.x + 135, boltPoint.y - 25);
-      ctx.stroke();
-
-      ctx.fillStyle = '#0f172a';
-      ctx.strokeStyle = screwsColor;
-      ctx.lineWidth = 1;
-      ctx.fillRect(boltPoint.x + 45, boltPoint.y - 41, 90, 20);
-      ctx.strokeRect(boltPoint.x + 45, boltPoint.y - 41, 90, 20);
-
-      ctx.fillStyle = '#f8fafc';
-      ctx.font = 'bold 8px sans-serif';
-      ctx.fillText(screwsText, boltPoint.x + 51, boltPoint.y - 28);
-    };
-
-    render();
-
-    // Drag handlers
-    let isMouseDown = false;
-    const handleMouseDown = e => {
-      isMouseDown = true;
-      setIsDragging(true);
-      lastMousePos.current = { x: e.clientX, y: e.clientY };
-    };
-
-    const handleMouseMove = e => {
-      if (!isMouseDown) return;
-      const dx = e.clientX - lastMousePos.current.x;
-      const dy = e.clientY - lastMousePos.current.y;
-      
-      setYaw(prev => prev + dx * 0.015);
-      setPitch(prev => Math.max(-Math.PI/2, Math.min(Math.PI/2, prev + dy * 0.015)));
-      
-      lastMousePos.current = { x: e.clientX, y: e.clientY };
-    };
-
-    const handleMouseUp = () => {
-      isMouseDown = false;
-      setIsDragging(false);
-    };
-
-    canvas.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-
-    // Touch events for mobile
-    const handleTouchStart = e => {
-      if (e.touches.length === 1) {
-        isMouseDown = true;
-        setIsDragging(true);
-        lastMousePos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-      }
-    };
-
-    const handleTouchMove = e => {
-      if (!isMouseDown || e.touches.length !== 1) return;
-      const dx = e.touches[0].clientX - lastMousePos.current.x;
-      const dy = e.touches[0].clientY - lastMousePos.current.y;
-      
-      setYaw(prev => prev + dx * 0.015);
-      setPitch(prev => Math.max(-Math.PI/2, Math.min(Math.PI/2, prev + dy * 0.015)));
-      
-      lastMousePos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    };
-
-    const handleTouchEnd = () => {
-      isMouseDown = false;
-      setIsDragging(false);
-    };
-
-    canvas.addEventListener('touchstart', handleTouchStart);
-    canvas.addEventListener('touchmove', handleTouchMove);
-    canvas.addEventListener('touchend', handleTouchEnd);
-
-    return () => {
-      canvas.removeEventListener('mousedown', handleMouseDown);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-      
-      canvas.removeEventListener('touchstart', handleTouchStart);
-      canvas.removeEventListener('touchmove', handleTouchMove);
-      canvas.removeEventListener('touchend', handleTouchEnd);
-    };
-  }, [yaw, pitch, zoom, createFlangeGeometry, weldStatus, screwsStatus]);
-
-  return (
-    <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid #334155', padding: '16px', display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', zIndex: 10 }}>
-        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🧊 Interactive 3D CAD Twin</div>
-        <div style={{ display: 'flex', gap: '6px' }}>
-          <button 
-            onClick={() => setIsRotating(prev => !prev)} 
-            style={{ 
-              height: 22, 
-              padding: '0 8px', 
-              display: 'grid', 
-              placeItems: 'center', 
-              backgroundColor: isRotating ? '#0891b2' : '#1e293b', 
-              border: `1.5px solid ${isRotating ? '#06b6d4' : '#475569'}`, 
-              borderRadius: '4px', 
-              color: 'white', 
-              cursor: 'pointer', 
-              fontSize: '8px', 
-              fontWeight: 'bold', 
-              textTransform: 'uppercase',
-              transition: 'all 0.2s'
-            }}
-            title="Toggle Auto Rotate Mode"
-          >
-            {isRotating ? '📴 Stop Fly' : '🔄 Fly Rotate'}
-          </button>
-          <button onClick={() => setZoom(prev => Math.max(1, prev - 0.2))} style={{ width: 22, height: 22, display: 'grid', placeItems: 'center', backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '4px', color: 'white', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>-</button>
-          <button onClick={() => setZoom(prev => Math.min(5, prev + 0.2))} style={{ width: 22, height: 22, display: 'grid', placeItems: 'center', backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '4px', color: 'white', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+</button>
-          <button onClick={() => { setYaw(0.8); setPitch(0.6); setZoom(2.3); setIsRotating(false); }} style={{ height: 22, padding: '0 8px', display: 'grid', placeItems: 'center', backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '4px', color: 'white', cursor: 'pointer', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>Reset</button>
-        </div>
-      </div>
-      
-      <canvas ref={canvasRef} style={{ flex: 1, width: '100%', height: '100%', cursor: isDragging ? 'grabbing' : 'grab', borderRadius: '8px' }} />
-
-      <div style={{ position: 'absolute', bottom: '24px', left: '24px', right: '24px', backgroundColor: 'rgba(15, 23, 42, 0.8)', border: '1px solid #1e293b', padding: '6px 10px', borderRadius: '6px', fontSize: '0.62rem', color: '#94a3b8', zIndex: 10 }}>
-        💡 Drag tetikus / swipe untuk memutar model 3D CAD secara real-time.
-      </div>
-    </div>
-  );
-};
+// Local CADViewer3D has been replaced by the react-three-fiber version imported from ./CADViewer3D.jsx
 
 const getFirmwareCode = (connectionType, boardType, baudRate, mqttUrl, wifiIp) => {
     const conn = connectionType || 'SERIAL';
@@ -11858,20 +11463,22 @@ const LiveTerminal = () => {
       case 'CAD_VIEWER': {
         const fileUrl = comp.props?.fileUrl || '';
         const drawings = JSON.parse(localStorage.getItem('mavi_drawings') || '[]');
-        const isCustomDwg = drawings.some(d => d.id === fileUrl || d.fileName === fileUrl || d.name === fileUrl);
+        const selectedDwg = drawings.find(d => d.id === fileUrl || d.fileName === fileUrl || d.name === fileUrl);
+        const is3D = selectedDwg && ['STL', 'OBJ', 'GLTF', 'GLB'].includes((selectedDwg.fileType || '').toUpperCase());
 
-        if (fileUrl === 'interactive-2d-blueprint' || isCustomDwg) {
+        if (fileUrl === 'interactive-3d-cad' || is3D) {
           return (
-            <CADViewer2D 
+            <CADViewer3D 
               fileUrl={fileUrl}
               appVariables={appVariables} 
               setAppVariables={setAppVariables} 
             />
           );
         }
-        if (fileUrl === 'interactive-3d-cad') {
+        if (fileUrl === 'interactive-2d-blueprint' || selectedDwg) {
           return (
-            <CADViewer3D 
+            <CADViewer2D 
+              fileUrl={fileUrl}
               appVariables={appVariables} 
               setAppVariables={setAppVariables} 
             />

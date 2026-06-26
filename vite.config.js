@@ -29,7 +29,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
-        maximumFileSizeToCacheInBytes: 8000000,
+        maximumFileSizeToCacheInBytes: 15000000,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
@@ -49,6 +49,31 @@ export default defineConfig({
       }
     })
   ],
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react-router-dom',
+      'lucide-react',
+      '@supabase/supabase-js',
+      'recharts',
+      'three',
+      '@react-three/fiber',
+      '@react-three/drei',
+      'blockly',
+      'blockly/javascript',
+      '@blockly/field-colour',
+      'tesseract.js',
+      'mqtt',
+      'dexie',
+      'i18next',
+      'react-i18next',
+      'html5-qrcode',
+      'react-qr-code',
+      'react-webcam',
+      'reactflow'
+    ]
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,
@@ -57,4 +82,27 @@ export default defineConfig({
       host: 'localhost',
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('three') || id.includes('@react-three')) {
+              return 'vendor-3d';
+            }
+            if (id.includes('blockly')) {
+              return 'vendor-blockly';
+            }
+            if (id.includes('tesseract')) {
+              return 'vendor-tesseract';
+            }
+            if (id.includes('recharts') || id.includes('d3')) {
+              return 'vendor-charts';
+            }
+            return 'vendor';
+          }
+        }
+      }
+    }
+  }
 })

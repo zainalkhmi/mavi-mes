@@ -221,6 +221,14 @@ fn open_device_pairing_wizard() -> Result<(), String> {
 
 #[tauri::command]
 fn start_python_server() -> Result<String, String> {
+    // First, check if server is already running on port 8000
+    if std::net::TcpStream::connect_timeout(
+        &"127.0.0.1:8000".parse().unwrap(),
+        std::time::Duration::from_millis(500),
+    ).is_ok() {
+        return Ok("Server already running on port 8000".to_string());
+    }
+
     let mut work_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
     if !work_dir.join("yolo_server.py").exists() && work_dir.join("..").join("yolo_server.py").exists() {
         work_dir = work_dir.join("..");

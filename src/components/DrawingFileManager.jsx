@@ -51,6 +51,22 @@ const DEFAULT_DRAWINGS = [
             { id: 'hc_stroke', label: 'Stroke Length', spec: '500.0', tolMin: 499.5, tolMax: 500.5, variable: 'Stroke_Length_Actual', unit: 'mm', category: 'dimension', measureType: 'linear_horizontal', indicatorType: 'horizontal', gdt_symbol: '', x1: 60, y1: 240, x2: 280, y2: 240, lx: 170, ly: 240 },
             { id: 'hc_area', label: 'Piston Area', spec: '5026.5', tolMin: 5000.0, tolMax: 5050.0, variable: 'Meas_Area', unit: 'mm²', category: 'area', measureType: 'area', indicatorType: 'area_box', gdt_symbol: '', x1: 100, y1: 120, x2: 230, y2: 200, lx: 165, ly: 160 },
         ]
+    },
+    {
+        id: 'dwg_product_checking',
+        name: 'Product Checking Template',
+        fileName: 'product-checking-template.pdf',
+        fileType: 'PDF',
+        uploadedAt: '2026-06-26T12:00:00Z',
+        dimensions: [
+            { id: 'linear_2d', label: '2D Length Dimension', spec: '50.0', tolMin: 49.8, tolMax: 50.2, variable: 'Linear_2D_Val', unit: 'mm', category: 'dimension', measureType: 'linear_horizontal', indicatorType: 'horizontal', gdt_symbol: '', x1: 50, y1: 300, x2: 250, y2: 300, lx: 150, ly: 320 },
+            { id: 'pdf_height', label: 'PDF Thickness Check', spec: '12.0', tolMin: 11.8, tolMax: 12.2, variable: 'PDF_Thickness_Val', unit: 'mm', category: 'dimension', measureType: 'linear_vertical', indicatorType: 'vertical', gdt_symbol: '', x1: 400, y1: 100, x2: 400, y2: 200, lx: 420, ly: 150 },
+            { id: 'balloon_mark', label: 'Balloon Marker', spec: '10.0', tolMin: 9.5, tolMax: 10.5, variable: 'Balloon_Marker', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 200, y1: 200, lx: 250, ly: 200 },
+            { id: 'cad_angle', label: '3D Included Angle', spec: '90.0', tolMin: 89.5, tolMax: 90.5, variable: 'CAD_Angle_Val', unit: '°', category: 'angle', measureType: 'angle', indicatorType: 'arc', gdt_symbol: '∠', x1: 350, y1: 250, x2: 450, y2: 350, lx: 470, ly: 280 },
+            { id: 'qc_check', label: 'QC Check Status', spec: 'PASS', tolMin: 1, tolMax: 1, variable: 'QC_Check_Status', unit: '', category: 'custom', measureType: 'custom', indicatorType: 'callout', gdt_symbol: 'QC', x1: 100, y1: 100, lx: 150, ly: 100 },
+            { id: 'trigger_check', label: 'Trigger Check', spec: '1.0', tolMin: 1.0, tolMax: 1.0, variable: 'Trigger_Output', unit: '', category: 'custom', measureType: 'custom', indicatorType: 'callout', gdt_symbol: '⚡', x1: 300, y1: 150, lx: 350, ly: 150 },
+            { id: 'camera_check', label: 'Camera/Vision Check', spec: '24.0', tolMin: 23.5, tolMax: 24.5, variable: 'Vision_Camera_Val', unit: 'fps', category: 'roughness', measureType: 'surface_roughness', indicatorType: 'callout', gdt_symbol: 'Ra', x1: 150, y1: 250, lx: 200, ly: 270 }
+        ]
     }
 ];
 
@@ -73,8 +89,19 @@ export default function DrawingFileManager() {
         const saved = localStorage.getItem('mavi_drawings');
         if (saved) {
             try {
-                return JSON.parse(saved);
-            } catch {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) {
+                    if (!parsed.some(d => d.id === 'dwg_product_checking')) {
+                        const templateDwg = DEFAULT_DRAWINGS.find(d => d.id === 'dwg_product_checking');
+                        if (templateDwg) {
+                            const updated = [...parsed, templateDwg];
+                            localStorage.setItem('mavi_drawings', JSON.stringify(updated));
+                            return updated;
+                        }
+                    }
+                    return parsed;
+                }
+            } catch (e) {
                 return DEFAULT_DRAWINGS;
             }
         }
@@ -134,7 +161,7 @@ export default function DrawingFileManager() {
     const stats = React.useMemo(() => {
         let totalParams = 0;
         const variables = new Set();
-        const types = { DXF: 0, SVG: 0, PDF: 0 };
+        const types = { DXF: 0, DWG: 0, SVG: 0, PDF: 0 };
 
         drawings.forEach(d => {
             totalParams += (d.dimensions || []).length;
@@ -311,8 +338,8 @@ export default function DrawingFileManager() {
 
     const processFile = async (file) => {
         const ext = file.name.split('.').pop().toLowerCase();
-        if (!['svg', 'dxf', 'pdf'].includes(ext)) {
-            toast.error('Format tidak didukung! Gunakan .svg, .dxf, atau .pdf.');
+        if (!['svg', 'dxf', 'pdf', 'dwg'].includes(ext)) {
+            toast.error('Format tidak didukung! Gunakan .svg, .dxf, .pdf, atau .dwg.');
             return;
         }
 
@@ -572,9 +599,10 @@ export default function DrawingFileManager() {
                         </div>
                     </div>
                     <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
-                        <div><b style={{ color: '#ef4444' }}>DXF:</b> {stats.types.DXF}</div>
-                        <div><b style={{ color: '#10b981' }}>SVG:</b> {stats.types.SVG}</div>
-                        <div><b style={{ color: '#3b82f6' }}>PDF:</b> {stats.types.PDF}</div>
+                        <div><b style={{ color: '#ef4444' }}>DXF:</b> {stats.types.DXF || 0}</div>
+                        <div><b style={{ color: '#8b5cf6' }}>DWG:</b> {stats.types.DWG || 0}</div>
+                        <div><b style={{ color: '#10b981' }}>SVG:</b> {stats.types.SVG || 0}</div>
+                        <div><b style={{ color: '#3b82f6' }}>PDF:</b> {stats.types.PDF || 0}</div>
                     </div>
                     <div style={{ ...statDescStyle, marginTop: '4px' }}>Tipe geometri file</div>
                 </div>
@@ -619,10 +647,10 @@ export default function DrawingFileManager() {
                         textAlign: 'center', transition: 'all 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
                     }}
                 >
-                    <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept=".dxf,.svg,.pdf" onChange={handleFileSelect} />
+                    <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept=".dxf,.svg,.pdf,.dwg" onChange={handleFileSelect} />
                     <Upload size={24} color={isDragOver ? '#3b82f6' : '#94a3b8'} style={{ margin: '0 auto 6px' }} />
                     <div style={{ fontWeight: 800, fontSize: '0.8rem', color: '#1e293b', marginBottom: '2px' }}>Unggah Blueprint Gambar</div>
-                    <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Klik atau drop file <b>.DXF, .SVG, .PDF</b> di sini.</div>
+                    <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Klik atau drop file <b>.DXF, .DWG, .SVG, .PDF</b> di sini.</div>
                 </div>
             </div>
 
@@ -669,6 +697,15 @@ export default function DrawingFileManager() {
                                             <circle cx="50" cy="20" r="14" fill="none" stroke="#60a5fa" strokeWidth="0.5" />
                                             <circle cx="50" cy="20" r="6" fill="none" stroke="#60a5fa" strokeWidth="0.5" />
                                             <line x1="30" y1="5" x2="70" y2="35" stroke="#60a5fa" strokeWidth="0.4" />
+                                        </g>
+                                    ) : dwg.id === 'dwg_product_checking' ? (
+                                        <g>
+                                            {/* Miniature stepped bracket */}
+                                            <path d="M 15,32 L 15,28 L 20,28 L 50,28 L 55,28 L 55,32 L 70,32 L 70,22 L 90,22 L 90,32 Z" fill="none" stroke="#60a5fa" strokeWidth="0.5" />
+                                            {/* Center hole circle */}
+                                            <circle cx="35" cy="18" r="4" fill="none" stroke="#60a5fa" strokeWidth="0.4" />
+                                            {/* Right boss rect */}
+                                            <rect x="78" y="10" width="6" height="12" fill="none" stroke="#60a5fa" strokeWidth="0.4" />
                                         </g>
                                     ) : (
                                         <g>

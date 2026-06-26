@@ -16195,7 +16195,99 @@ const AppBuilder = () => {
                                                     </div>
                                                 )}
 
-                                                {/* ... Other Component Editors (Simplified for brevity or specific logic) */}
+                                                {[
+                                                    'QUALITY_TOLERANCE', 'OPENCV_CAMERA', 'VISION_MEASUREMENT', 'MEASUREMENT_WIDGET',
+                                                    'GAUGE', 'DIAL_GAUGE', 'GAUGE_CIRCULAR', 'OUTSIDE_MICROMETER', 'INSIDE_MICROMETER',
+                                                    'DIAL_HEIGHT_GAUGE', 'DEPTH_GAUGE', 'ROUGHNESS_TESTER', 'TORQUE_WRENCH', 'WEIGHING_SCALE'
+                                                ].includes(selectedComp.type) && (
+                                                    <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px', marginBottom: '16px' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                                                            <span style={{ fontSize: '0.85rem' }}>📐</span>
+                                                            <label style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase' }}>
+                                                                Drawing & Inspector Binding
+                                                            </label>
+                                                        </div>
+                                                        {/* Select Drawing */}
+                                                        <div className="prop-group" style={{ marginBottom: '10px' }}>
+                                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
+                                                                Blueprint Drawing
+                                                            </label>
+                                                            <select
+                                                                value={selectedComp.props.selectedDrawingId || ''}
+                                                                onChange={(e) => {
+                                                                    const drawingId = e.target.value;
+                                                                    updateComponentProps(selectedComp.id, {
+                                                                        selectedDrawingId: drawingId,
+                                                                        selectedDimensionId: ''
+                                                                    });
+                                                                }}
+                                                                style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+                                                            >
+                                                                <option value="">-- No Drawing Bound --</option>
+                                                                {(() => {
+                                                                    try {
+                                                                        return JSON.parse(localStorage.getItem('mavi_drawings') || '[]');
+                                                                    } catch(e) { return []; }
+                                                                })().map(d => (
+                                                                    <option key={d.id} value={d.id}>{d.name} ({d.fileName})</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                        {/* Select Dimension */}
+                                                        {selectedComp.props.selectedDrawingId && (
+                                                            <div className="prop-group">
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
+                                                                    Dimension / GD&T Parameter
+                                                                </label>
+                                                                <select
+                                                                    value={selectedComp.props.selectedDimensionId || ''}
+                                                                    onChange={(e) => {
+                                                                        const dimId = e.target.value;
+                                                                        let drawings = [];
+                                                                        try { drawings = JSON.parse(localStorage.getItem('mavi_drawings') || '[]'); } catch(err) {}
+                                                                        const dwg = drawings.find(d => d.id === selectedComp.props.selectedDrawingId);
+                                                                        const dim = dwg?.dimensions?.find(dm => dm.id === dimId);
+                                                                        if (dim) {
+                                                                            const updates = {
+                                                                                selectedDimensionId: dimId,
+                                                                                targetVariable: dim.variable || '',
+                                                                                varSource: dim.variable || '',
+                                                                                label: dim.label || selectedComp.props.label || '',
+                                                                                title: dim.label || selectedComp.props.title || '',
+                                                                                unit: dim.unit || selectedComp.props.unit || '',
+                                                                                min: dim.tolMin != null ? Number(dim.tolMin) : selectedComp.props.min,
+                                                                                max: dim.tolMax != null ? Number(dim.tolMax) : selectedComp.props.max,
+                                                                            };
+                                                                            if (selectedComp.type === 'OPENCV_CAMERA') {
+                                                                                updates.caliperMin = dim.tolMin != null ? Number(dim.tolMin) : selectedComp.props.caliperMin;
+                                                                                updates.caliperMax = dim.tolMax != null ? Number(dim.tolMax) : selectedComp.props.caliperMax;
+                                                                                updates.dimMinMm = dim.tolMin != null ? Number(dim.tolMin) : selectedComp.props.dimMinMm;
+                                                                                updates.dimMaxMm = dim.tolMax != null ? Number(dim.tolMax) : selectedComp.props.dimMaxMm;
+                                                                            }
+                                                                            updateComponentProps(selectedComp.id, updates);
+                                                                        } else {
+                                                                            updateComponentProps(selectedComp.id, { selectedDimensionId: '' });
+                                                                        }
+                                                                    }}
+                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+                                                                >
+                                                                    <option value="">-- No Dimension Bound --</option>
+                                                                    {(() => {
+                                                                        let drawings = [];
+                                                                        try { drawings = JSON.parse(localStorage.getItem('mavi_drawings') || '[]'); } catch(err) {}
+                                                                        const dwg = drawings.find(d => d.id === selectedComp.props.selectedDrawingId);
+                                                                        return dwg?.dimensions || [];
+                                                                    })().map(dim => (
+                                                                        <option key={dim.id} value={dim.id}>
+                                                                            {dim.gdt_symbol ? dim.gdt_symbol + ' ' : ''}{dim.label} ({dim.spec} {dim.unit})
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+
                                                 {selectedComp.type === 'QUALITY_TOLERANCE' && (
                                                     <>
                                                         <div style={{ display: 'flex', gap: '10px' }}>
@@ -19021,6 +19113,9 @@ const AppBuilder = () => {
                                                             <option value="STEP">STEP</option>
                                                             <option value="IGES">IGES</option>
                                                             <option value="STL">STL</option>
+                                                            <option value="OBJ">OBJ</option>
+                                                            <option value="GLTF">GLTF</option>
+                                                            <option value="GLB">GLB</option>
                                                         </select>
 
                                                         {/* GD&T Parameter Summary Table */}

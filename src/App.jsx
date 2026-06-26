@@ -33,49 +33,50 @@ import {
   Ruler,
   FileCode
 } from 'lucide-react';
-import TableManager from './components/TableManager';
-import ConnectorManager from './components/ConnectorManager';
-import UserManager from './components/UserManager';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { Link, Route, Routes, useLocation, Navigate, useNavigate } from 'react-router-dom';
 import { getCurrentUser, logout } from './utils/auth';
 import Login from './components/Login';
-import LandingPage from './components/LandingPage';
-import Home from './components/Home';
-import AppBuilder from './components/AppBuilder';
-import AppPlayer from './components/AppPlayer';
-import AutomationEditor from './components/AutomationEditor';
-import WorkOrderDashboard from './components/WorkOrderDashboard';
-import FunctionsEditor from './components/FunctionsEditor';
-import LiveTerminal from './components/LiveTerminal';
-import StationManager from './components/StationManager';
-import InterfaceManager from './components/InterfaceManager';
-import MachineManager from './components/MachineManager';
-import EdgeDeviceManager from './components/EdgeDeviceManager';
-import IoTHubManager from './components/IoTHubManager';
-import PlcSettings from './components/PlcSettings';
-import VisionManager from './components/VisionManager';
-import CameraCalibration from './components/CameraCalibration';
-import McpServerManager from './components/McpServerManager';
-import DataEntryFormGuide from './components/DataEntryFormGuide';
-import VariableManager from './components/VariableManager';
-import AnalysisManager from './components/AnalysisManager';
-import AnalysisEditor from './components/AnalysisEditor';
-import DashboardManager from './components/DashboardManager';
-import DashboardEditor from './components/DashboardEditor';
-import AiSettings from './components/AiSettings';
-import SupabaseSettings from './components/SupabaseSettings';
-import AdminSettings from './components/AdminSettings';
-import AppStore from './components/AppStore';
-import AppManagement from './components/AppManagement';
-import FileExplorer from './components/FileExplorer';
-import BuildManager from './components/BuildManager';
-import GlobalHelpAssistant from './components/GlobalHelpAssistant';
-import VoiceControlledCaliperInspection from './components/VoiceControlledCaliperInspection';
-// import GlobalVoiceAssistant from './components/GlobalVoiceAssistant';
-import DrawingManager from './components/DrawingManager';
-import DrawingFileManager from './components/DrawingFileManager';
-import { Toaster } from 'react-hot-toast';
+
+// Lazy load heavy components to drastically reduce startup time
+const TableManager = lazy(() => import('./components/TableManager'));
+const ConnectorManager = lazy(() => import('./components/ConnectorManager'));
+const UserManager = lazy(() => import('./components/UserManager'));
+const AppBuilder = lazy(() => import('./components/AppBuilder'));
+const AppPlayer = lazy(() => import('./components/AppPlayer'));
+const AutomationEditor = lazy(() => import('./components/AutomationEditor'));
+const LiveTerminal = lazy(() => import('./components/LiveTerminal'));
+const PlcSettings = lazy(() => import('./components/PlcSettings'));
+const VisionManager = lazy(() => import('./components/VisionManager'));
+const CameraCalibration = lazy(() => import('./components/CameraCalibration'));
+const AnalysisEditor = lazy(() => import('./components/AnalysisEditor'));
+const DashboardEditor = lazy(() => import('./components/DashboardEditor'));
+const AppStore = lazy(() => import('./components/AppStore'));
+const GlobalHelpAssistant = lazy(() => import('./components/GlobalHelpAssistant'));
+const DrawingManager = lazy(() => import('./components/DrawingManager'));
+const LandingPage = lazy(() => import('./components/LandingPage'));
+const Home = lazy(() => import('./components/Home'));
+const WorkOrderDashboard = lazy(() => import('./components/WorkOrderDashboard'));
+const FunctionsEditor = lazy(() => import('./components/FunctionsEditor'));
+const StationManager = lazy(() => import('./components/StationManager'));
+const InterfaceManager = lazy(() => import('./components/InterfaceManager'));
+const MachineManager = lazy(() => import('./components/MachineManager'));
+const EdgeDeviceManager = lazy(() => import('./components/EdgeDeviceManager'));
+const IoTHubManager = lazy(() => import('./components/IoTHubManager'));
+const McpServerManager = lazy(() => import('./components/McpServerManager'));
+const DataEntryFormGuide = lazy(() => import('./components/DataEntryFormGuide'));
+const VariableManager = lazy(() => import('./components/VariableManager'));
+const AnalysisManager = lazy(() => import('./components/AnalysisManager'));
+const DashboardManager = lazy(() => import('./components/DashboardManager'));
+const AiSettings = lazy(() => import('./components/AiSettings'));
+const SupabaseSettings = lazy(() => import('./components/SupabaseSettings'));
+const AdminSettings = lazy(() => import('./components/AdminSettings'));
+const AppManagement = lazy(() => import('./components/AppManagement'));
+const FileExplorer = lazy(() => import('./components/FileExplorer'));
+const BuildManager = lazy(() => import('./components/BuildManager'));
+const VoiceControlledCaliperInspection = lazy(() => import('./components/VoiceControlledCaliperInspection'));
+const DrawingFileManager = lazy(() => import('./components/DrawingFileManager'));
+import toast, { Toaster } from 'react-hot-toast';
 
 const Placeholder = ({ title }) => (
   <div style={{ padding: '40px', textAlign: 'center' }}>
@@ -226,10 +227,10 @@ const App = () => {
       let py = false;
       try {
         const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), 1500);
-        await fetch('http://localhost:8000/', { signal: controller.signal });
+        const id = setTimeout(() => controller.abort(), 2500);
+        const response = await fetch('http://localhost:8000/', { signal: controller.signal });
         clearTimeout(id);
-        py = true;
+        py = response.ok;
       } catch (e) {
         py = false;
       }
@@ -288,11 +289,20 @@ const App = () => {
         if (pythonActive) {
           const res = await api.invoke('stop_python_server');
           toast.success(res || 'Python server stopped successfully', { id: toastId });
+          setTimeout(updateAllStatuses, 1500);
         } else {
           const res = await api.invoke('start_python_server');
           toast.success(res || 'Python server starting...', { id: toastId });
+          // Server needs time to boot (Python + uvicorn + YOLO model load)
+          // Retry status check a few times with increasing delays
+          const checkWithRetry = async (attempt = 0) => {
+            await updateAllStatuses();
+            if (!pythonActive && attempt < 3) {
+              setTimeout(() => checkWithRetry(attempt + 1), 2000);
+            }
+          };
+          setTimeout(() => checkWithRetry(), 3000);
         }
-        setTimeout(updateAllStatuses, 1500);
       } catch (err) {
         toast.error(`Gagal mengontrol server: ${err}`, { id: toastId });
       }
@@ -462,11 +472,91 @@ const App = () => {
 
   if (!user) {
     return (
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+      <Suspense fallback={
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh',
+          width: '100vw',
+          background: 'radial-gradient(circle at center, #0f1c3f 0%, #080f21 100%)',
+          color: '#ffffff',
+          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+        }}>
+          <div style={{
+            fontSize: '3rem',
+            fontWeight: 800,
+            letterSpacing: '0.15em',
+            color: '#3b82f6',
+            textShadow: '0 0 20px rgba(59, 130, 246, 0.6)',
+            marginBottom: '5px',
+            animation: 'logoPulse 2s ease-in-out infinite'
+          }}>MAVI MES</div>
+          <div style={{
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            color: '#94a3b8',
+            letterSpacing: '0.3em',
+            textTransform: 'uppercase',
+            marginBottom: '40px'
+          }}>Execution System</div>
+          <div style={{
+            position: 'relative',
+            width: '60px',
+            height: '60px',
+            border: '3px solid rgba(59, 130, 246, 0.1)',
+            borderTop: '3px solid #3b82f6',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite'
+          }}>
+            <div style={{
+              position: 'absolute',
+              top: '6px',
+              left: '6px',
+              right: '6px',
+              bottom: '6px',
+              border: '3px solid transparent',
+              borderTop: '3px solid #00f2fe',
+              borderRadius: '50%',
+              animation: 'spin-reverse 1.5s linear infinite'
+            }} />
+          </div>
+          <div style={{
+            marginTop: '25px',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            color: '#64748b',
+            letterSpacing: '0.05em',
+            textTransform: 'uppercase',
+            animation: 'fadeBlink 1.5s ease-in-out infinite'
+          }}>Memuat Sistem & Modul CAD 3D...</div>
+          <style>{`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+            @keyframes spin-reverse {
+              0% { transform: rotate(360deg); }
+              100% { transform: rotate(0deg); }
+            }
+            @keyframes logoPulse {
+              0%, 100% { transform: scale(0.98); opacity: 0.8; text-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
+              50% { transform: scale(1.02); opacity: 1; text-shadow: 0 0 30px rgba(59, 130, 246, 0.8); }
+            }
+            @keyframes fadeBlink {
+              0%, 100% { opacity: 0.4; }
+              50% { opacity: 1; }
+            }
+          `}</style>
+        </div>
+      }>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </Suspense>
     );
   }
 
@@ -989,61 +1079,69 @@ const App = () => {
 
       {/* Main Content */}
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <Routes>
-          {isOperator ? (
-            // OPERATOR ROUTES ONLY
-            <>
-              <Route path="/terminal" element={<LiveTerminal />} />
-              <Route path="/terminal/:appId" element={<LiveTerminal />} />
-              <Route path="/player" element={<AppPlayer />} />
-              <Route path="*" element={<Navigate to="/terminal" replace />} />
-            </>
-          ) : (
-            // ADMIN / ENGINEER FULL ROUTES
-            <>
-              <Route path="/" element={<Home />} />
-              <Route path="/stations" element={hasAccess('/stations') ? <StationManager /> : <Navigate to="/" replace />} />
-              <Route path="/display-devices" element={hasAccess('/display-devices') ? <InterfaceManager /> : <Navigate to="/" replace />} />
-              <Route path="/machines" element={hasAccess('/machines') ? <MachineManager /> : <Navigate to="/" replace />} />
-              <Route path="/edge-devices" element={hasAccess('/edge-devices') ? <EdgeDeviceManager /> : <Navigate to="/" replace />} />
-              <Route path="/vision" element={hasAccess('/vision') ? <VisionManager /> : <Navigate to="/" replace />} />
-              <Route path="/vision/calibration" element={hasAccess('/vision') ? <CameraCalibration /> : <Navigate to="/" replace />} />
-              <Route path="/iot-hub" element={hasAccess('/iot-hub') ? <IoTHubManager /> : <Navigate to="/" replace />} />
-              <Route path="/plc-settings" element={hasAccess('/plc-settings') ? <PlcSettings /> : <Navigate to="/" replace />} />
-              <Route path="/builder" element={hasAccess('/builder') ? <AppBuilder /> : <Navigate to="/" replace />} />
-              <Route path="/file-explorer" element={hasAccess('/file-explorer') ? <FileExplorer /> : <Navigate to="/" replace />} />
-              <Route path="/store" element={hasAccess('/store') ? <AppStore /> : <Navigate to="/" replace />} />
-              <Route path="/drawings" element={hasAccess('/builder') ? <DrawingManager /> : <Navigate to="/" replace />} />
-              <Route path="/drawings/files" element={hasAccess('/builder') ? <DrawingFileManager /> : <Navigate to="/" replace />} />
-              <Route path="/app-management" element={hasAccess('/app-management') ? <AppManagement /> : <Navigate to="/" replace />} />
-              <Route path="/tables" element={hasAccess('/tables') ? <TableManager /> : <Navigate to="/" replace />} />
-              <Route path="/connectors" element={hasAccess('/connectors') ? <ConnectorManager /> : <Navigate to="/" replace />} />
-              <Route path="/mcp-server" element={hasAccess('/mcp-server') ? <McpServerManager /> : <Navigate to="/" replace />} />
-              <Route path="/variables" element={hasAccess('/variables') ? <VariableManager /> : <Navigate to="/" replace />} />
-              <Route path="/analytics" element={hasAccess('/analytics') ? <AnalysisManager /> : <Navigate to="/" replace />} />
-              <Route path="/analytics/new" element={hasAccess('/analytics') ? <AnalysisEditor /> : <Navigate to="/" replace />} />
-              <Route path="/analytics/edit/:id" element={hasAccess('/analytics') ? <AnalysisEditor /> : <Navigate to="/" replace />} />
-              <Route path="/dashboards" element={hasAccess('/dashboards') ? <DashboardManager /> : <Navigate to="/" replace />} />
-              <Route path="/dashboards/new" element={hasAccess('/dashboards') ? <DashboardEditor /> : <Navigate to="/" replace />} />
-              <Route path="/dashboards/edit/:id" element={hasAccess('/dashboards') ? <DashboardEditor /> : <Navigate to="/" replace />} />
-              <Route path="/users" element={hasAccess('/users') ? <UserManager /> : <Navigate to="/" replace />} />
-              <Route path="/apps/data-entry-form-example" element={<DataEntryFormGuide />} />
-              <Route path="/automations" element={hasAccess('/automations') ? <AutomationEditor /> : <Navigate to="/" replace />} />
-              <Route path="/orders" element={<WorkOrderDashboard />} />
-              <Route path="/functions" element={hasAccess('/functions') ? <FunctionsEditor /> : <Navigate to="/" replace />} />
-              <Route path="/terminal" element={hasAccess('/terminal') ? <LiveTerminal /> : <Navigate to="/" replace />} />
-              <Route path="/terminal/:appId" element={hasAccess('/terminal') ? <LiveTerminal /> : <Navigate to="/" replace />} />
-              <Route path="/player" element={hasAccess('/player') ? <AppPlayer /> : <Navigate to="/" replace />} />
-               <Route path="/ai-settings" element={hasAccess('/ai-settings') ? <AiSettings /> : <Navigate to="/" replace />} />
-              <Route path="/supabase-settings" element={hasAccess('/supabase-settings') ? <SupabaseSettings /> : <Navigate to="/" replace />} />
-              <Route path="/admin-settings" element={hasAccess('/admin-settings') ? <AdminSettings /> : <Navigate to="/" replace />} />
-              <Route path="/build-center" element={hasAccess('/build-center') ? <BuildManager /> : <Navigate to="/" replace />} />
-              <Route path="/help" element={<GlobalHelpAssistant />} />
-              <Route path="/voice-inspection" element={<VoiceControlledCaliperInspection />} />
-              <Route path="*" element={<Home />} />
-            </>
-          )}
-        </Routes>
+        <Suspense fallback={
+          <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0b1329' }}>
+            <div style={{ border: '4px solid rgba(59, 130, 246, 0.1)', borderTop: '4px solid #3b82f6', borderRadius: '50%', width: '36px', height: '36px', animation: 'mavi-spin 1s linear infinite' }} />
+            <p style={{ marginTop: '16px', color: '#94a3b8', fontSize: '0.85rem', fontWeight: 600, letterSpacing: '0.05em' }}>MEMUAT HALAMAN...</p>
+            <style>{`@keyframes mavi-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+          </div>
+        }>
+          <Routes>
+            {isOperator ? (
+              // OPERATOR ROUTES ONLY
+              <>
+                <Route path="/terminal" element={<LiveTerminal />} />
+                <Route path="/terminal/:appId" element={<LiveTerminal />} />
+                <Route path="/player" element={<AppPlayer />} />
+                <Route path="*" element={<Navigate to="/terminal" replace />} />
+              </>
+            ) : (
+              // ADMIN / ENGINEER FULL ROUTES
+              <>
+                <Route path="/" element={<Home />} />
+                <Route path="/stations" element={hasAccess('/stations') ? <StationManager /> : <Navigate to="/" replace />} />
+                <Route path="/display-devices" element={hasAccess('/display-devices') ? <InterfaceManager /> : <Navigate to="/" replace />} />
+                <Route path="/machines" element={hasAccess('/machines') ? <MachineManager /> : <Navigate to="/" replace />} />
+                <Route path="/edge-devices" element={hasAccess('/edge-devices') ? <EdgeDeviceManager /> : <Navigate to="/" replace />} />
+                <Route path="/vision" element={hasAccess('/vision') ? <VisionManager /> : <Navigate to="/" replace />} />
+                <Route path="/vision/calibration" element={hasAccess('/vision') ? <CameraCalibration /> : <Navigate to="/" replace />} />
+                <Route path="/iot-hub" element={hasAccess('/iot-hub') ? <IoTHubManager /> : <Navigate to="/" replace />} />
+                <Route path="/plc-settings" element={hasAccess('/plc-settings') ? <PlcSettings /> : <Navigate to="/" replace />} />
+                <Route path="/builder" element={hasAccess('/builder') ? <AppBuilder /> : <Navigate to="/" replace />} />
+                <Route path="/file-explorer" element={hasAccess('/file-explorer') ? <FileExplorer /> : <Navigate to="/" replace />} />
+                <Route path="/store" element={hasAccess('/store') ? <AppStore /> : <Navigate to="/" replace />} />
+                <Route path="/drawings" element={hasAccess('/builder') ? <DrawingManager /> : <Navigate to="/" replace />} />
+                <Route path="/drawings/files" element={hasAccess('/builder') ? <DrawingFileManager /> : <Navigate to="/" replace />} />
+                <Route path="/app-management" element={hasAccess('/app-management') ? <AppManagement /> : <Navigate to="/" replace />} />
+                <Route path="/tables" element={hasAccess('/tables') ? <TableManager /> : <Navigate to="/" replace />} />
+                <Route path="/connectors" element={hasAccess('/connectors') ? <ConnectorManager /> : <Navigate to="/" replace />} />
+                <Route path="/mcp-server" element={hasAccess('/mcp-server') ? <McpServerManager /> : <Navigate to="/" replace />} />
+                <Route path="/variables" element={hasAccess('/variables') ? <VariableManager /> : <Navigate to="/" replace />} />
+                <Route path="/analytics" element={hasAccess('/analytics') ? <AnalysisManager /> : <Navigate to="/" replace />} />
+                <Route path="/analytics/new" element={hasAccess('/analytics') ? <AnalysisEditor /> : <Navigate to="/" replace />} />
+                <Route path="/analytics/edit/:id" element={hasAccess('/analytics') ? <AnalysisEditor /> : <Navigate to="/" replace />} />
+                <Route path="/dashboards" element={hasAccess('/dashboards') ? <DashboardManager /> : <Navigate to="/" replace />} />
+                <Route path="/dashboards/new" element={hasAccess('/dashboards') ? <DashboardEditor /> : <Navigate to="/" replace />} />
+                <Route path="/dashboards/edit/:id" element={hasAccess('/dashboards') ? <DashboardEditor /> : <Navigate to="/" replace />} />
+                <Route path="/users" element={hasAccess('/users') ? <UserManager /> : <Navigate to="/" replace />} />
+                <Route path="/apps/data-entry-form-example" element={<DataEntryFormGuide />} />
+                <Route path="/automations" element={hasAccess('/automations') ? <AutomationEditor /> : <Navigate to="/" replace />} />
+                <Route path="/orders" element={<WorkOrderDashboard />} />
+                <Route path="/functions" element={hasAccess('/functions') ? <FunctionsEditor /> : <Navigate to="/" replace />} />
+                <Route path="/terminal" element={hasAccess('/terminal') ? <LiveTerminal /> : <Navigate to="/" replace />} />
+                <Route path="/terminal/:appId" element={hasAccess('/terminal') ? <LiveTerminal /> : <Navigate to="/" replace />} />
+                <Route path="/player" element={hasAccess('/player') ? <AppPlayer /> : <Navigate to="/" replace />} />
+                <Route path="/ai-settings" element={hasAccess('/ai-settings') ? <AiSettings /> : <Navigate to="/" replace />} />
+                <Route path="/supabase-settings" element={hasAccess('/supabase-settings') ? <SupabaseSettings /> : <Navigate to="/" replace />} />
+                <Route path="/admin-settings" element={hasAccess('/admin-settings') ? <AdminSettings /> : <Navigate to="/" replace />} />
+                <Route path="/build-center" element={hasAccess('/build-center') ? <BuildManager /> : <Navigate to="/" replace />} />
+                <Route path="/help" element={<GlobalHelpAssistant />} />
+                <Route path="/voice-inspection" element={<VoiceControlledCaliperInspection />} />
+                <Route path="*" element={<Home />} />
+              </>
+            )}
+          </Routes>
+        </Suspense>
       </div>
 
       {/* Floating Zoom Widget */}

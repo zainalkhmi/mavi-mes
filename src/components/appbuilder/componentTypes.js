@@ -254,7 +254,7 @@ export const COMPONENT_TYPES = {
     },
     QUALITY_TOLERANCE: {
         id: 'QUALITY_TOLERANCE', label: 'Tolerance Check', icon: Activity, defaultSize: { w: 300, h: 80 },
-        defaultProps: { label: 'Measurement', min: 0, max: 10, unit: 'mm', visible: true, triggers: [] }
+        defaultProps: { selectedDrawingId: '', selectedDimensionId: '', label: 'Measurement', min: 0, max: 10, unit: 'mm', visible: true, triggers: [] }
     },
     QUALITY_PASS_FAIL: {
         id: 'QUALITY_PASS_FAIL', label: 'Pass/Fail', icon: Activity, defaultSize: { w: 300, h: 80 },
@@ -266,7 +266,7 @@ export const COMPONENT_TYPES = {
     },
     OPENCV_CAMERA: {
         id: 'OPENCV_CAMERA', label: 'OpenCV Vision', icon: Eye, defaultSize: { w: 300, h: 220 },
-        defaultProps: { 
+        defaultProps: { selectedDrawingId: '', selectedDimensionId: '', 
             label: 'OpenCV Live Stream', 
             filterType: 'CANNY', 
             thresholdValue: 100, 
@@ -928,7 +928,7 @@ export const COMPONENT_TYPES = {
         label: 'Vision Measurement',
         icon: Camera,
         defaultSize: { w: 320, h: 240 },
-        defaultProps: {
+        defaultProps: { selectedDrawingId: '', selectedDimensionId: '',
             label: 'Caliper Reading',
             unit: 'mm',
             precision: 3,
@@ -1069,7 +1069,7 @@ export const COMPONENT_TYPES = {
         label: 'Gauge',
         icon: Gauge,
         defaultSize: { w: 240, h: 90 },
-        defaultProps: { value: 0, min: 0, max: 100, unit: '%', color: '#3b82f6', label: 'KPI', visible: true, triggers: [], visibilityCondition: null, rotation: 0, conditionalFormattingRules: [] }
+        defaultProps: { selectedDrawingId: '', selectedDimensionId: '', value: 0, min: 0, max: 100, unit: '%', color: '#3b82f6', label: 'KPI', visible: true, triggers: [], visibilityCondition: null, rotation: 0, conditionalFormattingRules: [] }
     },
 
     // Industrial Embedded Widgets (Tulip Parity)
@@ -1123,7 +1123,7 @@ export const COMPONENT_TYPES = {
         label: 'Dial Gauge',
         icon: Disc,
         defaultSize: { w: 180, h: 200 },
-        defaultProps: {
+        defaultProps: { selectedDrawingId: '', selectedDimensionId: '',
             title: 'DIAL INDICATOR',
             value: 0,
             min: 0,
@@ -1143,7 +1143,7 @@ export const COMPONENT_TYPES = {
         label: 'Circular Gauge',
         icon: Disc,
         defaultSize: { w: 160, h: 120 },
-        defaultProps: {
+        defaultProps: { selectedDrawingId: '', selectedDimensionId: '',
             title: 'Circular Gauge',
             value: 45,
             min: 0,
@@ -1214,7 +1214,7 @@ export const COMPONENT_TYPES = {
         label: 'Measurement',
         icon: Ruler,
         defaultSize: { w: 240, h: 120 },
-        defaultProps: {
+        defaultProps: { selectedDrawingId: '', selectedDimensionId: '',
             label: 'Caliper/Micrometer',
             connectionType: 'SERIAL',
             baudRate: 9600,
@@ -1233,7 +1233,7 @@ export const COMPONENT_TYPES = {
         label: 'Outside Micrometer',
         icon: Maximize,
         defaultSize: { w: 260, h: 130 },
-        defaultProps: {
+        defaultProps: { selectedDrawingId: '', selectedDimensionId: '',
             label: 'Outside Micrometer',
             connectionType: 'SERIAL',
             baudRate: 9600,
@@ -1252,7 +1252,7 @@ export const COMPONENT_TYPES = {
         label: 'Inside Micrometer',
         icon: Minimize,
         defaultSize: { w: 260, h: 130 },
-        defaultProps: {
+        defaultProps: { selectedDrawingId: '', selectedDimensionId: '',
             label: 'Inside Micrometer',
             connectionType: 'SERIAL',
             baudRate: 9600,
@@ -1271,7 +1271,7 @@ export const COMPONENT_TYPES = {
         label: 'Dial Height Gauge',
         icon: ArrowUp,
         defaultSize: { w: 240, h: 150 },
-        defaultProps: {
+        defaultProps: { selectedDrawingId: '', selectedDimensionId: '',
             label: 'Height Gauge',
             connectionType: 'SERIAL',
             baudRate: 9600,
@@ -1290,7 +1290,7 @@ export const COMPONENT_TYPES = {
         label: 'Depth Gauge',
         icon: ArrowDown,
         defaultSize: { w: 240, h: 120 },
-        defaultProps: {
+        defaultProps: { selectedDrawingId: '', selectedDimensionId: '',
             label: 'Depth Gauge',
             connectionType: 'SERIAL',
             baudRate: 9600,
@@ -1309,7 +1309,7 @@ export const COMPONENT_TYPES = {
         label: 'Roughness Tester',
         icon: Activity,
         defaultSize: { w: 260, h: 140 },
-        defaultProps: {
+        defaultProps: { selectedDrawingId: '', selectedDimensionId: '',
             label: 'Roughness Tester',
             connectionType: 'SERIAL',
             baudRate: 9600,
@@ -1328,7 +1328,7 @@ export const COMPONENT_TYPES = {
         label: 'Torque Wrench',
         icon: Wrench || Ruler || Settings,
         defaultSize: { w: 280, h: 120 },
-        defaultProps: {
+        defaultProps: { selectedDrawingId: '', selectedDimensionId: '',
             label: 'Torque Wrench',
             connectionType: 'SERIAL',
             baudRate: 9600,
@@ -1347,7 +1347,7 @@ export const COMPONENT_TYPES = {
         label: 'Weighing Scale',
         icon: Weight,
         defaultSize: { w: 260, h: 140 },
-        defaultProps: {
+        defaultProps: { selectedDrawingId: '', selectedDimensionId: '',
             label: 'Scale',
             connectionType: 'SERIAL',
             baudRate: 9600,

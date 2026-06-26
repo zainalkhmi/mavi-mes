@@ -30,6 +30,11 @@ except Exception as e:
     print(f"Warning: Could not load model. Error: {e}")
     model = None
 
+@app.get("/")
+async def health_check():
+    """Health check endpoint so the frontend can detect that the server is running."""
+    return {"status": "ok", "service": "YOLOv8 Local Inference API"}
+
 @app.post("/detect")
 async def detect_objects(file: UploadFile = File(...)):
     if model is None:
@@ -1423,8 +1428,209 @@ async def parse_blueprint(file: UploadFile = File(...)):
         except Exception as e:
             return {"success": False, "error": f"Failed to parse SVG file: {str(e)}", "dimensions": []}
             
+    elif filename.endswith(".dwg"):
+        # DWG Parsing using ezdwg
+        try:
+            import ezdwg
+            import ezdxf
+        except ImportError:
+            return {
+                "success": False,
+                "error": "ezdwg or ezdxf library is not installed in the python environment. Please run pip install ezdwg ezdxf",
+                "dimensions": []
+            }
+            
+        import tempfile
+        import os
+        
+        temp_dwg_path = None
+        temp_dxf_path = None
+        try:
+            # 1. Write the content to a temporary DWG file
+            with tempfile.NamedTemporaryFile(suffix=".dwg", delete=False) as temp_dwg:
+                temp_dwg.write(content)
+                temp_dwg_path = temp_dwg.name
+                
+            temp_dxf_path = temp_dwg_path.replace(".dwg", ".dxf")
+            
+            # 2. Convert DWG to DXF
+            ezdwg.to_dxf(temp_dwg_path, temp_dxf_path)
+            
+            # 3. Read the converted DXF file using ezdxf
+            doc = ezdxf.readfile(temp_dxf_path)
+            msp = doc.modelspace()
+            dimensions = []
+            
+            # Use same DXF parsing logic:
+            # 1. Parse DIMENSION entities
+            for idx, entity in enumerate(msp.query("DIMENSION")):
+                try:
+                    text = entity.dxf.text if hasattr(entity.dxf, 'text') else ""
+                    spec = "0.0"
+                    tol_min = 0.0
+                    tol_max = 0.0
+                    unit = "mm"
+                    
+                    if text:
+                        match_pm = re.search(r'([\d\.]+)\s*±\s*([\d\.]+)', text)
+                        if match_pm:
+                            spec = match_pm.group(1)
+                            tol_val = float(match_pm.group(2))
+                            tol_min = -tol_val
+                            tol_max = tol_val
+                        else:
+                            match_single = re.search(r'([\d\.]+)', text)
+                            if match_single:
+                                spec = match_single.group(1)
+                    
+                    # Coordinate extraction
+                    x1, y1 = 150, 180
+                    x2, y2 = 350, 180
+                    
+                    if hasattr(entity.dxf, 'defpoint'):
+                        x1, y1 = entity.dxf.defpoint.x, entity.dxf.defpoint.y
+                    if hasattr(entity.dxf, 'defpoint2'):
+                        x2, y2 = entity.dxf.defpoint2.x, entity.dxf.defpoint2.y
+                    elif hasattr(entity.dxf, 'defpoint3'):
+                        x2, y2 = entity.dxf.defpoint3.x, entity.dxf.defpoint3.y
+                    
+                    dimensions.append({
+                        "id": f"dim_dxf_{idx}_{int(time.time() * 1000)}",
+                        "label": f"DWG Dimension {idx + 1}",
+                        "spec": spec if spec != "0.0" else "50.0",
+                        "tolMin": tol_min if tol_min != 0.0 else -0.5,
+                        "tolMax": tol_max if tol_max != 0.0 else 0.5,
+                        "variable": "Meas_Length",
+                        "unit": unit,
+                        "category": "dimension",
+                        "measureType": "linear_horizontal",
+                        "indicatorType": "horizontal",
+                        "gdt_symbol": "",
+                        "x1": float(x1), "y1": float(y1),
+                        "x2": float(x2), "y2": float(y2),
+                        "lx": float((x1 + x2) / 2), "ly": float((y1 + y2) / 2 + 10)
+                    })
+                except Exception as ex:
+                    print(f"Error parsing dxf dimension from dwg: {ex}")
+            
+            # 2. Parse CIRCLE entities (useful as diameter features if no DIMENSION is present)
+            if not dimensions:
+                for idx, entity in enumerate(msp.query("CIRCLE")):
+                    try:
+                        center = entity.dxf.center
+                        radius = entity.dxf.radius
+                        cx, cy = center.x, center.y
+                        
+                        dimensions.append({
+                            "id": f"dim_dxf_circle_{idx}_{int(time.time() * 1000)}",
+                            "label": f"Bore Diameter {idx + 1}",
+                            "spec": f"{radius * 2:.2f}",
+                            "tolMin": -0.05,
+                            "tolMax": 0.05,
+                            "variable": "Meas_Diameter",
+                            "unit": "mm",
+                            "category": "diameter",
+                            "measureType": "diameter",
+                            "indicatorType": "radial",
+                            "gdt_symbol": "⌀",
+                            "x1": float(cx - radius), "y1": float(cy),
+                            "x2": float(cx + radius), "y2": float(cy),
+                            "lx": float(cx), "ly": float(cy)
+                        })
+                    except Exception as ex:
+                        print(f"Error parsing dxf circle from dwg: {ex}")
+                        
+            # Normalize coordinates to fit React canvas 500x360
+            if dimensions:
+                all_x = []
+                all_y = []
+                for d in dimensions:
+                    all_x.extend([d["x1"], d["x2"]])
+                    all_y.extend([d["y1"], d["y2"]])
+                if all_x and all_y:
+                    min_x, max_x = min(all_x), max(all_x)
+                    min_y, max_y = min(all_y), max(all_y)
+                    span_x = max_x - min_x if max_x != min_x else 1.0
+                    span_y = max_y - min_y if max_y != min_y else 1.0
+                    
+                    for d in dimensions:
+                        d["x1"] = 50 + ((d["x1"] - min_x) / span_x) * 400
+                        d["x2"] = 50 + ((d["x2"] - min_x) / span_x) * 400
+                        d["y1"] = 50 + ((d["y1"] - min_y) / span_y) * 260
+                        d["y2"] = 50 + ((d["y2"] - min_y) / span_y) * 260
+                        d["lx"] = (d["x1"] + d["x2"]) / 2
+                        d["ly"] = (d["y1"] + d["y2"]) / 2 - 15
+            
+            if not dimensions:
+                dimensions = [
+                    {
+                        "id": f"dim_dxf_def_{int(time.time() * 1000)}",
+                        "label": "Auto-detected Dimension",
+                        "spec": "100.0",
+                        "tolMin": -0.2,
+                        "tolMax": 0.2,
+                        "variable": "Meas_Length",
+                        "unit": "mm",
+                        "category": "dimension",
+                        "measureType": "linear_horizontal",
+                        "indicatorType": "horizontal",
+                        "gdt_symbol": "",
+                        "x1": 100, "y1": 180, "x2": 400, "y2": 180,
+                        "lx": 250, "ly": 170
+                    }
+                ]
+            
+            # Render DWG to PNG for backdrop preview
+            rendered_image = None
+            try:
+                import matplotlib
+                matplotlib.use('Agg')
+                import matplotlib.pyplot as plt
+                import base64
+                
+                dwg_doc = ezdwg.read(temp_dwg_path)
+                fig, ax = plt.subplots(figsize=(8, 6))
+                
+                # set face color to slate-900 like style
+                fig.patch.set_facecolor('#0f172a')
+                ax.set_facecolor('#0f172a')
+                
+                ezdwg.plot(dwg_doc, ax=ax, show=False)
+                
+                # Remove axis and margins
+                ax.axis('off')
+                plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
+                plt.margins(0, 0)
+                
+                buffer = io.BytesIO()
+                plt.savefig(buffer, format='png', bbox_inches='tight', pad_inches=0, dpi=150, facecolor=fig.get_facecolor(), edgecolor='none')
+                plt.close(fig)
+                
+                buffer.seek(0)
+                base64_png = base64.b64encode(buffer.read()).decode("utf-8")
+                rendered_image = f"data:image/png;base64,{base64_png}"
+            except Exception as render_ex:
+                print(f"Failed to render DWG to image: {render_ex}")
+                
+            return {"success": True, "dimensions": dimensions, "rendered_image": rendered_image}
+            
+        except Exception as e:
+            return {"success": False, "error": f"Failed to parse DWG file: {str(e)}", "dimensions": []}
+        finally:
+            # Clean up temporary files
+            if temp_dwg_path and os.path.exists(temp_dwg_path):
+                try:
+                    os.remove(temp_dwg_path)
+                except:
+                    pass
+            if temp_dxf_path and os.path.exists(temp_dxf_path):
+                try:
+                    os.remove(temp_dxf_path)
+                except:
+                    pass
+            
     else:
-        return {"success": False, "error": "Unsupported file format. Please upload .dxf, .pdf, or .svg.", "dimensions": []}
+        return {"success": False, "error": "Unsupported file format. Please upload .dxf, .dwg, .pdf, or .svg.", "dimensions": []}
 
 
 class PDFConvertRequest(BaseModel):

@@ -75,6 +75,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent; /* Remove mobile tap blue highlight */
   touch-action: manipulation;
+  /* Smooth transition from boot splash dark bg to app light bg */
+  transition: background-color 0.4s ease;
 }
 
 /* Mavi Panel Classes */
