@@ -123,6 +123,92 @@ const VisionManager = () => {
     const [isUploadingFiles, setIsUploadingFiles] = useState(false);
     const [uploadStatus, setUploadStatus] = useState('');
 
+    // Keyence-Style AI Studio States
+    const [backendImages, setBackendImages] = useState([]);
+    const [isLoadingBackendImages, setIsLoadingBackendImages] = useState(false);
+    const [showPaintModal, setShowPaintModal] = useState(false);
+    const [paintImage, setPaintImage] = useState(null);
+    const [activeSuggestions, setActiveSuggestions] = useState([]);
+    const [isActiveSelecting, setIsActiveSelecting] = useState(false);
+    const [separationGraphData, setSeparationGraphData] = useState(null);
+    const [isLoadingSeparationGraph, setIsLoadingSeparationGraph] = useState(false);
+
+    const loadBackendImages = async (datasetName) => {
+        if (!datasetName) return;
+        setIsLoadingBackendImages(true);
+        try {
+            const res = await fetch(`http://localhost:8000/ai/dataset/get_images?dataset_name=${datasetName}`);
+            const data = await res.json();
+            if (data.success) {
+                setBackendImages(data.images || []);
+            } else {
+                console.error('Failed to load backend images:', data.error);
+            }
+        } catch (err) {
+            console.warn('Connection error loading backend images:', err);
+        } finally {
+            setIsLoadingBackendImages(false);
+        }
+    };
+
+    const loadSeparationGraph = async (datasetName, modelName = 'default') => {
+        if (!datasetName) return;
+        setIsLoadingSeparationGraph(true);
+        try {
+            const res = await fetch(`http://localhost:8000/ai/dataset/separation_graph?dataset_name=${datasetName}&model_name=${modelName}`);
+            const data = await res.json();
+            if (data.success) {
+                setSeparationGraphData(data);
+            } else {
+                console.error('Failed to load separation graph:', data.error);
+            }
+        } catch (err) {
+            console.warn('Connection error loading separation graph:', err);
+        } finally {
+            setIsLoadingSeparationGraph(false);
+        }
+    };
+
+    const handleActiveSelect = async (datasetName, modelName = 'default') => {
+        if (!datasetName) return;
+        setIsActiveSelecting(true);
+        try {
+            const res = await fetch(`http://localhost:8000/ai/dataset/active_select?dataset_name=${datasetName}&model_name=${modelName}`);
+            const data = await res.json();
+            if (data.success) {
+                setActiveSuggestions(data.suggestions || []);
+                const suggestionPaths = new Set(data.suggestions.map(s => s.relative_path));
+                setBackendImages(prev => {
+                    const sorted = [...prev].sort((a, b) => {
+                        const aSuggested = suggestionPaths.has(a.relative_path);
+                        const bSuggested = suggestionPaths.has(b.relative_path);
+                        if (aSuggested && !bSuggested) return -1;
+                        if (!aSuggested && bSuggested) return 1;
+                        return 0;
+                    });
+                    return sorted;
+                });
+                alert(`AI Auto Image Selector: Prioritized ${data.suggestions.length} unannotated images with high model uncertainty!`);
+            } else {
+                alert(`Error: ${data.error}`);
+            }
+        } catch (err) {
+            alert(`Connection error: ${err.message}`);
+        } finally {
+            setIsActiveSelecting(false);
+        }
+    };
+
+    useEffect(() => {
+        if (selectedDataset) {
+            loadBackendImages(selectedDataset);
+            loadSeparationGraph(selectedDataset);
+        } else {
+            setBackendImages([]);
+            setSeparationGraphData(null);
+        }
+    }, [selectedDataset]);
+
     // Webcam State for Data Collection
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
@@ -241,8 +327,18 @@ const VisionManager = () => {
                         class_names: classes
                     })
                 });
+            } else if (modelType === 'segmentation') {
+                res = await fetch('http://localhost:8000/ai/segment/train', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model_name: newModelName.trim(),
+                        dataset_name: selectedDataset,
+                        epochs: Number(epochs || 5)
+                    })
+                });
             } else {
-                alert('Training for Segmentation is not directly exposed as an API endpoint.');
+                alert('Unknown model type');
                 setIsTraining(false);
                 return;
             }
@@ -920,6 +1016,16 @@ const VisionManager = () => {
                             }}
                         >
                             AI Models & Inspection
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('ai_guide')}
+                            style={{
+                                padding: '10px 4px', border: 'none', borderBottom: activeTab === 'ai_guide' ? '3px solid #7c3aed' : '3px solid transparent',
+                                backgroundColor: 'transparent', color: activeTab === 'ai_guide' ? '#7c3aed' : '#64748b',
+                                fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.15s'
+                            }}
+                        >
+                            🎓 Keyence AI Guide
                         </button>
                     </div>
                 </div>
@@ -1715,8 +1821,9 @@ const VisionManager = () => {
 
             {/* TAB CONTENT: AI MODELS & INSPECTION */}
             {activeTab === 'ai_models' && (
-                <div style={{ flex: 1, padding: '24px', display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px', overflowY: 'auto' }}>
-                    {/* LEFT PANEL: MODEL LIST & TRAINING */}
+                <div style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px', overflowY: 'auto' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px' }}>
+                        {/* LEFT PANEL: MODEL LIST & TRAINING */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                         
                         {/* Models List Box */}
@@ -1830,10 +1937,11 @@ const VisionManager = () => {
                             {/* Model Type */}
                             <div style={{ marginBottom: '16px' }}>
                                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>MODEL INSPECTION TYPE</label>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
                                     {[
-                                        { id: 'anomaly', label: 'Anomaly Detection', desc: 'Unsupervised (OK images only)' },
-                                        { id: 'classification', label: 'Classification', desc: 'Supervised OK/NG classification' }
+                                        { id: 'anomaly', label: 'Anomaly Detection', desc: 'Unsupervised (OK only)' },
+                                        { id: 'segmentation', label: 'Defect Segmentation', desc: 'Supervised U-Net (Masks)' },
+                                        { id: 'classification', label: 'Classification', desc: 'Supervised OK/NG' }
                                     ].map(type => (
                                         <div
                                             key={type.id}
@@ -1889,20 +1997,24 @@ const VisionManager = () => {
                                 </select>
                             </div>
 
-                            {/* Anomaly specific settings */}
-                            {modelType === 'anomaly' && (
+                            {/* Anomaly or Segmentation specific settings */}
+                            {(modelType === 'anomaly' || modelType === 'segmentation') && (
                                 <div style={{ marginBottom: '20px' }}>
-                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>TRAINING EPOCHS (1-10 recommended for CPU/fast testing)</label>
+                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                                        {modelType === 'segmentation' ? 'TRAINING EPOCHS (5-10 recommended)' : 'TRAINING EPOCHS (1-10 recommended for CPU/fast testing)'}
+                                    </label>
                                     <input
                                         type="number"
                                         min="1"
-                                        max="50"
+                                        max="100"
                                         value={epochs}
                                         onChange={e => setEpochs(Number(e.target.value))}
                                         style={{ width: '100%', padding: '10px 14px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.85rem', outline: 'none' }}
                                     />
                                     <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '6px' }}>
-                                        * Note: Anomaly model uses PatchCore/FastFlow which trains fast on local CPU, requiring only OK images in the selected dataset.
+                                        {modelType === 'segmentation' 
+                                            ? '* Note: Segmentation trains a local PyTorch U-Net model from your painted defect masks.'
+                                            : '* Note: Anomaly model uses PatchCore/FastFlow which trains fast on local CPU, requiring only OK images in the selected dataset.'}
                                     </div>
                                 </div>
                             )}
@@ -2239,7 +2351,192 @@ const VisionManager = () => {
                         </div>
                     </div>
                 </div>
-            )}
+
+                {/* KEYENCE-STYLE DATASET INSPECTOR & ACTIVE LEARNING STUDIO */}
+                {selectedDataset && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '24px', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', marginTop: '20px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px' }}>
+                            <div>
+                                <h3 style={{ margin: 0, fontSize: '1.18rem', fontWeight: 900, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    🔍 Keyence AI Studio: Dataset Inspector
+                                </h3>
+                                <p style={{ margin: '2px 0 0 0', color: '#64748b', fontSize: '0.78rem' }}>
+                                    Kelola dataset "<strong>{selectedDataset}</strong>" langsung di server. Lukis cacat produk dengan kuas mask interaktif.
+                                </p>
+                            </div>
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                                <button
+                                    onClick={() => handleActiveSelect(selectedDataset)}
+                                    disabled={isActiveSelecting}
+                                    style={{
+                                        border: 'none', backgroundColor: '#7c3aed', color: 'white',
+                                        padding: '8px 16px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 800,
+                                        cursor: isActiveSelecting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                                    }}
+                                >
+                                    {isActiveSelecting ? <Loader2 size={14} className="animate-spin" /> : '⚡ AI Auto Image Selector'}
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        loadBackendImages(selectedDataset);
+                                        loadSeparationGraph(selectedDataset);
+                                    }}
+                                    style={{
+                                        border: '1px solid #cbd5e1', backgroundColor: 'white', color: '#475569',
+                                        padding: '8px 16px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer'
+                                    }}
+                                >
+                                    🔄 Refresh Images
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Dual layout: Separation Graph (Left) & Suggestions info (Right) */}
+                        {separationGraphData && (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '24px', backgroundColor: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                <div>
+                                    <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', fontWeight: 800, color: '#1e293b' }}>
+                                        📈 Degree of Separation Graph (OK vs NG Scores)
+                                    </h4>
+                                    
+                                    {/* Separation graph visual representation */}
+                                    <div style={{ height: '140px', display: 'flex', alignItems: 'flex-end', gap: '4px', borderBottom: '2px solid #cbd5e1', paddingBottom: '5px', position: 'relative' }}>
+                                        <div style={{ position: 'absolute', left: 0, right: 0, top: '25%', borderTop: '1px dashed #e2e8f0', pointerEvents: 'none' }} />
+                                        <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', borderTop: '1px dashed #e2e8f0', pointerEvents: 'none' }} />
+                                        <div style={{ position: 'absolute', left: 0, right: 0, top: '75%', borderTop: '1px dashed #e2e8f0', pointerEvents: 'none' }} />
+                                        
+                                        {separationGraphData.bin_labels.map((label, idx) => {
+                                            const okVal = separationGraphData.ok_histogram[idx] || 0;
+                                            const ngVal = separationGraphData.ng_histogram[idx] || 0;
+                                            const maxVal = Math.max(1, ...separationGraphData.ok_histogram, ...separationGraphData.ng_histogram);
+                                            
+                                            const okHeight = `${(okVal / maxVal) * 100}%`;
+                                            const ngHeight = `${(ngVal / maxVal) * 100}%`;
+                                            
+                                            return (
+                                                <div key={idx} style={{ flex: 1, height: '100%', display: 'flex', gap: '2px', alignItems: 'flex-end', position: 'relative' }} title={`Score Bin: ${label}\nOK Count: ${okVal}\nNG Count: ${ngVal}`}>
+                                                    {okVal > 0 && (
+                                                        <div style={{ flex: 1, height: okHeight, backgroundColor: '#22c55e', opacity: 0.8, borderRadius: '2px 2px 0 0', minHeight: '2px', transition: 'height 0.3s' }} />
+                                                    )}
+                                                    {ngVal > 0 && (
+                                                        <div style={{ flex: 1, height: ngHeight, backgroundColor: '#ef4444', opacity: 0.8, borderRadius: '2px 2px 0 0', minHeight: '2px', transition: 'height 0.3s' }} />
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+
+                                        {(() => {
+                                            const minS = separationGraphData.min_score;
+                                            const maxS = separationGraphData.max_score;
+                                            const thresh = separationGraphData.suggested_threshold;
+                                            const percent = maxS > minS ? ((thresh - minS) / (maxS - minS)) * 100 : 50;
+                                            
+                                             return (
+                                                 <div style={{ position: 'absolute', left: `${percent}%`, top: 0, bottom: 0, width: '2px', backgroundColor: '#7c3aed', zIndex: 10 }}>
+                                                     <div style={{ position: 'absolute', top: '-18px', transform: 'translateX(-50%)', backgroundColor: '#7c3aed', color: 'white', padding: '1px 5px', borderRadius: '4px', fontSize: '0.55rem', fontWeight: 800, whiteSpace: 'nowrap' }}>
+                                                         Cutoff: {thresh.toFixed(2)}
+                                                     </div>
+                                                 </div>
+                                             );
+                                        })()}
+                                    </div>
+                                    
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '0.62rem', color: '#64748b', fontWeight: 600 }}>
+                                        <span>OK (Clean) area ───</span>
+                                        <span>Separation Threshold</span>
+                                        <span>─── Defect / NG area</span>
+                                    </div>
+                                </div>
+                                <div style={{ borderLeft: '1px solid #cbd5e1', paddingLeft: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                    <h4 style={{ margin: '0 0 6px 0', fontSize: '0.78rem', fontWeight: 800, color: '#1e293b' }}>
+                                        🎯 AI Training Recommendation
+                                    </h4>
+                                    <p style={{ margin: 0, fontSize: '0.7rem', color: '#475569', lineHeight: 1.4 }}>
+                                        Grafik di samping memperlihatkan hasil pemisahan AI saat ini. Bagian persinggungan (overlap) adalah area kritis.
+                                        Tekan tombol <strong>AI Auto Image Selector</strong> di atas untuk menyaring gambar tak berlabel yang paling membingungkan model.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Images Gallery */}
+                        <div>
+                            <h4 style={{ margin: '0 0 12px 0', fontSize: '0.82rem', fontWeight: 800, color: '#475569' }}>
+                                📂 Dataset Images ({backendImages.length} items on server)
+                            </h4>
+                            {isLoadingBackendImages ? (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px', color: '#94a3b8' }}>
+                                    <Loader2 size={24} className="animate-spin" style={{ marginRight: '8px' }} />
+                                    <span style={{ fontSize: '0.8rem' }}>Loading dataset files...</span>
+                                </div>
+                            ) : backendImages.length === 0 ? (
+                                <div style={{ padding: '30px', textAlign: 'center', border: '1px dashed #cbd5e1', borderRadius: '12px', color: '#64748b', fontSize: '0.8rem' }}>
+                                    Belum ada file di dataset ini. Gunakan panel Uploader di kanan atas untuk mengunggah gambar.
+                                </div>
+                            ) : (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '14px', maxHeight: '350px', overflowY: 'auto', padding: '4px' }}>
+                                    {backendImages.map((img, idx) => {
+                                        const isSuggested = activeSuggestions.some(s => s.relative_path === img.relative_path);
+                                        return (
+                                            <div
+                                                key={idx}
+                                                style={{
+                                                    backgroundColor: 'white', border: isSuggested ? '2px solid #7c3aed' : '1px solid #cbd5e1',
+                                                    borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column',
+                                                    boxShadow: isSuggested ? '0 0 8px rgba(124, 58, 237, 0.25)' : 'none', position: 'relative'
+                                                }}
+                                            >
+                                                {isSuggested && (
+                                                    <div style={{ position: 'absolute', top: '4px', left: '4px', backgroundColor: '#7c3aed', color: 'white', padding: '2px 6px', borderRadius: '6px', fontSize: '0.55rem', fontWeight: 900, zIndex: 5 }}>
+                                                        🔥 REKOMENDASI AI
+                                                    </div>
+                                                )}
+                                                
+                                                <div style={{ height: '85px', backgroundColor: '#f1f5f9', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px solid #cbd5e1' }}>
+                                                    <img
+                                                        src={`http://localhost:8000/ai/dataset/image?dataset_name=${selectedDataset}&relative_path=${encodeURIComponent(img.relative_path)}`}
+                                                        alt={img.filename}
+                                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                        loading="lazy"
+                                                    />
+                                                </div>
+
+                                                <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
+                                                    <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#334155', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={img.filename}>
+                                                        {img.filename}
+                                                    </div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.58rem' }}>
+                                                        <span style={{ padding: '2px 4px', borderRadius: '4px', backgroundColor: img.label.toLowerCase() === 'ok' ? '#dcfce7' : '#fee2e2', color: img.label.toLowerCase() === 'ok' ? '#15803d' : '#b91c1c', fontWeight: 800 }}>
+                                                            {img.label.toUpperCase()}
+                                                        </span>
+                                                        <span style={{ padding: '2px 4px', borderRadius: '4px', backgroundColor: img.has_mask ? '#e0f2fe' : '#f1f5f9', color: img.has_mask ? '#0369a1' : '#64748b', fontWeight: 700 }}>
+                                                            {img.has_mask ? '🟢 Mask' : '⚪ No Mask'}
+                                                        </span>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => {
+                                                            setPaintImage(img);
+                                                            setShowPaintModal(true);
+                                                        }}
+                                                        style={{
+                                                            width: '100%', border: 'none', backgroundColor: '#e2e8f0', color: '#1e293b',
+                                                            padding: '5px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 800,
+                                                            cursor: 'pointer', marginTop: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px'
+                                                        }}
+                                                    >
+                                                        🎨 Paint Defect
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+        )}
 
             {/* TAB CONTENT: VISION & PRIVACY SETTINGS */}
             {activeTab === 'privacy' && (
@@ -2386,6 +2683,9 @@ const VisionManager = () => {
                     </div>
                 </div>
             )}
+
+            {/* TAB CONTENT: KEYENCE AI USE CASES GUIDE */}
+            {activeTab === 'ai_guide' && <AiGuideView />}
         </div>
     );
 };
@@ -5705,8 +6005,761 @@ function CameraRegionEditor({
                             </div>
                         </div>
                     )}
+
+                    {showPaintModal && paintImage && (
+                        <DefectPainterModal
+                            image={paintImage}
+                            datasetName={selectedDataset}
+                            onClose={() => {
+                                setShowPaintModal(false);
+                                setPaintImage(null);
+                                loadBackendImages(selectedDataset);
+                            }}
+                        />
+                    )}
                 </div>
             </div>
+        </div>
+    );
+}
+
+// ─── KEYENCE-STYLE HTML5 DRAWING & PAINT CANVAS OVERLAY MODAL ────────────────
+function DefectPainterModal({ image, datasetName, onClose }) {
+    const canvasRef = useRef(null);
+    const contextRef = useRef(null);
+    const [isDrawing, setIsDrawing] = useState(false);
+    const [brushSize, setBrushSize] = useState(15);
+    const [toolMode, setToolMode] = useState('paint'); // 'paint' | 'erase' | 'polygon'
+    const [isSaving, setIsSaving] = useState(false);
+    
+    // Polygon variables
+    const [polygonPoints, setPolygonPoints] = useState([]);
+    
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = `http://localhost:8000/ai/dataset/image?dataset_name=${datasetName}&relative_path=${encodeURIComponent(image.relative_path)}`;
+        img.onload = () => {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            
+            const context = canvas.getContext('2d');
+            context.lineCap = 'round';
+            context.lineJoin = 'round';
+            contextRef.current = context;
+            
+            if (image.has_mask) {
+                const maskImg = new Image();
+                maskImg.crossOrigin = 'anonymous';
+                maskImg.src = `http://localhost:8000/ai/dataset/mask?dataset_name=${datasetName}&filename=${image.filename}`;
+                maskImg.onload = () => {
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = img.width;
+                    tempCanvas.height = img.height;
+                    const tempCtx = tempCanvas.getContext('2d');
+                    tempCtx.drawImage(maskImg, 0, 0);
+                    
+                    const imgData = tempCtx.getImageData(0, 0, img.width, img.height);
+                    const data = imgData.data;
+                    for (let i = 0; i < data.length; i += 4) {
+                        const r = data[i];
+                        const g = data[i+1];
+                        const b = data[i+2];
+                        if (r > 127 && g > 127 && b > 127) {
+                            data[i] = 255;
+                            data[i+1] = 0;
+                            data[i+2] = 0;
+                            data[i+3] = 160;
+                        } else {
+                            data[i+3] = 0;
+                        }
+                    }
+                    tempCtx.putImageData(imgData, 0, 0);
+                    context.drawImage(tempCanvas, 0, 0);
+                };
+            }
+        };
+    }, [image, datasetName]);
+
+    const getCanvasCoordinates = (e) => {
+        const canvas = canvasRef.current;
+        const rect = canvas.getBoundingClientRect();
+        
+        let clientX, clientY;
+        if (e.touches && e.touches.length > 0) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+        
+        const x = ((clientX - rect.left) / rect.width) * canvas.width;
+        const y = ((clientY - rect.top) / rect.height) * canvas.height;
+        return { x, y };
+    };
+
+    const startDrawing = (e) => {
+        if (toolMode === 'polygon') {
+            const { x, y } = getCanvasCoordinates(e);
+            setPolygonPoints(prev => [...prev, { x, y }]);
+            return;
+        }
+        
+        const { x, y } = getCanvasCoordinates(e);
+        const ctx = contextRef.current;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        
+        if (toolMode === 'paint') {
+            ctx.strokeStyle = 'rgba(255, 0, 0, 0.6)';
+            ctx.globalCompositeOperation = 'source-over';
+        } else if (toolMode === 'erase') {
+            ctx.globalCompositeOperation = 'destination-out';
+        }
+        
+        ctx.lineWidth = brushSize;
+        setIsDrawing(true);
+    };
+
+    const draw = (e) => {
+        if (!isDrawing || toolMode === 'polygon') return;
+        const { x, y } = getCanvasCoordinates(e);
+        const ctx = contextRef.current;
+        ctx.lineTo(x, y);
+        ctx.stroke();
+    };
+
+    const stopDrawing = () => {
+        if (toolMode === 'polygon') return;
+        setIsDrawing(false);
+    };
+
+    const fillPolygon = () => {
+        if (polygonPoints.length < 3) {
+            alert('Silakan pilih minimal 3 titik koordinat untuk membuat polygon.');
+            return;
+        }
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = 'rgba(255, 0, 0, 0.6)';
+        ctx.beginPath();
+        ctx.moveTo(polygonPoints[0].x, polygonPoints[0].y);
+        for (let i = 1; i < polygonPoints.length; i++) {
+            ctx.lineTo(polygonPoints[i].x, polygonPoints[i].y);
+        }
+        ctx.closePath();
+        ctx.fill();
+        setPolygonPoints([]);
+    };
+
+    const clearDrawing = () => {
+        if (!confirm('Apakah Anda yakin ingin menghapus semua coretan lukis?')) return;
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        setPolygonPoints([]);
+    };
+
+    const handleSaveMask = async () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        
+        setIsSaving(true);
+        try {
+            const binaryCanvas = document.createElement('canvas');
+            binaryCanvas.width = canvas.width;
+            binaryCanvas.height = canvas.height;
+            const bCtx = binaryCanvas.getContext('2d');
+            
+            bCtx.fillStyle = '#000000';
+            bCtx.fillRect(0, 0, canvas.width, canvas.height);
+            bCtx.drawImage(canvas, 0, 0);
+            
+            const imgData = bCtx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imgData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i+1];
+                const b = data[i+2];
+                if (r > 0 || g > 0 || b > 0) {
+                    data[i] = 255;
+                    data[i+1] = 255;
+                    data[i+2] = 255;
+                } else {
+                    data[i] = 0;
+                    data[i+1] = 0;
+                    data[i+2] = 0;
+                }
+                data[i+3] = 255;
+            }
+            bCtx.putImageData(imgData, 0, 0);
+            
+            binaryCanvas.toBlob(async (blob) => {
+                if (!blob) {
+                    throw new Error('Gagal merender data blob dari kanvas.');
+                }
+                
+                const formData = new FormData();
+                formData.append('mask_file', blob, `${image.filename}`);
+                formData.append('dataset_name', datasetName);
+                formData.append('filename', image.filename);
+                
+                const res = await fetch('http://localhost:8000/ai/dataset/upload_mask', {
+                    method: 'POST',
+                    body: formData
+                });
+                const responseData = await res.json();
+                if (responseData.success) {
+                    alert('Mask berhasil disimpan ke server!');
+                    onClose();
+                } else {
+                    alert(`Gagal menyimpan mask: ${responseData.error}`);
+                }
+            }, 'image/png');
+        } catch (err) {
+            alert(`Error: ${err.message}`);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <div style={{
+            position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(8px)',
+            zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+        }}>
+            <div style={{
+                backgroundColor: 'white', borderRadius: '20px', width: '95%', height: '90%', maxWidth: '1200px',
+                display: 'grid', gridTemplateColumns: '260px 1fr', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)'
+            }}>
+                <div style={{ backgroundColor: '#f8fafc', borderRight: '1px solid #cbd5e1', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <div>
+                        <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900, color: '#0f172a' }}>🎨 Paint defect areas</h3>
+                        <p style={{ margin: '4px 0 0 0', fontSize: '0.72rem', color: '#64748b', lineHeight: 1.4 }}>
+                            Warnai bagian yang terdapat cacat/defect dengan warna merah. Area ini akan digunakan untuk melatih AI mendeteksi cacat.
+                        </p>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#475569' }}>LUKIS DENGAN ALAT</span>
+                        {[
+                            { id: 'paint', label: '🖌️ Kuas (Brush Paint)', desc: 'Lukis cacat secara manual' },
+                            { id: 'erase', label: '🧽 Penghapus (Eraser)', desc: 'Hapus goresan merah' },
+                            { id: 'polygon', label: '📐 Polygon Point', desc: 'Klik titik pembatas' }
+                        ].map(mode => (
+                            <button
+                                key={mode.id}
+                                onClick={() => {
+                                    setToolMode(mode.id);
+                                    setPolygonPoints([]);
+                                }}
+                                style={{
+                                    textAlign: 'left', padding: '10px 14px', borderRadius: '10px', cursor: 'pointer',
+                                    border: toolMode === mode.id ? '2px solid #7c3aed' : '1px solid #cbd5e1',
+                                    backgroundColor: toolMode === mode.id ? '#f5f3ff' : 'white',
+                                    transition: 'all 0.15s'
+                                }}
+                            >
+                                <div style={{ fontSize: '0.78rem', fontWeight: 800, color: toolMode === mode.id ? '#6d28d9' : '#1e293b' }}>{mode.label}</div>
+                                <div style={{ fontSize: '0.62rem', color: '#64748b', marginTop: '2px' }}>{mode.desc}</div>
+                            </button>
+                        ))}
+                    </div>
+
+                    {toolMode === 'polygon' && (
+                        <div style={{ backgroundColor: '#eff6ff', padding: '12px', borderRadius: '10px', border: '1px solid #bfdbfe' }}>
+                            <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#1e3a8a', marginBottom: '4px' }}>📐 MODE POLYGON</div>
+                            <div style={{ fontSize: '0.62rem', color: '#3b82f6', lineHeight: 1.3, marginBottom: '8px' }}>
+                                Klik beberapa kali pada tepi area cacat untuk membuat simpul titik, lalu tekan tombol "Tutup & Isi Polygon".
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <button
+                                    onClick={fillPolygon}
+                                    style={{
+                                        flex: 1, padding: '6px 8px', border: 'none', backgroundColor: '#3b82f6',
+                                        color: 'white', fontSize: '0.68rem', fontWeight: 800, borderRadius: '6px', cursor: 'pointer'
+                                    }}
+                                >
+                                    Tutup & Isi
+                                </button>
+                                <button
+                                    onClick={() => setPolygonPoints([])}
+                                    style={{
+                                        padding: '6px 8px', border: '1px solid #bfdbfe', backgroundColor: 'white',
+                                        color: '#3b82f6', fontSize: '0.68rem', fontWeight: 800, borderRadius: '6px', cursor: 'pointer'
+                                    }}
+                                >
+                                    Batal
+                                </button>
+                            </div>
+                            {polygonPoints.length > 0 && (
+                                <div style={{ fontSize: '0.6rem', color: '#475569', marginTop: '6px', fontWeight: 700 }}>
+                                    Titik terpilih: {polygonPoints.length}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {toolMode !== 'polygon' && (
+                        <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', fontWeight: 800, color: '#475569', marginBottom: '6px' }}>
+                                <span>UKURAN KUAS</span>
+                                <span>{brushSize} px</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="2"
+                                max="80"
+                                value={brushSize}
+                                onChange={(e) => setBrushSize(Number(e.target.value))}
+                                style={{ width: '100%', accentColor: '#7c3aed', cursor: 'pointer' }}
+                            />
+                        </div>
+                    )}
+
+                    <button
+                        onClick={clearDrawing}
+                        style={{
+                            width: '100%', padding: '10px', border: '1px dashed #ef4444', color: '#ef4444',
+                            borderRadius: '8px', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer',
+                            backgroundColor: 'transparent', transition: 'all 0.15s', marginTop: 'auto'
+                        }}
+                    >
+                        🗑️ Bersihkan Semua Coretan
+                    </button>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <button
+                            onClick={handleSaveMask}
+                            disabled={isSaving}
+                            style={{
+                                width: '100%', padding: '12px', border: 'none', backgroundColor: '#22c55e',
+                                color: 'white', borderRadius: '10px', fontSize: '0.78rem', fontWeight: 800,
+                                cursor: isSaving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                boxShadow: '0 4px 6px -1px rgba(34,197,94,0.2)'
+                            }}
+                        >
+                            {isSaving ? <Loader2 size={14} className="animate-spin" /> : '💾 Simpan Mask ke Server'}
+                        </button>
+                        <button
+                            onClick={onClose}
+                            style={{
+                                width: '100%', padding: '10px', border: '1px solid #cbd5e1', backgroundColor: 'white',
+                                color: '#475569', borderRadius: '10px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer'
+                            }}
+                        >
+                            Kembali (Batal)
+                        </button>
+                    </div>
+                </div>
+
+                <div style={{ backgroundColor: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden', padding: '20px' }}>
+                    <div style={{ position: 'relative', maxWidth: '100%', maxHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <img
+                            src={`http://localhost:8000/ai/dataset/image?dataset_name=${datasetName}&relative_path=${encodeURIComponent(image.relative_path)}`}
+                            alt={image.filename}
+                            style={{ maxWidth: '100%', maxHeight: '75vh', objectFit: 'contain', pointerEvents: 'none', userSelect: 'none' }}
+                        />
+                        
+                        <canvas
+                            ref={canvasRef}
+                            onMouseDown={startDrawing}
+                            onMouseMove={draw}
+                            onMouseUp={stopDrawing}
+                            onMouseLeave={stopDrawing}
+                            onTouchStart={startDrawing}
+                            onTouchMove={draw}
+                            onTouchEnd={stopDrawing}
+                            style={{
+                                position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+                                objectFit: 'contain', cursor: toolMode === 'paint' ? 'crosshair' : toolMode === 'erase' ? 'pointer' : 'cell',
+                                zIndex: 10
+                            }}
+                        />
+
+                        {toolMode === 'polygon' && polygonPoints.length > 0 && (
+                            <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 11 }}>
+                                {polygonPoints.map((pt, idx) => {
+                                    const nextPt = polygonPoints[idx + 1] || null;
+                                    
+                                    const canvas = canvasRef.current;
+                                    if (!canvas) return null;
+                                    const rect = canvas.getBoundingClientRect();
+                                    
+                                    const screenX = (pt.x / canvas.width) * rect.width;
+                                    const screenY = (pt.y / canvas.height) * rect.height;
+                                    
+                                    let nextScreenX = null, nextScreenY = null;
+                                    if (nextPt) {
+                                        nextScreenX = (nextPt.x / canvas.width) * rect.width;
+                                        nextScreenY = (nextPt.y / canvas.height) * rect.height;
+                                    }
+                                    
+                                    return (
+                                        <g key={idx}>
+                                            <circle cx={screenX} cy={screenY} r="5" fill="#ef4444" stroke="white" strokeWidth="1.5" />
+                                            {nextPt && (
+                                                <line x1={screenX} y1={screenY} x2={nextScreenX} y2={nextScreenY} stroke="#ef4444" strokeWidth="2" strokeDasharray="3 3" />
+                                            )}
+                                        </g>
+                                    );
+                                })}
+                            </svg>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ─── INTERACTIVE KEYENCE AI USE CASES CONFIGURATION GUIDE ────────────────────
+function AiGuideView() {
+    const [activeCaseId, setActiveCaseId] = useState('auto_metal_foreign');
+
+    const categories = [
+        {
+            name: "Automotive & Metals",
+            icon: "🚗",
+            cases: [
+                {
+                    id: "auto_metal_foreign",
+                    title: "Detection of Foreign Objects (Deteksi Benda Asing)",
+                    mode: "Anomaly Detection (Unsupervised)",
+                    desc: "Mendeteksi partikel asing, kotoran, oli, atau sisa serpihan logam di dalam wadah/palet kosong sebelum perakitan.",
+                    setup: [
+                        "1. Image Acquisition: Pasang kamera tegak lurus di atas palet. Berikan pencahayaan rata (dome light/diffuser) untuk menghilangkan refleksi mengkilap dari bahan palet.",
+                        "2. Anotasi/Labeling: Kumpulkan 15-20 gambar palet yang benar-benar bersih dan kosong. Unggah gambar ke dataset backend, beri label seluruh gambar sebagai 'OK' (tidak perlu melukis area cacat karena ini Unsupervised).",
+                        "3. Model Training: Pilih tipe 'Anomaly Detection' pada form pelatihan, beri nama model (misal: 'pallet_foreign_detector'), lalu klik 'START TRAINING'."
+                    ],
+                    verify: "Unggah gambar palet baru yang diuji ke panel 'Test Inference'. Sistem akan mendeteksi perbedaan dari standar palet bersih, memunculkan heatmap merah pada kotoran asing, dan menghitung skor anomali. Gunakan 'Separation Graph' untuk mengatur ambang batas batas aman."
+                },
+                {
+                    id: "auto_metal_thread",
+                    title: "Thread Inspection on Screws (Ulir Baut)",
+                    mode: "Defect Segmentation (Supervised U-Net)",
+                    desc: "Mendeteksi bagian ulir baut yang aus, terpotong, atau penyok secara presisi terlepas dari pantulan kilau logam.",
+                    setup: [
+                        "1. Image Acquisition: Tempatkan sensor sela/kamera di posisi lateral sekrup. Gunakan backlight untuk menghasilkan gambar siluet hitam-putih baut yang tajam dan kontras tinggi.",
+                        "2. Anotasi/Labeling: Unggah foto baut cacat. Klik 'Paint Defect' di dataset inspector. Lukis dengan kuas merah atau gunakan 'Polygon Tool' untuk menutup area gigi ulir sekrup yang penyok.",
+                        "3. Model Training: Pilih tipe 'Defect Segmentation', beri nama model (misal: 'screw_thread_seg'), atur epoch ke 10, dan klik 'START TRAINING'."
+                    ],
+                    verify: "Unggah gambar baut pada panel 'Test Inference'. AI akan melokalisasi gigi ulir yang penyok, mengarsirnya dengan warna merah, menggambar garis batas tepi, serta menghitung total defect area (%) dan jumlah cacat (defect count)."
+                },
+                {
+                    id: "auto_metal_rubber",
+                    title: "Defect on Rubber Hoses (Selang Karet)",
+                    mode: "Anomaly Detection atau Defect Segmentation",
+                    desc: "Mengidentifikasi retakan halus, robekan, atau gelembung pada permukaan selang karet hitam bergelombang.",
+                    setup: [
+                        "1. Image Acquisition: Gunakan ring light terpolarisasi untuk meminimalkan bayangan tajam yang ditimbulkan oleh kerutan permukaan selang karet.",
+                        "2. Anotasi/Labeling: Latih dengan model Anomali (unggah selang normal ke folder 'OK') atau model Segmentasi (lukis retakan selang menggunakan Paint Tool jika retakan sudah spesifik).",
+                        "3. Model Training: Pilih tipe model yang diinginkan, isi nama model, dan tekan tombol 'START TRAINING'."
+                    ],
+                    verify: "Jalankan uji inferensi. Cacat retak atau kerutan tidak normal akan langsung diberi tanda biner merah oleh AI."
+                },
+                {
+                    id: "auto_metal_weld",
+                    title: "Weld Inspection (Porositas & Lubang Las)",
+                    mode: "Defect Segmentation (Supervised U-Net)",
+                    desc: "Mendeteksi lubang jarum (blowhole), cipratan las (spatter), dan lasan yang terputus pada sambungan logam.",
+                    setup: [
+                        "1. Image Acquisition: Arahkan kamera ke sambungan las. Gunakan pencahayaan coaxial light atau angle bar light untuk menonjolkan tekstur manik-manik lasan.",
+                        "2. Anotasi/Labeling: Klik 'Paint Defect' pada area hasil las yang memiliki lubang jarum atau cipratan logam liar. Warnai lubang tersebut dengan warna merah.",
+                        "3. Model Training: Latih model bertipe 'Defect Segmentation' dengan epoch 10 menggunakan dataset lasan yang telah diwarnai."
+                    ],
+                    verify: "Lakukan inferensi. AI U-Net akan mendeteksi dan memberi tanda merah pada setiap titik lubang jarum atau spatter secara real-time."
+                }
+            ]
+        },
+        {
+            name: "Food, Pharma & Commodities",
+            icon: "🍏",
+            cases: [
+                {
+                    id: "food_crates",
+                    title: "Appearance Inspection of Crates & Totes (Residu Keranjang)",
+                    mode: "Anomaly Detection (Unsupervised)",
+                    desc: "Mendeteksi sisa segel plastik, keretakan, atau deformasi bentuk pada keranjang wadah logistik farmasi/snack.",
+                    setup: [
+                        "1. Image Acquisition: Pasang kamera tegak lurus di atas konveyor cuci keranjang. Gunakan dome light seragam.",
+                        "2. Anotasi/Labeling: Ambil 15 gambar keranjang dalam kondisi benar-benar bersih dan kering. Simpan ke dataset backend sebagai kategori 'OK'.",
+                        "3. Model Training: Latih model 'Anomaly Detection' menggunakan dataset bersih tersebut."
+                    ],
+                    verify: "Jika terdapat sisa segel plastik/label yang belum terkelupas setelah pencucian, area tersebut akan menyala merah pada heatmap deteksi."
+                },
+                {
+                    id: "food_spillage",
+                    title: "Inspection for Spillage (Kebocoran Cairan Botol)",
+                    mode: "Anomaly Detection (Unsupervised)",
+                    desc: "Mendeteksi tumpahan atau kebocoran cairan di leher botol atau badan botol kaca obat/snack.",
+                    setup: [
+                        "1. Image Acquisition: Gunakan backlight berintensitas tinggi di belakang botol untuk memperlihatkan bayangan tingkat pengisian air.",
+                        "2. Anotasi/Labeling: Unggah foto botol yang tersegel rapat dan kering ke folder 'OK'.",
+                        "3. Model Training: Jalankan training Anomaly Detection."
+                    ],
+                    verify: "Tumpahan air di luar botol akan mengubah indeks bias cahaya dan dideteksi oleh AI sebagai anomali berupa warna merah mencolok."
+                },
+                {
+                    id: "food_bakery",
+                    title: "Food Appearance Inspection (Cacat Kue/Biskuit)",
+                    mode: "Anomaly Detection (Unsupervised)",
+                    desc: "Mendeteksi cacat gosong, patah, atau perubahan pola permukaan pada biskuit makanan.",
+                    setup: [
+                        "1. Image Acquisition: Gunakan konveyor sabuk makanan dengan pencahayaan overhead diffuser light.",
+                        "2. Anotasi/Labeling: Kumpulkan biskuit dengan tingkat kematangan dan bentuk sempurna, unggah ke folder 'OK'.",
+                        "3. Model Training: Jalankan training Anomaly Detection."
+                    ],
+                    verify: "Bagian biskuit yang gosong (hitam) atau patah akan langsung dideteksi sebagai anomali bernilai tinggi."
+                },
+                {
+                    id: "food_bristle",
+                    title: "Toothbrush Bristle Tips (Bulu Sikat Gigi)",
+                    mode: "Anomaly Detection (Unsupervised)",
+                    desc: "Mendeteksi bulu sikat gigi yang mekar, miring, atau tidak merata pada lini perakitan sikat gigi.",
+                    setup: [
+                        "1. Image Acquisition: Gunakan ujung lensa pembesar (macro zoom) dengan ring light agar ujung bulu sikat gigi terlihat kontras.",
+                        "2. Anotasi/Labeling: Latih menggunakan sikat gigi yang bulunya tersusun rapi sempurna sebagai standar 'OK'.",
+                        "3. Model Training: Jalankan training Anomaly Detection."
+                    ],
+                    verify: "Ujung bulu sikat yang mencuat keluar dari formasi akan dideteksi sebagai anomali karena tidak sesuai dengan standar kelurusan."
+                },
+                {
+                    id: "food_shrink",
+                    title: "Shrink Wrap & Label Wrinkle (Label Kemasan Kusut)",
+                    mode: "Defect Segmentation (Supervised U-Net)",
+                    desc: "Mendeteksi lipatan/kerutan lecek pada plastik label kemasan yang dapat merusak penampilan kemasan produk.",
+                    setup: [
+                        "1. Image Acquisition: Pasang lampu di sudut samping kemasan (low-angle light) untuk menciptakan bayangan pada lipatan plastik lecek.",
+                        "2. Anotasi/Labeling: Klik 'Paint Defect' pada label yang lecek. Lukis garis kerutan lecek tersebut dengan Paint kuas merah.",
+                        "3. Model Training: Jalankan training Defect Segmentation."
+                    ],
+                    verify: "Kemasan produk yang lecek saat pengetesan akan ditandai dengan garis merah tebal di lokasi kerutan kemasan."
+                },
+                {
+                    id: "food_alignment",
+                    title: "Packaging Alignment Inspection (Tata Letak Botol)",
+                    mode: "Anomaly Detection (Unsupervised)",
+                    desc: "Mendeteksi botol yang terbalik, kosong, miring, atau hilang di dalam boks kemasan kardus isi banyak.",
+                    setup: [
+                        "1. Image Acquisition: Pasang kamera di atas boks kemasan secara tegak lurus (bird's-eye view).",
+                        "2. Anotasi/Labeling: Gunakan boks yang terisi penuh dengan botol yang tertata sempurna sebagai contoh gambar 'OK'.",
+                        "3. Model Training: Latih model Anomaly Detection."
+                    ],
+                    verify: "Jika ada satu botol yang hilang atau miring, area botol tersebut akan langsung memicu alarm merah."
+                }
+            ]
+        },
+        {
+            name: "Electric & Electronic Parts",
+            icon: "🔌",
+            cases: [
+                {
+                    id: "elec_wafer",
+                    title: "Wafer Appearance Inspection (Cacat Silikon Wafer)",
+                    mode: "Defect Segmentation (Supervised U-Net)",
+                    desc: "Mendeteksi goresan halus (scratch) atau rompal (chipping) pada tepi silikon wafer semikonduktor.",
+                    setup: [
+                        "1. Image Acquisition: Gunakan pencahayaan darkfield (cahaya dari samping) untuk memantulkan retakan halus wafer ke kamera.",
+                        "2. Anotasi/Labeling: Anotasikan tepi wafer yang rompal atau retak tipis dengan Paint kuas merah di galeri.",
+                        "3. Model Training: Latih model bertipe 'Defect Segmentation'."
+                    ],
+                    verify: "Retakan wafer akan langsung menyala merah terang terisolasi tanpa mengganggu pola sirkuit wafer lainnya."
+                },
+                {
+                    id: "elec_winding",
+                    title: "Inductor Winding Inspection (Lilitan Kabel Induktor)",
+                    mode: "Anomaly Detection (Unsupervised)",
+                    desc: "Mendeteksi kawat tembaga induktor yang terlilit berantakan, renggang, atau keluar jalur lilitan.",
+                    setup: [
+                        "1. Image Acquisition: Pasang kamera fokus makro dengan backlight dikombinasikan dengan overhead ring light.",
+                        "2. Anotasi/Labeling: Unggah kawat lilitan induktor yang terlilit rapi dan rapat sebagai gambar standar 'OK'.",
+                        "3. Model Training: Jalankan training Anomaly Detection."
+                    ],
+                    verify: "Jika ada kawat lilitan renggang atau bertumpuk, area lilitan yang salah tersebut akan diberi tanda anomali merah."
+                },
+                {
+                    id: "elec_capacitor",
+                    title: "Capacitor Sleeve Inspection (Sobek Selongsong Kondensator)",
+                    mode: "Defect Segmentation (Supervised U-Net)",
+                    desc: "Mendeteksi sobekan kecil atau goresan pada selongsong plastik pembungkus kondensator.",
+                    setup: [
+                        "1. Image Acquisition: Gunakan kamera 360-derajat atau putar produk di bawah kamera dengan pencahayaan dome light.",
+                        "2. Anotasi/Labeling: Warnai sobekan plastik kondensator dengan Paint kuas merah.",
+                        "3. Model Training: Jalankan training Defect Segmentation."
+                    ],
+                    verify: "Kondensator yang sobek plastik pelindungnya akan ditandai merah secara otomatis."
+                },
+                {
+                    id: "elec_gasket",
+                    title: "Gasket Float Inspection (Deteksi Floter Gasket)",
+                    mode: "Anomaly Detection (Unsupervised)",
+                    desc: "Mendeteksi gasket karet atau segel yang melayang/longgar pada celah bodi logam.",
+                    setup: [
+                        "1. Image Acquisition: Pasang kamera dari samping produk. Gunakan lampu sorot terarah.",
+                        "2. Anotasi/Labeling: Ambil foto gasket yang terpasang rapat dan pas masuk ke celah logam sebagai standar 'OK'.",
+                        "3. Model Training: Latih model Anomaly Detection."
+                    ],
+                    verify: "Gasket yang melar atau melayang keluar dari jalurnya akan langsung memunculkan tanda anomali merah."
+                },
+                {
+                    id: "elec_connector",
+                    title: "Connector Short Shot Inspection (Plastik Konektor Cacat)",
+                    mode: "Anomaly Detection (Unsupervised)",
+                    desc: "Mendeteksi plastik cetakan konektor yang kurang terinjeksi (*short shot*) pada pin-pin konektor.",
+                    setup: [
+                        "1. Image Acquisition: Arahkan kamera makro ke pin konektor. Gunakan backlight untuk mempertegas bentuk pin.",
+                        "2. Anotasi/Labeling: Latih menggunakan gambar konektor dengan bentuk fisik utuh tanpa cacat sebagai standar 'OK'.",
+                        "3. Model Training: Jalankan training Anomaly Detection."
+                    ],
+                    verify: "Jika ada pin yang kurang terlindungi plastik (short shot), AI akan mendeteksi perbedaan bentuk fisik tersebut."
+                },
+                {
+                    id: "elec_module",
+                    title: "Module Alignment Confirmation (Tumpukan Modul PCB)",
+                    mode: "Anomaly Detection (Unsupervised)",
+                    desc: "Mendeteksi kesalahan susunan PCB atau modul elektronik yang terbalik atau miring pada baki perakitan.",
+                    setup: [
+                        "1. Image Acquisition: Gunakan kamera overhead dengan pencahayaan ring light.",
+                        "2. Anotasi/Labeling: Masukkan foto susunan PCB yang terpasang lurus dan benar ke dalam kategori 'OK'.",
+                        "3. Model Training: Latih model Anomaly Detection."
+                    ],
+                    verify: "PCB yang miring atau terbalik akan dideteksi karena pola fisiknya berbeda dari standar referensi."
+                }
+            ]
+        },
+        {
+            name: "Vision-Guided Robotics",
+            icon: "🤖",
+            cases: [
+                {
+                    id: "robot_overlapped",
+                    title: "Detection of Overlapped Products (Barang Bertumpuk)",
+                    mode: "Anomaly Detection + Koordinat JSON",
+                    desc: "Mendeteksi produk yang bertumpuk atau tumpang tindih di nampan agar lengan robot tidak salah mencengkeram produk.",
+                    setup: [
+                        "1. Image Acquisition: Tempatkan kamera 2D tepat di atas area pengambilan robot (picking area) dengan pencahayaan merata.",
+                        "2. Anotasi/Labeling: Latih model deteksi dengan gambar satu lapisan produk yang tersebar rapi tanpa saling bertumpukan sebagai standar 'OK'.",
+                        "3. Model Training: Jalankan training Anomaly Detection untuk mengenali bentuk produk standar."
+                    ],
+                    verify: "Saat inferensi, jika ada barang yang bertumpuk, area tumpang tindih tersebut akan dideteksi sebagai anomali. Koordinat `x, y` dari anomali dikirimkan ke robot agar robot menghindari pengambilan produk di area tersebut."
+                },
+                {
+                    id: "robot_guidance",
+                    title: "Vision Guidance & Type Identification (Klasifikasi & Panduan Pemetik)",
+                    mode: "Classification (OK/NG) + Panduan Posisi",
+                    desc: "Mendeteksi orientasi posisi produk dan mengklasifikasikan jenis produk (misal rasa stroberi vs jeruk) untuk menyortir produk.",
+                    setup: [
+                        "1. Image Acquisition: Pasang kamera di ujung lengan robot atau di atas konveyor feeder robot.",
+                        "2. Anotasi/Labeling: Buat folder kelas terpisah (misalnya folder `stroberi` dan folder `jeruk`) pada dataset untuk melatih sistem klasifikasi.",
+                        "3. Model Training: Pilih tipe 'Classification', masukkan daftar kelas tersebut, dan klik 'START TRAINING'."
+                    ],
+                    verify: "Ketika produk lewat, model klasifikasi mendeteksi tipenya dan OpenCV menghitung sudut rotasi serta pusat koordinat `x, y` produk, lalu mengirimkan perintah ke robot untuk mengambil dan mengarahkan produk ke wadah sortir yang tepat."
+                }
+            ]
+        }
+    ];
+
+    const activeCase = useMemo(() => {
+        for (const cat of categories) {
+            const found = cat.cases.find(c => c.id === activeCaseId);
+            if (found) return found;
+        }
+        return null;
+    }, [activeCaseId]);
+
+    return (
+        <div style={{ flex: 1, padding: '24px', display: 'grid', gridTemplateColumns: '320px 1fr', gap: '24px', overflowY: 'hidden', height: '78vh' }}>
+            {/* Sidebar List */}
+            <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: '16px' }}>
+                <h3 style={{ margin: '0 0 16px 0', fontSize: '1rem', fontWeight: 900, color: '#0f172a' }}>📖 AI Use Cases Index</h3>
+                {categories.map((cat, catIdx) => (
+                    <div key={catIdx} style={{ marginBottom: '20px' }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span>{cat.icon}</span> {cat.name}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            {cat.cases.map(item => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => setActiveCaseId(item.id)}
+                                    style={{
+                                        textAlign: 'left', padding: '10px 12px', borderRadius: '10px', border: 'none',
+                                        backgroundColor: activeCaseId === item.id ? '#f5f3ff' : 'transparent',
+                                        color: activeCaseId === item.id ? '#6d28d9' : '#475569',
+                                        fontWeight: activeCaseId === item.id ? 800 : 600,
+                                        fontSize: '0.78rem', cursor: 'pointer', transition: 'all 0.15s',
+                                        display: 'flex', flexDirection: 'column', gap: '2px',
+                                        borderLeft: activeCaseId === item.id ? '3px solid #7c3aed' : '3px solid transparent'
+                                    }}
+                                >
+                                    <span>{item.title}</span>
+                                    <span style={{ fontSize: '0.62rem', color: activeCaseId === item.id ? '#8b5cf6' : '#94a3b8', fontWeight: 500 }}>
+                                        {item.mode.split(' ')[0]}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Content Details */}
+            {activeCase && (
+                <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: '24px', gap: '20px' }}>
+                    {/* Header */}
+                    <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                            <span style={{ backgroundColor: '#f5f3ff', color: '#7c3aed', padding: '4px 10px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 900 }}>
+                                {activeCase.mode}
+                            </span>
+                        </div>
+                        <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 900, color: '#0f172a' }}>
+                            {activeCase.title}
+                        </h2>
+                    </div>
+
+                    {/* Section: Deskripsi */}
+                    <div>
+                        <h4 style={{ margin: '0 0 8px 0', fontSize: '0.85rem', fontWeight: 900, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            📝 Deskripsi Use Case
+                        </h4>
+                        <p style={{ margin: 0, fontSize: '0.82rem', color: '#475569', lineHeight: 1.5 }}>
+                            {activeCase.desc}
+                        </p>
+                    </div>
+
+                    {/* Section: Setup A-Z */}
+                    <div style={{ backgroundColor: '#faf5ff', border: '1px solid #f3e8ff', padding: '16px', borderRadius: '12px' }}>
+                        <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', fontWeight: 900, color: '#6b21a8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            ⚙️ Langkah Setup & Konfigurasi A-Z
+                        </h4>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {activeCase.setup.map((step, idx) => (
+                                <div key={idx} style={{ fontSize: '0.8rem', color: '#581c87', lineHeight: 1.4, display: 'flex', gap: '8px' }}>
+                                    <span style={{ fontWeight: 800 }}>•</span>
+                                    <span>{step}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Section: Verifikasi */}
+                    <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #dcfce7', padding: '16px', borderRadius: '12px' }}>
+                        <h4 style={{ margin: '0 0 8px 0', fontSize: '0.85rem', fontWeight: 900, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            ✅ Cara Verifikasi & Hasil di Aplikasi
+                        </h4>
+                        <p style={{ margin: 0, fontSize: '0.8rem', color: '#14532d', lineHeight: 1.4 }}>
+                            {activeCase.verify}
+                        </p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
