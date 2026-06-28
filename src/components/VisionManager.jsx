@@ -27,9 +27,11 @@ import {
     Sparkles,
     ChevronDown,
     ChevronUp,
-    HelpCircle
+    HelpCircle,
+    Save
 } from 'lucide-react';
 import JSZip from 'jszip';
+import toast from 'react-hot-toast';
 import { getAllCameras, saveCamera, deleteCamera, getAllDatasets, saveDataset, deleteDataset } from '../utils/supabaseUtilityDB';
 import { getStations } from '../utils/supabaseFrontlineDB';
 
@@ -67,6 +69,10 @@ const VisionManager = () => {
             list.forEach(r => {
                 if (r.detectors.changeDetector?.enabled) activeDetectors.push('Change Detector');
                 if (r.detectors.colorDetector?.enabled) activeDetectors.push('Color Detector');
+                if (r.detectors.jigDetector?.enabled) activeDetectors.push('Jig Detector');
+                if (r.detectors.ocrDetector?.enabled) activeDetectors.push('OCR Detector');
+                if (r.detectors.dimensionDetector?.enabled) activeDetectors.push('Dimension Detector');
+                if (r.detectors.aiDetector?.enabled) activeDetectors.push('AI Detector');
             });
             const uniqueDets = [...new Set(activeDetectors)];
             if (uniqueDets.length === 0) uniqueDets.push('Change Detector');
@@ -87,6 +93,36 @@ const VisionManager = () => {
     const [newDatasetName, setNewDatasetName] = useState('');
     const [newDatasetProject, setNewDatasetProject] = useState('');
 
+    // AI Models & Inspection Settings
+    const [aiModels, setAiModels] = useState([]);
+    const [isLoadingAiModels, setIsLoadingAiModels] = useState(false);
+    const [aiDatasets, setAiDatasets] = useState([]);
+    const [isLoadingAiDatasets, setIsLoadingAiDatasets] = useState(false);
+    const [selectedDataset, setSelectedDataset] = useState('');
+    const [newModelName, setNewModelName] = useState('');
+    const [modelType, setModelType] = useState('anomaly'); // 'anomaly' | 'classification'
+    const [epochs, setEpochs] = useState(1);
+    const [classNamesInput, setClassNamesInput] = useState('ok, ng');
+    const [isTraining, setIsTraining] = useState(false);
+    const [trainingError, setTrainingError] = useState('');
+    const [trainingSuccess, setTrainingSuccess] = useState('');
+
+    // AI Inference Testing States
+    const [testModel, setTestModel] = useState(null);
+    const [testFile, setTestFile] = useState(null);
+    const [testFilePreview, setTestFilePreview] = useState('');
+    const [isTesting, setIsTesting] = useState(false);
+    const [testResultImage, setTestResultImage] = useState('');
+    const [testResultMeta, setTestResultMeta] = useState(null);
+    const [testError, setTestError] = useState('');
+
+    // Local backend dataset creation/uploading
+    const [backendDatasetName, setBackendDatasetName] = useState('');
+    const [uploadLabel, setUploadLabel] = useState('ok');
+    const [uploadFiles, setUploadFiles] = useState([]);
+    const [isUploadingFiles, setIsUploadingFiles] = useState(false);
+    const [uploadStatus, setUploadStatus] = useState('');
+
     // Webcam State for Data Collection
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
@@ -104,6 +140,9 @@ const VisionManager = () => {
             loadDatasets();
         } else if (activeTab === 'cameras') {
             loadCameras();
+        } else if (activeTab === 'ai_models') {
+            loadAiModels();
+            loadAiDatasets();
         }
     }, [activeTab]);
 
@@ -126,6 +165,250 @@ const VisionManager = () => {
         }
     };
 
+    const loadAiModels = async () => {
+        setIsLoadingAiModels(true);
+        try {
+            const res = await fetch('http://localhost:8000/ai/model/list');
+            const data = await res.json();
+            if (data.success) {
+                setAiModels(data.models || []);
+            } else {
+                console.error('Failed to load AI models:', data.error);
+            }
+        } catch (err) {
+            console.error('Failed to connect to backend for AI models:', err);
+        } finally {
+            setIsLoadingAiModels(false);
+        }
+    };
+
+    const loadAiDatasets = async () => {
+        setIsLoadingAiDatasets(true);
+        try {
+            const res = await fetch('http://localhost:8000/ai/dataset/list');
+            const data = await res.json();
+            if (data.success) {
+                setAiDatasets(data.datasets || []);
+            } else {
+                console.error('Failed to load AI datasets:', data.error);
+            }
+        } catch (err) {
+            console.error('Failed to connect to backend for AI datasets:', err);
+        } finally {
+            setIsLoadingAiDatasets(false);
+        }
+    };
+
+    const handleTrainModel = async () => {
+        if (!newModelName.trim()) {
+            alert('Please specify a model name.');
+            return;
+        }
+        if (!selectedDataset) {
+            alert('Please select a dataset.');
+            return;
+        }
+
+        setIsTraining(true);
+        setTrainingError('');
+        setTrainingSuccess('');
+
+        try {
+            let res;
+            if (modelType === 'anomaly') {
+                res = await fetch('http://localhost:8000/ai/anomaly/train', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model_name: newModelName.trim(),
+                        dataset_name: selectedDataset,
+                        epochs: Number(epochs)
+                    })
+                });
+            } else if (modelType === 'classification') {
+                const classes = classNamesInput.split(',').map(s => s.trim()).filter(Boolean);
+                if (classes.length < 2) {
+                    alert('Please specify at least 2 class names separated by comma.');
+                    setIsTraining(false);
+                    return;
+                }
+                res = await fetch('http://localhost:8000/ai/classify/train', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model_name: newModelName.trim(),
+                        dataset_name: selectedDataset,
+                        class_names: classes
+                    })
+                });
+            } else {
+                alert('Training for Segmentation is not directly exposed as an API endpoint.');
+                setIsTraining(false);
+                return;
+            }
+
+            const data = await res.json();
+            if (data.success) {
+                setTrainingSuccess(`Model "${newModelName}" successfully trained!`);
+                setNewModelName('');
+                loadAiModels();
+            } else {
+                setTrainingError(data.error || 'Training failed.');
+            }
+        } catch (err) {
+            setTrainingError(`Connection error: ${err.message}`);
+        } finally {
+            setIsTraining(false);
+        }
+    };
+
+    const handleDeleteModel = async (type, name) => {
+        if (!confirm(`Are you sure you want to delete the model "${name}" (${type})?`)) {
+            return;
+        }
+        try {
+            const formData = new FormData();
+            formData.append('model_type', type);
+            formData.append('model_name', name);
+
+            const res = await fetch('http://localhost:8000/ai/model/delete', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('Model deleted successfully.');
+                loadAiModels();
+                if (testModel?.model_name === name && testModel?.model_type === type) {
+                    setTestModel(null);
+                }
+            } else {
+                alert(`Error deleting model: ${data.error}`);
+            }
+        } catch (err) {
+            alert(`Error connecting to backend: ${err.message}`);
+        }
+    };
+
+    const handleUploadDatasetFiles = async () => {
+        const dsName = backendDatasetName.trim() || selectedDataset;
+        if (!dsName) {
+            alert('Please specify or select a dataset name.');
+            return;
+        }
+        if (uploadFiles.length === 0) {
+            alert('Please select files to upload.');
+            return;
+        }
+
+        setIsUploadingFiles(true);
+        setUploadStatus(`Uploading 0/${uploadFiles.length} files...`);
+
+        try {
+            let successCount = 0;
+            for (let i = 0; i < uploadFiles.length; i++) {
+                const file = uploadFiles[i];
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('dataset_name', dsName);
+                formData.append('label', uploadLabel);
+
+                setUploadStatus(`Uploading ${i + 1}/${uploadFiles.length}: ${file.name}...`);
+                const res = await fetch('http://localhost:8000/ai/dataset/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    successCount++;
+                }
+            }
+            setUploadStatus(`Successfully uploaded ${successCount} files to dataset "${dsName}" under label "${uploadLabel}"!`);
+            setUploadFiles([]);
+            loadAiDatasets();
+            setSelectedDataset(dsName);
+        } catch (err) {
+            setUploadStatus(`Error uploading files: ${err.message}`);
+        } finally {
+            setIsUploadingFiles(false);
+        }
+    };
+
+    const handleTestInference = async () => {
+        if (!testModel) {
+            alert('Please select a model to test.');
+            return;
+        }
+        if (!testFile) {
+            alert('Please select an image file to upload for testing.');
+            return;
+        }
+
+        setIsTesting(true);
+        setTestError('');
+        setTestResultImage('');
+        setTestResultMeta(null);
+
+        try {
+            const formData = new FormData();
+            formData.append('file', testFile);
+            formData.append('model_name', testModel.model_name);
+
+            let endpoint = '';
+            if (testModel.model_type === 'anomaly') {
+                endpoint = 'http://localhost:8000/ai/anomaly/detect';
+            } else if (testModel.model_type === 'segmentation') {
+                endpoint = 'http://localhost:8000/ai/segment';
+                formData.append('threshold', '0.5');
+            } else if (testModel.model_type === 'classification') {
+                endpoint = 'http://localhost:8000/ai/classify';
+            } else {
+                alert('Unknown model type');
+                setIsTesting(false);
+                return;
+            }
+
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(text || `HTTP ${res.status}`);
+            }
+
+            const isPassed = res.headers.get('X-Is-Passed') || res.headers.get('X-Is-Anomaly') === 'false';
+            const calcVal = res.headers.get('X-Calculated-Value') || res.headers.get('X-Anomaly-Score') || '';
+            const segmentMetaStr = res.headers.get('X-Segment-Result');
+            const classifyMetaStr = res.headers.get('X-Classify-Result');
+            const score = res.headers.get('X-Anomaly-Score');
+
+            let meta = {
+                isPassed: isPassed === 'true' || isPassed === true,
+                calculatedValue: calcVal,
+                anomalyScore: score
+            };
+
+            if (segmentMetaStr) {
+                meta.segmentDetails = JSON.parse(segmentMetaStr);
+            }
+            if (classifyMetaStr) {
+                meta.classifyDetails = JSON.parse(classifyMetaStr);
+            }
+
+            setTestResultMeta(meta);
+
+            const blob = await res.blob();
+            const imgUrl = URL.createObjectURL(blob);
+            setTestResultImage(imgUrl);
+        } catch (err) {
+            setTestError(err.message || 'Error occurred during inference.');
+        } finally {
+            setIsTesting(false);
+        }
+    };
+
     const loadCameras = async () => {
         setIsLoadingCameras(true);
         try {
@@ -139,7 +422,8 @@ const VisionManager = () => {
                     regions: settings.regionsCount || 0,
                     detectors: settings.detectors || ['Change Detector'],
                     cameraSource: c.type || 'DEVICE',
-                    ipCameraUrl: c.url || ''
+                    ipCameraUrl: c.url || '',
+                    settings: settings
                 };
             });
             setCameraConfigs(mappedConfigs);
@@ -190,6 +474,7 @@ const VisionManager = () => {
                 if (r.detectors?.jigDetector?.enabled) activeDetectors.push('Jig Detector');
                 if (r.detectors?.ocrDetector?.enabled) activeDetectors.push('OCR Detector');
                 if (r.detectors?.dimensionDetector?.enabled) activeDetectors.push('Dimension Detector');
+                if (r.detectors?.aiDetector?.enabled) activeDetectors.push('AI Detector');
             });
             const uniqueDets = [...new Set(activeDetectors)];
             if (uniqueDets.length === 0) uniqueDets.push('Change Detector');
@@ -200,6 +485,7 @@ const VisionManager = () => {
                 url: target.ipCameraUrl || '',
                 type: target.cameraSource || 'DEVICE',
                 settings: {
+                    ...(target.settings || {}),
                     status: newStatus,
                     regionsCount: list.length,
                     detectors: uniqueDets,
@@ -340,12 +626,13 @@ const VisionManager = () => {
         stopCameraStream();
         setCameraError('');
 
+        const savedCameraId = localStorage.getItem('mavi-selected-camera-id');
+        const videoConstraints = savedCameraId 
+            ? { width: { ideal: 640 }, height: { ideal: 480 }, deviceId: { exact: savedCameraId } }
+            : { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'environment' };
+
         navigator.mediaDevices.getUserMedia({
-            video: {
-                width: { ideal: 640 },
-                height: { ideal: 480 },
-                facingMode: 'environment'
-            }
+            video: videoConstraints
         })
         .then((stream) => {
             setHasCameraPermission(true);
@@ -580,51 +867,63 @@ const VisionManager = () => {
     return (
         <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc', fontFamily: 'Inter, system-ui, sans-serif' }}>
             {/* Main Header & Tab Navigation */}
-            <div style={{ padding: '24px 24px 0 24px', backgroundColor: 'white', borderBottom: '1px solid #e2e8f0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 900, color: '#0f172a' }}>Vision</h2>
-                            <span style={{ backgroundColor: '#f1f5f9', color: '#1e293b', padding: '2px 8px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 700 }}>Active</span>
+            {!editingCameraConfig && (
+                <div style={{ padding: '16px 20px 0 20px', backgroundColor: 'white', borderBottom: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 900, color: '#0f172a' }}>Vision</h2>
+                                <span style={{ backgroundColor: '#f1f5f9', color: '#1e293b', padding: '2px 8px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 700 }}>Active</span>
+                            </div>
+                            <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '0.8rem' }}>Configure cameras and manage visual inspection datasets.</p>
                         </div>
-                        <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '0.85rem' }}>Configure cameras and manage visual inspection datasets.</p>
+                    </div>
+
+                    {/* Tab Selector Buttons */}
+                    <div style={{ display: 'flex', gap: '20px' }}>
+                        <button
+                            onClick={() => setActiveTab('cameras')}
+                            style={{
+                                padding: '10px 4px', border: 'none', borderBottom: activeTab === 'cameras' ? '3px solid #3b82f6' : '3px solid transparent',
+                                backgroundColor: 'transparent', color: activeTab === 'cameras' ? '#3b82f6' : '#64748b',
+                                fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.15s'
+                            }}
+                        >
+                            Camera Configurations
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('datasets')}
+                            style={{
+                                padding: '10px 4px', border: 'none', borderBottom: activeTab === 'datasets' ? '3px solid #3b82f6' : '3px solid transparent',
+                                backgroundColor: 'transparent', color: activeTab === 'datasets' ? '#3b82f6' : '#64748b',
+                                fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.15s'
+                            }}
+                        >
+                            Visual Inspection Datasets
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('privacy')}
+                            style={{
+                                padding: '10px 4px', border: 'none', borderBottom: activeTab === 'privacy' ? '3px solid #3b82f6' : '3px solid transparent',
+                                backgroundColor: 'transparent', color: activeTab === 'privacy' ? '#3b82f6' : '#64748b',
+                                fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.15s'
+                            }}
+                        >
+                            Vision & Privacy Settings
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('ai_models')}
+                            style={{
+                                padding: '10px 4px', border: 'none', borderBottom: activeTab === 'ai_models' ? '3px solid #3b82f6' : '3px solid transparent',
+                                backgroundColor: 'transparent', color: activeTab === 'ai_models' ? '#3b82f6' : '#64748b',
+                                fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.15s'
+                            }}
+                        >
+                            AI Models & Inspection
+                        </button>
                     </div>
                 </div>
-
-                {/* Tab Selector Buttons */}
-                <div style={{ display: 'flex', gap: '24px' }}>
-                    <button
-                        onClick={() => setActiveTab('cameras')}
-                        style={{
-                            padding: '12px 4px', border: 'none', borderBottom: activeTab === 'cameras' ? '3px solid #3b82f6' : '3px solid transparent',
-                            backgroundColor: 'transparent', color: activeTab === 'cameras' ? '#3b82f6' : '#64748b',
-                            fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', transition: 'all 0.15s'
-                        }}
-                    >
-                        Camera Configurations
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('datasets')}
-                        style={{
-                            padding: '12px 4px', border: 'none', borderBottom: activeTab === 'datasets' ? '3px solid #3b82f6' : '3px solid transparent',
-                            backgroundColor: 'transparent', color: activeTab === 'datasets' ? '#3b82f6' : '#64748b',
-                            fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', transition: 'all 0.15s'
-                        }}
-                    >
-                        Visual Inspection Datasets
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('privacy')}
-                        style={{
-                            padding: '12px 4px', border: 'none', borderBottom: activeTab === 'privacy' ? '3px solid #3b82f6' : '3px solid transparent',
-                            backgroundColor: 'transparent', color: activeTab === 'privacy' ? '#3b82f6' : '#64748b',
-                            fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', transition: 'all 0.15s'
-                        }}
-                    >
-                        Vision & Privacy Settings
-                    </button>
-                </div>
-            </div>
+            )}
 
             {/* TAB CONTENT: CAMERA CONFIGURATIONS */}
             {activeTab === 'cameras' && (
@@ -803,15 +1102,163 @@ const VisionManager = () => {
                                 <h3 style={{ margin: '0 0 16px 0', fontSize: '0.95rem', fontWeight: 800 }}>Available Detectors</h3>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                     {[
-                                        { name: 'Change Detector', desc: 'Monitors regions for visual changes' },
-                                        { name: 'Jig Detector', desc: 'Tracks objects with markers' },
-                                        { name: 'Color Detector', desc: 'Identifies colors in specified regions' },
-                                        { name: 'OCR Detector', desc: 'Reads text from images' },
-                                        { name: 'Dimension Detector', desc: 'Measures object dimensions (mm) with calibration' }
+                                        { 
+                                            name: 'Presence Check', 
+                                            desc: 'Monitors regions for visual changes or object presence',
+                                            icon: (
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '12px', flexShrink: 0 }}>
+                                                    <rect width="24" height="24" rx="4" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
+                                                    <rect x="5" y="5" width="6" height="6" rx="1" fill="#3b82f6" />
+                                                    <rect x="13" y="5" width="6" height="6" rx="1" stroke="#3b82f6" strokeWidth="1.5" fill="none" />
+                                                    <rect x="5" y="13" width="6" height="6" rx="1" fill="#3b82f6" />
+                                                    <rect x="13" y="13" width="6" height="6" rx="1" fill="#3b82f6" />
+                                                </svg>
+                                            )
+                                        },
+                                        { 
+                                            name: 'Scratch Inspection', 
+                                            desc: 'Detects surface scratches, cracks, and defects using anomaly detection',
+                                            icon: (
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '12px', flexShrink: 0 }}>
+                                                    <rect width="24" height="24" rx="4" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
+                                                    <rect x="4" y="4" width="16" height="16" fill="#3b82f6" rx="1" />
+                                                    <circle cx="12" cy="12" r="5.5" fill="#10b981" opacity="0.8" />
+                                                    <circle cx="12" cy="12" r="3.5" fill="#eab308" opacity="0.9" />
+                                                    <circle cx="12" cy="12" r="1.5" fill="#ef4444" />
+                                                </svg>
+                                            )
+                                        },
+                                        { 
+                                            name: 'GD&T Measurement', 
+                                            desc: 'Measures object dimensions (width, height, circle diameter, diagonal)',
+                                            icon: (
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '12px', flexShrink: 0 }}>
+                                                    <rect width="24" height="24" rx="4" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
+                                                    <circle cx="10" cy="12" r="5" fill="#3b82f6" />
+                                                    <line x1="17.5" y1="5" x2="17.5" y2="19" stroke="#1e293b" strokeWidth="1.2" />
+                                                    <path d="M15.5 8L17.5 5L19.5 8" stroke="#1e293b" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                                    <path d="M15.5 16L17.5 19L19.5 16" stroke="#1e293b" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                                    <line x1="13.5" y1="6" x2="17.5" y2="6" stroke="#475569" strokeWidth="0.8" strokeDasharray="2" />
+                                                    <line x1="13.5" y1="18" x2="17.5" y2="18" stroke="#475569" strokeWidth="0.8" strokeDasharray="2" />
+                                                </svg>
+                                            )
+                                        },
+                                        { 
+                                            name: 'Positioning (Jig)', 
+                                            desc: 'Tracks object position shifts and adjusts coordinate ROIs',
+                                            icon: (
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '12px', flexShrink: 0 }}>
+                                                    <rect width="24" height="24" rx="4" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
+                                                    <rect x="5" y="5" width="5" height="5" rx="0.5" transform="rotate(45 7.5 7.5)" fill="#f97316" />
+                                                    <rect x="13" y="13" width="5" height="5" rx="0.5" transform="rotate(45 15.5 15.5)" stroke="#f97316" strokeWidth="1.5" fill="none" />
+                                                    <path d="M9.5 9.5L13.5 13.5" stroke="#f97316" strokeWidth="1.5" strokeLinecap="round" />
+                                                    <path d="M13.5 10.5V13.5H10.5" stroke="#f97316" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                </svg>
+                                            )
+                                        },
+                                        { 
+                                            name: 'Color Inspection', 
+                                            desc: 'Identifies and validates colors in specified regions',
+                                            icon: (
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '12px', flexShrink: 0 }}>
+                                                    <rect width="24" height="24" rx="4" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
+                                                    <rect x="5" y="5" width="4.5" height="14" fill="#10b981" />
+                                                    <rect x="9.75" y="5" width="4.5" height="14" fill="#3b82f6" />
+                                                    <rect x="14.5" y="5" width="4.5" height="14" fill="#ef4444" />
+                                                    <rect x="5" y="5" width="14" height="14" stroke="#475569" strokeWidth="1" fill="none" />
+                                                </svg>
+                                            )
+                                        },
+                                        { 
+                                            name: 'Count Detector', 
+                                            desc: 'Counts target components, pins, or items within the ROI',
+                                            icon: (
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '12px', flexShrink: 0 }}>
+                                                    <rect width="24" height="24" rx="4" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
+                                                    <circle cx="9.5" cy="14.5" r="5" stroke="#475569" strokeWidth="1.5" fill="white" />
+                                                    <circle cx="14.5" cy="9.5" r="5" stroke="#475569" strokeWidth="1.5" fill="white" />
+                                                    <text x="7.5" y="17" fill="#2563eb" fontSize="7" fontWeight="900" fontFamily="sans-serif">1</text>
+                                                    <text x="12.5" y="12" fill="#2563eb" fontSize="7" fontWeight="900" fontFamily="sans-serif">2</text>
+                                                </svg>
+                                            )
+                                        },
+                                        { 
+                                            name: 'Character Recognition', 
+                                            desc: 'Reads serial numbers, lot codes, and alphanumeric characters',
+                                            icon: (
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '12px', flexShrink: 0 }}>
+                                                    <rect width="24" height="24" rx="4" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
+                                                    <rect x="4.5" y="6.5" width="15" height="11" rx="1.5" stroke="#475569" strokeWidth="1.5" fill="none" />
+                                                    <text x="6" y="14.5" fill="#475569" fontSize="7" fontWeight="bold" fontFamily="monospace">ABC</text>
+                                                </svg>
+                                            )
+                                        },
+                                        { 
+                                            name: '1D Code Reader', 
+                                            desc: 'Scans and decodes linear barcodes (Code39, Code128, etc.)',
+                                            icon: (
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '12px', flexShrink: 0 }}>
+                                                    <rect width="24" height="24" rx="4" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
+                                                    <rect x="4" y="5" width="2" height="14" fill="#1e293b" />
+                                                    <rect x="7" y="5" width="1" height="14" fill="#1e293b" />
+                                                    <rect x="9" y="5" width="3" height="14" fill="#1e293b" />
+                                                    <rect x="13" y="5" width="1" height="14" fill="#1e293b" />
+                                                    <rect x="15" y="5" width="2" height="14" fill="#1e293b" />
+                                                    <rect x="18" y="5" width="2" height="14" fill="#1e293b" />
+                                                </svg>
+                                            )
+                                        },
+                                        { 
+                                            name: '2D Code Reader', 
+                                            desc: 'Scans and decodes QR codes and DataMatrix symbols',
+                                            icon: (
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '12px', flexShrink: 0 }}>
+                                                    <rect width="24" height="24" rx="4" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
+                                                    <rect x="4" y="4" width="6" height="6" fill="#1e293b" />
+                                                    <rect x="5" y="5" width="4" height="4" fill="white" />
+                                                    <rect x="6" y="6" width="2" height="2" fill="#1e293b" />
+                                                    
+                                                    <rect x="14" y="4" width="6" height="6" fill="#1e293b" />
+                                                    <rect x="15" y="5" width="4" height="4" fill="white" />
+                                                    <rect x="16" y="6" width="2" height="2" fill="#1e293b" />
+                                                    
+                                                    <rect x="4" y="14" width="6" height="6" fill="#1e293b" />
+                                                    <rect x="5" y="15" width="4" height="4" fill="white" />
+                                                    <rect x="6" y="16" width="2" height="2" fill="#1e293b" />
+
+                                                    <rect x="14" y="14" width="2" height="2" fill="#1e293b" />
+                                                    <rect x="18" y="14" width="2" height="2" fill="#1e293b" />
+                                                    <rect x="14" y="18" width="2" height="2" fill="#1e293b" />
+                                                    <rect x="16" y="16" width="2" height="2" fill="#1e293b" />
+                                                    <rect x="18" y="18" width="2" height="2" fill="#1e293b" />
+                                                </svg>
+                                            )
+                                        },
+                                        { 
+                                            name: 'Calibration Tool', 
+                                            desc: 'Calibrates lens distortion and converts pixel-to-millimeter coordinates',
+                                            icon: (
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '12px', flexShrink: 0 }}>
+                                                    <rect width="24" height="24" rx="4" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
+                                                    <rect x="4" y="4" width="4" height="4" fill="#ec4899" />
+                                                    <rect x="12" y="4" width="4" height="4" fill="#ec4899" />
+                                                    <rect x="8" y="8" width="4" height="4" fill="#ec4899" />
+                                                    <rect x="16" y="8" width="4" height="4" fill="#ec4899" />
+                                                    <rect x="4" y="12" width="4" height="4" fill="#ec4899" />
+                                                    <rect x="12" y="12" width="4" height="4" fill="#ec4899" />
+                                                    <rect x="8" y="16" width="4" height="4" fill="#ec4899" />
+                                                    <rect x="16" y="16" width="4" height="4" fill="#ec4899" />
+                                                    <rect x="4" y="4" width="16" height="16" stroke="#db2777" strokeWidth="1" fill="none" />
+                                                </svg>
+                                            )
+                                        }
                                     ].map(d => (
-                                        <div key={d.name} style={{ padding: '10px', border: '1px solid #f1f5f9', borderRadius: '8px' }}>
-                                            <div style={{ fontWeight: 700, fontSize: '0.8rem', color: '#334155' }}>{d.name}</div>
-                                            <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>{d.desc}</div>
+                                        <div key={d.name} style={{ padding: '10px', border: '1px solid #f1f5f9', borderRadius: '8px', display: 'flex', alignItems: 'center' }}>
+                                            {d.icon}
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ fontWeight: 700, fontSize: '0.8rem', color: '#334155' }}>{d.name}</div>
+                                                <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>{d.desc}</div>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -1266,6 +1713,534 @@ const VisionManager = () => {
                 </div>
             )}
 
+            {/* TAB CONTENT: AI MODELS & INSPECTION */}
+            {activeTab === 'ai_models' && (
+                <div style={{ flex: 1, padding: '24px', display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px', overflowY: 'auto' }}>
+                    {/* LEFT PANEL: MODEL LIST & TRAINING */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        
+                        {/* Models List Box */}
+                        <div style={{ padding: '24px', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                <div>
+                                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: '#0f172a' }}>Trained AI Models</h3>
+                                    <p style={{ margin: '2px 0 0 0', color: '#64748b', fontSize: '0.75rem' }}>List of models available for inspections.</p>
+                                </div>
+                                <button 
+                                    onClick={loadAiModels} 
+                                    disabled={isLoadingAiModels}
+                                    style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', fontWeight: 700 }}
+                                >
+                                    {isLoadingAiModels ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                                    Refresh
+                                </button>
+                            </div>
+
+                            {isLoadingAiModels ? (
+                                <div style={{ textAlign: 'center', padding: '30px', color: '#94a3b8' }}>
+                                    <Loader2 size={24} className="animate-spin" style={{ margin: '0 auto 8px' }} />
+                                    <span style={{ fontSize: '0.8rem' }}>Loading models...</span>
+                                </div>
+                            ) : aiModels.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '30px', border: '1px dashed #cbd5e1', borderRadius: '12px', color: '#64748b' }}>
+                                    <Sparkles size={28} color="#94a3b8" style={{ margin: '0 auto 8px' }} />
+                                    <div style={{ fontSize: '0.8rem', fontWeight: 700 }}>No AI models found</div>
+                                    <div style={{ fontSize: '0.7rem', marginTop: '2px' }}>Use the training panel below to create your first model.</div>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
+                                    {aiModels.map((model, idx) => (
+                                        <div 
+                                            key={idx}
+                                            style={{
+                                                padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0',
+                                                backgroundColor: testModel?.model_name === model.model_name && testModel?.model_type === model.model_type ? '#eff6ff' : '#f8fafc',
+                                                borderColor: testModel?.model_name === model.model_name && testModel?.model_type === model.model_type ? '#bfdbfe' : '#e2e8f0',
+                                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                                transition: 'all 0.15s'
+                                            }}
+                                        >
+                                            <div style={{ cursor: 'pointer', flex: 1 }} onClick={() => {
+                                                setTestModel(model);
+                                                setTestFile(null);
+                                                setTestFilePreview('');
+                                                setTestResultImage('');
+                                                setTestResultMeta(null);
+                                            }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <span style={{ fontWeight: 800, fontSize: '0.85rem', color: '#1e293b' }}>{model.model_name}</span>
+                                                    <span style={{
+                                                        fontSize: '0.65rem', fontWeight: 800, padding: '2px 6px', borderRadius: '6px',
+                                                        backgroundColor: model.model_type === 'anomaly' ? '#fef3c7' : model.model_type === 'segmentation' ? '#fee2e2' : '#f3e8ff',
+                                                        color: model.model_type === 'anomaly' ? '#d97706' : model.model_type === 'segmentation' ? '#dc2626' : '#7c3aed'
+                                                    }}>
+                                                        {model.model_type.toUpperCase()}
+                                                    </span>
+                                                    {model.status && (
+                                                        <span style={{
+                                                            fontSize: '0.65rem', fontWeight: 700, padding: '1px 5px', borderRadius: '4px',
+                                                            backgroundColor: model.status === 'ready' || model.status === 'complete' ? '#dcfce7' : '#f1f5f9',
+                                                            color: model.status === 'ready' || model.status === 'complete' ? '#15803d' : '#475569'
+                                                        }}>
+                                                            {model.status}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '4px', wordBreak: 'break-all' }}>
+                                                    {model.dataset_name ? `Dataset: ${model.dataset_name}` : ''} {model.created_at ? `• ${new Date(model.created_at).toLocaleDateString()}` : ''}
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <button
+                                                    onClick={() => {
+                                                        setTestModel(model);
+                                                        setTestFile(null);
+                                                        setTestFilePreview('');
+                                                        setTestResultImage('');
+                                                        setTestResultMeta(null);
+                                                    }}
+                                                    style={{
+                                                        border: 'none', backgroundColor: '#3b82f6', color: 'white',
+                                                        padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    Select for Test
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteModel(model.model_type, model.model_name)}
+                                                    style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                                    title="Delete model"
+                                                >
+                                                    <Trash2 size={15} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Model Training Form Panel */}
+                        <div style={{ padding: '24px', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: 900, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Sparkles size={18} color="#3b82f6" />
+                                Train a New AI Model
+                            </h3>
+
+                            {/* Model Type */}
+                            <div style={{ marginBottom: '16px' }}>
+                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>MODEL INSPECTION TYPE</label>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                    {[
+                                        { id: 'anomaly', label: 'Anomaly Detection', desc: 'Unsupervised (OK images only)' },
+                                        { id: 'classification', label: 'Classification', desc: 'Supervised OK/NG classification' }
+                                    ].map(type => (
+                                        <div
+                                            key={type.id}
+                                            onClick={() => setModelType(type.id)}
+                                            style={{
+                                                padding: '10px 14px', borderRadius: '10px', cursor: 'pointer',
+                                                border: modelType === type.id ? '2px solid #3b82f6' : '1px solid #e2e8f0',
+                                                backgroundColor: modelType === type.id ? 'rgba(59, 130, 246, 0.02)' : 'white',
+                                                transition: 'all 0.15s'
+                                            }}
+                                        >
+                                            <div style={{ fontWeight: 800, fontSize: '0.8rem', color: '#1e293b' }}>{type.label}</div>
+                                            <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '2px' }}>{type.desc}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Model Name */}
+                            <div style={{ marginBottom: '16px' }}>
+                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>MODEL NAME</label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g. pcb_inspection_anomaly"
+                                    value={newModelName}
+                                    onChange={e => setNewModelName(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ''))}
+                                    style={{ width: '100%', padding: '10px 14px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.85rem', outline: 'none' }}
+                                />
+                            </div>
+
+                            {/* Select Backend Dataset */}
+                            <div style={{ marginBottom: '16px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>SELECT TRAINING DATASET (BACKEND)</label>
+                                    <button 
+                                        onClick={loadAiDatasets}
+                                        style={{ border: 'none', background: 'transparent', color: '#3b82f6', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}
+                                    >
+                                        Refresh List
+                                    </button>
+                                </div>
+                                <select
+                                    value={selectedDataset}
+                                    onChange={e => setSelectedDataset(e.target.value)}
+                                    style={{ width: '100%', padding: '10px 14px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.85rem', backgroundColor: 'white', outline: 'none' }}
+                                >
+                                    <option value="">-- Select local dataset --</option>
+                                    {aiDatasets.map((ds, idx) => (
+                                        <option key={idx} value={ds.name}>
+                                            {ds.name} ({ds.total_images} images total)
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Anomaly specific settings */}
+                            {modelType === 'anomaly' && (
+                                <div style={{ marginBottom: '20px' }}>
+                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>TRAINING EPOCHS (1-10 recommended for CPU/fast testing)</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="50"
+                                        value={epochs}
+                                        onChange={e => setEpochs(Number(e.target.value))}
+                                        style={{ width: '100%', padding: '10px 14px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.85rem', outline: 'none' }}
+                                    />
+                                    <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '6px' }}>
+                                        * Note: Anomaly model uses PatchCore/FastFlow which trains fast on local CPU, requiring only OK images in the selected dataset.
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Classification specific settings */}
+                            {modelType === 'classification' && (
+                                <div style={{ marginBottom: '20px' }}>
+                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>CLASS LABELS (comma-separated folders inside dataset)</label>
+                                    <input
+                                        type="text"
+                                        placeholder="ok, ng"
+                                        value={classNamesInput}
+                                        onChange={e => setClassNamesInput(e.target.value)}
+                                        style={{ width: '100%', padding: '10px 14px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.85rem', outline: 'none' }}
+                                    />
+                                    <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '6px' }}>
+                                        * Make sure the dataset on backend has corresponding folders (e.g. <code>datasets/{selectedDataset || '&lt;dataset_name&gt;'}/ok</code> and <code>datasets/{selectedDataset || '&lt;dataset_name&gt;'}/ng</code>) populated with training images.
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Feedback messages */}
+                            {trainingError && (
+                                <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', fontSize: '0.8rem', fontWeight: 600, marginBottom: '16px' }}>
+                                    ❌ Training Error: {trainingError}
+                                </div>
+                            )}
+
+                            {trainingSuccess && (
+                                <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a', fontSize: '0.8rem', fontWeight: 600, marginBottom: '16px' }}>
+                                    ✅ {trainingSuccess}
+                                </div>
+                            )}
+
+                            {/* Submit Button */}
+                            <button
+                                onClick={handleTrainModel}
+                                disabled={isTraining}
+                                style={{
+                                    width: '100%', padding: '12px 20px', border: 'none', borderRadius: '8px',
+                                    backgroundColor: isTraining ? '#94a3b8' : '#3b82f6',
+                                    color: 'white', fontSize: '0.85rem', fontWeight: 800, cursor: isTraining ? 'not-allowed' : 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                                    boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.2)', transition: 'all 0.15s'
+                                }}
+                            >
+                                {isTraining ? (
+                                    <>
+                                        <Loader2 size={16} className="animate-spin" />
+                                        TRAINING MODEL IN PROGRESS (Backend script)...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Play size={16} fill="white" />
+                                        START TRAINING
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* RIGHT PANEL: MODEL TESTING & LOCAL DATASET UPLOADER */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        
+                        {/* Model Inference Testing Panel */}
+                        <div style={{ padding: '24px', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: 900, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Eye size={18} color="#10b981" />
+                                Test Inference on Image
+                            </h3>
+
+                            {testModel ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', marginBottom: '16px' }}>
+                                    <CheckCircle2 size={16} color="#16a34a" />
+                                    <div>
+                                        <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#166534' }}>SELECTED MODEL</div>
+                                        <div style={{ fontSize: '0.8rem', fontWeight: 900, color: '#14532d' }}>{testModel.model_name} ({testModel.model_type.toUpperCase()})</div>
+                                    </div>
+                                    <button 
+                                        onClick={() => setTestModel(null)} 
+                                        style={{ marginLeft: 'auto', border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8', fontSize: '0.7rem' }}
+                                    >
+                                        Change
+                                    </button>
+                                </div>
+                            ) : (
+                                <div style={{ padding: '12px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', color: '#b45309', fontSize: '0.75rem', fontWeight: 700, marginBottom: '16px' }}>
+                                    ⚠️ Please select a model from the list on the left to begin testing.
+                                </div>
+                            )}
+
+                            {/* Image selector */}
+                            <div style={{ marginBottom: '16px' }}>
+                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>SELECT TEST IMAGE</label>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={e => {
+                                        const file = e.target.files[0];
+                                        if (file) {
+                                            setTestFile(file);
+                                            setTestFilePreview(URL.createObjectURL(file));
+                                            setTestResultImage('');
+                                            setTestResultMeta(null);
+                                        }
+                                    }}
+                                    style={{ fontSize: '0.8rem' }}
+                                />
+                            </div>
+
+                            {/* Image Previews Side-by-Side or Sequential */}
+                            {(testFilePreview || testResultImage) && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: testResultImage ? '1fr 1fr' : '1fr', gap: '12px' }}>
+                                        {testFilePreview && (
+                                            <div>
+                                                <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', marginBottom: '4px', textAlign: 'center' }}>Original Input</div>
+                                                <div style={{ width: '100%', height: '200px', backgroundColor: '#0f172a', borderRadius: '10px', overflow: 'hidden', border: '1px solid #cbd5e1' }}>
+                                                    <img src={testFilePreview} alt="Original" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                                </div>
+                                            </div>
+                                        )}
+                                        
+                                        {testResultImage && (
+                                            <div>
+                                                <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#3b82f6', marginBottom: '4px', textAlign: 'center' }}>AI Inspection Output</div>
+                                                <div style={{ width: '100%', height: '200px', backgroundColor: '#0f172a', borderRadius: '10px', overflow: 'hidden', border: '1px solid #cbd5e1', position: 'relative' }}>
+                                                    <img src={testResultImage} alt="Result" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                                    {testResultMeta && (
+                                                        <div style={{
+                                                            position: 'absolute', top: '8px', right: '8px',
+                                                            backgroundColor: testResultMeta.isPassed ? 'rgba(34, 197, 94, 0.9)' : 'rgba(239, 68, 68, 0.9)',
+                                                            color: 'white', fontWeight: 900, fontSize: '0.75rem', padding: '2px 8px', borderRadius: '6px',
+                                                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                                        }}>
+                                                            {testResultMeta.isPassed ? 'OK' : 'NG'}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Test Result Metadata Details */}
+                                    {testResultMeta && (
+                                        <div style={{ padding: '14px', borderRadius: '12px', border: '1px solid #cbd5e1', backgroundColor: '#f8fafc' }}>
+                                            <div style={{ fontSize: '0.8rem', fontWeight: 900, color: '#334155', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px', marginBottom: '8px' }}>
+                                                Inspection Details
+                                            </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '0.75rem' }}>
+                                                <div>
+                                                    <span style={{ color: '#64748b' }}>Decision:</span>{' '}
+                                                    <span style={{ fontWeight: 800, color: testResultMeta.isPassed ? '#16a34a' : '#dc2626' }}>
+                                                        {testResultMeta.isPassed ? '✅ PASS (OK)' : '❌ FAIL (NG)'}
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <span style={{ color: '#64748b' }}>Value/Summary:</span>{' '}
+                                                    <span style={{ fontWeight: 800, color: '#334155' }}>
+                                                        {testResultMeta.calculatedValue || 'N/A'}
+                                                    </span>
+                                                </div>
+                                                {testResultMeta.anomalyScore && (
+                                                    <div style={{ gridColumn: 'span 2' }}>
+                                                        <span style={{ color: '#64748b' }}>Anomaly Score:</span>{' '}
+                                                        <span style={{ fontWeight: 800, color: '#475569' }}>
+                                                            {Number(testResultMeta.anomalyScore).toFixed(4)}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                
+                                                {/* Segment info */}
+                                                {testResultMeta.segmentDetails && (
+                                                    <div style={{ gridColumn: 'span 2', marginTop: '6px', borderTop: '1px solid #e2e8f0', paddingTop: '6px' }}>
+                                                        <div style={{ fontWeight: 700, color: '#475569', marginBottom: '4px' }}>Segmentation Result:</div>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', color: '#64748b' }}>
+                                                            <span>• Defect Count: <strong>{testResultMeta.segmentDetails.defect_count}</strong></span>
+                                                            <span>• Defect Area Ratio: <strong>{(testResultMeta.segmentDetails.defect_ratio * 100).toFixed(3)}%</strong> ({testResultMeta.segmentDetails.total_area_px} px)</span>
+                                                            <span>• Method: <code>{testResultMeta.segmentDetails.method}</code></span>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Classify info */}
+                                                {testResultMeta.classifyDetails && (
+                                                    <div style={{ gridColumn: 'span 2', marginTop: '6px', borderTop: '1px solid #e2e8f0', paddingTop: '6px' }}>
+                                                        <div style={{ fontWeight: 700, color: '#475569', marginBottom: '4px' }}>Classification Result:</div>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', color: '#64748b' }}>
+                                                            <span>• Predicted Class: <strong style={{ color: '#7c3aed' }}>{testResultMeta.classifyDetails.predicted_class}</strong></span>
+                                                            <span>• Confidence: <strong>{Number(testResultMeta.classifyDetails.confidence).toFixed(1)}%</strong></span>
+                                                            {testResultMeta.classifyDetails.probabilities && (
+                                                                <span style={{ fontSize: '0.7rem', display: 'block', marginTop: '3px' }}>
+                                                                    Probabilities: {Object.entries(testResultMeta.classifyDetails.probabilities).map(([c, p]) => `${c}: ${(p*100).toFixed(1)}%`).join(' | ')}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {testError && (
+                                <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', fontSize: '0.8rem', fontWeight: 600, marginBottom: '16px' }}>
+                                    ❌ Test Error: {testError}
+                                </div>
+                            )}
+
+                            {/* Test Execution Button */}
+                            <button
+                                onClick={handleTestInference}
+                                disabled={isTesting || !testModel || !testFile}
+                                style={{
+                                    width: '100%', padding: '10px 18px', border: 'none', borderRadius: '8px',
+                                    backgroundColor: (isTesting || !testModel || !testFile) ? '#cbd5e1' : '#10b981',
+                                    color: 'white', fontSize: '0.8rem', fontWeight: 800, cursor: (isTesting || !testModel || !testFile) ? 'not-allowed' : 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                                    transition: 'all 0.15s'
+                                }}
+                            >
+                                {isTesting ? (
+                                    <>
+                                        <Loader2 size={16} className="animate-spin" />
+                                        Running Inference...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Play size={16} fill="white" />
+                                        TEST INFERENCE
+                                    </>
+                                )}
+                            </button>
+                        </div>
+
+                        {/* Local backend dataset manager */}
+                        <div style={{ padding: '24px', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: 900, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <FolderPlus size={18} color="#eab308" />
+                                Create or Add Files to Backend Dataset
+                            </h3>
+
+                            {/* Create / Select dataset */}
+                            <div style={{ marginBottom: '12px' }}>
+                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>DATASET NAME (FOLDER ON BACKEND)</label>
+                                <input
+                                    type="text"
+                                    placeholder="Enter new dataset name or type existing one"
+                                    value={backendDatasetName}
+                                    onChange={e => setBackendDatasetName(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ''))}
+                                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.8rem', outline: 'none' }}
+                                />
+                                <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '4px' }}>
+                                    Leave blank to upload directly to selected dataset: <strong>{selectedDataset || '(None)'}</strong>
+                                </div>
+                            </div>
+
+                            {/* Label selection */}
+                            <div style={{ marginBottom: '12px' }}>
+                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>IMAGE LABEL / SUBFOLDER</label>
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    {['ok', 'ng'].map(lbl => (
+                                        <button
+                                            key={lbl}
+                                            onClick={() => setUploadLabel(lbl)}
+                                            style={{
+                                                flex: 1, padding: '6px 12px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
+                                                border: uploadLabel === lbl ? '2px solid #eab308' : '1px solid #e2e8f0',
+                                                backgroundColor: uploadLabel === lbl ? 'rgba(234, 179, 8, 0.04)' : 'white',
+                                                color: uploadLabel === lbl ? '#854d0e' : '#475569', transition: 'all 0.15s'
+                                            }}
+                                        >
+                                            {lbl.toUpperCase()} folder
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Select multiple files */}
+                            <div style={{ marginBottom: '16px' }}>
+                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>CHOOSE OK/NG IMAGES TO UPLOAD</label>
+                                <input
+                                    type="file"
+                                    multiple
+                                    accept="image/*"
+                                    onChange={e => setUploadFiles(Array.from(e.target.files))}
+                                    style={{ fontSize: '0.8rem' }}
+                                />
+                                {uploadFiles.length > 0 && (
+                                    <div style={{ fontSize: '0.7rem', color: '#475569', marginTop: '6px', fontWeight: 600 }}>
+                                        Selected: {uploadFiles.length} files ready for upload.
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Upload feedback */}
+                            {uploadStatus && (
+                                <div style={{
+                                    padding: '10px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 600, marginBottom: '14px',
+                                    backgroundColor: uploadStatus.includes('Error') ? '#fef2f2' : uploadStatus.includes('Successfully') ? '#f0fdf4' : '#f8fafc',
+                                    border: uploadStatus.includes('Error') ? '1px solid #fecaca' : uploadStatus.includes('Successfully') ? '1px solid #bbf7d0' : '1px solid #cbd5e1',
+                                    color: uploadStatus.includes('Error') ? '#dc2626' : uploadStatus.includes('Successfully') ? '#16a34a' : '#475569'
+                                }}>
+                                    {uploadStatus}
+                                </div>
+                            )}
+
+                            {/* Upload button */}
+                            <button
+                                onClick={handleUploadDatasetFiles}
+                                disabled={isUploadingFiles || uploadFiles.length === 0}
+                                style={{
+                                    width: '100%', padding: '8px 16px', border: 'none', borderRadius: '8px',
+                                    backgroundColor: (isUploadingFiles || uploadFiles.length === 0) ? '#cbd5e1' : '#eab308',
+                                    color: uploadFiles.length > 0 ? '#854d0e' : 'white', fontSize: '0.75rem', fontWeight: 800,
+                                    cursor: (isUploadingFiles || uploadFiles.length === 0) ? 'not-allowed' : 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                    transition: 'all 0.15s'
+                                }}
+                            >
+                                {isUploadingFiles ? (
+                                    <>
+                                        <Loader2 size={14} className="animate-spin" />
+                                        UPLOADING...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Download size={14} style={{ transform: 'rotate(180deg)' }} />
+                                        UPLOAD FILES TO BACKEND
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* TAB CONTENT: VISION & PRIVACY SETTINGS */}
             {activeTab === 'privacy' && (
                 <div style={{ flex: 1, padding: '24px', display: 'grid', gridTemplateColumns: '2fr 1.2fr', gap: '24px', overflowY: 'auto' }}>
@@ -1443,7 +2418,11 @@ function CameraPreviewer({ camera }) {
                 if (isScreenCapture) {
                     stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
                 } else {
-                    stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+                    const savedCameraId = localStorage.getItem('mavi-selected-camera-id');
+                    const videoConstraints = savedCameraId 
+                        ? { width: { ideal: 640 }, height: { ideal: 480 }, deviceId: { exact: savedCameraId } }
+                        : { width: { ideal: 640 }, height: { ideal: 480 } };
+                    stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
                 }
                 setHasPermission(true);
                 activeStream = stream;
@@ -1654,6 +2633,32 @@ function CameraRegionEditor({
     const animationFrameRef = useRef(null);
     const [hasPermission, setHasPermission] = useState(null);
     const [cameraLoading, setCameraLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+
+    // Camera Selection State
+    const [availableCameras, setAvailableCameras] = useState([]);
+    const [selectedCameraId, setSelectedCameraId] = useState('');
+
+    useEffect(() => {
+        if (camera.cameraSource !== 'DEVICE') return;
+        navigator.mediaDevices.enumerateDevices().then(devices => {
+            const cameras = devices.filter(d => d.kind === 'videoinput');
+            setAvailableCameras(cameras);
+            const saved = localStorage.getItem('mavi-selected-camera-id');
+            if (saved && cameras.find(c => c.deviceId === saved)) {
+                setSelectedCameraId(saved);
+            } else if (cameras.length > 0) {
+                const backCam = cameras.find(c => c.label.toLowerCase().includes('back') || c.label.toLowerCase().includes('environment'));
+                setSelectedCameraId(backCam ? backCam.deviceId : cameras[0].deviceId);
+            }
+        }).catch(err => console.warn('Failed to enumerate devices:', err));
+    }, [camera.cameraSource]);
+
+    const handleCameraChange = (e) => {
+        const id = e.target.value;
+        setSelectedCameraId(id);
+        localStorage.setItem('mavi-selected-camera-id', id);
+    };
 
     // Configure Offline toggle
     const [configureOffline, setConfigureOffline] = useState(false);
@@ -1664,7 +2669,25 @@ function CameraRegionEditor({
     const [jigDetectorExpanded, setJigDetectorExpanded] = useState(false);
     const [ocrDetectorExpanded, setOcrDetectorExpanded] = useState(false);
     const [dimensionDetectorExpanded, setDimensionDetectorExpanded] = useState(false);
+    const [aiDetectorExpanded, setAiDetectorExpanded] = useState(false);
+    const [countDetectorExpanded, setCountDetectorExpanded] = useState(false);
+    const [barcode1dDetectorExpanded, setBarcode1dDetectorExpanded] = useState(false);
+    const [barcode2dDetectorExpanded, setBarcode2dDetectorExpanded] = useState(false);
+    const [calibrationDetectorExpanded, setCalibrationDetectorExpanded] = useState(false);
+    const [editorAiModels, setEditorAiModels] = useState([]);
     const [showDetectorSelector, setShowDetectorSelector] = useState(false);
+
+    // Fetch AI Models in editor context
+    useEffect(() => {
+        fetch('http://localhost:8000/ai/model/list')
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    setEditorAiModels(data.models || []);
+                }
+            })
+            .catch(err => console.error('Error fetching AI models in editor:', err));
+    }, []);
 
     // Settings panel throttled similarity value
     const [settingsSimilarity, setSettingsSimilarity] = useState(0);
@@ -1744,6 +2767,48 @@ function CameraRegionEditor({
     const regions = regionsByCamera[camera.id] || [];
     const selectedRegion = regions.find(r => r.id === selectedRegionId);
 
+    const handleSaveConfig = async () => {
+        setIsSaving(true);
+        try {
+            const activeDetectors = [];
+            regions.forEach(r => {
+                if (r.detectors?.changeDetector?.enabled) activeDetectors.push('Change Detector');
+                if (r.detectors?.colorDetector?.enabled) activeDetectors.push('Color Detector');
+                if (r.detectors?.jigDetector?.enabled) activeDetectors.push('Jig Detector');
+                if (r.detectors?.ocrDetector?.enabled) activeDetectors.push('OCR Detector');
+                if (r.detectors?.dimensionDetector?.enabled) activeDetectors.push('Dimension Detector');
+                if (r.detectors?.aiDetector?.enabled) activeDetectors.push('AI Detector');
+            });
+            const uniqueDets = [...new Set(activeDetectors)];
+            if (uniqueDets.length === 0) uniqueDets.push('Change Detector');
+
+            const settings = {
+                ...(camera.settings || {}),
+                status: camera.status || 'ACTIVE',
+                regionsCount: regions.length,
+                detectors: uniqueDets,
+                regions: regions,
+                deviceId: selectedCameraId
+            };
+
+            const payload = {
+                id: camera.id,
+                name: camera.name,
+                url: camera.ipCameraUrl || '',
+                type: camera.cameraSource || 'DEVICE',
+                settings: settings
+            };
+
+            await saveCamera(payload);
+            toast.success(`Camera configuration for "${camera.name}" saved successfully to Supabase.`);
+        } catch (err) {
+            console.error('Failed to save camera config:', err);
+            toast.error(`Error saving camera configuration: ${err.message}`);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     // Debounced auto-save camera configs and region list back to Supabase
     useEffect(() => {
         if (cameraLoading) return;
@@ -1757,15 +2822,18 @@ function CameraRegionEditor({
                     if (r.detectors?.jigDetector?.enabled) activeDetectors.push('Jig Detector');
                     if (r.detectors?.ocrDetector?.enabled) activeDetectors.push('OCR Detector');
                     if (r.detectors?.dimensionDetector?.enabled) activeDetectors.push('Dimension Detector');
+                    if (r.detectors?.aiDetector?.enabled) activeDetectors.push('AI Detector');
                 });
                 const uniqueDets = [...new Set(activeDetectors)];
                 if (uniqueDets.length === 0) uniqueDets.push('Change Detector');
 
                 const settings = {
+                    ...(camera.settings || {}),
                     status: camera.status || 'ACTIVE',
                     regionsCount: regions.length,
                     detectors: uniqueDets,
-                    regions: regions
+                    regions: regions,
+                    deviceId: selectedCameraId
                 };
 
                 const payload = {
@@ -1784,7 +2852,7 @@ function CameraRegionEditor({
         }, 1500);
 
         return () => clearTimeout(delayDebounce);
-    }, [regions, camera.name, camera.status, camera.cameraSource, camera.ipCameraUrl, cameraLoading]);
+    }, [regions, camera.name, camera.status, camera.cameraSource, camera.ipCameraUrl, cameraLoading, selectedCameraId]);
 
     // Start real camera stream
     useEffect(() => {
@@ -1827,8 +2895,14 @@ function CameraRegionEditor({
         // Default: DEVICE camera
         setCameraLoading(true);
         let activeStream = null;
+        
+        const savedCameraId = localStorage.getItem('mavi-selected-camera-id');
+        const videoConstraints = savedCameraId 
+            ? { width: { ideal: 1280 }, height: { ideal: 720 }, deviceId: { exact: savedCameraId } }
+            : { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'environment' };
+
         navigator.mediaDevices.getUserMedia({
-            video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'environment' }
+            video: videoConstraints
         })
         .then((stream) => {
             setHasPermission(true);
@@ -1854,7 +2928,7 @@ function CameraRegionEditor({
                 cancelAnimationFrame(animationFrameRef.current);
             }
         };
-    }, [camera.cameraSource, configureOffline]);
+    }, [camera.cameraSource, configureOffline, selectedCameraId]);
 
     // Throttle similarity updates for the settings panel to avoid lag
     useEffect(() => {
@@ -1991,6 +3065,38 @@ function CameraRegionEditor({
                     ...r.detectors,
                     dimensionDetector: {
                         ...r.detectors.dimensionDetector,
+                        [key]: value
+                    }
+                }
+            } : r)
+        }));
+    };
+
+    const updateAiDetectorSetting = (id, key, value) => {
+        setRegionsByCamera(prev => ({
+            ...prev,
+            [camera.id]: prev[camera.id].map(r => r.id === id ? {
+                ...r,
+                detectors: {
+                    ...r.detectors,
+                    aiDetector: {
+                        ...r.detectors.aiDetector,
+                        [key]: value
+                    }
+                }
+            } : r)
+        }));
+    };
+
+    const updateGenericDetectorSetting = (id, detectorKey, key, value) => {
+        setRegionsByCamera(prev => ({
+            ...prev,
+            [camera.id]: prev[camera.id].map(r => r.id === id ? {
+                ...r,
+                detectors: {
+                    ...r.detectors,
+                    [detectorKey]: {
+                        ...r.detectors[detectorKey],
                         [key]: value
                     }
                 }
@@ -2156,6 +3262,41 @@ function CameraRegionEditor({
                             cannyThreshold: 100,
                             lsl: 19.5,
                             usl: 20.5
+                        },
+                        aiDetector: {
+                            enabled: false,
+                            name: `Region ${nextNum} AI`,
+                            modelType: 'anomaly',
+                            modelName: 'default',
+                            anomalyThreshold: 0.5,
+                            expectedClass: 'ok',
+                            threshold: 0.5,
+                            defectAreaLimit: 100
+                        },
+                        countDetector: {
+                            enabled: false,
+                            name: `Region ${nextNum} Count`,
+                            targetClass: 'object',
+                            expectedCount: 1,
+                            confidenceThreshold: 50
+                        },
+                        barcode1dDetector: {
+                            enabled: false,
+                            name: `Region ${nextNum} Barcode`,
+                            barcodeType: 'ANY',
+                            expectedValue: ''
+                        },
+                        barcode2dDetector: {
+                            enabled: false,
+                            name: `Region ${nextNum} 2D Code`,
+                            codeType: 'ANY',
+                            expectedValue: ''
+                        },
+                        calibrationDetector: {
+                            enabled: false,
+                            name: `Region ${nextNum} Calibration`,
+                            calibrationType: 'Scale Factor',
+                            unit: 'mm'
                         }
                     }
                 };
@@ -2498,9 +3639,13 @@ function CameraRegionEditor({
                                  
                                  const mode = dimDet.measureMode || 'Width';
                                  const unit = dimDet.unit || 'mm';
-                                 const referenceSize = dimDet.referenceSize ?? 20;
-                                 let scale = 1;
                                  
+                                 const calMmPerPixel = camera?.settings?.mmPerPixel;
+                                 const mmPerPixel = (calMmPerPixel && calMmPerPixel > 0) ? calMmPerPixel : 0.1170;
+                                 const linearScale = (unit === 'px') ? 1 : ((unit === 'inch') ? (mmPerPixel / 25.4) : mmPerPixel);
+                                 
+                                 let scale = (mode === 'Area') ? (linearScale * linearScale) : linearScale;
+
                                  if (unit === 'px') {
                                      if (detectedShape === 'Circle') {
                                          measuredValue = Number(shapeDiameter.toFixed(1));
@@ -2512,13 +3657,10 @@ function CameraRegionEditor({
                                      }
                                  } else {
                                      if (mode === 'Width') {
-                                         scale = referenceSize / rw;
                                          measuredValue = Number(((detectedShape === 'Circle' ? shapeDiameter : shapeWidth) * scale).toFixed(2));
                                      } else if (mode === 'Height') {
-                                         scale = referenceSize / rh;
                                          measuredValue = Number(((detectedShape === 'Circle' ? shapeDiameter : shapeHeight) * scale).toFixed(2));
                                      } else if (mode === 'Diagonal') {
-                                         scale = referenceSize / Math.sqrt(rw * rw + rh * rh);
                                          if (detectedShape === 'Circle') {
                                              measuredValue = Number((shapeDiameter * scale).toFixed(2));
                                          } else {
@@ -2526,7 +3668,6 @@ function CameraRegionEditor({
                                              measuredValue = Number((diagPixels * scale).toFixed(2));
                                          }
                                      } else if (mode === 'Area') {
-                                         scale = referenceSize / (rw * rh);
                                          if (detectedShape === 'Circle') {
                                              const areaPixels = Math.PI * (shapeDiameter / 2) * (shapeDiameter / 2);
                                              measuredValue = Number((areaPixels * scale).toFixed(2));
@@ -2544,8 +3685,8 @@ function CameraRegionEditor({
                                      oh: detectedH,
                                      shape: detectedShape,
                                      shapeDiameter: detectedShape === 'Circle' ? measuredValue : 0,
-                                     shapeWidth: detectedShape !== 'Circle' ? (unit === 'px' ? shapeWidth : Number((shapeWidth * (referenceSize / rw)).toFixed(2))) : 0,
-                                     shapeHeight: detectedShape !== 'Circle' ? (unit === 'px' ? shapeHeight : Number((shapeHeight * (referenceSize / rh)).toFixed(2))) : 0,
+                                     shapeWidth: detectedShape !== 'Circle' ? (unit === 'px' ? shapeWidth : Number((shapeWidth * linearScale).toFixed(2))) : 0,
+                                     shapeHeight: detectedShape !== 'Circle' ? (unit === 'px' ? shapeHeight : Number((shapeHeight * linearScale).toFixed(2))) : 0,
                                      unit: unit
                                  };
                              } else {
@@ -2778,7 +3919,7 @@ function CameraRegionEditor({
     return (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff', fontFamily: 'Inter, system-ui, sans-serif' }}>
             {/* Tulip-style Breadcrumb Header */}
-            <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5e7eb' }}>
+            <div style={{ padding: '10px 20px', borderBottom: '1px solid #e5e7eb' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
@@ -2786,47 +3927,60 @@ function CameraRegionEditor({
                                 onClick={onBack}
                                 style={{
                                     border: 'none', backgroundColor: 'transparent', color: '#6b7280',
-                                    fontWeight: 500, fontSize: '0.85rem', cursor: 'pointer', padding: 0
+                                    fontWeight: 500, fontSize: '0.82rem', cursor: 'pointer', padding: 0
                                 }}
                             >
                                 Camera Configurations
                             </button>
-                            <span style={{ color: '#9ca3af', fontSize: '0.85rem' }}>/</span>
-                            <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#111827' }}>{camera.name}</span>
+                            <span style={{ color: '#9ca3af', fontSize: '0.82rem' }}>/</span>
+                            <span style={{ fontWeight: 700, fontSize: '0.82rem', color: '#111827' }}>{camera.name}</span>
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '2px' }}>
+                        <div style={{ fontSize: '0.72rem', color: '#9ca3af', marginTop: '2px' }}>
                             For {selectedStation} • {camera.cameraSource === 'IP_CAMERA' ? 'IP Camera' : camera.cameraSource === 'SCREEN_CAPTURE' ? 'Screen Capture' : 'USB Device'}
                         </div>
                     </div>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <button style={{ 
-                            width: '32px', height: '32px', border: '1px solid #e5e7eb', borderRadius: '6px', 
+                            width: '28px', height: '28px', border: '1px solid #e5e7eb', borderRadius: '6px', 
                             backgroundColor: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', 
-                            justifyContent: 'center', color: '#6b7280', fontSize: '1.1rem' 
+                            justifyContent: 'center', color: '#6b7280', fontSize: '1rem' 
                         }}>
                             ···
                         </button>
                         <button 
                             onClick={onBack}
                             style={{ 
-                                padding: '7px 14px', border: '1px solid #e5e7eb', borderRadius: '6px', 
-                                backgroundColor: 'white', fontWeight: 600, fontSize: '0.8rem', color: '#374151', 
+                                padding: '6px 12px', border: '1px solid #e5e7eb', borderRadius: '6px', 
+                                backgroundColor: 'white', fontWeight: 600, fontSize: '0.78rem', color: '#374151', 
                                 cursor: 'pointer' 
                             }}
                         >
                             Edit Assignment
+                        </button>
+                        <button 
+                            onClick={handleSaveConfig}
+                            disabled={isSaving}
+                            style={{ 
+                                padding: '6px 14px', border: 'none', borderRadius: '6px', 
+                                backgroundColor: '#3b82f6', fontWeight: 700, fontSize: '0.78rem', color: 'white', 
+                                cursor: isSaving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+                                opacity: isSaving ? 0.7 : 1
+                            }}
+                        >
+                            {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                            Save Configuration
                         </button>
                     </div>
                 </div>
             </div>
 
             {/* Live View Toolbar */}
-            <div style={{ padding: '10px 24px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fafafa' }}>
+            <div style={{ padding: '8px 20px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fafafa' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#374151' }}>Live View</span>
-                    <div style={{ width: '1px', height: '16px', backgroundColor: '#d1d5db' }} />
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#374151' }}>Live View</span>
+                    <div style={{ width: '1px', height: '14px', backgroundColor: '#d1d5db' }} />
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <div style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: hasPermission && !configureOffline ? '#22c55e' : '#9ca3af' }} />
+                        <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: hasPermission && !configureOffline ? '#22c55e' : '#9ca3af' }} />
                         <select
                             value={selectedStation}
                             onChange={(e) => setSelectedStation(e.target.value)}
@@ -2866,11 +4020,11 @@ function CameraRegionEditor({
             {/* Main workspace grid */}
             <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 360px', minHeight: 0, overflow: 'hidden' }}>
                 {/* Left: Camera Canvas + Thumbnail Strip + Activity Stream */}
-                <div className="custom-scrollbar" style={{ flex: 1, backgroundColor: '#f8fafc', padding: '24px', overflowY: 'auto' }}>
+                <div className="custom-scrollbar" style={{ flex: 1, backgroundColor: '#f8fafc', padding: '16px', overflowY: 'auto' }}>
                     <div style={{
                         display: 'flex',
                         flexWrap: 'wrap',
-                        gap: '24px',
+                        gap: '16px',
                         maxWidth: '100%',
                         width: '100%'
                     }}>
@@ -2924,6 +4078,29 @@ function CameraRegionEditor({
                                         }}>
                                             {camera.cameraSource}
                                         </span>
+                                        {camera.cameraSource === 'DEVICE' && availableCameras.length > 1 && (
+                                            <select
+                                                value={selectedCameraId}
+                                                onChange={handleCameraChange}
+                                                style={{
+                                                    background: '#ffffff',
+                                                    color: '#374151',
+                                                    border: '1px solid #d1d5db',
+                                                    borderRadius: '4px',
+                                                    fontSize: '0.65rem',
+                                                    padding: '2px 4px',
+                                                    maxWidth: '150px',
+                                                    cursor: 'pointer',
+                                                    marginLeft: '8px'
+                                                }}
+                                            >
+                                                {availableCameras.map(cam => (
+                                                    <option key={cam.deviceId} value={cam.deviceId}>
+                                                        {cam.label || `Camera ${cam.deviceId.substring(0, 5)}...`}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        )}
                                     </div>
                                     <span style={{ fontSize: '0.72rem', color: '#6b7280', fontWeight: 500 }}>
                                         1280×720 @ 30 FPS
@@ -3326,14 +4503,171 @@ function CameraRegionEditor({
                                             {/* Modal Body: Detector Types List */}
                                             <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '400px', overflowY: 'auto' }}>
                                                 {[
-                                                    { key: 'colorDetector', name: 'Color Detector', desc: 'Identifies and monitors specific target colors in the region.', color: '#3b82f6', icon: Sparkles },
-                                                    { key: 'changeDetector', name: 'Change Detector', desc: 'Detects visual movement, intrusion, or state change.', color: '#10b981', icon: Activity },
-                                                    { key: 'jigDetector', name: 'Jig Detector', desc: 'Tracks spatial tags, alignment pins, or custom fixtures.', color: '#a855f7', icon: Box },
-                                                    { key: 'ocrDetector', name: 'OCR Detector', desc: 'Extracts alpha-numeric serials, numbers, or text barcodes.', color: '#ec4899', icon: Eye },
-                                                    { key: 'dimensionDetector', name: 'Dimension Detector', desc: 'Measures height, width, area, or contours in millimeters.', color: '#14b8a6', icon: Maximize }
+                                                    { 
+                                                        key: 'colorDetector', 
+                                                        name: 'Color Inspection', 
+                                                        desc: 'Identifies and monitors specific target colors in the region.', 
+                                                        color: '#10b981', 
+                                                        icon: (
+                                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+                                                                <rect width="24" height="24" rx="4" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
+                                                                <rect x="5" y="5" width="4.5" height="14" fill="#10b981" />
+                                                                <rect x="9.75" y="5" width="4.5" height="14" fill="#3b82f6" />
+                                                                <rect x="14.5" y="5" width="4.5" height="14" fill="#ef4444" />
+                                                                <rect x="5" y="5" width="14" height="14" stroke="#475569" strokeWidth="1" fill="none" />
+                                                            </svg>
+                                                        )
+                                                    },
+                                                    { 
+                                                        key: 'changeDetector', 
+                                                        name: 'Presence Check', 
+                                                        desc: 'Detects visual movement, intrusion, or state change.', 
+                                                        color: '#3b82f6', 
+                                                        icon: (
+                                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+                                                                <rect width="24" height="24" rx="4" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
+                                                                <rect x="5" y="5" width="6" height="6" rx="1" fill="#3b82f6" />
+                                                                <rect x="13" y="5" width="6" height="6" rx="1" stroke="#3b82f6" strokeWidth="1.5" fill="none" />
+                                                                <rect x="5" y="13" width="6" height="6" rx="1" fill="#3b82f6" />
+                                                                <rect x="13" y="13" width="6" height="6" rx="1" fill="#3b82f6" />
+                                                            </svg>
+                                                        )
+                                                    },
+                                                    { 
+                                                        key: 'jigDetector', 
+                                                        name: 'Positioning (Jig)', 
+                                                        desc: 'Tracks spatial tags, alignment fixtures, or anchors.', 
+                                                        color: '#f97316', 
+                                                        icon: (
+                                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+                                                                <rect width="24" height="24" rx="4" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
+                                                                <rect x="5" y="5" width="5" height="5" rx="0.5" transform="rotate(45 7.5 7.5)" fill="#f97316" />
+                                                                <rect x="13" y="13" width="5" height="5" rx="0.5" transform="rotate(45 15.5 15.5)" stroke="#f97316" strokeWidth="1.5" fill="none" />
+                                                                <path d="M9.5 9.5L13.5 13.5" stroke="#f97316" strokeWidth="1.5" strokeLinecap="round" />
+                                                                <path d="M13.5 10.5V13.5H10.5" stroke="#f97316" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                            </svg>
+                                                        )
+                                                    },
+                                                    { 
+                                                        key: 'ocrDetector', 
+                                                        name: 'Character Recognition', 
+                                                        desc: 'Extracts alpha-numeric serials, numbers, or text.', 
+                                                        color: '#475569', 
+                                                        icon: (
+                                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+                                                                <rect width="24" height="24" rx="4" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
+                                                                <rect x="4.5" y="6.5" width="15" height="11" rx="1.5" stroke="#475569" strokeWidth="1.5" fill="none" />
+                                                                <text x="6" y="14.5" fill="#475569" fontSize="7" fontWeight="bold" fontFamily="monospace">ABC</text>
+                                                            </svg>
+                                                        )
+                                                    },
+                                                    { 
+                                                        key: 'dimensionDetector', 
+                                                        name: 'GD&T Measurement', 
+                                                        desc: 'Measures height, width, area, or contours in millimeters.', 
+                                                        color: '#3b82f6', 
+                                                        icon: (
+                                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+                                                                <rect width="24" height="24" rx="4" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
+                                                                <circle cx="10" cy="12" r="5" fill="#3b82f6" />
+                                                                <line x1="17.5" y1="5" x2="17.5" y2="19" stroke="#1e293b" strokeWidth="1.2" />
+                                                                <path d="M15.5 8L17.5 5L19.5 8" stroke="#1e293b" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                                                <path d="M15.5 16L17.5 19L19.5 16" stroke="#1e293b" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                                                <line x1="13.5" y1="6" x2="17.5" y2="6" stroke="#475569" strokeWidth="0.8" strokeDasharray="2" />
+                                                                <line x1="13.5" y1="18" x2="17.5" y2="18" stroke="#475569" strokeWidth="0.8" strokeDasharray="2" />
+                                                            </svg>
+                                                        )
+                                                    },
+                                                    { 
+                                                        key: 'aiDetector', 
+                                                        name: 'Scratch Inspection', 
+                                                        desc: 'Runs industrial Anomaly Detection or defect inspection.', 
+                                                        color: '#ef4444', 
+                                                        icon: (
+                                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+                                                                <rect width="24" height="24" rx="4" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
+                                                                <rect x="5" y="5" width="14" height="14" fill="#3b82f6" rx="1" />
+                                                                <circle cx="12" cy="12" r="4.5" fill="#10b981" opacity="0.8" />
+                                                                <circle cx="12" cy="12" r="2.5" fill="#eab308" opacity="0.9" />
+                                                                <circle cx="12" cy="12" r="1.2" fill="#ef4444" />
+                                                            </svg>
+                                                        )
+                                                    },
+                                                    { 
+                                                        key: 'countDetector', 
+                                                        name: 'Count Detector', 
+                                                        desc: 'Counts target components, pins, or items within the region.', 
+                                                        color: '#3b82f6', 
+                                                        icon: (
+                                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+                                                                <rect width="24" height="24" rx="4" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
+                                                                <circle cx="9.5" cy="14.5" r="5" stroke="#475569" strokeWidth="1.5" fill="white" />
+                                                                <circle cx="14.5" cy="9.5" r="5" stroke="#475569" strokeWidth="1.5" fill="white" />
+                                                                <text x="7.5" y="17" fill="#2563eb" fontSize="7" fontWeight="900" fontFamily="sans-serif">1</text>
+                                                                <text x="12.5" y="12" fill="#2563eb" fontSize="7" fontWeight="900" fontFamily="sans-serif">2</text>
+                                                            </svg>
+                                                        )
+                                                    },
+                                                    { 
+                                                        key: 'barcode1dDetector', 
+                                                        name: '1D Code Reader', 
+                                                        desc: 'Scans and decodes linear barcodes (Code39, Code128, etc.)', 
+                                                        color: '#1e293b', 
+                                                        icon: (
+                                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+                                                                <rect width="24" height="24" rx="4" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
+                                                                <rect x="4" y="5" width="2" height="14" fill="#1e293b" />
+                                                                <rect x="7" y="5" width="1" height="14" fill="#1e293b" />
+                                                                <rect x="9" y="5" width="3" height="14" fill="#1e293b" />
+                                                                <rect x="13" y="5" width="1" height="14" fill="#1e293b" />
+                                                                <rect x="15" y="5" width="2" height="14" fill="#1e293b" />
+                                                                <rect x="18" y="5" width="2" height="14" fill="#1e293b" />
+                                                            </svg>
+                                                        )
+                                                    },
+                                                    { 
+                                                        key: 'barcode2dDetector', 
+                                                        name: '2D Code Reader', 
+                                                        desc: 'Scans and decodes QR codes and DataMatrix symbols', 
+                                                        color: '#1e293b', 
+                                                        icon: (
+                                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+                                                                <rect width="24" height="24" rx="4" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
+                                                                <rect x="4" y="4" width="6" height="6" fill="#1e293b" />
+                                                                <rect x="5" y="5" width="4" height="4" fill="white" />
+                                                                <rect x="6" y="6" width="2" height="2" fill="#1e293b" />
+                                                                <rect x="14" y="4" width="6" height="6" fill="#1e293b" />
+                                                                <rect x="15" y="5" width="4" height="4" fill="white" />
+                                                                <rect x="16" y="6" width="2" height="2" fill="#1e293b" />
+                                                                <rect x="4" y="14" width="6" height="6" fill="#1e293b" />
+                                                                <rect x="5" y="15" width="4" height="4" fill="white" />
+                                                                <rect x="6" y="16" width="2" height="2" fill="#1e293b" />
+                                                                <rect x="14" y="14" width="2" height="2" fill="#1e293b" />
+                                                                <rect x="18" y="14" width="2" height="2" fill="#1e293b" />
+                                                            </svg>
+                                                        )
+                                                    },
+                                                    { 
+                                                        key: 'calibrationDetector', 
+                                                        name: 'Calibration Tool', 
+                                                        desc: 'Verifies calibration grids or active coordinate mapping', 
+                                                        color: '#ec4899', 
+                                                        icon: (
+                                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+                                                                <rect width="24" height="24" rx="4" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
+                                                                <rect x="4" y="4" width="4" height="4" fill="#ec4899" />
+                                                                <rect x="12" y="4" width="4" height="4" fill="#ec4899" />
+                                                                <rect x="8" y="8" width="4" height="4" fill="#ec4899" />
+                                                                <rect x="16" y="8" width="4" height="4" fill="#ec4899" />
+                                                                <rect x="4" y="12" width="4" height="4" fill="#ec4899" />
+                                                                <rect x="12" y="12" width="4" height="4" fill="#ec4899" />
+                                                                <rect x="8" y="16" width="4" height="4" fill="#ec4899" />
+                                                                <rect x="16" y="16" width="4" height="4" fill="#ec4899" />
+                                                            </svg>
+                                                        )
+                                                    }
                                                 ].map(opt => {
                                                     const isEnabled = selectedRegion.detectors?.[opt.key]?.enabled;
-                                                    const IconComp = opt.icon;
                                                     return (
                                                         <div
                                                             key={opt.key}
@@ -3346,6 +4680,11 @@ function CameraRegionEditor({
                                                                     if (opt.key === 'jigDetector') setJigDetectorExpanded(true);
                                                                     if (opt.key === 'ocrDetector') setOcrDetectorExpanded(true);
                                                                     if (opt.key === 'dimensionDetector') setDimensionDetectorExpanded(true);
+                                                                    if (opt.key === 'aiDetector') setAiDetectorExpanded(true);
+                                                                    if (opt.key === 'countDetector') setCountDetectorExpanded(true);
+                                                                    if (opt.key === 'barcode1dDetector') setBarcode1dDetectorExpanded(true);
+                                                                    if (opt.key === 'barcode2dDetector') setBarcode2dDetectorExpanded(true);
+                                                                    if (opt.key === 'calibrationDetector') setCalibrationDetectorExpanded(true);
                                                                     setShowDetectorSelector(false);
                                                                 }
                                                             }}
@@ -3378,7 +4717,7 @@ function CameraRegionEditor({
                                                                 display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center',
                                                                 color: isEnabled ? '#94a3b8' : opt.color, flexShrink: 0
                                                             }}>
-                                                                <IconComp size={18} />
+                                                                {opt.icon}
                                                             </div>
                                                             <div style={{ flex: 1 }}>
                                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -3386,14 +4725,12 @@ function CameraRegionEditor({
                                                                         {opt.name}
                                                                     </span>
                                                                     {isEnabled && (
-                                                                        <span style={{ fontSize: '0.65rem', backgroundColor: '#e2e8f0', color: '#64748b', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                                                                        <span style={{ fontSize: '0.62rem', fontWeight: 700, backgroundColor: '#f1f5f9', color: '#64748b', padding: '2px 6px', borderRadius: '4px' }}>
                                                                             Active
                                                                         </span>
                                                                     )}
                                                                 </div>
-                                                                <p style={{ margin: '4px 0 0 0', fontSize: '0.7rem', color: '#64748b', lineHeight: 1.4 }}>
-                                                                    {opt.desc}
-                                                                </p>
+                                                                <p style={{ margin: '4px 0 0 0', fontSize: '0.72rem', color: isEnabled ? '#cbd5e1' : '#64748b', lineHeight: 1.4 }}>{opt.desc}</p>
                                                             </div>
                                                         </div>
                                                     );
@@ -3426,7 +4763,12 @@ function CameraRegionEditor({
                                    selectedRegion.detectors?.changeDetector?.enabled ||
                                    selectedRegion.detectors?.jigDetector?.enabled ||
                                    selectedRegion.detectors?.ocrDetector?.enabled ||
-                                   selectedRegion.detectors?.dimensionDetector?.enabled) ? (
+                                   selectedRegion.detectors?.dimensionDetector?.enabled ||
+                                   selectedRegion.detectors?.aiDetector?.enabled ||
+                                   selectedRegion.detectors?.countDetector?.enabled ||
+                                   selectedRegion.detectors?.barcode1dDetector?.enabled ||
+                                   selectedRegion.detectors?.barcode2dDetector?.enabled ||
+                                   selectedRegion.detectors?.calibrationDetector?.enabled) ? (
                                     <div style={{ padding: '36px 20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                                         <Info size={20} color="#cbd5e1" />
                                         <span>No active detectors configured.</span>
@@ -3861,17 +5203,6 @@ function CameraRegionEditor({
                                                             </span>
                                                         </div>
 
-                                                        {/* Reference Size */}
-                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Calibration Reference Size (mm)</span>
-                                                            <input
-                                                                type="number" step="0.1" min="0.1"
-                                                                value={selectedRegion.detectors.dimensionDetector.referenceSize ?? 20}
-                                                                onChange={(e) => updateDimensionDetectorSetting(selectedRegion.id, 'referenceSize', Number(e.target.value))}
-                                                                style={{ padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.82rem', width: '100%', outline: 'none' }}
-                                                            />
-                                                        </div>
-
                                                         {/* Measure Mode */}
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                                                             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Measure Mode</span>
@@ -3900,6 +5231,28 @@ function CameraRegionEditor({
                                                                 <option value="inch">Inches (in)</option>
                                                             </select>
                                                         </div>
+
+                                                        {/* Show info about integrated camera calibration */}
+                                                        {selectedRegion.detectors.dimensionDetector.unit !== 'px' && (
+                                                            <div style={{
+                                                                padding: '8px 12px',
+                                                                backgroundColor: '#eff6ff',
+                                                                border: '1px solid #bfdbfe',
+                                                                borderRadius: '6px',
+                                                                fontSize: '0.72rem',
+                                                                color: '#1e40af',
+                                                                display: 'flex',
+                                                                flexDirection: 'column',
+                                                                gap: '2px',
+                                                                marginTop: '2px'
+                                                            }}>
+                                                                <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                                    <Info size={13} /> Camera Calibration Integrated
+                                                                </div>
+                                                                <div>Active Scale: <strong>{(camera?.settings?.mmPerPixel || 0.1170).toFixed(5)} mm/px</strong></div>
+                                                                <div style={{ fontSize: '0.65rem', color: '#60a5fa' }}>Configured in Camera Calibration menu</div>
+                                                            </div>
+                                                        )}
 
                                                         {/* Min Contour Area */}
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
@@ -3948,6 +5301,399 @@ function CameraRegionEditor({
                                                                     onChange={(e) => updateDimensionDetectorSetting(selectedRegion.id, 'usl', Number(e.target.value))}
                                                                     style={{ padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.82rem', width: '100%', outline: 'none' }}
                                                                 />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* 6. AI Detector */}
+                                        {selectedRegion.detectors?.aiDetector?.enabled && (
+                                            <div style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                                <div 
+                                                    style={{ 
+                                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                                                        padding: '12px 20px', cursor: 'pointer', transition: 'background-color 0.15s',
+                                                        backgroundColor: aiDetectorExpanded ? '#f8fafc' : 'transparent'
+                                                    }}
+                                                    onClick={() => setAiDetectorExpanded(prev => !prev)}
+                                                >
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                        {aiDetectorExpanded ? <ChevronDown size={14} color="#64748b" /> : <ChevronDown size={14} color="#64748b" style={{ transform: 'rotate(-90deg)', transition: 'transform 0.15s' }} />}
+                                                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
+                                                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                                                            {selectedRegion.detectors.aiDetector.name || `${selectedRegion.name} AI`}
+                                                        </span>
+                                                    </div>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (confirm('Remove AI Detector from this region?')) {
+                                                                toggleDetector(selectedRegion.id, 'aiDetector', false);
+                                                            }
+                                                        }}
+                                                        style={{ border: 'none', backgroundColor: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', padding: '4px', borderRadius: '4px', transition: 'all 0.15s' }}
+                                                        title="Remove Detector"
+                                                        onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
+                                                        onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+
+                                                {aiDetectorExpanded && (
+                                                    <div style={{ padding: '12px 20px 18px 44px', display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: '#f8fafc' }}>
+                                                        {/* Model Type */}
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>AI Inspection Type</span>
+                                                            <select
+                                                                value={selectedRegion.detectors.aiDetector.modelType || 'anomaly'}
+                                                                onChange={(e) => updateAiDetectorSetting(selectedRegion.id, 'modelType', e.target.value)}
+                                                                style={{ padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.82rem', backgroundColor: 'white', width: '100%', outline: 'none' }}
+                                                            >
+                                                                <option value="anomaly">Anomaly Detection (PatchCore)</option>
+                                                                <option value="classification">Classification (Transfer Learning)</option>
+                                                                <option value="segmentation">Segmentation (U-Net)</option>
+                                                            </select>
+                                                        </div>
+
+                                                        {/* Model Name Select (Filtered by type) */}
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Select Trained Model</span>
+                                                            <select
+                                                                value={selectedRegion.detectors.aiDetector.modelName || 'default'}
+                                                                onChange={(e) => updateAiDetectorSetting(selectedRegion.id, 'modelName', e.target.value)}
+                                                                style={{ padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.82rem', backgroundColor: 'white', width: '100%', outline: 'none' }}
+                                                            >
+                                                                <option value="default">default</option>
+                                                                {editorAiModels
+                                                                    .filter(m => m.model_type === (selectedRegion.detectors.aiDetector.modelType || 'anomaly'))
+                                                                    .map((m, idx) => (
+                                                                        <option key={idx} value={m.model_name}>{m.model_name}</option>
+                                                                    ))
+                                                                }
+                                                            </select>
+                                                        </div>
+
+                                                        {/* Type Specific Threshold Settings */}
+                                                        {(selectedRegion.detectors.aiDetector.modelType || 'anomaly') === 'anomaly' && (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Anomaly Score Threshold</span>
+                                                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#f59e0b' }}>
+                                                                        {selectedRegion.detectors.aiDetector.anomalyThreshold ?? 0.5}
+                                                                    </span>
+                                                                </div>
+                                                                <input
+                                                                    type="range" min="0.05" max="1.0" step="0.05"
+                                                                    value={selectedRegion.detectors.aiDetector.anomalyThreshold ?? 0.5}
+                                                                    onChange={(e) => updateAiDetectorSetting(selectedRegion.id, 'anomalyThreshold', Number(e.target.value))}
+                                                                    style={{ height: '4px', cursor: 'pointer' }}
+                                                                />
+                                                                <span style={{ fontSize: '0.65rem', color: '#64748b' }}>If anomaly score is higher than threshold, region fails (NG).</span>
+                                                            </div>
+                                                        )}
+
+                                                        {(selectedRegion.detectors.aiDetector.modelType || 'anomaly') === 'classification' && (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Expected PASS Class Label</span>
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="e.g. ok"
+                                                                    value={selectedRegion.detectors.aiDetector.expectedClass || 'ok'}
+                                                                    onChange={(e) => updateAiDetectorSetting(selectedRegion.id, 'expectedClass', e.target.value)}
+                                                                    style={{ padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.82rem', width: '100%', outline: 'none' }}
+                                                                />
+                                                                <span style={{ fontSize: '0.65rem', color: '#64748b' }}>Region passes ONLY if the predicted class matches this label.</span>
+                                                            </div>
+                                                        )}
+
+                                                        {(selectedRegion.detectors.aiDetector.modelType || 'anomaly') === 'segmentation' && (
+                                                            <>
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Segmentation Pixel Threshold</span>
+                                                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#ef4444' }}>
+                                                                            {selectedRegion.detectors.aiDetector.threshold ?? 0.5}
+                                                                        </span>
+                                                                    </div>
+                                                                    <input
+                                                                        type="range" min="0.1" max="0.9" step="0.05"
+                                                                        value={selectedRegion.detectors.aiDetector.threshold ?? 0.5}
+                                                                        onChange={(e) => updateAiDetectorSetting(selectedRegion.id, 'threshold', Number(e.target.value))}
+                                                                        style={{ height: '4px', cursor: 'pointer' }}
+                                                                    />
+                                                                </div>
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Max Defect Area Limit (px)</span>
+                                                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#ef4444' }}>
+                                                                            {selectedRegion.detectors.aiDetector.defectAreaLimit ?? 100} px
+                                                                        </span>
+                                                                    </div>
+                                                                    <input
+                                                                        type="range" min="10" max="5000" step="50"
+                                                                        value={selectedRegion.detectors.aiDetector.defectAreaLimit ?? 100}
+                                                                        onChange={(e) => updateAiDetectorSetting(selectedRegion.id, 'defectAreaLimit', Number(e.target.value))}
+                                                                        style={{ height: '4px', cursor: 'pointer' }}
+                                                                    />
+                                                                    <span style={{ fontSize: '0.65rem', color: '#64748b' }}>If defect pixel area is higher than this, region fails.</span>
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* 7. Count Detector */}
+                                        {selectedRegion.detectors?.countDetector?.enabled && (
+                                            <div style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                                <div 
+                                                    style={{ 
+                                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                                                        padding: '12px 20px', cursor: 'pointer', transition: 'background-color 0.15s',
+                                                        backgroundColor: countDetectorExpanded ? '#f8fafc' : 'transparent'
+                                                    }}
+                                                    onClick={() => setCountDetectorExpanded(prev => !prev)}
+                                                >
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                        {countDetectorExpanded ? <ChevronDown size={14} color="#64748b" /> : <ChevronDown size={14} color="#64748b" style={{ transform: 'rotate(-90deg)', transition: 'transform 0.15s' }} />}
+                                                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#3b82f6' }} />
+                                                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                                                            {selectedRegion.detectors.countDetector.name || `${selectedRegion.name} Count`}
+                                                        </span>
+                                                    </div>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (confirm('Remove Count Detector from this region?')) {
+                                                                toggleDetector(selectedRegion.id, 'countDetector', false);
+                                                            }
+                                                        }}
+                                                        style={{ border: 'none', backgroundColor: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', padding: '4px', borderRadius: '4px', transition: 'all 0.15s' }}
+                                                        title="Remove Detector"
+                                                        onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
+                                                        onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+
+                                                {countDetectorExpanded && (
+                                                    <div style={{ padding: '12px 20px 18px 44px', display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: '#f8fafc' }}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Target Object Class (YOLO)</span>
+                                                            <input
+                                                                type="text"
+                                                                value={selectedRegion.detectors.countDetector.targetClass || 'object'}
+                                                                onChange={(e) => updateGenericDetectorSetting(selectedRegion.id, 'countDetector', 'targetClass', e.target.value)}
+                                                                style={{ padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.82rem', width: '100%', outline: 'none' }}
+                                                            />
+                                                        </div>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Expected Count</span>
+                                                            <input
+                                                                type="number" min="1"
+                                                                value={selectedRegion.detectors.countDetector.expectedCount ?? 1}
+                                                                onChange={(e) => updateGenericDetectorSetting(selectedRegion.id, 'countDetector', 'expectedCount', Number(e.target.value))}
+                                                                style={{ padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.82rem', width: '100%', outline: 'none' }}
+                                                            />
+                                                        </div>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Confidence Threshold (%)</span>
+                                                            <input
+                                                                type="number" min="1" max="100"
+                                                                value={selectedRegion.detectors.countDetector.confidenceThreshold ?? 50}
+                                                                onChange={(e) => updateGenericDetectorSetting(selectedRegion.id, 'countDetector', 'confidenceThreshold', Number(e.target.value))}
+                                                                style={{ padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.82rem', width: '100%', outline: 'none' }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* 8. 1D Code Reader */}
+                                        {selectedRegion.detectors?.barcode1dDetector?.enabled && (
+                                            <div style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                                <div 
+                                                    style={{ 
+                                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                                                        padding: '12px 20px', cursor: 'pointer', transition: 'background-color 0.15s',
+                                                        backgroundColor: barcode1dDetectorExpanded ? '#f8fafc' : 'transparent'
+                                                    }}
+                                                    onClick={() => setBarcode1dDetectorExpanded(prev => !prev)}
+                                                >
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                        {barcode1dDetectorExpanded ? <ChevronDown size={14} color="#64748b" /> : <ChevronDown size={14} color="#64748b" style={{ transform: 'rotate(-90deg)', transition: 'transform 0.15s' }} />}
+                                                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#3b82f6' }} />
+                                                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                                                            {selectedRegion.detectors.barcode1dDetector.name || `${selectedRegion.name} Barcode`}
+                                                        </span>
+                                                    </div>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (confirm('Remove Barcode Reader from this region?')) {
+                                                                toggleDetector(selectedRegion.id, 'barcode1dDetector', false);
+                                                            }
+                                                        }}
+                                                        style={{ border: 'none', backgroundColor: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', padding: '4px', borderRadius: '4px', transition: 'all 0.15s' }}
+                                                        title="Remove Detector"
+                                                        onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
+                                                        onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+
+                                                {barcode1dDetectorExpanded && (
+                                                    <div style={{ padding: '12px 20px 18px 44px', display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: '#f8fafc' }}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Symbology Filter</span>
+                                                            <select
+                                                                value={selectedRegion.detectors.barcode1dDetector.barcodeType || 'ANY'}
+                                                                onChange={(e) => updateGenericDetectorSetting(selectedRegion.id, 'barcode1dDetector', 'barcodeType', e.target.value)}
+                                                                style={{ padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.82rem', backgroundColor: 'white', width: '100%', outline: 'none' }}
+                                                            >
+                                                                <option value="ANY">Any Barcode Type</option>
+                                                                <option value="CODE128">Code 128</option>
+                                                                <option value="CODE39">Code 39</option>
+                                                                <option value="EAN13">EAN-13 / UPC</option>
+                                                            </select>
+                                                        </div>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Expected Value (Match Pattern)</span>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="e.g. PROD-* (Optional)"
+                                                                value={selectedRegion.detectors.barcode1dDetector.expectedValue || ''}
+                                                                onChange={(e) => updateGenericDetectorSetting(selectedRegion.id, 'barcode1dDetector', 'expectedValue', e.target.value)}
+                                                                style={{ padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.82rem', width: '100%', outline: 'none' }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* 9. 2D Code Reader */}
+                                        {selectedRegion.detectors?.barcode2dDetector?.enabled && (
+                                            <div style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                                <div 
+                                                    style={{ 
+                                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                                                        padding: '12px 20px', cursor: 'pointer', transition: 'background-color 0.15s',
+                                                        backgroundColor: barcode2dDetectorExpanded ? '#f8fafc' : 'transparent'
+                                                    }}
+                                                    onClick={() => setBarcode2dDetectorExpanded(prev => !prev)}
+                                                >
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                        {barcode2dDetectorExpanded ? <ChevronDown size={14} color="#64748b" /> : <ChevronDown size={14} color="#64748b" style={{ transform: 'rotate(-90deg)', transition: 'transform 0.15s' }} />}
+                                                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#3b82f6' }} />
+                                                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                                                            {selectedRegion.detectors.barcode2dDetector.name || `${selectedRegion.name} 2D Code`}
+                                                        </span>
+                                                    </div>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (confirm('Remove 2D Code Reader from this region?')) {
+                                                                toggleDetector(selectedRegion.id, 'barcode2dDetector', false);
+                                                            }
+                                                        }}
+                                                        style={{ border: 'none', backgroundColor: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', padding: '4px', borderRadius: '4px', transition: 'all 0.15s' }}
+                                                        title="Remove Detector"
+                                                        onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
+                                                        onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+
+                                                {barcode2dDetectorExpanded && (
+                                                    <div style={{ padding: '12px 20px 18px 44px', display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: '#f8fafc' }}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Code Format</span>
+                                                            <select
+                                                                value={selectedRegion.detectors.barcode2dDetector.codeType || 'ANY'}
+                                                                onChange={(e) => updateGenericDetectorSetting(selectedRegion.id, 'barcode2dDetector', 'codeType', e.target.value)}
+                                                                style={{ padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.82rem', backgroundColor: 'white', width: '100%', outline: 'none' }}
+                                                            >
+                                                                <option value="ANY">QR or DataMatrix</option>
+                                                                <option value="QR">QR Code</option>
+                                                                <option value="DATAMATRIX">DataMatrix</option>
+                                                            </select>
+                                                        </div>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Expected Value (Match Pattern)</span>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="e.g. SN-*"
+                                                                value={selectedRegion.detectors.barcode2dDetector.expectedValue || ''}
+                                                                onChange={(e) => updateGenericDetectorSetting(selectedRegion.id, 'barcode2dDetector', 'expectedValue', e.target.value)}
+                                                                style={{ padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.82rem', width: '100%', outline: 'none' }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* 10. Calibration Tool */}
+                                        {selectedRegion.detectors?.calibrationDetector?.enabled && (
+                                            <div style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                                <div 
+                                                    style={{ 
+                                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                                                        padding: '12px 20px', cursor: 'pointer', transition: 'background-color 0.15s',
+                                                        backgroundColor: calibrationDetectorExpanded ? '#f8fafc' : 'transparent'
+                                                    }}
+                                                    onClick={() => setCalibrationDetectorExpanded(prev => !prev)}
+                                                >
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                        {calibrationDetectorExpanded ? <ChevronDown size={14} color="#64748b" /> : <ChevronDown size={14} color="#64748b" style={{ transform: 'rotate(-90deg)', transition: 'transform 0.15s' }} />}
+                                                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#3b82f6' }} />
+                                                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                                                            {selectedRegion.detectors.calibrationDetector.name || `${selectedRegion.name} Calibration`}
+                                                        </span>
+                                                    </div>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (confirm('Remove Calibration Tool from this region?')) {
+                                                                toggleDetector(selectedRegion.id, 'calibrationDetector', false);
+                                                            }
+                                                        }}
+                                                        style={{ border: 'none', backgroundColor: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', padding: '4px', borderRadius: '4px', transition: 'all 0.15s' }}
+                                                        title="Remove Detector"
+                                                        onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
+                                                        onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+
+                                                {calibrationDetectorExpanded && (
+                                                    <div style={{ padding: '12px 20px 18px 44px', display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: '#f8fafc' }}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Calibration Type</span>
+                                                            <select
+                                                                value={selectedRegion.detectors.calibrationDetector.calibrationType || 'Scale Factor'}
+                                                                onChange={(e) => updateGenericDetectorSetting(selectedRegion.id, 'calibrationDetector', 'calibrationType', e.target.value)}
+                                                                style={{ padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.82rem', backgroundColor: 'white', width: '100%', outline: 'none' }}
+                                                            >
+                                                                <option value="Scale Factor">Linear Scale Factor (mm/px)</option>
+                                                                <option value="Lens Distortion">OpenCV Chessboard Calibration</option>
+                                                            </select>
+                                                        </div>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Active Calibration Status</span>
+                                                            <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#22c55e' }} />
+                                                                <span>Camera matrix loaded & active</span>
                                                             </div>
                                                         </div>
                                                     </div>

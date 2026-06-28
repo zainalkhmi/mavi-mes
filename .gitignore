@@ -30,3 +30,20 @@ dist-ssr
 # Build and binary folders
 build/
 src-tauri/binaries/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# AI Models & Datasets (large binaries)
+models/*.pt
+models/*.pth
+models/*.onnx
+models/*/
+!models/.gitkeep
+datasets/*/
+!datasets/.gitkeep
+
+# Scratch test files
+scratch_test.*

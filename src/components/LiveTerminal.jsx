@@ -13639,8 +13639,6 @@ const LiveTerminal = () => {
 };
 
 const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables = [], setAppVariables, fireDeviceInputTriggers }) => {
-  const [cvLoaded, setCvLoaded] = useState(false);
-  const [isSimulatedCv, setIsSimulatedCv] = useState(false);
   const [loadingError, setLoadingError] = useState('');
   const [cameraActive, setCameraActive] = useState(false);
   const videoRef = useRef(null);
@@ -13718,7 +13716,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
     const offscreenCtx = offscreenCanvas.getContext('2d');
     if (!offscreenCtx) return callback(null);
     
-    if (cameraSource === 'IP_CAMERA' || isSimulatedCv) {
+    if (cameraSource === 'IP_CAMERA') {
       drawSimulatedIPStream(offscreenCtx, w, h);
     } else if (video) {
       offscreenCtx.drawImage(video, 0, 0, w, h);
@@ -13774,82 +13772,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
   const currentReadoutRef = useRef({ val: '-', isPassed: true });
   const lastLoggedVal = useRef('');
 
-  // Dynamic loading of OpenCV.js with fast cdnjs and timeout fallback
-  useEffect(() => {
-    let active = true;
-
-    // Timeout: If OpenCV takes more than 6 seconds to download, fallback to simulation mode
-    const timeoutId = setTimeout(() => {
-      if (active && (!window.cv || !window.cv.Mat)) {
-        console.warn('OpenCV.js loading is taking too long. Falling back to Simulated Canvas Vision.');
-        setIsSimulatedCv(true);
-        setCvLoaded(true); // Allow camera rendering logic to initialize
-      }
-    }, 6000);
-
-    const loadOpenCV = () => {
-      if (window.cv && window.cv.Mat) {
-        clearTimeout(timeoutId);
-        if (active) setCvLoaded(true);
-        return;
-      }
-
-      let script = document.getElementById('opencv-js-cdn');
-      if (!script) {
-        script = document.createElement('script');
-        script.id = 'opencv-js-cdn';
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/opencv.js/4.5.5/opencv.js';
-        script.async = true;
-        script.onload = () => {
-          if (window.cv && window.cv.onRuntimeInitialized) {
-            window.cv.onRuntimeInitialized = () => {
-              clearTimeout(timeoutId);
-              if (active) {
-                setIsSimulatedCv(false);
-                setCvLoaded(true);
-              }
-            };
-          } else {
-            const checkInt = setInterval(() => {
-              if (window.cv && window.cv.Mat) {
-                clearInterval(checkInt);
-                clearTimeout(timeoutId);
-                if (active) {
-                  setIsSimulatedCv(false);
-                  setCvLoaded(true);
-                }
-              }
-            }, 100);
-          }
-        };
-        script.onerror = () => {
-          if (active) {
-            console.warn('OpenCV script download blocked or failed. Falling back to Simulated Canvas Vision.');
-            setIsSimulatedCv(true);
-            setCvLoaded(true);
-          }
-        };
-        document.body.appendChild(script);
-      } else {
-        const checkInt = setInterval(() => {
-          if (window.cv && window.cv.Mat) {
-            clearInterval(checkInt);
-            clearTimeout(timeoutId);
-            if (active) {
-              setIsSimulatedCv(false);
-              setCvLoaded(true);
-            }
-          }
-        }, 100);
-      }
-    };
-
-    loadOpenCV();
-    return () => {
-      active = false;
-      clearTimeout(timeoutId);
-    };
-  }, []);
+  // Removed opencv.js loading (migrated to Python backend)
 
   const animationTickRef = useRef(0);
   const drawSimulatedIPStream = (ctx, w, h) => {
@@ -14001,7 +13924,6 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
 
   // Camera stream and loop control
   useEffect(() => {
-    if (!cvLoaded) return;
 
     if (cameraSource === 'IP_CAMERA') {
       setCameraActive(true);
@@ -14011,8 +13933,17 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
     let localStream = null;
     const startCamera = async () => {
       try {
+        let videoConstraints = { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: { ideal: 'environment' } };
+        const savedCameraId = localStorage.getItem('mavi-selected-camera-id');
+        const configuredCameraId = comp?.props?.cameraId;
+        const targetCameraId = configuredCameraId || savedCameraId;
+        
+        if (targetCameraId && targetCameraId !== 'default' && targetCameraId !== '') {
+          videoConstraints = { deviceId: { exact: targetCameraId }, width: { ideal: 640 }, height: { ideal: 480 } };
+        }
+
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: { ideal: 'environment' } },
+          video: videoConstraints,
           audio: false
         });
         streamRef.current = stream;
@@ -14038,7 +13969,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
         localStream.getTracks().forEach(t => t.stop());
       }
     };
-  }, [cvLoaded, cameraSource]);
+  }, [cameraSource]);
 
   // Helper to calculate mouse/touch position scaled to the canvas with objectFit: cover
   const getCanvasMousePos = (e) => {
@@ -14204,9 +14135,8 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
 
   // Frame processing loop
   useEffect(() => {
-    if (!cameraActive || !cvLoaded) return;
+    if (!cameraActive) return;
 
-    const cv = window.cv;
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
@@ -14215,26 +14145,6 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
     const height = 240;
     canvas.width = width;
     canvas.height = height;
-
-    let cap;
-    let src;
-    let dst;
-    let gray;
-    let edges;
-
-    if (!isSimulatedCv) {
-      try {
-        cap = new cv.VideoCapture(video);
-        src = new cv.Mat(height, width, cv.CV_8UC4);
-        dst = new cv.Mat(height, width, cv.CV_8UC4);
-        gray = new cv.Mat();
-        edges = new cv.Mat();
-      } catch (err) {
-        console.error('Failed to initialize OpenCV matrices:', err);
-        return;
-      }
-    }
-
     const runYoloDetector = (ctx, canvas, w, h) => {
       const modelType = comp?.props?.yoloModelType || 'yolov8n_general';
       const confMin = comp?.props?.yoloConfidence ?? 50;
@@ -14498,7 +14408,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
       if (!isProcessing) return;
 
       try {
-        if (cameraSource !== 'IP_CAMERA' && !isSimulatedCv && (video.paused || video.ended)) {
+        if (cameraSource !== 'IP_CAMERA' && (video.paused || video.ended)) {
           requestRef.current = requestAnimationFrame(processFrame);
           return;
         }
@@ -14546,7 +14456,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
                     formData.append("file", blob, "frame.jpg");
                     
                     const scaleRatio = 640 / canvas.width;
-                    const mmPx = (comp?.props?.mmPerPixel || 0.1170) * scaleRatio;
+                    const mmPx = (cameraConfig?.settings?.mmPerPixel || comp?.props?.mmPerPixel || 0.1170) * scaleRatio;
                     
                     const params = new URLSearchParams({
                       x1: rulerPoints.x1.toString(),
@@ -14679,54 +14589,84 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
           } catch (e) {
             console.error('Ruler Vision canvas processing error in widget:', e);
           }
-        } else if (isSimulatedCv || cameraSource === 'IP_CAMERA') {
+        } else {
           // Fast Canvas 2D fallback rendering (when OpenCV is downloading or offline or IP Camera)
           const ctx = canvas.getContext('2d');
-          if (cameraSource === 'IP_CAMERA' || isSimulatedCv) {
+          if (cameraSource === 'IP_CAMERA') {
             drawSimulatedIPStream(ctx, width, height);
           } else {
             ctx.drawImage(video, 0, 0, width, height);
           }
 
-          if (filterType === 'GRAY') {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
-            ctx.fillRect(0, 0, width, height);
-            calculatedVal = 'Grayscale Active (Simulated)';
-            isPassed = true;
-          } else if (filterType === 'CANNY') {
-            ctx.strokeStyle = '#00ff00';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(40, 40, width - 80, height - 80);
-            calculatedVal = `Canny Edges (Simulated: ${threshVal})`;
-            isPassed = true;
-          } else if (filterType === 'THRESHOLD') {
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-            ctx.fillRect(0, 0, width, height);
-            calculatedVal = `Thresholded (Simulated: ${threshVal})`;
-            isPassed = true;
-          } else if (filterType === 'SOBEL') {
-            calculatedVal = 'Sobel Gradients (Simulated)';
-            isPassed = true;
-          } else if (filterType === 'COUNTING') {
-            ctx.strokeStyle = '#22c55e';
-            ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.arc(100, 120, 20, 0, 2*Math.PI); ctx.stroke();
-            ctx.beginPath(); ctx.arc(220, 90, 20, 0, 2*Math.PI); ctx.stroke();
-            ctx.beginPath(); ctx.arc(160, 170, 20, 0, 2*Math.PI); ctx.stroke();
-            
-            // HUD
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
-            ctx.fillRect(10, 10, 140, 32);
-            ctx.strokeStyle = '#22c55e';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(10, 10, 140, 32);
-            ctx.fillStyle = '#22c55e';
-            ctx.font = 'bold 11px sans-serif';
-            ctx.fillText(`PARTS: 3 detected`, 20, 30);
+          
+          const isStandardCvFilter = ['GRAY', 'CANNY', 'THRESHOLD', 'SOBEL', 'COUNTING', 'CHANGE_DETECTOR', 'DIMENSION', 'INSPECTION'].includes(filterType);
 
-            const targetCountVal = Math.round(getVarVal('Target_Parts', comp.props.targetCount ?? 3));
-            calculatedVal = `3 parts counted`;
-            isPassed = 3 === targetCountVal;
+          if (isStandardCvFilter) {
+            if (!window._cvProcessState) {
+              window._cvProcessState = { isFetching: false, lastFetch: 0, processedImgUrl: null, processedImage: new Image(), result: {} };
+            }
+            const stateRef = window._cvProcessState;
+            const now = Date.now();
+
+            if (!stateRef.isFetching && (now - stateRef.lastFetch > 300)) {
+              stateRef.isFetching = true;
+              stateRef.lastFetch = now;
+
+              getCleanFrameBlob((blob) => {
+                if (blob) {
+                  const formData = new FormData();
+                  formData.append("file", blob, "frame.jpg");
+                  
+                  const mmPx = cameraConfig?.settings?.mmPerPixel || comp?.props?.mmPerPixel || 0.0;
+                  const threshVal = comp?.props?.thresholdValue ?? 100;
+                  const dimMode = comp?.props?.dimMeasureMode || 'WIDTH';
+                  const dimUnit = comp?.props?.dimUnit || 'mm';
+                  const dimMin = comp?.props?.dimMinMm ?? '';
+                  const dimMax = comp?.props?.dimMaxMm ?? '';
+                  const dimThresh = comp?.props?.dimThreshold ?? 80;
+                  const targetCount = comp?.props?.targetCount ?? 3;
+                  const changeThresh = comp?.props?.changeThreshold ?? 25;
+
+                  const params = new URLSearchParams({
+                    filter_type: filterType,
+                    camera_id: comp?.id || 'default',
+                    threshold_value: threshVal.toString(),
+                    mm_per_pixel: mmPx.toString(),
+                    dim_measure_mode: dimMode,
+                    dim_unit: dimUnit,
+                    dim_threshold: dimThresh.toString(),
+                    target_count: targetCount.toString(),
+                    change_threshold: changeThresh.toString()
+                  });
+                  if (dimMin !== '') params.append('dim_min_mm', dimMin.toString());
+                  if (dimMax !== '') params.append('dim_max_mm', dimMax.toString());
+
+                  fetch(`http://localhost:8000/cv/process?${params.toString()}`, { method: "POST", body: formData })
+                    .then(res => {
+                      if (!res.ok) throw new Error('CV Process API error');
+                      const calcVal = res.headers.get('X-Calculated-Value') || '-';
+                      const passed = res.headers.get('X-Is-Passed') === 'true';
+                      const metaStr = res.headers.get('X-Detections') || '[]';
+                      try { stateRef.result = { detections: JSON.parse(metaStr), val: calcVal, passed: passed }; } catch(_) { stateRef.result = { detections: [] }; }
+                      return res.blob();
+                    })
+                    .then(imgBlob => {
+                      if (stateRef.processedImgUrl) URL.revokeObjectURL(stateRef.processedImgUrl);
+                      stateRef.processedImgUrl = URL.createObjectURL(imgBlob);
+                      stateRef.processedImage.src = stateRef.processedImgUrl;
+                    })
+                    .catch(err => console.error("CV Process API error:", err))
+                    .finally(() => { stateRef.isFetching = false; });
+                } else { stateRef.isFetching = false; }
+              }, 'image/jpeg', 0.85);
+            }
+
+            if (stateRef.processedImage && stateRef.processedImage.complete && stateRef.processedImage.naturalWidth > 0) {
+              ctx.drawImage(stateRef.processedImage, 0, 0, width, height);
+            }
+            
+            if (stateRef.result?.val !== undefined) calculatedVal = stateRef.result.val;
+            if (stateRef.result?.passed !== undefined) isPassed = stateRef.result.passed;
           } else if (filterType === 'CALIPER_OCR') {
             const boxW = 160;
             const boxH = 50;
@@ -14827,230 +14767,13 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
 
             calculatedVal = simulatedCode;
             isPassed = simulatedCode !== 'WAITING FOR CODE...';
-          } else if (filterType === 'INSPECTION') {
-            const boxW = 110;
-            const boxH = 110;
-            const boxX = (width - boxW) / 2;
-            const boxY = (height - boxH) / 2;
-            
-            const isPassedVal = Math.floor(Date.now() / 3500) % 2 === 0;
-            ctx.strokeStyle = isPassedVal ? '#22c55e' : '#ef4444';
-            ctx.lineWidth = 3;
-            ctx.strokeRect(boxX, boxY, boxW, boxH);
-            
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
-            ctx.fillRect(10, 10, 170, 48);
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 9px sans-serif';
-            ctx.fillText('VISION QUALITY CHECK', 18, 24);
-            
-            ctx.fillStyle = isPassedVal ? '#22c55e' : '#ef4444';
-            ctx.font = 'bold 14px sans-serif';
-            ctx.fillText(isPassedVal ? 'OK - PASS' : 'NG - REJECT', 18, 42);
-
-            calculatedVal = isPassedVal ? 'OK - PASS' : 'NG - REJECT';
-            isPassed = isPassedVal;
-          } else if (filterType === 'CHANGE_DETECTOR') {
-            const size = 30; // 30x30 region
-            const sx = Math.floor((width - size) / 2);
-            const sy = Math.floor((height - size) / 2);
-            
-            try {
-              const currentFrame = ctx.getImageData(sx, sy, size, size);
-              const cData = currentFrame.data;
-
-              let changedPixels = 0;
-              const totalPixels = size * size;
-
-              if (prevFrameRef.current && prevFrameRef.current.width === size && prevFrameRef.current.height === size) {
-                const pData = prevFrameRef.current.data;
-                const diffThreshold = 30;
-
-                for (let i = 0; i < cData.length; i += 4) {
-                  const dr = Math.abs(cData[i] - pData[i]);
-                  const dg = Math.abs(cData[i+1] - pData[i+1]);
-                  const db = Math.abs(cData[i+2] - pData[i+2]);
-                  
-                  const avgDiff = (dr + dg + db) / 3;
-                  if (avgDiff > diffThreshold) {
-                    changedPixels++;
-                  }
-                }
-              }
-
-              prevFrameRef.current = currentFrame;
-
-              const changeThreshold = Number(comp?.props?.changeThreshold ?? 25);
-              const changePercent = Math.round((changedPixels / totalPixels) * 100);
-              const isChangeDetected = changePercent >= changeThreshold;
-
-              ctx.strokeStyle = isChangeDetected ? '#22c55e' : '#eab308';
-              ctx.lineWidth = 3;
-              ctx.strokeRect(sx - 10, sy - 10, size + 20, size + 20);
-
-              ctx.fillStyle = isChangeDetected ? 'rgba(34, 197, 94, 0.15)' : 'rgba(234, 179, 8, 0.15)';
-              ctx.fillRect(sx - 10, sy - 10, size + 20, size + 20);
-
-              ctx.fillStyle = '#ffffff';
-              ctx.font = 'bold 9px sans-serif';
-              ctx.fillText(`MOTION REGION (Min ${changeThreshold}%)`, width / 2, sy - 15);
-              ctx.fillStyle = isChangeDetected ? '#22c55e' : '#eab308';
-              ctx.fillText(isChangeDetected ? `MOTION DETECTED (${changePercent}%)` : `NO MOTION (${changePercent}%)`, width / 2, sy + size + 20);
-
-              calculatedVal = isChangeDetected ? 'MOTION' : 'NO MOTION';
-              isPassed = isChangeDetected;
-            } catch (e) {
-              console.error(e);
-            }
-          } else if (filterType === 'YOLO_DETECTOR') {
+          }   else if (filterType === 'YOLO_DETECTOR') {
             const ctx = canvas.getContext('2d');
             ctx.drawImage(video, 0, 0, width, height);
             const res = runYoloDetector(ctx, canvas, width, height);
             calculatedVal = res.calculatedVal;
             isPassed = res.isPassed;
-          } else if (filterType === 'DIMENSION') {
-            // ── DIMENSION MEASUREMENT (Simulated Canvas 2D fallback) ──
-            const ctx = canvas.getContext('2d');
-            if (cameraSource === 'IP_CAMERA') {
-              drawSimulatedIPStream(ctx, width, height);
-            } else {
-              ctx.drawImage(video, 0, 0, width, height);
-            }
-
-            const mmPx = comp.props.mmPerPixel || 0;
-            const isCalibrated = mmPx > 0;
-            const inCalibMode = comp.props.calibrationMode === true;
-            const measureMode = comp.props.dimMeasureMode || 'WIDTH';
-            const dimUnit = comp.props.dimUnit || 'mm';
-
-            if (inCalibMode) {
-              // Calibration guide overlay
-              const guideW = width * 0.4;
-              const guideH = height * 0.25;
-              const gx = (width - guideW) / 2;
-              const gy = (height - guideH) / 2;
-
-              ctx.setLineDash([6, 4]);
-              ctx.strokeStyle = '#f59e0b';
-              ctx.lineWidth = 2;
-              ctx.strokeRect(gx, gy, guideW, guideH);
-              ctx.setLineDash([]);
-
-              // Crosshairs
-              ctx.strokeStyle = 'rgba(245, 158, 11, 0.5)';
-              ctx.lineWidth = 1;
-              ctx.beginPath(); ctx.moveTo(width / 2, gy - 10); ctx.lineTo(width / 2, gy + guideH + 10); ctx.stroke();
-              ctx.beginPath(); ctx.moveTo(gx - 10, height / 2); ctx.lineTo(gx + guideW + 10, height / 2); ctx.stroke();
-
-              // Label
-              ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
-              ctx.fillRect(gx, gy - 22, guideW, 18);
-              ctx.fillStyle = '#fbbf24';
-              ctx.font = 'bold 9px sans-serif';
-              ctx.textAlign = 'center';
-              ctx.fillText(`Place reference object (${comp.props.dimRefSizeMm || 20} ${dimUnit})`, width / 2, gy - 8);
-              ctx.textAlign = 'start';
-
-              // Pulsing border
-              const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 300);
-              ctx.strokeStyle = `rgba(245, 158, 11, ${pulse})`;
-              ctx.lineWidth = 3;
-              ctx.strokeRect(gx - 2, gy - 2, guideW + 4, guideH + 4);
-
-              calculatedVal = 'CALIBRATING...';
-              isPassed = false;
-            } else {
-              // Simulate detected parts with dimension annotations
-              const t = Date.now() / 2000;
-              const parts = [
-                { x: width * 0.2, y: height * 0.3, pw: 120 + Math.sin(t) * 2, ph: 60 + Math.cos(t) * 1 },
-                { x: width * 0.55, y: height * 0.45, pw: 80 + Math.cos(t) * 1.5, ph: 95 + Math.sin(t) * 1 }
-              ];
-
-              parts.forEach((p, idx) => {
-                const wMm = isCalibrated ? (p.pw * mmPx).toFixed(2) : '?';
-                const hMm = isCalibrated ? (p.ph * mmPx).toFixed(2) : '?';
-                const areaMm = isCalibrated ? (p.pw * mmPx * p.ph * mmPx).toFixed(1) : '?';
-
-                // Bounding box
-                ctx.strokeStyle = '#10b981';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(p.x, p.y, p.pw, p.ph);
-
-                // Corner brackets
-                const len = 10;
-                ctx.strokeStyle = '#10b981';
-                ctx.lineWidth = 3;
-                ctx.beginPath(); ctx.moveTo(p.x, p.y + len); ctx.lineTo(p.x, p.y); ctx.lineTo(p.x + len, p.y); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(p.x + p.pw - len, p.y); ctx.lineTo(p.x + p.pw, p.y); ctx.lineTo(p.x + p.pw, p.y + len); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(p.x, p.y + p.ph - len); ctx.lineTo(p.x, p.y + p.ph); ctx.lineTo(p.x + len, p.y + p.ph); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(p.x + p.pw - len, p.y + p.ph); ctx.lineTo(p.x + p.pw, p.y + p.ph); ctx.lineTo(p.x + p.pw, p.y + p.ph - len); ctx.stroke();
-
-                // Width annotation (top)
-                ctx.fillStyle = 'rgba(16, 185, 129, 0.85)';
-                const wLabel = `W: ${wMm} ${dimUnit}`;
-                ctx.font = 'bold 9px sans-serif';
-                const wTw = ctx.measureText(wLabel).width + 8;
-                ctx.fillRect(p.x + (p.pw - wTw) / 2, p.y - 16, wTw, 14);
-                ctx.fillStyle = '#ffffff';
-                ctx.fillText(wLabel, p.x + (p.pw - wTw) / 2 + 4, p.y - 5);
-
-                // Height annotation (right)
-                ctx.fillStyle = 'rgba(16, 185, 129, 0.85)';
-                const hLabel = `H: ${hMm}`;
-                const hTw = ctx.measureText(hLabel).width + 8;
-                ctx.fillRect(p.x + p.pw + 4, p.y + (p.ph - 14) / 2, hTw, 14);
-                ctx.fillStyle = '#ffffff';
-                ctx.fillText(hLabel, p.x + p.pw + 8, p.y + (p.ph - 14) / 2 + 11);
-
-                // Area label (center)
-                if (isCalibrated) {
-                  ctx.fillStyle = 'rgba(15, 23, 42, 0.6)';
-                  const aLabel = `${areaMm} ${dimUnit}²`;
-                  const aTw = ctx.measureText(aLabel).width + 8;
-                  ctx.fillRect(p.x + (p.pw - aTw) / 2, p.y + p.ph / 2 - 7, aTw, 14);
-                  ctx.fillStyle = '#94a3b8';
-                  ctx.fillText(aLabel, p.x + (p.pw - aTw) / 2 + 4, p.y + p.ph / 2 + 4);
-                }
-              });
-
-              // Determine measured value for pass/fail
-              if (isCalibrated && parts.length > 0) {
-                const p0 = parts[0];
-                let measVal = 0;
-                if (measureMode === 'WIDTH') measVal = p0.pw * mmPx;
-                else if (measureMode === 'HEIGHT') measVal = p0.ph * mmPx;
-                else if (measureMode === 'DIAGONAL') measVal = Math.sqrt(p0.pw * p0.pw + p0.ph * p0.ph) * mmPx;
-                else if (measureMode === 'AREA') measVal = p0.pw * mmPx * p0.ph * mmPx;
-
-                calculatedVal = `${measVal.toFixed(3)} ${dimUnit}`;
-                const dMin = comp.props.dimMinMm;
-                const dMax = comp.props.dimMaxMm;
-                isPassed = (dMin == null || measVal >= dMin) && (dMax == null || measVal <= dMax);
-              } else {
-                calculatedVal = isCalibrated ? '2 parts detected' : 'UNCALIBRATED';
-                isPassed = isCalibrated;
-              }
-            }
-
-            // HUD badge
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
-            ctx.fillRect(10, 10, 200, 55);
-            ctx.strokeStyle = isCalibrated ? 'rgba(16, 185, 129, 0.5)' : 'rgba(245, 158, 11, 0.5)';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(10, 10, 200, 55);
-
-            ctx.fillStyle = isCalibrated ? '#34d399' : '#fbbf24';
-            ctx.font = 'bold 9px sans-serif';
-            ctx.fillText('DIMENSION MEASUREMENT', 18, 24);
-
-            ctx.fillStyle = '#94a3b8';
-            ctx.font = '7px monospace';
-            ctx.fillText(`Mode: ${measureMode}`, 18, 35);
-            ctx.fillText(isCalibrated ? `Calibrated: ${mmPx.toFixed(4)} ${dimUnit}/px` : 'NOT CALIBRATED', 18, 45);
-            ctx.fillText(`Tolerance: ${comp.props.dimMinMm ?? '—'} ~ ${comp.props.dimMaxMm ?? '—'} ${dimUnit}`, 18, 55);
-          }
-          } else if (filterType === 'CIRCLE_DETECT') {
+          }  else if (filterType === 'CIRCLE_DETECT') {
             // ── CIRCLE/DIAMETER DETECTION (Python API) ──
             const ctx = canvas.getContext('2d');
             if (cameraSource === 'IP_CAMERA') {
@@ -15061,7 +14784,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
 
             const stateRef = circleDetectRef.current;
             const now = Date.now();
-            const mmPx = comp?.props?.mmPerPixel || 0.1170;
+            const mmPx = cameraConfig?.settings?.mmPerPixel || comp?.props?.mmPerPixel || 0.1170;
             const minR = comp?.props?.circleMinRadius ?? 10;
             const maxR = comp?.props?.circleMaxRadius ?? 200;
             const param2Val = comp?.props?.circleParam2 ?? 30;
@@ -15184,7 +14907,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
             const now = Date.now();
             const threshold = comp?.props?.contourThreshold ?? 80;
             const minArea = comp?.props?.contourMinArea ?? 500;
-            const mmPx = comp?.props?.mmPerPixel || 0.1170;
+            const mmPx = cameraConfig?.settings?.mmPerPixel || comp?.props?.mmPerPixel || 0.1170;
             const dimUnit = comp?.props?.dimUnit || 'mm';
 
             if (!stateRef.isFetching && (now - stateRef.lastFetch > 300)) {
@@ -15231,643 +14954,8 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
             ctx.fillStyle = '#a855f7';
             ctx.font = 'bold 9px sans-serif';
             ctx.fillText('PERIMETER & AREA MEASUREMENT', 18, 29);
-
-        } else {
-          // Regular OpenCV flow
-          cap.read(src);
-
-          if (filterType === 'GRAY') {
-            cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY);
-            cv.imshow(canvas, dst);
-            calculatedVal = 'Grayscale Active';
-            isPassed = true;
-          } else if (filterType === 'CANNY') {
-            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-            cv.Canny(gray, edges, threshVal, threshVal * 2, 3, false);
-            cv.imshow(canvas, edges);
-            calculatedVal = `Canny Edges (Thresh: ${threshVal})`;
-            isPassed = true;
-          } else if (filterType === 'THRESHOLD') {
-            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-            cv.threshold(gray, dst, threshVal, 255, cv.THRESH_BINARY);
-            cv.imshow(canvas, dst);
-            calculatedVal = `Thresholded (Thresh: ${threshVal})`;
-            isPassed = true;
-          } else if (filterType === 'SOBEL') {
-            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-            const xGrad = new cv.Mat();
-            const yGrad = new cv.Mat();
-            cv.Sobel(gray, xGrad, cv.CV_8U, 1, 0, 3, 1, 0, cv.BORDER_DEFAULT);
-            cv.Sobel(gray, yGrad, cv.CV_8U, 0, 1, 3, 1, 0, cv.BORDER_DEFAULT);
-            cv.addWeighted(xGrad, 0.5, yGrad, 0.5, 0, dst);
-            cv.imshow(canvas, dst);
-            calculatedVal = 'Sobel Gradients Active';
-            isPassed = true;
-            xGrad.delete();
-            yGrad.delete();
-          } else if (filterType === 'COUNTING') {
-            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-            cv.threshold(gray, dst, threshVal, 255, cv.THRESH_BINARY_INV);
-            const contours = new cv.MatVector();
-            const hierarchy = new cv.Mat();
-            cv.findContours(dst, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-            
-            let count = 0;
-            for (let i = 0; i < contours.size(); ++i) {
-              const cnt = contours.get(i);
-              const area = cv.contourArea(cnt);
-              if (area > 300) {
-                count++;
-                const color = new cv.Scalar(34, 197, 94, 255);
-                cv.drawContours(src, contours, i, color, 2, cv.LINE_8, hierarchy, 0);
-              }
-            }
-            cv.imshow(canvas, src);
-            
-            // Draw HUD
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
-            ctx.fillRect(10, 10, 140, 32);
-            ctx.strokeStyle = '#22c55e';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(10, 10, 140, 32);
-            ctx.fillStyle = '#22c55e';
-            ctx.font = 'bold 11px sans-serif';
-            ctx.fillText(`PARTS: ${count} detected`, 20, 30);
-
-            const targetCountVal = Math.round(getVarVal('Target_Parts', comp.props.targetCount ?? 3));
-            calculatedVal = `${count} parts counted`;
-            isPassed = count === targetCountVal;
-
-            contours.delete();
-            hierarchy.delete();
-          } else if (filterType === 'CALIPER_OCR') {
-            cv.imshow(canvas, src);
-            const ctx = canvas.getContext('2d');
-            
-            const boxW = 160;
-            const boxH = 50;
-            const boxX = (width - boxW) / 2;
-            const boxY = (height - boxH) / 2;
-            
-            ctx.strokeStyle = '#3b82f6';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(boxX, boxY, boxW, boxH);
-            
-            // corners
-            ctx.fillStyle = '#3b82f6';
-            ctx.fillRect(boxX - 4, boxY - 4, 12, 4);
-            ctx.fillRect(boxX - 4, boxY - 4, 4, 12);
-            ctx.fillRect(boxX + boxW - 8, boxY - 4, 12, 4);
-            ctx.fillRect(boxX + boxW, boxY - 4, 4, 12);
-            ctx.fillRect(boxX - 4, boxY + boxH, 12, 4);
-            ctx.fillRect(boxX - 4, boxY + boxH - 8, 4, 12);
-            ctx.fillRect(boxX + boxW - 8, boxY + boxH, 12, 4);
-            ctx.fillRect(boxX + boxW, boxY + boxH - 8, 4, 12);
-            
-            // HUD info
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
-            ctx.fillRect(10, 10, 190, 48);
-            ctx.fillStyle = '#60a5fa';
-            ctx.font = 'bold 9px sans-serif';
-            ctx.fillText('ALIGN DIGITAL CALIPER SCREEN', 18, 24);
-            
-            const val = (25.40 + Math.sin(Date.now() / 1500) * 0.03).toFixed(2);
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 13px monospace';
-            ctx.fillText(`READOUT: ${val} mm`, 18, 42);
-
-            const calMin = getVarVal('Caliper_LSL', comp.props.caliperMin ?? 25.35);
-            const calMax = getVarVal('Caliper_USL', comp.props.caliperMax ?? 25.45);
-            const parsedCaliper = parseFloat(val);
-            calculatedVal = `${val} mm`;
-            isPassed = parsedCaliper >= calMin && parsedCaliper <= calMax;
-          } else if (filterType === 'DIAL_GAUGE') {
-            cv.imshow(canvas, src);
-            const ctx = canvas.getContext('2d');
-            
-            const centerX = width / 2;
-            const centerY = height / 2;
-            const radius = 60;
-            
-            ctx.strokeStyle = '#fbbf24';
-            ctx.lineWidth = 2.5;
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-            ctx.stroke();
-            
-            // ticks
-            ctx.strokeStyle = '#fbbf24';
-            ctx.lineWidth = 1;
-            for (let a = 0; a < 360; a += 30) {
-              const rad = (a * Math.PI) / 180;
-              ctx.beginPath();
-              ctx.moveTo(centerX + Math.cos(rad) * (radius - 5), centerY + Math.sin(rad) * (radius - 5));
-              ctx.lineTo(centerX + Math.cos(rad) * radius, centerY + Math.sin(rad) * radius);
-              ctx.stroke();
-            }
-            
-            // needle
-            const angle = (Date.now() / 1200) % (2 * Math.PI);
-            ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(centerX, centerY);
-            ctx.lineTo(centerX + Math.cos(angle) * (radius - 12), centerY + Math.sin(angle) * (radius - 12));
-            ctx.stroke();
-            
-            ctx.fillStyle = '#ef4444';
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, 3.5, 0, 2 * Math.PI);
-            ctx.fill();
-            
-            // HUD info
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
-            ctx.fillRect(10, 10, 170, 48);
-            ctx.fillStyle = '#fdba74';
-            ctx.font = 'bold 9px sans-serif';
-            ctx.fillText('DIAL GAUGE READOUT', 18, 24);
-            
-            const val = ((angle / (2 * Math.PI)) * 100).toFixed(1);
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 13px monospace';
-            ctx.fillText(`PRESSURE: ${val} PSI`, 18, 42);
-
-            const gMin = getVarVal('Gauge_LSL', comp.props.gaugeMin ?? 0.0);
-            const gMax = getVarVal('Gauge_USL', comp.props.gaugeMax ?? 60.0);
-            const parsedGauge = parseFloat(val);
-            calculatedVal = `${val} PSI`;
-            isPassed = parsedGauge >= gMin && parsedGauge <= gMax;
-          } else if (filterType === 'BARCODE') {
-            cv.imshow(canvas, src);
-            const ctx = canvas.getContext('2d');
-            
-            const laserY = (height / 2) + Math.sin(Date.now() / 150) * 35;
-            ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(width * 0.15, laserY);
-            ctx.lineTo(width * 0.85, laserY);
-            ctx.stroke();
-            
-            // HUD
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
-            ctx.fillRect(10, 10, 170, 42);
-            ctx.fillStyle = '#fca5a5';
-            ctx.font = 'bold 9px sans-serif';
-            ctx.fillText('BARCODE LASER SCANNING', 18, 24);
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 11px monospace';
-            
-            const codeSec = Math.floor(Date.now() / 4000) % 2;
-            const simulatedCode = codeSec === 0 ? 'BC_982304918230' : 'WAITING FOR CODE...';
-            ctx.fillText(simulatedCode, 18, 38);
-
-            calculatedVal = simulatedCode;
-            isPassed = simulatedCode !== 'WAITING FOR CODE...';
-          } else if (filterType === 'INSPECTION') {
-            cv.imshow(canvas, src);
-            const ctx = canvas.getContext('2d');
-            
-            const boxW = 110;
-            const boxH = 110;
-            const boxX = (width - boxW) / 2;
-            const boxY = (height - boxH) / 2;
-            
-            const isPassedVal = Math.floor(Date.now() / 3500) % 2 === 0;
-            
-            ctx.strokeStyle = isPassedVal ? '#22c55e' : '#ef4444';
-            ctx.lineWidth = 3;
-            ctx.strokeRect(boxX, boxY, boxW, boxH);
-            
-            // HUD
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
-            ctx.fillRect(10, 10, 170, 48);
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 9px sans-serif';
-            ctx.fillText('VISION QUALITY CHECK', 18, 24);
-            
-            ctx.fillStyle = isPassedVal ? '#22c55e' : '#ef4444';
-            ctx.font = 'bold 14px sans-serif';
-            ctx.fillText(isPassedVal ? 'OK - PASS' : 'NG - REJECT', 18, 42);
-
-            calculatedVal = isPassedVal ? 'OK - PASS' : 'NG - REJECT';
-            isPassed = isPassedVal;
-          } else if (filterType === 'CHANGE_DETECTOR') {
-            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-            
-            const size = 60; // larger bounding box for OpenCV
-            const sx = Math.floor((width - size) / 2);
-            const sy = Math.floor((height - size) / 2);
-            
-            // Define ROI (Region Of Interest)
-            const rect = new cv.Rect(sx, sy, size, size);
-            const roiGray = gray.roi(rect);
-            
-            let changePercent = 0;
-            let isChangeDetected = false;
-            
-            if (prevGrayMatRef.current && prevGrayMatRef.current.rows === size && prevGrayMatRef.current.cols === size) {
-              const diffMat = new cv.Mat();
-              cv.absdiff(roiGray, prevGrayMatRef.current, diffMat);
-              
-              const threshMat = new cv.Mat();
-              cv.threshold(diffMat, threshMat, 30, 255, cv.THRESH_BINARY);
-              
-              const nonZeroCount = cv.countNonZero(threshMat);
-              changePercent = Math.round((nonZeroCount / (size * size)) * 100);
-              
-              const changeThreshold = Number(comp?.props?.changeThreshold ?? 25);
-              isChangeDetected = changePercent >= changeThreshold;
-              
-              diffMat.delete();
-              threshMat.delete();
-            }
-            
-            // Store copy of current frame ROI for next check
-            if (prevGrayMatRef.current) {
-              prevGrayMatRef.current.delete();
-            }
-            prevGrayMatRef.current = roiGray.clone();
-            roiGray.delete();
-            
-            cv.imshow(canvas, src);
-            
-            // Draw overlays on Canvas 2D after imshow
-            const ctx = canvas.getContext('2d');
-            ctx.strokeStyle = isChangeDetected ? '#22c55e' : '#eab308';
-            ctx.lineWidth = 3;
-            ctx.strokeRect(sx - 10, sy - 10, size + 20, size + 20);
-
-            ctx.fillStyle = isChangeDetected ? 'rgba(34, 197, 94, 0.15)' : 'rgba(234, 179, 8, 0.15)';
-            ctx.fillRect(sx - 10, sy - 10, size + 20, size + 20);
-
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 9px sans-serif';
-            ctx.fillText(`MOTION REGION (Min ${comp?.props?.changeThreshold ?? 25}%)`, width / 2, sy - 15);
-            ctx.fillStyle = isChangeDetected ? '#22c55e' : '#eab308';
-            ctx.fillText(isChangeDetected ? `MOTION DETECTED (${changePercent}%)` : `NO MOTION (${changePercent}%)`, width / 2, sy + size + 20);
-            
-            calculatedVal = isChangeDetected ? 'MOTION' : 'NO MOTION';
-            isPassed = isChangeDetected;
-          } else if (filterType === 'YOLO_DETECTOR') {
-            cv.imshow(canvas, src);
-            const ctx = canvas.getContext('2d');
-            const res = runYoloDetector(ctx, canvas, width, height);
-            calculatedVal = res.calculatedVal;
-            isPassed = res.isPassed;
-          } else if (filterType === 'DIMENSION') {
-            // ── DIMENSION MEASUREMENT (Full OpenCV flow) ──
-            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-            const blurred = new cv.Mat();
-            const ksize = new cv.Size(5, 5);
-            cv.GaussianBlur(gray, blurred, ksize, 0);
-
-            const dimThresh = comp.props.dimThreshold ?? 80;
-            cv.Canny(blurred, edges, dimThresh, dimThresh * 2, 3, false);
-
-            // Dilate to close gaps in edges
-            const kernel = cv.Mat.ones(3, 3, cv.CV_8U);
-            const dilated = new cv.Mat();
-            cv.dilate(edges, dilated, kernel, new cv.Point(-1, -1), 1);
-
-            const contours = new cv.MatVector();
-            const hierarchy = new cv.Mat();
-            cv.findContours(dilated, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-
-            // Show original frame
-            cv.imshow(canvas, src);
-            const ctx = canvas.getContext('2d');
-
-            const mmPx = comp.props.mmPerPixel || 0;
-            const isCalibrated = mmPx > 0;
-            const inCalibMode = comp.props.calibrationMode === true;
-            const measureMode = comp.props.dimMeasureMode || 'WIDTH';
-            const dimUnit = comp.props.dimUnit || 'mm';
-            const minArea = comp.props.dimMinArea ?? 500;
-
-            let partCount = 0;
-            let primaryMeasVal = 0;
-            let largestArea = 0;
-
-            for (let i = 0; i < contours.size(); ++i) {
-              const cnt = contours.get(i);
-              const area = cv.contourArea(cnt);
-              if (area < minArea) continue;
-              partCount++;
-
-              const rect = cv.boundingRect(cnt);
-
-              // Draw green bounding box
-              ctx.strokeStyle = '#10b981';
-              ctx.lineWidth = 2;
-              ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
-
-              // Corner brackets
-              const len = Math.min(rect.width, rect.height) * 0.15;
-              ctx.strokeStyle = '#10b981';
-              ctx.lineWidth = 3;
-              ctx.beginPath(); ctx.moveTo(rect.x, rect.y + len); ctx.lineTo(rect.x, rect.y); ctx.lineTo(rect.x + len, rect.y); ctx.stroke();
-              ctx.beginPath(); ctx.moveTo(rect.x + rect.width - len, rect.y); ctx.lineTo(rect.x + rect.width, rect.y); ctx.lineTo(rect.x + rect.width, rect.y + len); ctx.stroke();
-              ctx.beginPath(); ctx.moveTo(rect.x, rect.y + rect.height - len); ctx.lineTo(rect.x, rect.y + rect.height); ctx.lineTo(rect.x + len, rect.y + rect.height); ctx.stroke();
-              ctx.beginPath(); ctx.moveTo(rect.x + rect.width - len, rect.y + rect.height); ctx.lineTo(rect.x + rect.width, rect.y + rect.height); ctx.lineTo(rect.x + rect.width, rect.y + rect.height - len); ctx.stroke();
-
-              if (isCalibrated) {
-                const wMm = (rect.width * mmPx).toFixed(2);
-                const hMm = (rect.height * mmPx).toFixed(2);
-                const areaMm = (rect.width * mmPx * rect.height * mmPx).toFixed(1);
-
-                // Width annotation (top)
-                ctx.fillStyle = 'rgba(16, 185, 129, 0.85)';
-                const wLabel = `W: ${wMm} ${dimUnit}`;
-                ctx.font = 'bold 9px sans-serif';
-                const wTw = ctx.measureText(wLabel).width + 8;
-                ctx.fillRect(rect.x + (rect.width - wTw) / 2, rect.y - 16, wTw, 14);
-                ctx.fillStyle = '#ffffff';
-                ctx.fillText(wLabel, rect.x + (rect.width - wTw) / 2 + 4, rect.y - 5);
-
-                // Height annotation (right)
-                ctx.fillStyle = 'rgba(16, 185, 129, 0.85)';
-                const hLabel = `H: ${hMm}`;
-                const hTw = ctx.measureText(hLabel).width + 8;
-                ctx.fillRect(rect.x + rect.width + 4, rect.y + (rect.height - 14) / 2, hTw, 14);
-                ctx.fillStyle = '#ffffff';
-                ctx.fillText(hLabel, rect.x + rect.width + 8, rect.y + (rect.height - 14) / 2 + 11);
-
-                // Area label (center of box)
-                ctx.fillStyle = 'rgba(15, 23, 42, 0.6)';
-                const aLabel = `${areaMm} ${dimUnit}²`;
-                ctx.font = '8px sans-serif';
-                const aTw = ctx.measureText(aLabel).width + 8;
-                ctx.fillRect(rect.x + (rect.width - aTw) / 2, rect.y + rect.height / 2 - 7, aTw, 14);
-                ctx.fillStyle = '#94a3b8';
-                ctx.fillText(aLabel, rect.x + (rect.width - aTw) / 2 + 4, rect.y + rect.height / 2 + 4);
-
-                // Track largest for primary measurement
-                if (area > largestArea) {
-                  largestArea = area;
-                  if (measureMode === 'WIDTH') primaryMeasVal = rect.width * mmPx;
-                  else if (measureMode === 'HEIGHT') primaryMeasVal = rect.height * mmPx;
-                  else if (measureMode === 'DIAGONAL') primaryMeasVal = Math.sqrt(rect.width * rect.width + rect.height * rect.height) * mmPx;
-                  else if (measureMode === 'AREA') primaryMeasVal = rect.width * mmPx * rect.height * mmPx;
-                }
-              } else {
-                // Not calibrated — show pixel dimensions
-                ctx.fillStyle = 'rgba(245, 158, 11, 0.85)';
-                const pxLabel = `${rect.width}×${rect.height} px`;
-                ctx.font = 'bold 8px sans-serif';
-                const pxTw = ctx.measureText(pxLabel).width + 8;
-                ctx.fillRect(rect.x + (rect.width - pxTw) / 2, rect.y - 14, pxTw, 12);
-                ctx.fillStyle = '#ffffff';
-                ctx.fillText(pxLabel, rect.x + (rect.width - pxTw) / 2 + 4, rect.y - 4);
-              }
-            }
-
-            // Calibration mode overlay
-            if (inCalibMode) {
-              const guideW = width * 0.4;
-              const guideH = height * 0.25;
-              const gx = (width - guideW) / 2;
-              const gy = (height - guideH) / 2;
-
-              ctx.setLineDash([6, 4]);
-              ctx.strokeStyle = '#f59e0b';
-              ctx.lineWidth = 2;
-              ctx.strokeRect(gx, gy, guideW, guideH);
-              ctx.setLineDash([]);
-
-              // Crosshairs
-              ctx.strokeStyle = 'rgba(245, 158, 11, 0.4)';
-              ctx.lineWidth = 1;
-              ctx.beginPath(); ctx.moveTo(width / 2, gy - 10); ctx.lineTo(width / 2, gy + guideH + 10); ctx.stroke();
-              ctx.beginPath(); ctx.moveTo(gx - 10, height / 2); ctx.lineTo(gx + guideW + 10, height / 2); ctx.stroke();
-
-              ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
-              const refLabel = `Place reference (${comp.props.dimRefSizeMm || 20} ${dimUnit})`;
-              ctx.font = 'bold 9px sans-serif';
-              const refTw = ctx.measureText(refLabel).width + 12;
-              ctx.fillRect((width - refTw) / 2, gy - 22, refTw, 16);
-              ctx.fillStyle = '#fbbf24';
-              ctx.textAlign = 'center';
-              ctx.fillText(refLabel, width / 2, gy - 9);
-              ctx.textAlign = 'start';
-
-              const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 300);
-              ctx.strokeStyle = `rgba(245, 158, 11, ${pulse})`;
-              ctx.lineWidth = 3;
-              ctx.strokeRect(gx - 2, gy - 2, guideW + 4, guideH + 4);
-            }
-
-            // Pass/fail & calculated value
-            if (isCalibrated && partCount > 0) {
-              calculatedVal = `${primaryMeasVal.toFixed(3)} ${dimUnit}`;
-              const dMin = comp.props.dimMinMm;
-              const dMax = comp.props.dimMaxMm;
-              isPassed = (dMin == null || primaryMeasVal >= dMin) && (dMax == null || primaryMeasVal <= dMax);
-            } else {
-              calculatedVal = partCount > 0 ? `${partCount} parts (${isCalibrated ? 'OK' : 'uncalibrated'})` : 'No parts detected';
-              isPassed = isCalibrated && partCount > 0;
-            }
-
-            // HUD badge
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
-            ctx.fillRect(10, 10, 210, 60);
-            ctx.strokeStyle = isCalibrated ? 'rgba(16, 185, 129, 0.5)' : 'rgba(245, 158, 11, 0.5)';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(10, 10, 210, 60);
-
-            ctx.fillStyle = isCalibrated ? '#34d399' : '#fbbf24';
-            ctx.font = 'bold 9px sans-serif';
-            ctx.fillText('DIMENSION MEASUREMENT', 18, 24);
-
-            ctx.fillStyle = '#94a3b8';
-            ctx.font = '7px monospace';
-            ctx.fillText(`Parts: ${partCount} | Mode: ${measureMode}`, 18, 35);
-            ctx.fillText(isCalibrated ? `Cal: ${mmPx.toFixed(4)} ${dimUnit}/px` : 'NOT CALIBRATED — Set reference', 18, 45);
-            ctx.fillText(`Spec: ${comp.props.dimMinMm ?? '—'} ~ ${comp.props.dimMaxMm ?? '—'} ${dimUnit}`, 18, 55);
-
-            if (isCalibrated && partCount > 0) {
-              ctx.fillStyle = isPassed ? '#10b981' : '#ef4444';
-              ctx.font = 'bold 10px sans-serif';
-              ctx.fillText(isPassed ? '✓ PASS' : '✗ FAIL', 18, 65);
-            }
-
-            // Cleanup
-            blurred.delete();
-            kernel.delete();
-            dilated.delete();
-            contours.delete();
-            hierarchy.delete();
-          } else {
-            cv.imshow(canvas, src);
           }
         }
-
-        // ── Monitored Regions Processing ────────────────────────
-        const regions = cameraConfig?.settings?.regions || [];
-        const showOverlay = comp?.props?.showOverlay !== false;
-        const nowTime = Date.now();
-        const shouldAnalyze = nowTime - lastAnalysisTimeRef.current >= 100; // 10 FPS
-        if (shouldAnalyze) {
-          lastAnalysisTimeRef.current = nowTime;
-        }
-
-        const w = canvas.width;
-        const h = canvas.height;
-
-        regions.forEach((region) => {
-          const scale = w / 640;
-          const rx = Math.max(0, Math.min(region.x * scale, w - 2));
-          const ry = Math.max(0, Math.min(region.y * scale, h - 2));
-          const rw = Math.max(2, Math.min(region.w * scale, w - rx));
-          const rh = Math.max(2, Math.min(region.h * scale, h - ry));
-
-          const colorDet = region.detectors?.colorDetector;
-          const changeDet = region.detectors?.changeDetector;
-
-          let isMatching = false;
-          let changeTriggered = false;
-          let colorSimilarity = 0;
-          let changePercent = 0;
-
-          if (shouldAnalyze) {
-            try {
-              const imgData = ctx.getImageData(rx, ry, rw, rh);
-              const pixels = imgData.data;
-              let rSum = 0, gSum = 0, bSum = 0, count = 0;
-              for (let i = 0; i < pixels.length; i += 16) {
-                rSum += pixels[i];
-                gSum += pixels[i+1];
-                bSum += pixels[i+2];
-                count++;
-              }
-              const avgR = rSum / count;
-              const avgG = gSum / count;
-              const avgB = bSum / count;
-
-              // Color detector
-              if (colorDet && colorDet.enabled) {
-                const hexToRgb = (hex) => {
-                  if (!hex) return { r: 0, g: 0, b: 0 };
-                  const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
-                  const fullHex = hex.replace(shorthandRegex, (m, r, g, b) => r + r + g + g + b + b);
-                  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(fullHex);
-                  return result ? {
-                    r: parseInt(result[1], 16),
-                    g: parseInt(result[2], 16),
-                    b: parseInt(result[3], 16)
-                  } : { r: 0, g: 0, b: 0 };
-                };
-                const targetRGB = hexToRgb(colorDet.targetColor);
-                const dr = avgR - targetRGB.r;
-                const dg = avgG - targetRGB.g;
-                const db = avgB - targetRGB.b;
-                const dist = Math.sqrt(dr*dr + dg*dg + db*db);
-                colorSimilarity = Math.round(Math.max(0, 100 - (dist / 441.67) * 100));
-
-                const lastState = lastMatchStatesRef.current[region.id + '_color'] || false;
-                isMatching = lastState;
-                if (colorSimilarity >= colorDet.beginThreshold) {
-                  isMatching = true;
-                } else if (colorSimilarity < colorDet.endThreshold) {
-                  isMatching = false;
-                }
-                lastMatchStatesRef.current[region.id + '_color'] = isMatching;
-
-                if (lastState !== isMatching) {
-                  const deviceEventName = isMatching ? 'CHANGES_BEGAN' : 'CHANGES_ENDED';
-                  if (typeof fireDeviceInputTriggers === 'function') {
-                    fireDeviceInputTriggers(cameraConfig.id, deviceEventName, {
-                      regionId: region.id,
-                      regionName: region.name,
-                      similarity: colorSimilarity,
-                      value: isMatching ? 'MATCH' : 'NO_MATCH'
-                    });
-                  }
-                }
-              }
-
-              // Change detector
-              if (changeDet && changeDet.enabled) {
-                const currentIntensity = (avgR + avgG + avgB) / 3;
-                const prevIntensity = prevIntensityRef.current[region.id];
-                let delta = 0;
-                if (prevIntensity !== undefined) {
-                  delta = Math.abs(currentIntensity - prevIntensity);
-                }
-                prevIntensityRef.current[region.id] = currentIntensity;
-
-                changePercent = Math.round(Math.min(100, (delta / 12) * 100));
-                
-                const lastState = lastMatchStatesRef.current[region.id + '_change'] || false;
-                changeTriggered = lastState;
-                if (changePercent >= changeDet.beginThreshold) {
-                  changeTriggered = true;
-                } else if (changePercent < changeDet.lowerThreshold) {
-                  changeTriggered = false;
-                }
-                lastMatchStatesRef.current[region.id + '_change'] = changeTriggered;
-
-                if (lastState !== changeTriggered) {
-                  const deviceEventName = changeTriggered ? 'CHANGES_BEGAN' : 'CHANGES_ENDED';
-                  if (typeof fireDeviceInputTriggers === 'function') {
-                    fireDeviceInputTriggers(cameraConfig.id, deviceEventName, {
-                      regionId: region.id,
-                      regionName: region.name,
-                      changePercent: changePercent,
-                      value: changeTriggered ? 'CHANGE' : 'NO_CHANGE'
-                    });
-                  }
-                }
-              }
-            } catch (e) {
-              // ignore startup errors
-            }
-          } else {
-            isMatching = lastMatchStatesRef.current[region.id + '_color'] || false;
-            changeTriggered = lastMatchStatesRef.current[region.id + '_change'] || false;
-          }
-
-          if (showOverlay) {
-            let borderColor = '#3b82f6';
-            if (colorDet && colorDet.enabled) {
-              borderColor = isMatching ? '#22c55e' : '#ef4444';
-            } else if (changeDet && changeDet.enabled) {
-              borderColor = changeTriggered ? '#10b981' : '#f59e0b';
-            }
-
-            ctx.strokeStyle = borderColor;
-            ctx.lineWidth = 1.5;
-            ctx.strokeRect(rx, ry, rw, rh);
-
-            // Corner Markers
-            ctx.lineWidth = 2.5;
-            const markerSize = Math.min(8, Math.min(rw, rh) * 0.25);
-            // Top-left
-            ctx.beginPath(); ctx.moveTo(rx, ry + markerSize); ctx.lineTo(rx, ry); ctx.lineTo(rx + markerSize, ry); ctx.stroke();
-            // Top-right
-            ctx.beginPath(); ctx.moveTo(rx + rw - markerSize, ry); ctx.lineTo(rx + rw, ry); ctx.lineTo(rx + rw, ry + markerSize); ctx.stroke();
-            // Bottom-left
-            ctx.beginPath(); ctx.moveTo(rx, ry + rh - markerSize); ctx.lineTo(rx, ry + rh); ctx.lineTo(rx + markerSize, ry + rh); ctx.stroke();
-            // Bottom-right
-            ctx.beginPath(); ctx.moveTo(rx + rw - markerSize, ry + rh); ctx.lineTo(rx + rw, ry + rh); ctx.lineTo(rx + rw, ry + rh - markerSize); ctx.stroke();
-
-            // Label
-            ctx.fillStyle = borderColor;
-            ctx.font = 'bold 8px sans-serif';
-            let labelText = region.name;
-            if (colorDet && colorDet.enabled) {
-              labelText += ` (${colorSimilarity}%)`;
-            } else if (changeDet && changeDet.enabled) {
-              labelText += ` (${changePercent}%)`;
-            }
-            const textWidth = ctx.measureText(labelText).width + 6;
-            ctx.fillRect(rx, ry - 11, textWidth, 11);
-
-            ctx.fillStyle = '#ffffff';
-            ctx.fillText(labelText, rx + 3, ry - 3);
-          }
-        });
 
         currentReadoutRef.current = { val: calculatedVal, isPassed: isPassed };
       } catch (err) {
@@ -15884,14 +14972,6 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
       if (requestRef.current) {
         cancelAnimationFrame(requestRef.current);
       }
-      if (!isSimulatedCv) {
-        try {
-          src.delete();
-          dst.delete();
-          gray.delete();
-          edges.delete();
-        } catch (e) {}
-      }
       if (prevGrayMatRef.current) {
         try {
           prevGrayMatRef.current.delete();
@@ -15899,7 +14979,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
         } catch (e) {}
       }
     };
-  }, [cameraActive, cvLoaded, isSimulatedCv, comp.props.filterType, comp.props.thresholdValue, comp.props.yoloModelType, comp.props.yoloConfidence, comp.props.yoloTargetClass, isRulerModeActive, isCircleModeActive, isAngleModeActive, isContourModeActive, rulerPoints, rulerDragStart, rulerDragCurrent]);
+  }, [cameraActive, comp.props.filterType, comp.props.thresholdValue, comp.props.yoloModelType, comp.props.yoloConfidence, comp.props.yoloTargetClass, isRulerModeActive, isCircleModeActive, isAngleModeActive, isContourModeActive, rulerPoints, rulerDragStart, rulerDragCurrent]);
 
   const isDark = selectedApp?.config?.appThemeMode === 'DARK';
   const textColor = isDark ? '#f8fafc' : '#0f172a';
@@ -15909,7 +14989,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600 }}>
           {comp.props.label || 'OpenCV Live Stream'} ({comp.props.filterType || 'CANNY'})
-          {isSimulatedCv && <span style={{ color: '#fbbf24', marginLeft: '6px', fontSize: '0.65rem', fontWeight: 'bold' }}>(Simulated Mode)</span>}
+          {false && <span style={{ color: '#fbbf24', marginLeft: '6px', fontSize: '0.65rem', fontWeight: 'bold' }}>(Simulated Mode)</span>}
         </div>
         
         {/* Auto Save Toggle */}
@@ -15929,7 +15009,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
         borderRadius: '12px', 
         overflow: 'hidden', 
         backgroundColor: isDark ? '#1e293b' : 'white',
-        padding: cvLoaded && cameraActive && !loadingError ? '0' : '12px',
+        padding: cameraActive && !loadingError ? '0' : '12px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -15949,7 +15029,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
           style={{ display: 'none' }} 
         />
 
-        {cvLoaded && cameraActive && !loadingError ? (
+        {cameraActive && !loadingError ? (
           <canvas 
             ref={canvasRef} 
             style={{ 
@@ -15974,27 +15054,34 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
               <>
                 <Loader2 size={24} className="animate-spin" style={{ color: '#7c3aed' }} />
                 <span style={{ fontSize: '0.8rem' }}>
-                  {!cvLoaded ? 'Mengunduh OpenCV.js...' : 'Mengaktifkan Kamera...'}
+                  {'Mengaktifkan Kamera...'}
                 </span>
               </>
             )}
           </div>
         )}
-      </div>
 
-      {/* Control Actions & HUD Panel */}
-      {cvLoaded && cameraActive && (
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          padding: '10px 14px',
-          borderRadius: '8px',
-          backgroundColor: isDark ? '#0f172a' : '#f8fafc',
-          border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
-          flexWrap: 'wrap',
-          gap: '8px'
-        }}>
+        {/* Control Actions & HUD Panel Overlay */}
+        {cameraActive && (
+          <div style={{ 
+            position: 'absolute',
+            bottom: '12px',
+            left: '12px',
+            right: '12px',
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            padding: '10px 14px',
+            borderRadius: '12px',
+            backgroundColor: isDark ? 'rgba(15, 23, 42, 0.7)' : 'rgba(255, 255, 255, 0.7)',
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+            border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+            flexWrap: 'wrap',
+            gap: '8px',
+            zIndex: 10,
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+          }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: isDark ? '#94a3b8' : '#64748b' }}>Hasil:</span>
             <span style={{ 
@@ -16011,103 +15098,112 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
 
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
             {/* Ruler Vision Button */}
-            <button
-              onClick={() => {
-                if (isRulerModeActive) activateMeasurementMode(null);
-                else activateMeasurementMode('RULER_VISION');
-              }}
-              style={{
-                padding: '6px 12px',
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                border: isRulerModeActive ? '1px solid #38bdf8' : `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
-                backgroundColor: isRulerModeActive ? 'rgba(14, 165, 233, 0.15)' : (isDark ? '#1e293b' : '#ffffff'),
-                color: isRulerModeActive ? '#38bdf8' : (isDark ? '#cbd5e1' : '#475569'),
-                borderRadius: '6px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                transition: 'all 0.2s'
-              }}
-            >
-              <Ruler size={12} /> {isRulerModeActive ? 'Ruler: Active' : 'Ruler'}
-            </button>
+            {(comp?.props?.filterType === 'DIMENSION' || comp?.props?.filterType === 'RULER_VISION') && (
+              <button
+                onClick={() => {
+                  if (isRulerModeActive) activateMeasurementMode(null);
+                  else activateMeasurementMode('RULER_VISION');
+                }}
+                title="Ruler Measurement"
+                style={{
+                  width: '32px', height: '32px',
+                  padding: '0',
+                  border: isRulerModeActive ? '1px solid #714B67' : `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                  backgroundColor: isRulerModeActive ? '#714B67' : (isDark ? '#1e293b' : '#ffffff'),
+                  color: isRulerModeActive ? '#ffffff' : (isDark ? '#cbd5e1' : '#475569'),
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.2s',
+                  boxShadow: isRulerModeActive ? '0 2px 4px rgba(113, 75, 103, 0.3)' : 'none'
+                }}
+              >
+                <Ruler size={16} />
+              </button>
+            )}
 
             {/* Circle Vision Button */}
-            <button
-              onClick={() => {
-                if (isCircleModeActive) activateMeasurementMode(null);
-                else activateMeasurementMode('CIRCLE_DETECT');
-              }}
-              style={{
-                padding: '6px 12px',
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                border: isCircleModeActive ? '1px solid #38bdf8' : `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
-                backgroundColor: isCircleModeActive ? 'rgba(14, 165, 233, 0.15)' : (isDark ? '#1e293b' : '#ffffff'),
-                color: isCircleModeActive ? '#38bdf8' : (isDark ? '#cbd5e1' : '#475569'),
-                borderRadius: '6px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                transition: 'all 0.2s'
-              }}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/></svg>
-              {isCircleModeActive ? 'Circle: Active' : 'Circle'}
-            </button>
+            {(comp?.props?.filterType === 'CIRCLE_DETECT') && (
+              <button
+                onClick={() => {
+                  if (isCircleModeActive) activateMeasurementMode(null);
+                  else activateMeasurementMode('CIRCLE_DETECT');
+                }}
+                title="Circle Measurement"
+                style={{
+                  width: '32px', height: '32px',
+                  padding: '0',
+                  border: isCircleModeActive ? '1px solid #714B67' : `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                  backgroundColor: isCircleModeActive ? '#714B67' : (isDark ? '#1e293b' : '#ffffff'),
+                  color: isCircleModeActive ? '#ffffff' : (isDark ? '#cbd5e1' : '#475569'),
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.2s',
+                  boxShadow: isCircleModeActive ? '0 2px 4px rgba(113, 75, 103, 0.3)' : 'none'
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/></svg>
+              </button>
+            )}
 
             {/* Angle Vision Button */}
-            <button
-              onClick={() => {
-                if (isAngleModeActive) activateMeasurementMode(null);
-                else activateMeasurementMode('ANGLE_MEASURE');
-              }}
-              style={{
-                padding: '6px 12px',
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                border: isAngleModeActive ? '1px solid #38bdf8' : `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
-                backgroundColor: isAngleModeActive ? 'rgba(14, 165, 233, 0.15)' : (isDark ? '#1e293b' : '#ffffff'),
-                color: isAngleModeActive ? '#38bdf8' : (isDark ? '#cbd5e1' : '#475569'),
-                borderRadius: '6px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                transition: 'all 0.2s'
-              }}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 22H2M2 22a20 20 0 0 1 20-20"/></svg>
-              {isAngleModeActive ? 'Angle: Active' : 'Angle'}
-            </button>
+            {(comp?.props?.filterType === 'ANGLE_MEASURE') && (
+              <button
+                onClick={() => {
+                  if (isAngleModeActive) activateMeasurementMode(null);
+                  else activateMeasurementMode('ANGLE_MEASURE');
+                }}
+                title="Angle Measurement"
+                style={{
+                  width: '32px', height: '32px',
+                  padding: '0',
+                  border: isAngleModeActive ? '1px solid #714B67' : `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                  backgroundColor: isAngleModeActive ? '#714B67' : (isDark ? '#1e293b' : '#ffffff'),
+                  color: isAngleModeActive ? '#ffffff' : (isDark ? '#cbd5e1' : '#475569'),
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.2s',
+                  boxShadow: isAngleModeActive ? '0 2px 4px rgba(113, 75, 103, 0.3)' : 'none'
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 22H2M2 22a20 20 0 0 1 20-20"/></svg>
+              </button>
+            )}
 
             {/* Area/Contour Vision Button */}
-            <button
-              onClick={() => {
-                if (isContourModeActive) activateMeasurementMode(null);
-                else activateMeasurementMode('CONTOUR_GEOMETRY');
-              }}
-              style={{
-                padding: '6px 12px',
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                border: isContourModeActive ? '1px solid #38bdf8' : `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
-                backgroundColor: isContourModeActive ? 'rgba(14, 165, 233, 0.15)' : (isDark ? '#1e293b' : '#ffffff'),
-                color: isContourModeActive ? '#38bdf8' : (isDark ? '#cbd5e1' : '#475569'),
-                borderRadius: '6px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                transition: 'all 0.2s'
-              }}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
-              {isContourModeActive ? 'Area: Active' : 'Area'}
-            </button>
+            {(comp?.props?.filterType === 'CONTOUR_GEOMETRY') && (
+              <button
+                onClick={() => {
+                  if (isContourModeActive) activateMeasurementMode(null);
+                  else activateMeasurementMode('CONTOUR_GEOMETRY');
+                }}
+                title="Area/Contour Measurement"
+                style={{
+                  width: '32px', height: '32px',
+                  padding: '0',
+                  border: isContourModeActive ? '1px solid #714B67' : `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                  backgroundColor: isContourModeActive ? '#714B67' : (isDark ? '#1e293b' : '#ffffff'),
+                  color: isContourModeActive ? '#ffffff' : (isDark ? '#cbd5e1' : '#475569'),
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.2s',
+                  boxShadow: isContourModeActive ? '0 2px 4px rgba(113, 75, 103, 0.3)' : 'none'
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
+              </button>
+            )}
 
             {isRulerModeActive && rulerPoints && (
               <button
@@ -16135,98 +15231,53 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
                     });
                   }
                 }}
+                title="Clear Measurement"
                 style={{
-                  padding: '6px 12px',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
+                  width: '32px', height: '32px',
+                  padding: '0',
                   border: '1px solid #fee2e2',
                   backgroundColor: '#fef2f2',
                   color: '#ef4444',
-                  borderRadius: '6px',
+                  borderRadius: '8px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '4px',
+                  justifyContent: 'center',
                   transition: 'all 0.2s'
                 }}
               >
-                <Trash2 size={12} /> Clear
+                <Trash2 size={16} />
               </button>
             )}
 
             <button
               onClick={() => saveLogToDb(uiReadout.val, uiReadout.isPassed)}
               disabled={isSaving}
+              title="Save Real-time Data"
               style={{
-                padding: '6px 12px',
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                backgroundColor: '#7c3aed',
+                width: '32px', height: '32px',
+                padding: '0',
+                backgroundColor: '#714B67',
                 color: 'white',
                 border: 'none',
-                borderRadius: '6px',
+                borderRadius: '8px',
                 cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
                 opacity: isSaving ? 0.6 : 1,
-                transition: 'all 0.2s'
+                transition: 'all 0.2s',
+                boxShadow: '0 2px 4px rgba(113, 75, 103, 0.3)',
+                marginLeft: '4px'
               }}
             >
-              {isSaving ? 'Menyimpan...' : 'Simpan Real-time'}
+              {isSaving ? <Loader2 size={16} className="animate-spin" /> : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>}
             </button>
           </div>
         </div>
       )}
-
-      {/* Real-time Vision Log Table */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        <div style={{ fontSize: '0.7rem', fontWeight: 600, color: isDark ? '#94a3b8' : '#64748b', textTransform: 'uppercase' }}>
-          Tabel Hasil Vision (Real-time Database)
-        </div>
-        
-        <div style={{
-          border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
-          borderRadius: '8px',
-          overflow: 'hidden'
-        }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem', textAlign: 'left' }}>
-            <thead>
-              <tr style={{ backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderBottom: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}` }}>
-                <th style={{ padding: '6px 8px', color: isDark ? '#94a3b8' : '#64748b' }}>Waktu</th>
-                <th style={{ padding: '6px 8px', color: isDark ? '#94a3b8' : '#64748b' }}>Mode</th>
-                <th style={{ padding: '6px 8px', color: isDark ? '#94a3b8' : '#64748b' }}>Hasil</th>
-                <th style={{ padding: '6px 8px', color: isDark ? '#94a3b8' : '#64748b' }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentLogs.length > 0 ? (
-                recentLogs.map((log) => (
-                  <tr key={log.id} style={{ 
-                    borderBottom: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
-                    backgroundColor: isDark ? '#1e293b' : 'white'
-                  }}>
-                    <td style={{ padding: '6px 8px', color: textColor }}>{log.time}</td>
-                    <td style={{ padding: '6px 8px', color: textColor, fontWeight: 500 }}>{log.mode}</td>
-                    <td style={{ padding: '6px 8px', color: textColor, fontFamily: 'monospace' }}>{log.value}</td>
-                    <td style={{ padding: '6px 8px' }}>
-                      <span style={{ 
-                        color: log.status === 'PASS' ? '#22c55e' : '#ef4444',
-                        fontWeight: 'bold'
-                      }}>
-                        {log.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="4" style={{ padding: '12px', textAlign: 'center', color: isDark ? '#64748b' : '#94a3b8', fontStyle: 'italic' }}>
-                    Belum ada data vision tersimpan di database.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
       </div>
+
     </div>
   );
 };

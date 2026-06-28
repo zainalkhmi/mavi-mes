@@ -32,6 +32,15 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
     const circleDetectRef = useRef({ isFetching: false, lastFetch: 0, processedImgUrl: null, processedImage: new Image(), result: null });
     const angleDetectRef = useRef({ isFetching: false, lastFetch: 0, processedImgUrl: null, processedImage: new Image(), result: null });
     const contourDetectRef = useRef({ isFetching: false, lastFetch: 0, processedImgUrl: null, processedImage: new Image(), result: null });
+    // AI Vision Refs
+    const anomalyDetectRef = useRef({ isFetching: false, lastFetch: 0, processedImgUrl: null, processedImage: new Image(), result: null });
+    const segmentDetectRef = useRef({ isFetching: false, lastFetch: 0, processedImgUrl: null, processedImage: new Image(), result: null });
+    const classifyDetectRef = useRef({ isFetching: false, lastFetch: 0, processedImgUrl: null, processedImage: new Image(), result: null });
+    const ocrDetectRef = useRef({ isFetching: false, lastFetch: 0, processedImgUrl: null, processedImage: new Image(), result: null });
+    const barcodeDetectRef = useRef({ isFetching: false, lastFetch: 0, processedImgUrl: null, processedImage: new Image(), result: null });
+    const templateMatchRef = useRef({ isFetching: false, lastFetch: 0, processedImgUrl: null, processedImage: new Image(), result: null });
+    const colorInspectRef = useRef({ isFetching: false, lastFetch: 0, processedImgUrl: null, processedImage: new Image(), result: null });
+    const pipelineRef = useRef({ isFetching: false, lastFetch: 0, processedImgUrl: null, processedImage: new Image(), result: null });
     const offscreenCanvasRef = useRef(null);
     
     const getCleanFrameBlob = useCallback((callback, mimeType = 'image/jpeg', quality = 0.85) => {
@@ -77,6 +86,10 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
             if (contourDetectRef.current?.processedImgUrl) {
                 URL.revokeObjectURL(contourDetectRef.current.processedImgUrl);
             }
+            // Cleanup AI vision refs
+            [anomalyDetectRef, segmentDetectRef, classifyDetectRef, ocrDetectRef, barcodeDetectRef, templateMatchRef, colorInspectRef, pipelineRef].forEach(ref => {
+                if (ref.current?.processedImgUrl) URL.revokeObjectURL(ref.current.processedImgUrl);
+            });
         };
     }, []);
 
@@ -204,6 +217,31 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
     const [ipImageLoaded, setIpImageLoaded] = useState(false);
     const [ipImageError, setIpImageError] = useState(false);
 
+    // Camera Selection State
+    const [availableCameras, setAvailableCameras] = useState([]);
+    const [selectedCameraId, setSelectedCameraId] = useState('');
+
+    useEffect(() => {
+        if (cameraSource !== 'DEVICE') return;
+        navigator.mediaDevices.enumerateDevices().then(devices => {
+            const cameras = devices.filter(d => d.kind === 'videoinput');
+            setAvailableCameras(cameras);
+            const saved = localStorage.getItem('mavi-selected-camera-id');
+            if (saved && cameras.find(c => c.deviceId === saved)) {
+                setSelectedCameraId(saved);
+            } else if (cameras.length > 0) {
+                const backCam = cameras.find(c => c.label.toLowerCase().includes('back') || c.label.toLowerCase().includes('environment'));
+                setSelectedCameraId(backCam ? backCam.deviceId : cameras[0].deviceId);
+            }
+        }).catch(err => console.warn('Failed to enumerate devices:', err));
+    }, [cameraSource]);
+
+    const handleCameraChange = (e) => {
+        const id = e.target.value;
+        setSelectedCameraId(id);
+        localStorage.setItem('mavi-selected-camera-id', id);
+    };
+
     // Track Image load for MJPEG
     useEffect(() => {
         if (cameraSource !== 'IP_CAMERA' || !ipCameraUrl) {
@@ -261,12 +299,17 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                         }
                     });
                 } else {
+                    const videoConstraints = {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    };
+                    if (selectedCameraId) {
+                        videoConstraints.deviceId = { exact: selectedCameraId };
+                    } else {
+                        videoConstraints.facingMode = 'environment';
+                    }
                     stream = await navigator.mediaDevices.getUserMedia({
-                        video: {
-                            width: { ideal: 640 },
-                            height: { ideal: 480 },
-                            facingMode: 'environment'
-                        }
+                        video: videoConstraints
                     });
                 }
                 setHasPermission(true);
@@ -295,7 +338,7 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                 cancelAnimationFrame(animationFrameRef.current);
             }
         };
-    }, [viewMode, capturedImage, cameraSource, showVideoPreview]);
+    }, [viewMode, capturedImage, cameraSource, showVideoPreview, selectedCameraId]);
 
     // Animated industrial feed animation drawer
     const animationTickRef = useRef(0);
@@ -592,7 +635,7 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                                         const formData = new FormData();
                                         formData.append("file", blob, "frame.jpg");
                                         
-                                        const mmPx = comp?.props?.mmPerPixel || 0.1170;
+                                        const mmPx = cameraConfig?.settings?.mmPerPixel || comp?.props?.mmPerPixel || 0.1170;
                                         
                                         const params = new URLSearchParams({
                                             x1: rulerPoints.x1.toString(),
@@ -1478,7 +1521,7 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                         try {
                             const stateRef = circleDetectRef.current;
                             const now = Date.now();
-                            const mmPx = comp?.props?.mmPerPixel || 0.1170;
+                            const mmPx = cameraConfig?.settings?.mmPerPixel || comp?.props?.mmPerPixel || 0.1170;
                             const minR = comp?.props?.circleMinRadius ?? 10;
                             const maxR = comp?.props?.circleMaxRadius ?? 200;
                             const param2 = comp?.props?.circleParam2 ?? 30;
@@ -1644,7 +1687,7 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                             const now = Date.now();
                             const threshold = comp?.props?.contourThreshold ?? 80;
                             const minArea = comp?.props?.contourMinArea ?? 500;
-                            const mmPx = comp?.props?.mmPerPixel || 0.1170;
+                            const mmPx = cameraConfig?.settings?.mmPerPixel || comp?.props?.mmPerPixel || 0.1170;
                             const dimUnit = comp?.props?.dimUnit || 'mm';
 
                             if (!stateRef.isFetching && (now - stateRef.lastFetch > 300)) {
@@ -1721,6 +1764,140 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                             console.error('Contour geometry processing error:', err);
                         }
                     }
+
+                    // ─── AI VISION FILTER TYPES ────────────────────────────────────
+                    // Helper: generic fetch-render pattern for AI endpoints
+                    const aiProcessFrame = (stateRef, url, formDataExtras, eventName, interval = 500) => {
+                        try {
+                            const now = Date.now();
+                            if (!stateRef.isFetching && (now - stateRef.lastFetch > interval)) {
+                                stateRef.isFetching = true;
+                                stateRef.lastFetch = now;
+                                getCleanFrameBlob((blob) => {
+                                    if (blob) {
+                                        const formData = new FormData();
+                                        formData.append('file', blob, 'frame.jpg');
+                                        if (formDataExtras) {
+                                            Object.entries(formDataExtras).forEach(([k, v]) => formData.append(k, v));
+                                        }
+                                        fetch(url, { method: 'POST', body: formData })
+                                            .then(res => {
+                                                if (!res.ok) throw new Error(`AI API error: ${res.status}`);
+                                                // Read metadata from headers
+                                                const calcVal = res.headers.get('X-Calculated-Value') || '';
+                                                const isPassed = res.headers.get('X-Is-Passed') === 'true';
+                                                let meta = {};
+                                                // Try reading result headers (different endpoint names)
+                                                for (const hdr of ['X-Anomaly-Score', 'X-Segment-Result', 'X-Classify-Result', 'X-OCR-Result', 'X-Barcode-Result', 'X-Template-Result', 'X-Color-Result', 'X-Pipeline-Result']) {
+                                                    const v = res.headers.get(hdr);
+                                                    if (v) { try { meta = { ...meta, [hdr]: JSON.parse(v) }; } catch(_) { meta[hdr] = v; } }
+                                                }
+                                                stateRef.result = { calcVal, isPassed, meta };
+                                                if (eventName && lastMatchRef.current !== calcVal) {
+                                                    lastMatchRef.current = calcVal;
+                                                    onWidgetInteraction(comp, eventName, { label: calcVal, result: calcVal, value: calcVal, isPassed, metadata: meta });
+                                                    syncInputDatasourceValue(comp, calcVal, `${comp.type}_AI_RESULT`);
+                                                }
+                                                return res.blob();
+                                            })
+                                            .then(imgBlob => {
+                                                if (stateRef.processedImgUrl) URL.revokeObjectURL(stateRef.processedImgUrl);
+                                                stateRef.processedImgUrl = URL.createObjectURL(imgBlob);
+                                                stateRef.processedImage.src = stateRef.processedImgUrl;
+                                            })
+                                            .catch(err => console.error('AI Vision API error:', err))
+                                            .finally(() => { stateRef.isFetching = false; });
+                                    } else {
+                                        stateRef.isFetching = false;
+                                    }
+                                }, 'image/jpeg', 0.85);
+                            }
+                            // Render processed image
+                            if (stateRef.processedImage?.complete && stateRef.processedImage.naturalWidth > 0) {
+                                ctx.drawImage(stateRef.processedImage, 0, 0, canvas.width, canvas.height);
+                            }
+                        } catch (err) {
+                            console.error('AI filter error:', err);
+                        }
+                    };
+
+                    // HUD overlay helper for AI modes
+                    const drawAiHud = (label, color, stateRef) => {
+                        const w = canvas.width;
+                        ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+                        ctx.fillRect(10, 10, w - 20, 40);
+                        ctx.strokeStyle = color;
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(10, 10, w - 20, 40);
+                        ctx.fillStyle = color;
+                        ctx.font = 'bold 10px monospace';
+                        ctx.textAlign = 'left';
+                        ctx.fillText(label, 16, 28);
+                        if (stateRef?.result) {
+                            ctx.textAlign = 'right';
+                            const pass = stateRef.result.isPassed;
+                            ctx.fillStyle = pass ? '#22c55e' : '#ef4444';
+                            ctx.fillText(pass ? '✅ PASS' : '❌ FAIL', w - 16, 28);
+                            ctx.fillStyle = '#94a3b8';
+                            ctx.font = '9px monospace';
+                            ctx.textAlign = 'left';
+                            ctx.fillText(stateRef.result.calcVal || '', 16, 44);
+                        }
+                    };
+
+                    if (filterType === 'AI_ANOMALY') {
+                        const modelName = comp?.props?.aiModelName || 'default';
+                        aiProcessFrame(anomalyDetectRef.current, `http://localhost:8000/ai/anomaly/detect`, { model_name: modelName }, 'OnAnomalyDetect', 600);
+                        drawAiHud('🔥 AI ANOMALY DETECTION (Unsupervised)', '#f59e0b', anomalyDetectRef.current);
+
+                    } else if (filterType === 'AI_SEGMENT') {
+                        const modelName = comp?.props?.aiModelName || 'default';
+                        aiProcessFrame(segmentDetectRef.current, `http://localhost:8000/ai/segment`, { model_name: modelName, threshold: '0.5' }, 'OnSegmentDetect', 600);
+                        drawAiHud('🎯 AI DEFECT SEGMENTATION (U-Net)', '#ef4444', segmentDetectRef.current);
+
+                    } else if (filterType === 'AI_CLASSIFY') {
+                        const modelName = comp?.props?.aiModelName || 'default';
+                        aiProcessFrame(classifyDetectRef.current, `http://localhost:8000/ai/classify`, { model_name: modelName }, 'OnClassifyDetect', 500);
+                        drawAiHud('🏷️ AI CLASSIFICATION (Transfer Learning)', '#8b5cf6', classifyDetectRef.current);
+
+                    } else if (filterType === 'OCR_READ') {
+                        const langs = comp?.props?.ocrLanguages || 'en';
+                        aiProcessFrame(ocrDetectRef.current, `http://localhost:8000/cv/ocr`, { languages: langs }, 'OnOcrRead', 800);
+                        drawAiHud('📝 OCR TEXT RECOGNITION (EasyOCR)', '#22c55e', ocrDetectRef.current);
+
+                    } else if (filterType === 'BARCODE_SCAN') {
+                        aiProcessFrame(barcodeDetectRef.current, `http://localhost:8000/cv/barcode`, {}, 'OnBarcodeScan', 500);
+                        drawAiHud('📊 BARCODE / QR CODE READER', '#38bdf8', barcodeDetectRef.current);
+
+                    } else if (filterType === 'TEMPLATE_MATCH') {
+                        const tmplName = comp?.props?.templateName || 'default';
+                        const threshold = comp?.props?.matchThreshold || '0.7';
+                        aiProcessFrame(templateMatchRef.current, `http://localhost:8000/cv/template_match`, { template_name: tmplName, match_threshold: threshold }, 'OnTemplateMatch', 400);
+                        drawAiHud('📐 TEMPLATE MATCHING (Alignment)', '#06b6d4', templateMatchRef.current);
+
+                    } else if (filterType === 'COLOR_INSPECT') {
+                        const hMin = comp?.props?.colorHMin || '0';
+                        const hMax = comp?.props?.colorHMax || '180';
+                        const sMin = comp?.props?.colorSMin || '50';
+                        const sMax = comp?.props?.colorSMax || '255';
+                        const vMin = comp?.props?.colorVMin || '50';
+                        const vMax = comp?.props?.colorVMax || '255';
+                        aiProcessFrame(colorInspectRef.current, `http://localhost:8000/cv/color_inspect`, {
+                            target_h_min: hMin, target_h_max: hMax,
+                            target_s_min: sMin, target_s_max: sMax,
+                            target_v_min: vMin, target_v_max: vMax
+                        }, 'OnColorInspect', 400);
+                        drawAiHud('🎨 COLOR INSPECTION (HSV)', '#ec4899', colorInspectRef.current);
+
+                    } else if (filterType === 'FULL_PIPELINE') {
+                        const modelName = comp?.props?.aiModelName || 'default';
+                        const steps = comp?.props?.pipelineSteps || '["anomaly"]';
+                        aiProcessFrame(pipelineRef.current, `http://localhost:8000/pipeline/inspect`, {
+                            model_name: modelName, steps: steps
+                        }, 'OnPipelineInspect', 700);
+                        drawAiHud('⚡ FULL INSPECTION PIPELINE', '#f97316', pipelineRef.current);
+                    }
+
                 } catch (e) {
                     console.error('Filter processing error:', e);
                 }
@@ -2652,9 +2829,33 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
             `}</style>
             {/* Camera Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'rgba(15, 23, 42, 0.8)', borderBottom: '1px solid #1e293b' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.05em', color: '#94a3b8' }}>
-                    {label.toUpperCase()}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.05em', color: '#94a3b8' }}>
+                        {label.toUpperCase()}
+                    </span>
+                    {cameraSource === 'DEVICE' && availableCameras.length > 1 && (
+                        <select
+                            value={selectedCameraId}
+                            onChange={handleCameraChange}
+                            style={{
+                                background: 'rgba(255, 255, 255, 0.1)',
+                                color: '#cbd5e1',
+                                border: '1px solid #334155',
+                                borderRadius: '4px',
+                                fontSize: '0.65rem',
+                                padding: '2px 4px',
+                                maxWidth: '120px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            {availableCameras.map(cam => (
+                                <option key={cam.deviceId} value={cam.deviceId} style={{ color: '#000' }}>
+                                    {cam.label || `Camera ${cam.deviceId.substring(0, 5)}...`}
+                                </option>
+                            ))}
+                        </select>
+                    )}
+                </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span style={{
                         width: '6px',

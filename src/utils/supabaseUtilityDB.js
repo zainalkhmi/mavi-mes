@@ -647,4 +647,98 @@ export async function deleteDrawing(id) {
     }
 }
 
+// ── Calibration Logs ──────────────────────────────────────
+
+export async function getAllCalibrationLogs() {
+    try {
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase
+            .from('calibration_logs')
+            .select('*')
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        // Sync local storage cache for offline/fallback use
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('mavi_local_calibration_logs', JSON.stringify(data || []));
+        }
+        return data || [];
+    } catch (err) {
+        console.warn('[Supabase Fallback] Failed to fetch calibration logs from database, loading from localStorage:', err);
+        if (typeof window !== 'undefined') {
+            try {
+                const cached = localStorage.getItem('mavi_local_calibration_logs');
+                if (cached) return JSON.parse(cached);
+            } catch (e) {
+                console.error('[Supabase Fallback] Failed to parse local calibration logs cache:', e);
+            }
+        }
+        return [];
+    }
+}
+
+export async function addCalibrationLog(log) {
+    const payload = {
+        date: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        operator: log.operator || 'System',
+        camera: log.camera || 'Unknown',
+        type: log.type || 'Scale Re-cal',
+        rms: log.rms || '0.0 px',
+        scale: log.scale || '0.0 mm/px',
+        status: log.status || 'VALID',
+        created_at: new Date().toISOString()
+    };
+
+    try {
+        const supabase = getSupabaseClient();
+        
+        // Supabase Insert
+        const { data, error } = await supabase.from('calibration_logs').insert(payload).select().single();
+        if (error) throw error;
+        
+        // Sync to local storage
+        if (typeof window !== 'undefined') {
+            try {
+                const cachedRaw = localStorage.getItem('mavi_local_calibration_logs') || '[]';
+                const list = JSON.parse(cachedRaw);
+                const updatedList = list.map(item => {
+                  if (item.camera === payload.camera && item.status === 'VALID') {
+                    return { ...item, status: 'SUPERSEDED' };
+                  }
+                  return item;
+                });
+                updatedList.unshift(data);
+                localStorage.setItem('mavi_local_calibration_logs', JSON.stringify(updatedList));
+            } catch (e) {
+                console.error('[Supabase Fallback] Failed to sync local storage on insert:', e);
+            }
+        }
+        
+        return data;
+    } catch (err) {
+        console.warn('[Supabase Fallback] Failed to add calibration log to database, saving to localStorage:', err);
+        if (typeof window !== 'undefined') {
+            try {
+                const cachedRaw = localStorage.getItem('mavi_local_calibration_logs') || '[]';
+                const list = JSON.parse(cachedRaw);
+                const localData = { ...payload, id: 'local-' + Date.now() };
+                
+                // Mark older ones as superseded locally
+                const updatedList = list.map(item => {
+                  if (item.camera === payload.camera && item.status === 'VALID') {
+                    return { ...item, status: 'SUPERSEDED' };
+                  }
+                  return item;
+                });
+                
+                updatedList.unshift(localData);
+                localStorage.setItem('mavi_local_calibration_logs', JSON.stringify(updatedList));
+                return localData;
+            } catch (e) {
+                console.error('[Supabase Fallback] Failed to save calibration log locally:', e);
+                throw e;
+            }
+        }
+        throw err;
+    }
+}
 

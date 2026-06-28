@@ -276,6 +276,17 @@ export const COMPONENT_TYPES = {
             gaugeMin: 0.0,
             gaugeMax: 60.0,
             targetCount: 3,
+            aiModelName: 'default',
+            ocrLanguages: 'en',
+            templateName: 'default',
+            matchThreshold: 0.7,
+            colorHMin: 0,
+            colorHMax: 180,
+            colorSMin: 50,
+            colorSMax: 255,
+            colorVMin: 50,
+            colorVMax: 255,
+            pipelineSteps: '["anomaly"]',
             visible: true, 
             triggers: [] 
         }

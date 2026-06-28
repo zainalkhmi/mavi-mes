@@ -33,15 +33,21 @@ Pengetahuan dasar Mavi meliputi:
 4. **Analytics:** Mavi memiliki Dashboard dan Analysis Manager untuk visualisasi data produksi (OEE, Downtime, dll).
 5. **Logic & Automations:** Mavi mendukung otomatisasi berbasis node logic (Event-Condition-Action) dan Functions/API eksternal.
 6. **Console:** Aplikasi dijalankan oleh operator melalui Live Terminal atau App Player.
-7. **Mavi Vision & Detector Integrations (Landing AI & Local Model):**
-   - **Manage Providers:** Operator/Admin mendaftarkan API Key Landing AI di drawer *Manage Providers* di menu Vision -> Models.
-8. **Drawing & CAD Integration:** Admin dapat mengunggah berkas gambar teknik (.dxf, .svg, .pdf) di menu **Drawing Manager** ([Buka Drawing Manager](#/drawings)), memetakan toleransi, dan mengaitkannya ke variabel aplikasi. Saat operator menginput nilai aktual jangka sorong di Live Terminal, garis gambar CAD akan otomatis berubah warna (Hijau = PASS, Merah = FAIL).
-   - **Create Model:** Membuat model klasifikasi melalui provider **Landing AI** (butuh Tulip Table, min 2 kelas, min 10 gambar per kelas, opsi filter kueri) atau **Local model** (mengunggah file model biner/XML kustom secara offline: .xml, .bin, .json).
-   - **Visual Detectors**: Ditambahkan pada region sensor kamera di editor penampang kamera/region. Terdiri dari 5 jenis detektor:
+7. **Mavi Vision & AI Detector Integrations (AI Deep Learning + Rule-Based CV):**
+   - **Visual Inspection Datasets (Pengumpulan Data):** Tab khusus untuk membuat dataset lokal dan mengambil gambar sampel langsung dari kamera kerja. Operator melabeli gambar tersebut sebagai PASS, FAIL, atau label defect kustom. Rekomendasi minimal 30-50 sampel gambar per kategori.
+   - **AI Models & Inspection (Pelatihan & Pengujian):** Tab untuk melatih model secara lokal di server. Jenis model meliputi:
+     - *Anomaly Detection (PatchCore)*: Deteksi anomali tanpa pengawasan (hanya melatih gambar OK/Normal). Menghasilkan heatmap anomali.
+     - *Classification (CNN)*: Klasifikasi terawasi untuk melabeli OK/NG berdasarkan kategori produk.
+     - *Segmentation (U-Net)*: Segmentasi piksel cacat secara presisi di area region.
+     - Tab ini juga mendukung *Inference Testing* dengan mengunggah gambar uji coba untuk menampilkan perbandingan heatmap visual dan tingkat skor sebelum dideploy.
+   - **Camera Configurations (Integrasi & Deteksi):** Menghubungkan model AI yang telah dilatih ke kamera lantai produksi. Pengguna membuat wilayah pantau (*Region of Interest* / ROI) pada kamera dan menambahkan **AI Detector** dengan opsi:
+     - *Anomaly Threshold* (batas nilai anomali untuk kelulusan region).
+     - *Expected PASS Class Label* (label kelas yang diharapkan lulus).
+     - *Max Defect Area Limit (px)* & *Segmentation Pixel Threshold* (batas luas area cacat piksel hasil segmentasi).
+   - **Visual Detectors Tradisional**:
      - *Color Detectors*: Memantau kesesuaian nilai target warna.
      - *Change Detectors*: Mendeteksi gerakan / perubahan piksel pada region.
      - *Jig Detectors*: Melacak fixture perakitan via ArUco marker. Dikoneksikan dengan **Jig Builder** khusus (dukungan area constraint dan fixture registration table).
-     - *Classifier Model Detectors*: Menjalankan klasifikasi objek AI real-time dengan model Landing AI / Local.
      - *Hand Detectors*: Mendeteksi kehadiran tangan operator (memasuki/meninggalkan zona).
    - **OpenCV Camera Widget (Filter Types)**: Widget kamera real-time berbasis OpenCV.js mendukung berbagai filter vision:
      - *Canny / Sobel / Threshold*: Edge detection dan segmentasi dasar.
@@ -742,92 +748,130 @@ python yolo_server.py
   },
   {
     id: 'mavi-vision',
-    title: 'Mavi Vision & Landing AI',
+    title: 'Mavi Vision & AI Detector',
     icon: Eye,
     color: '#3b82f6', // Blue
     content: `
-### Panduan Mavi Vision & Integrasi Detektor (Landing AI & Local Model)
+### Panduan Mavi Vision & AI Detector (Hybrid AI & Rule-Based CV)
 
-Modul **Vision** pada Mavi dirancang untuk mengotomatisasi inspeksi kualitas produk, melacak fixture/assembly jig, memantau posisi tangan operator (pick-to-light/safety), serta mengklasifikasi objek secara cerdas secara real-time.
+Modul **MAVI Vision** dirancang untuk mengotomatisasi inspeksi kualitas produk dengan menggabungkan kekuatan **AI Deep Learning** (Anomaly Detection, Classification, Segmentation) dan **Rule-Based Computer Vision** (Color, Change, Jig, Dimension, Barcode/QR, OCR) secara real-time.
 
----
-
-#### 1. Konfigurasi Kredensial Provider (Landing AI API Key)
-Untuk mengaktifkan training model klasifikasi berbasis cloud:
-1. Masuk ke halaman **Vision** -> **Models**.
-2. Klik tombol **Manage providers** di pojok kanan atas.
-3. Pada panel drawer yang meluncur keluar dari kanan, masukkan **API key** Landing AI Anda.
-4. Klik **Save** untuk menyimpan perubahan.
+Berikut adalah panduan lengkap langkah demi langkah mulai dari pengumpulan data hingga referensi konfigurasi untuk **10 Jenis Detektor Visual** yang tersedia.
 
 ---
 
-#### 2. Membuat & Melatih Model Baru
-Anda dapat menginisialisasi pembuatan model klasifikasi dengan mengklik tombol **+ Create model** di halaman **Models**:
-
-* **Opsi A: Landing AI (Cloud LVM)**
-  1. Pilih provider **Landing AI**.
-  2. Buka bagian **Configure**, pilih dataset **Tulip Table** berisi contoh gambar yang telah diklasifikasikan.
-     > ⚠️ **Persyaratan Minimum**: Dataset harus memiliki minimal **2 kelas** yang berbeda dengan setidaknya **10 gambar per kelas** agar training Landing AI dapat berjalan.
-  3. Setel **Image field** dan **Annotation field** yang sesuai.
-  4. (Opsional) Pilih kueri filter **Query** untuk membatasi data rekam yang dikirim.
-  5. Klik **Create model** untuk mengirimkan permintaan ke server Landing AI.
-* **Opsi B: Local Model (Offline / On-Premise)**
-  1. Pilih provider **Local model**.
-  2. Gunakan pemilih berkas untuk mengunggah file model biner/XML hasil training kustom offline Anda (\`.xml\`, \`.bin\`, atau \`.json\`).
-  3. Klik **Create model** untuk langsung mendaftarkannya ke sistem Mavi local.
+#### LANGKAH 1: Pengumpulan & Pelabelan Data (Visual Inspection Datasets)
+Sebelum dapat menggunakan AI, Anda harus mengumpulkan sampel gambar untuk melatih model.
+1. Masuk ke halaman **Vision**, lalu klik tab **Visual Inspection Datasets**.
+2. Klik tombol **+** di pojok kanan atas sidebar untuk membuat dataset baru. Masukkan *Dataset Name* dan *Project Name*.
+3. Pilih dataset yang baru dibuat dari sidebar untuk membuka **Live Camera Capture Workspace**.
+4. Di bagian viewfinder kamera, pastikan kamera terhubung (Webcam atau IP Camera).
+5. Letakkan produk contoh di bawah kamera, lalu gunakan tombol aksi:
+   - **CAPTURE AS PASS:** Ambil gambar untuk produk normal/layak (OK).
+   - **CAPTURE AS FAIL:** Ambil gambar untuk produk yang memiliki cacat (NG).
+   - **Capture custom:** Tulis tag defect spesifik (misal: *Baret*, *Penyok*, *Retak*).
+   > 💡 **Rekomendasi Industri:** Kumpulkan minimal **30 - 50 sampel gambar** per kategori agar model AI memiliki akurasi yang tinggi saat dijalankan.
 
 ---
 
-#### 3. Menggunakan Visual Detector pada Region Kamera
-Untuk menerapkan model atau logika deteksi di stasiun kerja, gambar **Region** penampang pada kamera, lalu tambahkan detektor yang sesuai di sidebar setelan region:
-
-1. **Color Detector (Detektor Warna)**
-   - Mendeteksi kecocokan warna objek dengan warna target reference.
-   - Parameter: *Similarity* (sensitivitas kecocokan), *Target color* (color picker / capture rata-rata warna saat ini).
-
-2. **Change Detector (Detektor Perubahan)**
-   - Mendeteksi perubahan piksel akibat adanya gerakan atau perbedaan kontur di area region.
-   - Parameter: *Change threshold*, *depth range* (rentang kedalaman mm), dan *adaptation speed*.
-
-3. **Jig Detector (Detektor Fixture / Assembly Jig)**
-   - Melacak orientasi dan keberadaan jig perakitan memakai ArUco marker.
-   - Klik **Configure Jig** untuk membuka **Jig Builder**:
-     - Aktifkan **Use Area Constraint** untuk membatasi deteksi di area kotak putus-putus merah.
-     - Daftarkan marker dan fixture yang valid ke tabel registrasi stasiun.
-
-4. **Classifier Model Detector (Detektor Klasifikasi AI)**
-   - Menggunakan model Landing AI atau Local Model untuk mengklasifikasi objek secara real-time.
-   - Parameter: Pilih model klasifikasi yang telah dibuat dan tentukan *Confidence threshold* minimum.
-
-5. **Hand Detector (Detektor Tangan)**
-   - Mendeteksi tangan operator memasuki (*Entering*) atau meninggalkan (*Leaving*) area region stasiun.
-   - Parameter: Toggles *Entering* / *Leaving* dan filter arah tangan (*Left Hand* / *Right Hand*).
+#### LANGKAH 2: Pelatihan & Pengujian Model AI (AI Models & Inspection)
+Setelah data terkumpul, saatnya melatih model kecerdasan buatan Anda secara offline di server lokal.
+1. Alihkan tab ke **AI Models & Inspection**.
+2. Di bagian **Train a New AI Model**, pilih jenis inspeksi yang ingin dilatih:
+   - **Anomaly Detection (PatchCore):** *Paling direkomendasikan.* Hanya membutuhkan sampel gambar **PASS/OK**. AI mengenali produk normal dan otomatis mendeteksi anomali sekecil apa pun, lengkap dengan visualisasi heatmap.
+   - **Classification (CNN):** Model supervised yang membutuhkan sampel **PASS** dan **FAIL**. AI mengklasifikasikan biner (OK/NG) atau multi-kelas.
+   - **Segmentation (U-Net):** Segmentasi piksel cacat secara presisi pada permukaan produk (membutuhkan input anotasi area cacat).
+3. Pilih dataset yang telah Anda kumpulkan pada langkah sebelumnya.
+4. Tentukan nama model (*Model Name*) dan jumlah iterasi (*Epochs*). Klik **Start Model Training**.
+5. Setelah status model berubah menjadi **Ready/Complete**, lakukan uji coba (*Testing*) dengan mengunggah foto produk uji di panel kanan untuk memverifikasi tingkat akurasi (*confidence score* atau *anomaly score*) sebelum model dideploy.
 
 ---
 
-#### 4. Pengukuran Dimensi Otomatis (OpenCV Dimension Measurement)
-Filter **Dimension Measurement** pada widget **OpenCV Camera** memungkinkan pengukuran panjang, lebar, diagonal, dan luas objek secara real-time menggunakan kamera.
+#### LANGKAH 3: Integrasi ke Kamera (Camera Configurations & ROI Setup)
+Langkah terakhir adalah mengaktifkan detektor pilihan Anda agar memantau produk secara real-time pada kamera kerja.
+1. Alihkan tab ke **Camera Configurations**, pilih kamera aktif yang ingin disetel, lalu klik **Edit Assignment / Configure**.
+2. Di layar editor kamera, buat/gambar area kotak pantau (**Region of Interest / ROI**) tepat di lokasi produk akan diperiksa.
+3. Di panel setelan sebelah kanan, klik **+ Add Detector**, lalu pilih salah satu dari 10 pilihan detektor di bawah ini.
 
-##### Cara Kerja:
-1. **Tambahkan Widget OpenCV Camera** di App Builder.
-2. Pada panel properti, pilih **Vision Filter Type** \\u2192 **Dimension Measurement (Pengukuran Dimensi)**.
-3. **Kalibrasi kamera** menggunakan objek referensi:
-   - Masukkan ukuran referensi (contoh: \`20 mm\`) pada input "Reference Object Size".
-   - Klik **Start Calibration** \\u2014 sistem akan menampilkan guide overlay.
-   - Letakkan objek referensi (blok ukur / penggaris presisi) di tengah frame kamera.
-   - Sistem menghitung rasio **mm/pixel** secara otomatis, atau Anda bisa memasukkan nilai manual.
-4. **Atur parameter pengukuran**:
-   - *Measure Mode*: Pilih dimensi yang diukur (Width, Height, Diagonal, Area).
-   - *Edge Threshold*: Sensitivitas deteksi tepi Canny (default: 80).
-   - *Min Contour Area*: Area minimum kontur yang diproses (filter noise).
-5. **Atur toleransi (LSL/USL)** untuk judgment otomatis Pass/Fail.
+---
 
-##### Tips Akurasi Tinggi:
-- Gunakan **pencahayaan konstan** (hindari bayangan berubah-ubah).
-- Pastikan **kontras tinggi** antara objek dan background (gunakan background putih/hitam solid).
-- Posisikan kamera **tegak lurus** terhadap permukaan objek.
-- Gunakan **resolusi tinggi** dan pastikan fokus tajam.
-- Untuk presisi \\u003C 0.05 mm, pertimbangkan penggunaan **telecentric lens**.
+### PANDUAN REFERENSI 10 DETEKTOR VISUAL
+
+Berikut adalah fungsi dan instruksi cara setup dari masing-masing 10 detektor yang dapat dipasang pada area ROI:
+
+#### 1. Presence Check (Deteksi Kehadiran / Perubahan Visual)
+* **Fungsi**: Memastikan keberadaan komponen, perakitan part yang lengkap, atau mendeteksi pergerakan di zona pantau (Rule-Based).
+* **Cara Setup**: 
+  1. Gambar kotak ROI melingkupi area di mana komponen seharusnya berada.
+  2. Setel **Begin Threshold** (sensitivitas deteksi pergerakan, contoh: 40%).
+  3. Atur **Lower Threshold** untuk mengabaikan noise kecil (seperti bayangan).
+  4. Sistem memicu status **PASS** jika objek terdeteksi dan **FAIL/NG** jika area tersebut kosong.
+
+#### 2. Scratch Inspection (Deteksi Cacat / Anomali Permukaan - AI)
+* **Fungsi**: Menemukan cacat kosmetik yang tidak teratur seperti goresan, retak, penyok, baret, kontaminasi, atau cacat cetakan pada permukaan produk.
+* **Cara Setup**: 
+  1. Pasang detektor ini pada ROI produk.
+  2. Pilih jenis model AI **Anomaly Detection (PatchCore)** yang telah Anda latih pada Langkah 2.
+  3. Setel **Anomaly Score Threshold** (default: 0.5). Jika baret/cacat terdeteksi pada produk saat live dan skor anomalinya melebihi batas ini, status judgment otomatis berubah menjadi **NG (FAIL)**.
+
+#### 3. GD&T Measurement (Pengukuran Geometri Dimensi)
+* **Fungsi**: Mengukur lebar (*Width*), tinggi (*Height*), diameter lingkaran (*Circle Diameter*), panjang diagonal, atau luas area objek secara presisi.
+* **Cara Setup**: 
+  1. Pastikan kamera telah dikalibrasi skala fisiknya (lihat menu Kalibrasi Kamera).
+  2. Gambar ROI melingkupi objek yang ingin diukur dimensinya.
+  3. Pilih **Measure Mode** (misal: *Width* atau *Circle Diameter*) dan tentukan unit pengukurannya (**mm** atau **px**).
+  4. Masukkan batas spesifikasi **LSL (Lower Specification Limit)** dan **USL (Upper Specification Limit)** (contoh: Target 20.0mm, LSL: 19.5mm, USL: 20.5mm). Jika hasil ukur berada di luar rentang ini, detektor memicu status **FAIL**.
+
+#### 4. Positioning (Jig / Penyelarasan Koordinat)
+* **Fungsi**: Melacak koordinat titik referensi objek (seperti ArUco marker atau kecocokan pola) sehingga ketika produk bergeser atau miring di atas conveyor, kotak ROI detektor lain akan **mengikuti pergeseran tersebut secara dinamis**.
+* **Cara Setup**:
+  1. Gambar ROI tepat melingkupi marker fisik atau sudut produk yang dijadikan patokan.
+  2. Tentukan **Marker Type** (seperti *ArUco* atau *Template Matching*) dan atur **Marker ID** yang sesuai.
+  3. Detektor ini akan bertindak sebagai jangkar koordinat bagi ROI pengukuran lainnya.
+
+#### 5. Color Inspection (Inspeksi Warna RGB/HSV)
+* **Fungsi**: Memastikan produk dicat dengan warna yang benar, mendeteksi keberadaan kabel warna tertentu, atau membedakan tipe produk berdasarkan warna.
+* **Cara Setup**:
+  1. Letakkan produk dengan warna target di bawah kamera.
+  2. Gambar ROI pada area berwarna tersebut.
+  3. Klik tombol **Set current region color** untuk merekam rata-rata nilai warna secara instan.
+  4. Setel **Begin Color detection threshold** (misal: 75%). Jika warna objek menyimpang dari target (misal salah pasang part warna merah padahal harusnya biru), nilai similarity akan anjlok di bawah batas toleransi dan memicu **FAIL**.
+
+#### 6. Count Detector (Penghitung Jumlah Objek - AI)
+* **Fungsi**: Menghitung kuantitas pin konektor, sekrup dalam wadah, atau botol di dalam kemasan karton menggunakan model deteksi objek YOLO.
+* **Cara Setup**:
+  1. Gambar ROI mencakup seluruh area penampung objek.
+  2. Masukkan **Target Object Class** sesuai kelas pelabelan pada model YOLO (misalnya: *screw* atau *cap*).
+  3. Setel **Expected Count** (jumlah objek yang harus ada, contoh: 6) dan **Confidence Threshold** (sensitivitas pembacaan AI).
+  4. Jika jumlah objek yang terdeteksi kurang atau lebih dari nilai *Expected Count*, region otomatis dinyatakan **FAIL/NG**.
+
+#### 7. Character Recognition (OCR Text Reader - AI)
+* **Fungsi**: Membaca string alfanumerik secara otomatis seperti nomor batch produksi, tanggal kedaluwarsa (*expiry date*), atau nomor seri produk.
+* **Cara Setup**:
+  1. Gambar ROI memanjang melingkupi baris tulisan/karakter pada produk.
+  2. Tentukan **Language** pembacaan (English, German, Chinese, dll).
+  3. Masukkan **Match Pattern** jika Anda ingin memvalidasi format teks tertentu (contoh regex: \`LOT-[0-9]{4}\`). Teks hasil pembacaan EasyOCR akan langsung disinkronkan ke memori variabel HMI untuk dicatat dalam log QC database.
+
+#### 8. 1D Code Reader (Scanner Barcode)
+* **Fungsi**: Menscan dan menerjemahkan barcode garis (1D) konvensional pada label kemasan produk.
+* **Cara Setup**:
+  1. Gambar ROI melingkupi seluruh area barcode garis.
+  2. Pilih **Symbology Filter** (*ANY*, *Code 128*, *Code 39*, *EAN-13*).
+  3. Jika ingin memvalidasi keaslian kode, masukkan string target pada kolom **Expected Value**. Jika barcode terdeteksi namun isinya salah, status region menjadi **NG**.
+
+#### 9. 2D Code Reader (Scanner QR / DataMatrix)
+* **Fungsi**: Membaca kode matriks 2D (QR Code atau DataMatrix) yang dicetak langsung pada permukaan produk (*Direct Part Marking* / DPM) untuk ketelusuran (*traceability*) tingkat tinggi.
+* **Cara Setup**:
+  1. Arahkan ROI tepat melingkupi kode QR atau DataMatrix.
+  2. Pilih **Code Format** (*QR* atau *DataMatrix*).
+  3. Sistem secara instan men-decode isi data dan mengirimkannya ke log QC database saat konveyor bergerak.
+
+#### 10. Calibration Tool (Kompensasi Grid & Unit Fisik)
+* **Fungsi**: Memverifikasi bahwa kamera masih dalam status terkalibrasi presisi dan menerapkan matriks kompensasi kelengkungan lensa OpenCV secara dinamis sebelum pengukuran ROI lainnya dievaluasi.
+* **Cara Setup**:
+  1. Gambar ROI pada area pola kalibrasi checkerboard atau titik ukur referensi.
+  2. Pilih tipe kalibrasi: **Scale Factor (mm/px)** atau **Lens Distortion**.
+  3. Panel status akan menampilkan indikator hijau **"Camera matrix loaded & active"** untuk menandakan koreksi geometri OpenCV sedang berjalan aktif secara real-time pada frame video.
 `
   },
   {
@@ -836,42 +880,71 @@ Filter **Dimension Measurement** pada widget **OpenCV Camera** memungkinkan peng
     icon: Ruler,
     color: '#2563eb', // Blue
     content: `
-### Panduan Integrasi Drawing & CAD Blueprint di Mavi HMI
+### Panduan Lengkap Drawing / Inspection Designer & Integrasi CAD Widget
 
-Inspector Designer memungkinkan Anda mengunggah berkas gambar teknik (.svg, .dxf, .pdf), memetakan koordinat dimensi secara visual ke variabel Quality Management System (QMS), dan melakukan judgment Pass/Fail otomatis di stasiun operator.
-
----
-
-#### 1. Cara Melakukan Pemetaan (Mapping) di Drawing Manager
-Untuk mengaitkan dimensi gambar dengan variabel aplikasi:
-1. Masuk ke menu **Apps** -> **Drawing Manager** dari bilah navigasi atas.
-2. Unggah file gambar Anda (.svg, .dxf, atau .pdf) pada drop-zone uploader. Sistem akan mengonversi dan membedah entitas geometri secara otomatis.
-3. Klik nama file gambar Anda di daftar sebelah kiri untuk memuat Canvas.
-4. Klik langsung pada **kotak label dimensi** di atas Canvas (misal: \`Ø 80.0\` atau \`L: 120.0\`).
-5. Isi data pemetaan pada panel kanan:
-   - **Target Spec Nominal**: Masukkan angka spesifikasi target.
-   - **Batas Toleransi (Min/Max)**: Masukkan deviasi toleransi yang diperbolehkan.
-   - **Variabel Connector (QMS)**: Pilih variabel HMI yang akan dikoneksikan (misal: \`Meas_Length\` atau \`Meas_Diameter\`).
-6. Klik **Simpan Pemetaan Dimensi**.
+Fitur **Drawing / Inspection Designer** (disebut juga **Drawing Manager**) menjembatani gambar teknik (.dxf, .svg, .pdf) dengan antarmuka HMI operator. Sistem ini memungkinkan input pengukuran fisik secara manual atau via Bluetooth Caliper diverifikasi langsung terhadap spesifikasi toleransi CAD secara dinamis dan real-time di stasiun operator.
 
 ---
 
-#### 2. Cara Mengintegrasikan Drawing ke App Builder
-Setelah dimensi dipetakan, ikuti langkah berikut untuk menampilkannya di aplikasi operator:
-1. Buka **App Builder** dan pilih aplikasi Anda.
-2. Tarik (drag) widget **CAD** (atau \`CAD_VIEWER\`) dari panel widget kiri ke dalam kanvas HMI.
-3. Pada panel properti sebelah kanan widget CAD, atur properti **\`fileUrl\`** sesuai dengan blueprint Anda (misal: \`'interactive-2d-blueprint'\`).
-4. Buat widget input form (seperti \`TEXT_INPUT\` atau \`NUMBER_INPUT\`) untuk menerima hasil ukur jangka sorong dari operator.
-5. Koneksikan (**bind**) properti \`targetVariable\` widget input tersebut ke variabel HMI yang sama dengan pemetaan Drawing Manager (misal: \`Meas_Length\` atau \`Meas_Diameter\`).
+#### LANGKAH 1: Unggah & Pemetaan Gambar Teknik (Drawing Manager)
+Sebelum diintegrasikan ke aplikasi, berkas gambar harus disiapkan dan dimensi spesifiknya dipetakan ke variabel penampung data.
+
+1. **Akses Menu**: Buka menu **Apps** \u2192 **Drawing Manager** dari bar navigasi atas platform MAVI.
+2. **Unggah Berkas**: Seret (*drag & drop*) berkas gambar teknik Anda (.svg, .dxf, atau .pdf) pada zona pengunggahan. Sistem akan secara otomatis membedah entitas geometri, koordinat garis, lingkaran, dan teks dimensi yang ada pada file.
+3. **Buka Kanvas Interaktif**: Pilih nama berkas gambar dari daftar di sebelah kiri untuk membuka lembar kerja di bagian tengah.
+4. **Petakan Dimensi Spesifik (Dimension SPEC Mapping)**:
+   - Ketuk/klik langsung pada **kotak label dimensi** atau **garis ukuran** di atas kanvas gambar (contoh: \`Ø 80.0\` atau \`L: 120.0\`).
+   - Panel setelan spesifikasi dimensi akan meluncur keluar di sisi kanan.
+5. **Konfigurasikan Parameter Toleransi**:
+   - **Target Spec Nominal**: Masukkan angka nilai target ideal (contoh: \`80.0\`).
+   - **Batas Toleransi**: Masukkan nilai deviasi atau batas spesifikasi langsung:
+     * *Batas Bawah (LSL / Lower Specification Limit)*: Nilai minimum produk lolos (contoh: \`79.9\`).
+     * *Batas Atas (USL / Upper Specification Limit)*: Nilai maksimum produk lolos (contoh: \`80.1\`).
+   - **Variabel Connector (QMS)**: Masukkan nama variabel unik yang akan menampung nilai dimensi ini di memori HMI (contoh: \`Meas_Diameter\`).
+     > ⚠️ **PENTING**: Nama variabel ini harus unik dan disarankan menggunakan format snake_case atau camelCase tanpa spasi/karakter khusus.
+   - **Measure Type**: Pilih orientasi pengukuran yang sesuai (*Linear Horizontal*, *Linear Vertical*, *Diameter*, *Radial*, atau *Angle*).
+6. **Simpan Konfigurasi**: Klik tombol **Simpan Pemetaan Dimensi**. Elemen geometri yang berhasil dipetakan akan berubah warna menjadi biru pada kanvas.
 
 ---
 
-#### 3. Cara Kerja Validasi Dinamis di Live Terminal
-Ketika operator menjalankan aplikasi di stasiun kerja (**Live Terminal**):
-- Setiap kali operator mengetuk label dimensi pada gambar, variabel \`Active_Dimension_Key\` akan ter-update untuk memfokuskan input box yang bersangkutan.
-- Saat operator menginput nilai aktual jangka sorong:
-  - Sistem mencocokkan nilai tersebut terhadap toleransi min/max dari database.
-  - Garis dimensi pada gambar akan otomatis berubah warna menjadi **Hijau (PASS)** jika memenuhi spesifikasi, atau **Merah (FAIL)** jika tidak sesuai spesifikasi.
+#### LANGKAH 2: Konfigurasi HMI & Widget di App Builder
+Setelah gambar blueprint dipetakan, ikuti langkah ini untuk merancang tampilannya di aplikasi operator.
+
+1. **Buka App Builder**: Buka menu **Apps** \u2192 **App Builder** dan pilih aplikasi HMI Anda.
+2. **Deklarasikan Variabel Aplikasi**:
+   - Di panel kiri (ikon database/variabel), klik **Create Variable**.
+   - Masukkan nama variabel global dengan ejaan dan huruf besar-kecil yang **SAMA PERSIS** dengan *Variabel Connector (QMS)* yang Anda setel di Drawing Manager (contoh: \`Meas_Diameter\` dengan tipe \`NUMBER\`).
+3. **Letakkan Widget CAD Viewer**:
+   - Tarik (*drag & drop*) widget **CAD** (atau \`CAD_VIEWER\`) dari palet widget kategori *Embedded* ke dalam kanvas HMI Anda.
+   - Klik widget tersebut dan atur propertinya di sidebar kanan:
+     * **\`fileUrl\`**: Pilih nama file blueprint yang baru saja Anda petakan (contoh: \`dwg_hydraulic_cylinder\`).
+     * **\`showGrid\`**: Setel ke \`true\` untuk menampilkan grid penunjuk posisi.
+     * **\`autoRotate\`**: Setel ke \`false\` agar operator tidak pusing saat membaca gambar yang bergerak.
+4. **Buat Form Input Pengukuran**:
+   - Tarik widget input data (seperti **Number Input** atau **Text Input**) di dekat gambar CAD untuk tempat operator memasukkan hasil pengukuran fisik.
+   - Pada panel properti widget input tersebut, isi properti **\`targetVariable\`** dan arahkan ke variabel global yang telah Anda buat sebelumnya (contoh: \`Meas_Diameter\`).
+
+---
+
+#### LANGKAH 3: Cara Kerja Validasi Dinamis & Alur Kerja Operator
+Ketika operator menjalankan aplikasi di stasiun kerja (**Live Terminal** / **App Player**):
+
+1. **Pemicu Fokus Otomatis (On-Click Focus)**:
+   - Operator tidak perlu menepuk kotak input form. Cukup **ketuk/klik langsung garis dimensi** (misalnya garis diameter \`Ø 80.0\`) pada gambar CAD di layar sentuh.
+   - Widget CAD akan mendeteksi interaksi tersebut dan memicu event \`ACTIVE_DIMENSION_CHANGED\`.
+   - Sistem secara otomatis memfokuskan kursor dan mengaktifkan widget input yang terikat ke variabel \`Meas_Diameter\`.
+2. **Input Pengukuran Fisik**:
+   - Operator melakukan pengukuran produk fisik menggunakan jangka sorong (caliper/micrometer).
+   - Angka hasil pengukuran dimasukkan ke dalam input box (diketik manual atau dikirim otomatis dari alat ukur jika terhubung via USB/Bluetooth menggunakan widget *Measurement*).
+3. **Pencocokan Nilai & Feedback Visual**:
+   - Begitu nilai dimasukkan ke variabel \`Meas_Diameter\`, engine MAVI langsung mengevaluasi angka tersebut terhadap batas toleransi LSL (\`79.9\`) dan USL (\`80.1\`).
+   - Garis dimensi pada gambar cetak biru CAD akan berubah warna secara instan:
+     * **HIJAU (PASS)**: Jika hasil ukur operator masuk dalam batas toleransi (\`LSL <= Nilai <= USL\`, misal: \`80.05\`).
+     * **MERAH (FAIL/NG)**: Jika hasil ukur menyimpang dari toleransi (\`Nilai < LSL\` atau \`Nilai > USL\`, misal: \`79.85\`).
+     * **ABU-ABU (UNMEASURED)**: Jika dimensi tersebut belum diukur atau nilainya dikosongkan.
+4. **Triggers & Automations**:
+   - Status kelulusan ini juga memperbarui status variabel terkait (seperti \`Status_Meas_Diameter\` menjadi \`"PASS"\` atau \`"FAIL"\`).
+   - Nilai kelulusan ini dapat digunakan untuk memicu aksi otomatis (seperti mencetak label lulus QC, menghentikan mesin konveyor, atau memicu alarm stasiun kerja).
 `
   },
   {

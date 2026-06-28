@@ -2022,8 +2022,13 @@ const AppBuilder = () => {
         }
 
         try {
+            const savedCameraId = localStorage.getItem('mavi-selected-camera-id');
+            const videoConstraints = savedCameraId 
+                ? { deviceId: { exact: savedCameraId } }
+                : { facingMode: { ideal: 'environment' } };
+
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { ideal: 'environment' } },
+                video: videoConstraints,
                 audio: false
             });
             cameraScannerStreams.current[compId] = stream;
@@ -18095,6 +18100,20 @@ const AppBuilder = () => {
                                                                             <option value="CIRCLE_DETECT">Circle/Diameter Detection (Deteksi Lingkaran)</option>
                                                                             <option value="ANGLE_MEASURE">Angle Measurement (Pengukuran Sudut)</option>
                                                                             <option value="CONTOUR_GEOMETRY">Perimeter & Area (Keliling & Luas)</option>
+                                                                            <optgroup label="🤖 AI Deep Learning">
+                                                                                <option value="AI_ANOMALY">AI Anomaly Detection (Deteksi Cacat Unsupervised)</option>
+                                                                                <option value="AI_SEGMENT">AI Defect Segmentation (Segmentasi U-Net)</option>
+                                                                                <option value="AI_CLASSIFY">AI Classification (Klasifikasi OK/NG)</option>
+                                                                            </optgroup>
+                                                                            <optgroup label="🔧 Advanced Rule-Based">
+                                                                                <option value="OCR_READ">OCR Text Reader (Pembaca Teks EasyOCR)</option>
+                                                                                <option value="BARCODE_SCAN">Barcode/QR Scanner (Pemindai Kode)</option>
+                                                                                <option value="TEMPLATE_MATCH">Template Matching (Pencocokan Posisi)</option>
+                                                                                <option value="COLOR_INSPECT">Color Inspection (Inspeksi Warna HSV)</option>
+                                                                            </optgroup>
+                                                                            <optgroup label="⚡ Pipeline">
+                                                                                <option value="FULL_PIPELINE">Full Inspection Pipeline (Alur Lengkap)</option>
+                                                                            </optgroup>
                                                                         </select>
                                                                     </div>
                                                                     {selectedComp.props.filterType === 'YOLO_DETECTOR' && (
@@ -18410,6 +18429,77 @@ const AppBuilder = () => {
                                                                             <div className="prop-group" style={{ marginBottom: '4px' }}>
                                                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Display Unit</label>
                                                                                 <input type="text" value={selectedComp.props.dimUnit || 'mm'} onChange={(e) => updateComponentProps(selectedComp.id, { dimUnit: e.target.value })} placeholder="mm" style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }} />
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                    {['AI_ANOMALY', 'AI_SEGMENT', 'AI_CLASSIFY', 'FULL_PIPELINE'].includes(selectedComp.props.filterType) && (
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+                                                                            <div style={{ padding: '10px', backgroundColor: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.2)', borderRadius: '8px' }}>
+                                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#3b82f6', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>🤖 AI Model Configuration</label>
+                                                                                <div className="prop-group" style={{ marginBottom: '4px' }}>
+                                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Model Name / ID</label>
+                                                                                    <input type="text" value={selectedComp.props.aiModelName || 'default'} onChange={(e) => updateComponentProps(selectedComp.id, { aiModelName: e.target.value })} placeholder="e.g. default, model_v1" style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }} />
+                                                                                </div>
+                                                                                {selectedComp.props.filterType === 'FULL_PIPELINE' && (
+                                                                                    <div className="prop-group" style={{ marginTop: '8px', marginBottom: '4px' }}>
+                                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Pipeline Steps (JSON Array)</label>
+                                                                                        <input type="text" value={selectedComp.props.pipelineSteps || '["anomaly"]'} onChange={(e) => updateComponentProps(selectedComp.id, { pipelineSteps: e.target.value })} placeholder='e.g. ["alignment", "anomaly", "measure"]' style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', fontFamily: 'monospace', fontSize: '0.75rem' }} />
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                    {selectedComp.props.filterType === 'OCR_READ' && (
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+                                                                            <div style={{ padding: '10px', backgroundColor: 'rgba(34, 197, 94, 0.06)', border: '1px solid rgba(34, 197, 94, 0.2)', borderRadius: '8px' }}>
+                                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#22c55e', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>📝 OCR Text Reader Settings</label>
+                                                                                <div className="prop-group" style={{ marginBottom: '4px' }}>
+                                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Languages (comma-separated)</label>
+                                                                                    <input type="text" value={selectedComp.props.ocrLanguages || 'en'} onChange={(e) => updateComponentProps(selectedComp.id, { ocrLanguages: e.target.value })} placeholder="e.g. en, id" style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }} />
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                    {selectedComp.props.filterType === 'TEMPLATE_MATCH' && (
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+                                                                            <div style={{ padding: '10px', backgroundColor: 'rgba(6, 182, 212, 0.06)', border: '1px solid rgba(6, 182, 212, 0.2)', borderRadius: '8px' }}>
+                                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#06b6d4', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>📐 Template Match Settings</label>
+                                                                                <div className="prop-group" style={{ marginBottom: '8px' }}>
+                                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Template Name</label>
+                                                                                    <input type="text" value={selectedComp.props.templateName || 'default'} onChange={(e) => updateComponentProps(selectedComp.id, { templateName: e.target.value })} placeholder="e.g. template_1" style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }} />
+                                                                                </div>
+                                                                                <div className="prop-group" style={{ marginBottom: '4px' }}>
+                                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Match Threshold: {selectedComp.props.matchThreshold ?? 0.7}</label>
+                                                                                    <input type="range" min="0.1" max="1.0" step="0.05" value={selectedComp.props.matchThreshold ?? 0.7} onChange={(e) => updateComponentProps(selectedComp.id, { matchThreshold: parseFloat(e.target.value) })} style={{ width: '100%', cursor: 'pointer' }} />
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                    {selectedComp.props.filterType === 'COLOR_INSPECT' && (
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+                                                                            <div style={{ padding: '10px', backgroundColor: 'rgba(236, 72, 153, 0.06)', border: '1px solid rgba(236, 72, 153, 0.2)', borderRadius: '8px' }}>
+                                                                                <label style={{ display: 'block', fontSize: '0.65rem', color: '#ec4899', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>🎨 Color Inspection Settings (HSV)</label>
+                                                                                <div className="prop-group" style={{ marginBottom: '8px' }}>
+                                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Hue Range: {selectedComp.props.colorHMin ?? 0} - {selectedComp.props.colorHMax ?? 180}</label>
+                                                                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                                                        <input type="range" min="0" max="180" value={selectedComp.props.colorHMin ?? 0} onChange={(e) => updateComponentProps(selectedComp.id, { colorHMin: parseInt(e.target.value) })} style={{ flex: 1, cursor: 'pointer' }} />
+                                                                                        <input type="range" min="0" max="180" value={selectedComp.props.colorHMax ?? 180} onChange={(e) => updateComponentProps(selectedComp.id, { colorHMax: parseInt(e.target.value) })} style={{ flex: 1, cursor: 'pointer' }} />
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div className="prop-group" style={{ marginBottom: '8px' }}>
+                                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Saturation Range: {selectedComp.props.colorSMin ?? 50} - {selectedComp.props.colorSMax ?? 255}</label>
+                                                                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                                                        <input type="range" min="0" max="255" value={selectedComp.props.colorSMin ?? 50} onChange={(e) => updateComponentProps(selectedComp.id, { colorSMin: parseInt(e.target.value) })} style={{ flex: 1, cursor: 'pointer' }} />
+                                                                                        <input type="range" min="0" max="255" value={selectedComp.props.colorSMax ?? 255} onChange={(e) => updateComponentProps(selectedComp.id, { colorSMax: parseInt(e.target.value) })} style={{ flex: 1, cursor: 'pointer' }} />
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div className="prop-group" style={{ marginBottom: '4px' }}>
+                                                                                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Value Range: {selectedComp.props.colorVMin ?? 50} - {selectedComp.props.colorVMax ?? 255}</label>
+                                                                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                                                        <input type="range" min="0" max="255" value={selectedComp.props.colorVMin ?? 50} onChange={(e) => updateComponentProps(selectedComp.id, { colorVMin: parseInt(e.target.value) })} style={{ flex: 1, cursor: 'pointer' }} />
+                                                                                        <input type="range" min="0" max="255" value={selectedComp.props.colorVMax ?? 255} onChange={(e) => updateComponentProps(selectedComp.id, { colorVMax: parseInt(e.target.value) })} style={{ flex: 1, cursor: 'pointer' }} />
+                                                                                    </div>
+                                                                                </div>
                                                                             </div>
                                                                         </div>
                                                                     )}

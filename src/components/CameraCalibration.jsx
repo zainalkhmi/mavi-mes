@@ -10,7 +10,7 @@ import {
   CartesianGrid, Tooltip, Legend, ReferenceLine 
 } from 'recharts';
 import toast, { Toaster } from 'react-hot-toast';
-import { getAllCameras, saveCamera } from '../utils/supabaseUtilityDB';
+import { getAllCameras, saveCamera, getAllCalibrationLogs, addCalibrationLog } from '../utils/supabaseUtilityDB';
 
 // Styling constants for Odoo-style light theme (2026 aesthetics)
 const COLORS = {
@@ -32,6 +32,8 @@ export default function CameraCalibration() {
   // Navigation State
   const [currentMenu, setCurrentMenu] = useState('dashboard');
   const [calibrationSubmenuOpen, setCalibrationSubmenuOpen] = useState(true);
+  const [orthogonalSnap, setOrthogonalSnap] = useState(false);
+  const [activePointToNudge, setActivePointToNudge] = useState('point2'); // 'point1' | 'point2'
 
   // Global Camera State
   const [isCameraConnected, setIsCameraConnected] = useState(true);
@@ -67,6 +69,7 @@ export default function CameraCalibration() {
             if (s.focus !== undefined) setFocusValue(s.focus);
             if (s.gain !== undefined) setGainValue(s.gain);
             if (s.whiteBalance) setWhiteBalance(s.whiteBalance);
+            if (s.mmPerPixel !== undefined) setPixelScaleFactor(s.mmPerPixel);
           }
         } else {
           // Fallback if no camera exists
@@ -86,7 +89,18 @@ export default function CameraCalibration() {
         setIsLoadingCameras(false);
       }
     };
+    
+    const fetchLogs = async () => {
+      try {
+        const logs = await getAllCalibrationLogs();
+        if (logs) setCalibrationHistory(logs);
+      } catch (e) {
+        console.error('Failed to fetch calibration logs:', e);
+      }
+    };
+
     fetchRegisteredCameras();
+    fetchLogs();
   }, []);
 
   // Lens Calibration States
@@ -132,11 +146,7 @@ export default function CameraCalibration() {
   ]);
 
   // Calibration history database
-  const [calibrationHistory, setCalibrationHistory] = useState([
-    { id: 'CAL-01', date: '2026-06-15 14:32', operator: 'A. Hidayat', camera: 'USB Camera', type: 'Full OpenCV', rms: '0.18 px', scale: '0.1170 mm/px', status: 'VALID' },
-    { id: 'CAL-02', date: '2026-06-12 09:15', operator: 'A. Hidayat', camera: 'USB Camera', type: 'Scale Re-cal', rms: '0.19 px', scale: '0.1165 mm/px', status: 'SUPERSEDED' },
-    { id: 'CAL-03', date: '2026-05-30 11:45', operator: 'S. Raharjo', camera: 'USB Camera', type: 'Full OpenCV', rms: '0.24 px', scale: '0.1172 mm/px', status: 'SUPERSEDED' },
-  ]);
+  const [calibrationHistory, setCalibrationHistory] = useState([]);
 
   // Refs for Live Camera Streaming
   const videoRef = useRef(null);
@@ -172,12 +182,13 @@ export default function CameraCalibration() {
     if (camType === 'DEVICE') {
       const getWebcam = async () => {
         try {
+          const savedCameraId = localStorage.getItem('mavi-selected-camera-id');
+          const videoConstraints = savedCameraId 
+              ? { width: { ideal: 1280 }, height: { ideal: 720 }, deviceId: { exact: savedCameraId } }
+              : { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'environment' };
+
           const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-              facingMode: 'environment'
-            }
+            video: videoConstraints
           });
           streamRef.current = stream;
           if (videoRef.current) {
@@ -282,7 +293,8 @@ export default function CameraCalibration() {
         exposure: exposureValue,
         focus: focusValue,
         gain: gainValue,
-        whiteBalance: whiteBalance
+        whiteBalance: whiteBalance,
+        mmPerPixel: pixelScaleFactor
       };
       
       const payload = {
@@ -295,6 +307,27 @@ export default function CameraCalibration() {
       // Update local state registeredCameras list
       setRegisteredCameras(prev => prev.map(c => c.id === selectedCam.id ? payload : c));
       
+      // Save calibration log
+      const logEntry = {
+        camera: cameraSource,
+        type: 'Scale Re-cal',
+        scale: `${pixelScaleFactor.toFixed(4)} mm/px`,
+        rms: 'N/A', // Update this if you have real RMS calculation
+        operator: 'Admin', // In real app, get from auth context
+        status: 'VALID'
+      };
+      const newLog = await addCalibrationLog(logEntry);
+      
+      setCalibrationHistory(prev => {
+        // mark others for this camera as SUPERSEDED locally to update UI instantly
+        const updated = prev.map(log => 
+          (log.camera === cameraSource && log.status === 'VALID') 
+            ? { ...log, status: 'SUPERSEDED' } 
+            : log
+        );
+        return [newLog, ...updated];
+      });
+
       toast.success(`Camera configuration for "${cameraSource}" saved to Vision Setup successfully.`);
     } catch (err) {
       console.error('Failed to save camera settings:', err);
@@ -302,6 +335,29 @@ export default function CameraCalibration() {
     } finally {
       setIsSavingSettings(false);
     }
+  };
+
+  const handleSelectCamera = (cam) => {
+    setCameraSource(cam.name);
+    if (cam.settings) {
+      const s = cam.settings;
+      if (s.resolution) setCameraResolution(s.resolution);
+      if (s.fps) setCameraFps(s.fps);
+      if (s.exposure !== undefined) setExposureValue(s.exposure);
+      if (s.focus !== undefined) setFocusValue(s.focus);
+      if (s.gain !== undefined) setGainValue(s.gain);
+      if (s.whiteBalance) setWhiteBalance(s.whiteBalance);
+      if (s.mmPerPixel !== undefined) setPixelScaleFactor(s.mmPerPixel);
+    } else {
+      setCameraResolution('1920 x 1080');
+      setCameraFps('30 FPS');
+      setExposureValue(-3);
+      setFocusValue(128);
+      setGainValue(1.0);
+      setWhiteBalance('Auto');
+      setPixelScaleFactor(0.1170);
+    }
+    toast.success(`Active source switched to: ${cam.name}`);
   };
 
   // Handle Capture Chessboard Image
@@ -795,6 +851,16 @@ fps: "${cameraFps}"
               ctx.beginPath(); ctx.moveTo(blockX + 450, blockY - 10); ctx.lineTo(blockX + 450, blockY + 130); ctx.stroke();
               ctx.beginPath(); ctx.moveTo(blockX, blockY + 60); ctx.lineTo(blockX + 450, blockY + 60); ctx.stroke();
 
+              // Dynamic cursor crosshair when drawing
+              if (isDrawingScaleLine && draggedLine) {
+                ctx.strokeStyle = 'rgba(239, 68, 68, 0.35)'; // Red crosshair
+                ctx.lineWidth = 0.5;
+                ctx.beginPath();
+                ctx.moveTo(draggedLine.x2, 0); ctx.lineTo(draggedLine.x2, canvas.height);
+                ctx.moveTo(0, draggedLine.y2); ctx.lineTo(canvas.width, draggedLine.y2);
+                ctx.stroke();
+              }
+
               // Draw dragged line
               if (draggedLine) {
                 ctx.strokeStyle = COLORS.blueAccent;
@@ -812,10 +878,64 @@ fps: "${cameraFps}"
                 const dy = draggedLine.y2 - draggedLine.y1;
                 const pxDist = Math.round(Math.sqrt(dx * dx + dy * dy));
 
+                const angleRad = Math.atan2(dy, dx);
+                const angleDeg = Math.abs((angleRad * 180) / Math.PI);
+                const displayAngle = (angleDeg > 90) ? Math.abs(angleDeg - 180) : angleDeg;
+
                 ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 13px sans-serif';
+                ctx.font = 'bold 12px sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText(`${pxDist} px`, (draggedLine.x1 + draggedLine.x2) / 2, ((draggedLine.y1 + draggedLine.y2) / 2) - 10);
+                ctx.fillText(`${pxDist} px (${displayAngle.toFixed(1)}°)`, (draggedLine.x1 + draggedLine.x2) / 2, ((draggedLine.y1 + draggedLine.y2) / 2) - 10);
+
+                // Draw Zoom Loupe (Magnifying Glass) in top-right corner
+                if (isDrawingScaleLine) {
+                  const zoomX = draggedLine.x2;
+                  const zoomY = draggedLine.y2;
+                  
+                  const loupeSize = 100;
+                  const zoomFactor = 4;
+                  
+                  const loupePosX = canvas.width - loupeSize - 15;
+                  const loupePosY = 15;
+                  
+                  ctx.save();
+                  ctx.beginPath();
+                  ctx.arc(loupePosX + loupeSize/2, loupePosY + loupeSize/2, loupeSize/2, 0, Math.PI * 2);
+                  ctx.clip();
+                  
+                  ctx.drawImage(
+                    canvas,
+                    Math.max(0, zoomX - loupeSize / (2 * zoomFactor)),
+                    Math.max(0, zoomY - loupeSize / (2 * zoomFactor)),
+                    loupeSize / zoomFactor,
+                    loupeSize / zoomFactor,
+                    loupePosX,
+                    loupePosY,
+                    loupeSize,
+                    loupeSize
+                  );
+                  
+                  ctx.restore();
+                  
+                  ctx.strokeStyle = COLORS.blueAccent;
+                  ctx.lineWidth = 3;
+                  ctx.beginPath();
+                  ctx.arc(loupePosX + loupeSize/2, loupePosY + loupeSize/2, loupeSize/2, 0, Math.PI * 2);
+                  ctx.stroke();
+                  
+                  ctx.strokeStyle = 'rgba(239, 68, 68, 0.8)';
+                  ctx.lineWidth = 1;
+                  ctx.beginPath();
+                  ctx.moveTo(loupePosX + loupeSize/2 - 10, loupePosY + loupeSize/2);
+                  ctx.lineTo(loupePosX + loupeSize/2 + 10, loupePosY + loupeSize/2);
+                  ctx.moveTo(loupePosX + loupeSize/2, loupePosY + loupeSize/2 - 10);
+                  ctx.lineTo(loupePosX + loupeSize/2, loupePosY + loupeSize/2 + 10);
+                  ctx.stroke();
+                  
+                  ctx.fillStyle = '#ffffff';
+                  ctx.font = 'bold 9px sans-serif';
+                  ctx.fillText("4x Zoom", loupePosX + 5, loupePosY + 15);
+                }
               }
 
               // Instructions watermark
@@ -905,22 +1025,80 @@ fps: "${cameraFps}"
     };
   }, [currentMenu, isCameraConnected, selectedCapturedImage, chessboardRows, chessboardCols, squareSizeMm, draggedLine, roiBox, roiName, savedRois, pixelScaleFactor, cameraSource, registeredCameras, ipImageLoaded]);
 
+  const getCanvasMouseCoordinates = (e, canvasEl) => {
+    if (!canvasEl) return { x: 0, y: 0 };
+    const rect = canvasEl.getBoundingClientRect();
+    const canvasWidth = canvasEl.width;
+    const canvasHeight = canvasEl.height;
+    
+    const cssWidth = rect.width;
+    const cssHeight = rect.height;
+    
+    const canvasRatio = canvasWidth / canvasHeight;
+    const cssRatio = cssWidth / cssHeight;
+    
+    let activeWidth = cssWidth;
+    let activeHeight = cssHeight;
+    let activeLeft = 0;
+    let activeTop = 0;
+    
+    if (cssRatio > canvasRatio) {
+      activeWidth = cssHeight * canvasRatio;
+      activeLeft = (cssWidth - activeWidth) / 2;
+    } else {
+      activeHeight = cssWidth / canvasRatio;
+      activeTop = (cssHeight - activeHeight) / 2;
+    }
+    
+    const relativeX = e.clientX - rect.left - activeLeft;
+    const relativeY = e.clientY - rect.top - activeTop;
+    
+    const scaleX = canvasWidth / activeWidth;
+    const scaleY = canvasHeight / activeHeight;
+    
+    const x = Math.max(0, Math.min(canvasWidth, relativeX * scaleX));
+    const y = Math.max(0, Math.min(canvasHeight, relativeY * scaleY));
+    
+    return { x, y };
+  };
+
+  const handleNudge = (dx, dy) => {
+    if (!draggedLine) return;
+    setDraggedLine(prev => {
+      if (activePointToNudge === 'point1') {
+        return { ...prev, x1: Math.max(0, Math.min(640, prev.x1 + dx)), y1: Math.max(0, Math.min(380, prev.y1 + dy)) };
+      } else {
+        return { ...prev, x2: Math.max(0, Math.min(640, prev.x2 + dx)), y2: Math.max(0, Math.min(380, prev.y2 + dy)) };
+      }
+    });
+  };
+
   // Scale calibration mouse handlers
   const handleScaleMouseDown = (e) => {
     if (!isCameraConnected) return;
-    const rect = scaleCanvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    setDraggedLine({ x1: x, y1: y, x2: x, y2: y });
+    const coords = getCanvasMouseCoordinates(e, scaleCanvasRef.current);
+    setDraggedLine({ x1: coords.x, y1: coords.y, x2: coords.x, y2: coords.y });
     setIsDrawingScaleLine(true);
   };
 
   const handleScaleMouseMove = (e) => {
     if (!isDrawingScaleLine || !draggedLine) return;
-    const rect = scaleCanvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    setDraggedLine(prev => ({ ...prev, x2: x, y2: y }));
+    const coords = getCanvasMouseCoordinates(e, scaleCanvasRef.current);
+    
+    let targetX = coords.x;
+    let targetY = coords.y;
+    
+    if (orthogonalSnap || e.shiftKey) {
+      const dx = Math.abs(targetX - draggedLine.x1);
+      const dy = Math.abs(targetY - draggedLine.y1);
+      if (dx > dy) {
+        targetY = draggedLine.y1;
+      } else {
+        targetX = draggedLine.x1;
+      }
+    }
+    
+    setDraggedLine(prev => ({ ...prev, x2: targetX, y2: targetY }));
   };
 
   const handleScaleMouseUp = () => {
@@ -971,9 +1149,9 @@ fps: "${cameraFps}"
   const dragStartOffset = useRef({ x: 0, y: 0 });
 
   const handleRoiMouseDown = (e) => {
-    const rect = roiCanvasRef.current.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
+    const coords = getCanvasMouseCoordinates(e, roiCanvasRef.current);
+    const mx = coords.x;
+    const my = coords.y;
 
     // Check if clicked inside ROI box
     if (mx >= roiBox.x && mx <= roiBox.x + roiBox.w && my >= roiBox.y && my <= roiBox.y + roiBox.h) {
@@ -984,9 +1162,9 @@ fps: "${cameraFps}"
 
   const handleRoiMouseMove = (e) => {
     if (!isDraggingRoi.current) return;
-    const rect = roiCanvasRef.current.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
+    const coords = getCanvasMouseCoordinates(e, roiCanvasRef.current);
+    const mx = coords.x;
+    const my = coords.y;
 
     let newX = mx - dragStartOffset.current.x;
     let newY = my - dragStartOffset.current.y;
@@ -1462,246 +1640,383 @@ fps: "${cameraFps}"
           {/* MENU 1: CAMERA SETUP */}
           {/* ========================================================================= */}
           {currentMenu === 'camera-setup' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '24px' }}>
-              {/* Left Column: Live camera viewport simulation */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div style={{ 
-                  backgroundColor: COLORS.cardDark, borderRadius: '8px', border: `1px solid ${COLORS.border}`, overflow: 'hidden'
-                }}>
-                  <div style={{ padding: '12px 16px', borderBottom: `1px solid ${COLORS.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Camera size={16} color={COLORS.blueAccent} />
-                      <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>Live Feed Viewport</span>
-                    </div>
-                    {isCameraConnected && (
-                      <span style={{ fontSize: '0.7rem', color: COLORS.greenAccent, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span style={{ width: '6px', height: '6px', backgroundColor: COLORS.greenAccent, borderRadius: '50%' }}></span>
-                        Active Stream (Real-time)
-                      </span>
-                    )}
-                  </div>
-                  
-                  {/* Stream screen */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '24px' }}>
+                {/* Left Column: Live camera viewport simulation */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div style={{ 
-                    position: 'relative', 
-                    width: '100%', 
-                    aspectRatio: '16/9', 
-                    backgroundColor: '#0a0d16',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
+                    backgroundColor: COLORS.cardDark, borderRadius: '8px', border: `1px solid ${COLORS.border}`, overflow: 'hidden'
                   }}>
-                    {isCameraConnected ? (
-                      <canvas 
-                        ref={setupCanvasRef} 
-                        width={640} 
-                        height={360}
-                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                      />
-                    ) : (
-                      <div style={{ textAlign: 'center', padding: '40px' }}>
-                        <XCircle size={48} color={COLORS.redAccent} style={{ marginBottom: '12px' }} />
-                        <h4 style={{ margin: '0 0 4px 0', fontSize: '1rem', color: COLORS.textLight }}>No Camera Stream Connected</h4>
-                        <p style={{ margin: 0, fontSize: '0.75rem', color: COLORS.textMuted }}>Please verify inputs and click Connect Camera.</p>
+                    <div style={{ padding: '12px 16px', borderBottom: `1px solid ${COLORS.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Camera size={16} color={COLORS.blueAccent} />
+                        <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>Live Feed Viewport</span>
                       </div>
-                    )}
+                      {isCameraConnected && (
+                        <span style={{ fontSize: '0.7rem', color: COLORS.greenAccent, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ width: '6px', height: '6px', backgroundColor: COLORS.greenAccent, borderRadius: '50%' }}></span>
+                          Active Stream (Real-time)
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Stream screen */}
+                    <div style={{ 
+                      position: 'relative', 
+                      width: '100%', 
+                      aspectRatio: '16/9', 
+                      backgroundColor: '#0a0d16',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      {isCameraConnected ? (
+                        <canvas 
+                          ref={setupCanvasRef} 
+                          width={640} 
+                          height={360}
+                          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                        />
+                      ) : (
+                        <div style={{ textAlign: 'center', padding: '40px' }}>
+                          <XCircle size={48} color={COLORS.redAccent} style={{ marginBottom: '12px' }} />
+                          <h4 style={{ margin: '0 0 4px 0', fontSize: '1rem', color: COLORS.textLight }}>No Camera Stream Connected</h4>
+                          <p style={{ margin: 0, fontSize: '0.75rem', color: COLORS.textMuted }}>Please verify inputs and click Connect Camera.</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Right Column: Connection controls panel */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                <div style={{ backgroundColor: COLORS.cardDark, borderRadius: '8px', border: `1px solid ${COLORS.border}`, padding: '20px' }}>
-                  <h3 style={{ margin: '0 0 20px 0', fontSize: '0.95rem', fontWeight: 800 }}>Device Connection</h3>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {/* Camera Source Selector */}
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', color: COLORS.textMuted, fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
-                        Camera Source
-                      </label>
-                      <select 
-                        value={cameraSource}
-                        onChange={(e) => {
-                          const newSource = e.target.value;
-                          setCameraSource(newSource);
-                          const selectedCam = registeredCameras.find(c => c.name === newSource);
-                          if (selectedCam && selectedCam.settings) {
-                            const s = selectedCam.settings;
-                            if (s.resolution) setCameraResolution(s.resolution);
-                            if (s.fps) setCameraFps(s.fps);
-                            if (s.exposure !== undefined) setExposureValue(s.exposure);
-                            if (s.focus !== undefined) setFocusValue(s.focus);
-                            if (s.gain !== undefined) setGainValue(s.gain);
-                            if (s.whiteBalance) setWhiteBalance(s.whiteBalance);
-                          }
-                        }}
-                        disabled={isCameraConnected}
-                        style={{ 
-                          width: '100%', backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`,
-                          borderRadius: '6px', padding: '10px 12px', fontSize: '0.85rem', fontWeight: 600, cursor: isCameraConnected ? 'not-allowed' : 'pointer'
-                        }}
-                      >
-                        {registeredCameras.map(cam => (
-                          <option key={cam.id} value={cam.name} style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>
-                            {cam.name} ({cam.type || 'DEVICE'})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Sensor parameters */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                {/* Right Column: Connection controls panel */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                  <div style={{ backgroundColor: COLORS.cardDark, borderRadius: '8px', border: `1px solid ${COLORS.border}`, padding: '20px' }}>
+                    <h3 style={{ margin: '0 0 20px 0', fontSize: '0.95rem', fontWeight: 800 }}>Device Connection</h3>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      {/* Camera Source Selector */}
                       <div>
-                        <label style={{ display: 'block', fontSize: '0.7rem', color: COLORS.textMuted, fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
-                          Standard Resolution
+                        <label style={{ display: 'block', fontSize: '0.75rem', color: COLORS.textMuted, fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
+                          Camera Source
                         </label>
                         <select 
-                          value={cameraResolution}
-                          onChange={(e) => setCameraResolution(e.target.value)}
+                          value={cameraSource}
+                          onChange={(e) => {
+                            const newSource = e.target.value;
+                            setCameraSource(newSource);
+                            const selectedCam = registeredCameras.find(c => c.name === newSource);
+                            if (selectedCam && selectedCam.settings) {
+                              const s = selectedCam.settings;
+                              if (s.resolution) setCameraResolution(s.resolution);
+                              if (s.fps) setCameraFps(s.fps);
+                              if (s.exposure !== undefined) setExposureValue(s.exposure);
+                              if (s.focus !== undefined) setFocusValue(s.focus);
+                              if (s.gain !== undefined) setGainValue(s.gain);
+                              if (s.whiteBalance) setWhiteBalance(s.whiteBalance);
+                              if (s.mmPerPixel !== undefined) setPixelScaleFactor(s.mmPerPixel);
+                            }
+                          }}
                           disabled={isCameraConnected}
                           style={{ 
                             width: '100%', backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`,
-                            borderRadius: '6px', padding: '8px 10px', fontSize: '0.8rem', cursor: isCameraConnected ? 'not-allowed' : 'pointer'
+                            borderRadius: '6px', padding: '10px 12px', fontSize: '0.85rem', fontWeight: 600, cursor: isCameraConnected ? 'not-allowed' : 'pointer'
                           }}
                         >
-                          <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>1920 x 1080</option>
-                          <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>1280 x 720</option>
-                          <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>640 x 480</option>
+                          {registeredCameras.map(cam => (
+                            <option key={cam.id} value={cam.name} style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>
+                              {cam.name} ({cam.type || 'DEVICE'})
+                            </option>
+                          ))}
                         </select>
                       </div>
 
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.7rem', color: COLORS.textMuted, fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
-                          Frame Rate
-                        </label>
-                        <select 
-                          value={cameraFps}
-                          onChange={(e) => setCameraFps(e.target.value)}
-                          disabled={isCameraConnected}
-                          style={{ 
-                            width: '100%', backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`,
-                            borderRadius: '6px', padding: '8px 10px', fontSize: '0.8rem', cursor: isCameraConnected ? 'not-allowed' : 'pointer'
-                          }}
-                        >
-                          <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>30 FPS</option>
-                          <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>60 FPS</option>
-                          <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>90 FPS</option>
-                        </select>
-                      </div>
-                    </div>
+                      {/* Sensor parameters */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.7rem', color: COLORS.textMuted, fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
+                            Standard Resolution
+                          </label>
+                          <select 
+                            value={cameraResolution}
+                            onChange={(e) => setCameraResolution(e.target.value)}
+                            disabled={isCameraConnected}
+                            style={{ 
+                              width: '100%', backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`,
+                              borderRadius: '6px', padding: '8px 10px', fontSize: '0.8rem', cursor: isCameraConnected ? 'not-allowed' : 'pointer'
+                            }}
+                          >
+                            <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>1920 x 1080</option>
+                            <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>1280 x 720</option>
+                            <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>640 x 480</option>
+                          </select>
+                        </div>
 
-                    {/* Sliders */}
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: COLORS.textMuted, fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
-                        <span>Exposure Time</span>
-                        <span style={{ color: COLORS.blueAccent }}>{exposureValue} EV</span>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.7rem', color: COLORS.textMuted, fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
+                            Frame Rate
+                          </label>
+                          <select 
+                            value={cameraFps}
+                            onChange={(e) => setCameraFps(e.target.value)}
+                            disabled={isCameraConnected}
+                            style={{ 
+                              width: '100%', backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`,
+                              borderRadius: '6px', padding: '8px 10px', fontSize: '0.8rem', cursor: isCameraConnected ? 'not-allowed' : 'pointer'
+                            }}
+                          >
+                            <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>30 FPS</option>
+                            <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>60 FPS</option>
+                            <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>90 FPS</option>
+                          </select>
+                        </div>
                       </div>
-                      <input 
-                        type="range" min="-13" max="-1" 
-                        value={exposureValue} 
-                        onChange={(e) => setExposureValue(parseInt(e.target.value))}
-                        disabled={!isCameraConnected}
-                        style={{ width: '100%', cursor: 'pointer' }}
-                      />
-                    </div>
 
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: COLORS.textMuted, fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
-                        <span>Manual Lens Focus</span>
-                        <span style={{ color: COLORS.blueAccent }}>{focusValue}</span>
-                      </div>
-                      <input 
-                        type="range" min="0" max="255" 
-                        value={focusValue} 
-                        onChange={(e) => setFocusValue(parseInt(e.target.value))}
-                        disabled={!isCameraConnected}
-                        style={{ width: '100%', cursor: 'pointer' }}
-                      />
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '12px' }}>
+                      {/* Sliders */}
                       <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: COLORS.textMuted, fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
-                          <span>Gain Gain</span>
-                          <span style={{ color: COLORS.blueAccent }}>{gainValue.toFixed(1)}x</span>
+                          <span>Exposure Time</span>
+                          <span style={{ color: COLORS.blueAccent }}>{exposureValue} EV</span>
                         </div>
                         <input 
-                          type="range" min="1.0" max="4.0" step="0.1" 
-                          value={gainValue} 
-                          onChange={(e) => setGainValue(parseFloat(e.target.value))}
+                          type="range" min="-13" max="-1" 
+                          value={exposureValue} 
+                          onChange={(e) => setExposureValue(parseInt(e.target.value))}
                           disabled={!isCameraConnected}
                           style={{ width: '100%', cursor: 'pointer' }}
                         />
                       </div>
 
                       <div>
-                        <label style={{ display: 'block', fontSize: '0.7rem', color: COLORS.textMuted, fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
-                          White Balance
-                        </label>
-                        <select 
-                          value={whiteBalance} 
-                          onChange={(e) => setWhiteBalance(e.target.value)}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: COLORS.textMuted, fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
+                          <span>Manual Lens Focus</span>
+                          <span style={{ color: COLORS.blueAccent }}>{focusValue}</span>
+                        </div>
+                        <input 
+                          type="range" min="0" max="255" 
+                          value={focusValue} 
+                          onChange={(e) => setFocusValue(parseInt(e.target.value))}
                           disabled={!isCameraConnected}
-                          style={{ 
-                            width: '100%', backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`,
-                            borderRadius: '6px', padding: '8px 10px', fontSize: '0.8rem', cursor: !isCameraConnected ? 'not-allowed' : 'pointer'
+                          style={{ width: '100%', cursor: 'pointer' }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '12px' }}>
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: COLORS.textMuted, fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
+                            <span>Gain Gain</span>
+                            <span style={{ color: COLORS.blueAccent }}>{gainValue.toFixed(1)}x</span>
+                          </div>
+                          <input 
+                            type="range" min="1.0" max="4.0" step="0.1" 
+                            value={gainValue} 
+                            onChange={(e) => setGainValue(parseFloat(e.target.value))}
+                            disabled={!isCameraConnected}
+                            style={{ width: '100%', cursor: 'pointer' }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.7rem', color: COLORS.textMuted, fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
+                            White Balance
+                          </label>
+                          <select 
+                            value={whiteBalance} 
+                            onChange={(e) => setWhiteBalance(e.target.value)}
+                            disabled={!isCameraConnected}
+                            style={{ 
+                              width: '100%', backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`,
+                              borderRadius: '6px', padding: '8px 10px', fontSize: '0.8rem', cursor: !isCameraConnected ? 'not-allowed' : 'pointer'
+                            }}
+                          >
+                            <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>Auto</option>
+                            <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>Sunny</option>
+                            <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>Fluorescent</option>
+                            <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>Industrial LED</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: COLORS.textMuted, fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
+                          <span>Scale Calibration (mm/px)</span>
+                          <span style={{ color: COLORS.blueAccent }}>{pixelScaleFactor.toFixed(4)} mm/px</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <input 
+                            type="number" step="0.0001" min="0" max="100" 
+                            value={pixelScaleFactor} 
+                            onChange={(e) => setPixelScaleFactor(parseFloat(e.target.value))}
+                            disabled={!isCameraConnected}
+                            style={{ flex: 1, backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '8px 10px', fontSize: '0.8rem' }}
+                          />
+                          <button 
+                            onClick={handleSaveCameraSettings}
+                            disabled={isSavingSettings || !isCameraConnected}
+                            style={{
+                              padding: '8px 12px', borderRadius: '6px', border: 'none',
+                              backgroundColor: COLORS.blueAccent, color: 'white', 
+                              fontWeight: 700, cursor: (isSavingSettings || !isCameraConnected) ? 'not-allowed' : 'pointer', fontSize: '0.8rem',
+                              display: 'flex', alignItems: 'center', gap: '6px',
+                              opacity: (isSavingSettings || !isCameraConnected) ? 0.7 : 1
+                            }}
+                          >
+                            {isSavingSettings ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+                            Save Kalibrasi
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div style={{ marginTop: '10px', display: 'flex', gap: '12px' }}>
+                        <button
+                          onClick={handleConnectCamera}
+                          disabled={connectingState === 'connecting'}
+                          style={{
+                            flex: 1, padding: '12px', borderRadius: '6px', border: 'none',
+                            backgroundColor: isCameraConnected ? COLORS.redAccent : COLORS.blueAccent,
+                            color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem',
+                            transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
                           }}
                         >
-                          <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>Auto</option>
-                          <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>Sunny</option>
-                          <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>Fluorescent</option>
-                          <option style={{ backgroundColor: COLORS.cardDark, color: COLORS.textLight }}>Industrial LED</option>
-                        </select>
+                          {connectingState === 'connecting' ? (
+                            <>
+                              <RefreshCw size={16} className="animate-spin" /> Connecting...
+                            </>
+                          ) : isCameraConnected ? (
+                            'DISCONNECT CAMERA'
+                          ) : (
+                            'CONNECT CAMERA'
+                          )}
+                        </button>
+
+                        <button
+                          onClick={handleSaveCameraSettings}
+                          disabled={isSavingSettings}
+                          style={{
+                            flex: 1, padding: '12px', borderRadius: '6px', border: `1px solid ${COLORS.blueAccent}`,
+                            backgroundColor: 'transparent',
+                            color: COLORS.blueAccent, fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem',
+                            transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                          }}
+                        >
+                          {isSavingSettings ? (
+                            <>
+                              <RefreshCw size={16} className="animate-spin" /> Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Save size={16} /> SAVE CONFIG
+                            </>
+                          )}
+                        </button>
                       </div>
+
                     </div>
-
-                    {/* Action buttons */}
-                    <div style={{ marginTop: '10px', display: 'flex', gap: '12px' }}>
-                      <button
-                        onClick={handleConnectCamera}
-                        disabled={connectingState === 'connecting'}
-                        style={{
-                          flex: 1, padding: '12px', borderRadius: '6px', border: 'none',
-                          backgroundColor: isCameraConnected ? COLORS.redAccent : COLORS.blueAccent,
-                          color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem',
-                          transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
-                        }}
-                      >
-                        {connectingState === 'connecting' ? (
-                          <>
-                            <RefreshCw size={16} className="animate-spin" /> Connecting...
-                          </>
-                        ) : isCameraConnected ? (
-                          'DISCONNECT CAMERA'
-                        ) : (
-                          'CONNECT CAMERA'
-                        )}
-                      </button>
-
-                      <button
-                        onClick={handleSaveCameraSettings}
-                        disabled={isSavingSettings}
-                        style={{
-                          flex: 1, padding: '12px', borderRadius: '6px', border: `1px solid ${COLORS.blueAccent}`,
-                          backgroundColor: 'transparent',
-                          color: COLORS.blueAccent, fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem',
-                          transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
-                        }}
-                      >
-                        {isSavingSettings ? (
-                          <>
-                            <RefreshCw size={16} className="animate-spin" /> Saving...
-                          </>
-                        ) : (
-                          <>
-                            <Save size={16} /> SAVE CONFIG
-                          </>
-                        )}
-                      </button>
-                    </div>
-
                   </div>
+                </div>
+              </div>
+
+              {/* Registered Cameras & Calibration Directory */}
+              <div style={{ backgroundColor: COLORS.cardDark, borderRadius: '8px', border: `1px solid ${COLORS.border}`, padding: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800 }}>Calibrated Cameras Directory</h3>
+                    <p style={{ margin: '2px 0 0 0', color: COLORS.textMuted, fontSize: '0.75rem' }}>List of registered vision hardware and active scale factors saved to Supabase</p>
+                  </div>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ borderBottom: `1px solid ${COLORS.border}`, color: COLORS.textMuted, backgroundColor: COLORS.bgDark }}>
+                        <th style={{ padding: '10px 12px', fontWeight: 700 }}>Camera Name</th>
+                        <th style={{ padding: '10px 12px', fontWeight: 700 }}>Connection Type</th>
+                        <th style={{ padding: '10px 12px', fontWeight: 700 }}>Calibration Status</th>
+                        <th style={{ padding: '10px 12px', fontWeight: 700 }}>Active Scale Factor</th>
+                        <th style={{ padding: '10px 12px', fontWeight: 700 }}>Resolution / FPS</th>
+                        <th style={{ padding: '10px 12px', fontWeight: 700, textAlign: 'center' }}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {registeredCameras.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} style={{ padding: '20px', textAlign: 'center', color: COLORS.textMuted }}>
+                            No registered cameras found. Configure them in the Vision Manager.
+                          </td>
+                        </tr>
+                      ) : (
+                        registeredCameras.map((cam) => {
+                          const isCalibrated = cam.settings && typeof cam.settings.mmPerPixel === 'number' && cam.settings.mmPerPixel > 0;
+                          const isActive = cameraSource === cam.name;
+                          return (
+                            <tr key={cam.id} style={{ 
+                              borderBottom: `1px solid ${COLORS.border}`, 
+                              backgroundColor: isActive ? 'rgba(113, 75, 103, 0.04)' : 'transparent',
+                              transition: 'background-color 0.15s'
+                            }}>
+                              <td style={{ padding: '12px', fontWeight: 700, color: COLORS.textLight }}>
+                                {cam.name}
+                                {isActive && (
+                                  <span style={{ 
+                                    marginLeft: '8px', padding: '2px 4px', borderRadius: '4px', 
+                                    backgroundColor: COLORS.blueAccent, color: 'white', fontSize: '0.6rem', fontWeight: 700 
+                                  }}>
+                                    ACTIVE
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ padding: '12px', color: COLORS.textMuted }}>
+                                <span style={{
+                                  padding: '2px 6px', borderRadius: '4px',
+                                  backgroundColor: cam.type === 'IP_CAMERA' ? '#eff6ff' : cam.type === 'SCREEN_CAPTURE' ? '#f5f3ff' : '#f1f5f9',
+                                  color: cam.type === 'IP_CAMERA' ? '#2563eb' : cam.type === 'SCREEN_CAPTURE' ? '#7c3aed' : '#475569',
+                                  fontSize: '0.65rem', fontWeight: 700
+                                }}>
+                                  {cam.type || 'DEVICE'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '12px' }}>
+                                <span style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 700,
+                                  color: isCalibrated ? COLORS.greenAccent : '#ef4444'
+                                }}>
+                                  <span style={{
+                                    width: '6px', height: '6px', borderRadius: '50%',
+                                    backgroundColor: isCalibrated ? COLORS.greenAccent : '#ef4444'
+                                  }} />
+                                  {isCalibrated ? 'CALIBRATED' : 'NOT CALIBRATED'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '12px', fontFamily: 'monospace', fontWeight: 700, color: COLORS.textLight }}>
+                                {isCalibrated ? `${cam.settings.mmPerPixel.toFixed(5)} mm/px` : '-'}
+                              </td>
+                              <td style={{ padding: '12px', color: COLORS.textMuted }}>
+                                {cam.settings?.resolution || '1920 x 1080'} / {cam.settings?.fps || '30 FPS'}
+                              </td>
+                              <td style={{ padding: '12px', textAlign: 'center' }}>
+                                <button
+                                  onClick={() => handleSelectCamera(cam)}
+                                  disabled={isCameraConnected || isActive}
+                                  style={{
+                                    padding: '4px 8px', borderRadius: '4px', border: `1px solid ${isActive ? COLORS.blueAccent : COLORS.border}`,
+                                    backgroundColor: isActive ? 'transparent' : COLORS.blueAccent,
+                                    color: isActive ? COLORS.blueAccent : 'white',
+                                    fontSize: '0.7rem', fontWeight: 700, 
+                                    cursor: (isCameraConnected || isActive) ? 'not-allowed' : 'pointer',
+                                    opacity: isCameraConnected ? 0.5 : 1,
+                                    transition: 'all 0.15s'
+                                  }}
+                                  title={isCameraConnected ? 'Disconnect camera first to switch sources' : ''}
+                                >
+                                  {isActive ? 'Selected' : 'Select'}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
@@ -1711,12 +2026,13 @@ fps: "${cameraFps}"
           {/* MENU 2: LENS CALIBRATION */}
           {/* ========================================================================= */}
           {currentMenu === 'lens-calibration' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
               
               {/* Left Column */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 {/* Stepper Wizard Indicator */}
-                <div style={{ 
+                <div style={{
                   backgroundColor: COLORS.cardDark, borderRadius: '8px', border: `1px solid ${COLORS.border}`, padding: '16px',
                   display: 'flex', justifyContent: 'space-around', alignItems: 'center'
                 }}>
@@ -2062,118 +2378,487 @@ fps: "${cameraFps}"
 
               </div>
             </div>
+
+              {/* ── PANDUAN LENS CALIBRATION (OpenCV) ── */}
+              <div style={{ backgroundColor: COLORS.cardDark, borderRadius: '8px', border: `1px solid ${COLORS.border}`, overflow: 'hidden' }}>
+                <div style={{ 
+                  padding: '14px 20px', borderBottom: `1px solid ${COLORS.border}`,
+                  background: 'linear-gradient(135deg, rgba(113,75,103,0.06), rgba(16,185,129,0.06))',
+                  display: 'flex', alignItems: 'center', gap: '10px'
+                }}>
+                  <Info size={18} color={COLORS.greenAccent} />
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: COLORS.textLight }}>Panduan Lens Distortion Calibration (OpenCV Chessboard)</h3>
+                    <p style={{ margin: '2px 0 0 0', fontSize: '0.7rem', color: COLORS.textMuted }}>Prosedur standar untuk menghilangkan distorsi lensa kamera menggunakan pola chessboard dan algoritma OpenCV</p>
+                  </div>
+                </div>
+
+                <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  {/* Kolom Kiri: Langkah-Langkah */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <h4 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 800, color: COLORS.greenAccent, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Langkah-Langkah Kalibrasi Lensa</h4>
+
+                    {[
+                      { step: 1, title: 'Cetak Pola Chessboard', desc: 'Cetak pola papan catur (chessboard) pada kertas tebal atau tempelkan pada permukaan datar yang kaku. Gunakan ukuran grid standar (mis. 9×6 inner corners). Pastikan cetakan tidak melengkung atau kusut.' },
+                      { step: 2, title: 'Atur Konfigurasi Grid', desc: 'Pada panel Chessboard Settings di sidebar kanan, masukkan jumlah inner corners (bukan jumlah kotak). Contoh: chessboard 10×7 kotak → isi 9×6 inner corners. Atur juga ukuran kotak (square size) dalam mm sesuai cetakan Anda.' },
+                      { step: 3, title: 'Hubungkan Kamera', desc: 'Pastikan kamera sudah terhubung dan live feed terlihat pada viewport. Buka Camera Setup terlebih dahulu jika belum connect.' },
+                      { step: 4, title: 'Ambil Gambar dari Berbagai Sudut', desc: 'Pegang chessboard di depan kamera dan klik "Capture Image". Ambil minimal 10-15 gambar dari sudut pandang yang berbeda-beda: miring kiri/kanan, atas/bawah, dekat/jauh, dan rotasi. Semakin variatif, semakin baik hasil kalibrasi.' },
+                      { step: 5, title: 'Verifikasi Deteksi Corner', desc: 'Setelah capture, klik thumbnail gambar untuk melihat preview. Titik-titik berwarna (rainbow gradient) harus muncul di persimpangan kotak chessboard. Jika titik tidak terdeteksi atau salah posisi, hapus gambar tersebut dan capture ulang.' },
+                      { step: 6, title: 'Jalankan Kalibrasi', desc: 'Setelah minimal 3 gambar (rekomendasi 10+), klik "Start OpenCV Engine". Sistem akan menghitung Camera Matrix (fx, fy, cx, cy) dan Distortion Coefficients (k1, k2, p1, p2, k3) secara otomatis.' },
+                      { step: 7, title: 'Evaluasi Hasil', desc: 'Periksa Reprojection Error (RMS). Nilai ≤ 0.25 px dianggap sangat baik. Nilai 0.25–0.50 px masih dapat diterima. Jika > 0.50 px, ulangi kalibrasi dengan gambar yang lebih baik.' },
+                      { step: 8, title: 'Simpan Parameter', desc: 'Simpan hasil kalibrasi ke file YAML (untuk OpenCV) dan/atau klik Save Config di Camera Setup untuk menyimpan ke database Supabase agar bisa digunakan oleh sistem Vision.' },
+                    ].map((item) => (
+                      <div key={item.step} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                        <div style={{
+                          flexShrink: 0, width: '28px', height: '28px', borderRadius: '50%',
+                          backgroundColor: COLORS.greenAccent, color: 'white',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 800, fontSize: '0.75rem'
+                        }}>{item.step}</div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '0.78rem', fontWeight: 700, color: COLORS.textLight, marginBottom: '2px' }}>{item.title}</div>
+                          <div style={{ fontSize: '0.68rem', color: COLORS.textMuted, lineHeight: 1.5 }}>{item.desc}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Kolom Kanan: Tips, Istilah, Best Practice */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+                    {/* Glossary / Istilah Penting */}
+                    <div style={{ backgroundColor: '#f8fafc', borderRadius: '6px', border: `1px solid ${COLORS.border}`, padding: '14px' }}>
+                      <h4 style={{ margin: '0 0 10px 0', fontSize: '0.8rem', fontWeight: 800, color: COLORS.textLight }}>📖 Glosarium Istilah</h4>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {[
+                          { term: 'Camera Matrix (Intrinsic)', desc: 'Matriks 3×3 berisi focal length (fx, fy) dan principal point (cx, cy). Mendeskripsikan properti internal lensa kamera.' },
+                          { term: 'Distortion Coefficients', desc: 'Parameter k1, k2, k3 (radial) dan p1, p2 (tangential) yang menggambarkan seberapa melengkung gambar akibat lensa.' },
+                          { term: 'Reprojection Error (RMS)', desc: 'Rata-rata jarak (pixel) antara titik yang dideteksi dengan titik yang diprediksi model. Semakin kecil, semakin akurat.' },
+                          { term: 'Inner Corners', desc: 'Jumlah titik perpotongan garis internal pada chessboard (bukan jumlah kotak). Grid 10×7 kotak = 9×6 inner corners.' },
+                          { term: 'Square Size (mm)', desc: 'Ukuran fisik satu sisi kotak pada chessboard yang dicetak, diukur dalam milimeter.' },
+                        ].map((item, idx) => (
+                          <div key={idx} style={{ fontSize: '0.7rem', lineHeight: 1.4 }}>
+                            <span style={{ fontWeight: 700, color: COLORS.textLight }}>{item.term}:</span>{' '}
+                            <span style={{ color: COLORS.textMuted }}>{item.desc}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Tips Capture yang Baik */}
+                    <div style={{ backgroundColor: '#f0fdf4', borderRadius: '6px', border: '1px solid #bbf7d0', padding: '14px' }}>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: '0.8rem', fontWeight: 800, color: '#166534' }}>📸 Tips Capture Gambar yang Baik</h4>
+                      <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                        {[
+                          'Posisikan chessboard agar memenuhi ≥ 50% area viewport untuk presisi deteksi sudut.',
+                          'Ambil dari minimal 5 sudut berbeda: frontal, miring kiri 30°, miring kanan 30°, atas 20°, bawah 20°.',
+                          'Variasikan jarak: dekat (menutupi 80% frame), sedang (50%), dan jauh (30%).',
+                          'Hindari motion blur — pastikan chessboard diam saat menekan Capture.',
+                          'Pencahayaan merata tanpa pantulan (glare) pada permukaan chessboard.',
+                          'Pastikan seluruh pola chessboard terlihat di dalam frame, tidak terpotong.',
+                        ].map((tip, idx) => (
+                          <li key={idx} style={{ fontSize: '0.68rem', color: '#166534', lineHeight: 1.45 }}>{tip}</li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Kriteria Hasil */}
+                    <div style={{ backgroundColor: '#eff6ff', borderRadius: '6px', border: '1px solid #bfdbfe', padding: '14px' }}>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: '0.8rem', fontWeight: 800, color: '#1e40af' }}>📊 Kriteria Hasil Kalibrasi</h4>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {[
+                          { range: 'RMS ≤ 0.25 px', label: 'Sangat Baik', color: '#16a34a', bg: '#dcfce7' },
+                          { range: 'RMS 0.25 – 0.50 px', label: 'Dapat Diterima', color: '#ca8a04', bg: '#fef9c3' },
+                          { range: 'RMS > 0.50 px', label: 'Perlu Diperbaiki', color: '#dc2626', bg: '#fef2f2' },
+                        ].map((item, idx) => (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.72rem' }}>
+                            <span style={{ padding: '2px 8px', borderRadius: '4px', backgroundColor: item.bg, color: item.color, fontWeight: 700, fontFamily: 'monospace', fontSize: '0.68rem' }}>{item.range}</span>
+                            <span style={{ color: item.color, fontWeight: 600 }}>{item.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <p style={{ margin: '8px 0 0 0', fontSize: '0.66rem', color: '#3b82f6', lineHeight: 1.4 }}>
+                        Jika RMS terlalu tinggi, hapus gambar yang memiliki deteksi corner buruk, tambahkan gambar dengan sudut pandang baru, lalu jalankan kalibrasi ulang.
+                      </p>
+                    </div>
+
+                    {/* Peringatan */}
+                    <div style={{ backgroundColor: '#fef3c7', borderRadius: '6px', border: '1px solid #fde68a', padding: '14px' }}>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: '0.8rem', fontWeight: 800, color: '#92400e' }}>⚠️ Peringatan Penting</h4>
+                      <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                        {[
+                          'Kalibrasi lensa bersifat unik per kamera & lensa. Jika Anda mengganti lensa atau kamera, kalibrasi ulang diperlukan.',
+                          'Jangan mengubah zoom atau fokus lensa setelah kalibrasi — hal ini mengubah focal length dan menginvalidasi parameter.',
+                          'Chessboard yang melengkung/kusut akan menghasilkan titik corner yang bergeser dan merusak akurasi kalibrasi.',
+                          'Simpan file YAML kalibrasi sebagai backup. Jika parameter hilang, Anda bisa memuatnya kembali tanpa kalibrasi ulang.',
+                        ].map((warn, idx) => (
+                          <li key={idx} style={{ fontSize: '0.68rem', color: '#92400e', lineHeight: 1.45 }}>{warn}</li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Alur Output */}
+                    <div style={{ backgroundColor: '#faf5ff', borderRadius: '6px', border: '1px solid #e9d5ff', padding: '14px' }}>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: '0.8rem', fontWeight: 800, color: '#6b21a8' }}>🔗 Output Kalibrasi Lensa</h4>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        {[
+                          'Captured Images',
+                          '→',
+                          'Corner Detection',
+                          '→',
+                          'OpenCV Calibration',
+                          '→',
+                          'Camera Matrix + Distortion',
+                          '→',
+                          'YAML Export / Supabase'
+                        ].map((item, idx) => (
+                          <span key={idx} style={{
+                            fontSize: '0.68rem', fontWeight: item === '→' ? 400 : 700,
+                            color: item === '→' ? '#a78bfa' : '#6b21a8',
+                            padding: item === '→' ? '0' : '3px 8px',
+                            borderRadius: item === '→' ? '0' : '4px',
+                            backgroundColor: item === '→' ? 'transparent' : '#ede9fe'
+                          }}>{item}</span>
+                        ))}
+                      </div>
+                      <p style={{ margin: '8px 0 0 0', fontSize: '0.66rem', color: '#7c3aed', lineHeight: 1.5 }}>
+                        Parameter undistortion dapat digunakan oleh cv2.undistort() untuk menghilangkan barrel/pincushion distortion sebelum pengukuran dimensi diproses.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* ========================================================================= */}
           {/* MENU 3: SCALE CALIBRATION */}
           {/* ========================================================================= */}
           {currentMenu === 'scale-calibration' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
               
-              {/* Left Column Viewport */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div style={{ backgroundColor: COLORS.cardDark, borderRadius: '8px', border: `1px solid ${COLORS.border}`, overflow: 'hidden' }}>
-                  <div style={{ padding: '12px 16px', borderBottom: `1px solid ${COLORS.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>Scale Measurement Canvas</span>
-                    {draggedLine && (
-                      <span style={{ fontSize: '0.75rem', color: COLORS.blueAccent, fontWeight: 600 }}>
-                        Active Line: {Math.round(Math.sqrt(Math.pow(draggedLine.x2 - draggedLine.x1, 2) + Math.pow(draggedLine.y2 - draggedLine.y1, 2)))} pixels
-                      </span>
-                    )}
+                {/* Left Column Viewport */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ backgroundColor: COLORS.cardDark, borderRadius: '8px', border: `1px solid ${COLORS.border}`, overflow: 'hidden' }}>
+                    <div style={{ padding: '12px 16px', borderBottom: `1px solid ${COLORS.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>Scale Measurement Canvas</span>
+                      {draggedLine && (
+                        <span style={{ fontSize: '0.75rem', color: COLORS.blueAccent, fontWeight: 600 }}>
+                          Active Line: {Math.round(Math.sqrt(Math.pow(draggedLine.x2 - draggedLine.x1, 2) + Math.pow(draggedLine.y2 - draggedLine.y1, 2)))} pixels
+                        </span>
+                      )}
+                    </div>
+
+                    <div style={{ position: 'relative', width: '100%', height: '380px', display: 'flex', justifyContent: 'center', backgroundColor: '#0a0d16' }}>
+                      <canvas
+                        ref={scaleCanvasRef}
+                        width={640}
+                        height={380}
+                        onMouseDown={handleScaleMouseDown}
+                        onMouseMove={handleScaleMouseMove}
+                        onMouseUp={handleScaleMouseUp}
+                        style={{ 
+                          maxWidth: '100%', height: '100%', objectFit: 'contain', cursor: 'crosshair',
+                          userSelect: 'none'
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column Controls */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <div style={{ backgroundColor: COLORS.cardDark, borderRadius: '8px', border: `1px solid ${COLORS.border}`, padding: '16px' }}>
+                    <h4 style={{ margin: '0 0 16px 0', fontSize: '0.85rem', fontWeight: 800 }}>Scale Calibration</h4>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      {/* Reference Presets Dropdown */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.7rem', color: COLORS.textMuted, fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
+                          Reference Presets
+                        </label>
+                        <select
+                          onChange={(e) => {
+                            if (e.target.value) setKnownLengthMm(parseFloat(e.target.value));
+                          }}
+                          style={{ 
+                            width: '100%', backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`,
+                            borderRadius: '6px', padding: '8px 10px', fontSize: '0.8rem', cursor: 'pointer', marginBottom: '8px'
+                          }}
+                        >
+                          <option value="">-- Choose Preset Size --</option>
+                          <option value="20.00">Gauge Block 20 mm</option>
+                          <option value="50.00">Gauge Block 50 mm</option>
+                          <option value="100.00">Gauge Block 100 mm</option>
+                          <option value="27.20">Coin 500 IDR (27.20 mm)</option>
+                          <option value="25.40">1 Inch Block (25.40 mm)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', color: COLORS.textMuted, fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
+                          Known Reference Length
+                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <input 
+                            type="number" step="0.01" value={knownLengthMm}
+                            onChange={(e) => setKnownLengthMm(parseFloat(e.target.value))}
+                            style={{ 
+                              flex: 1, backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`, 
+                              borderRadius: '6px', padding: '10px', fontSize: '0.85rem'
+                            }}
+                          />
+                          <span style={{ fontSize: '0.85rem', color: COLORS.textMuted, fontWeight: 600 }}>mm</span>
+                        </div>
+                        <p style={{ margin: '6px 0 0 0', fontSize: '0.65rem', color: COLORS.textMuted }}>
+                          Specify physical size of calibration block target.
+                        </p>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderTop: `1px solid ${COLORS.border}`, paddingTop: '12px' }}>
+                        <input
+                          type="checkbox"
+                          id="ortho-snap-check"
+                          checked={orthogonalSnap}
+                          onChange={(e) => setOrthogonalSnap(e.target.checked)}
+                          style={{ cursor: 'pointer' }}
+                        />
+                        <label htmlFor="ortho-snap-check" style={{ fontSize: '0.75rem', color: COLORS.textLight, fontWeight: 600, cursor: 'pointer' }}>
+                          Snap Orthogonal (Horizontal/Vertical)
+                        </label>
+                      </div>
+
+                      <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: '12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: COLORS.textMuted, marginBottom: '6px' }}>
+                          <span>Detected Line Length:</span>
+                          <span style={{ fontWeight: 750, color: COLORS.textLight }}>
+                            {draggedLine ? `${Math.round(Math.sqrt(Math.pow(draggedLine.x2 - draggedLine.x1, 2) + Math.pow(draggedLine.y2 - draggedLine.y1, 2)))} px` : 'No line drawn'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Micro Nudge Panel */}
+                      {draggedLine && (
+                        <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <span style={{ fontSize: '0.7rem', color: COLORS.textMuted, fontWeight: 700, textTransform: 'uppercase' }}>Fine Control (Micro Nudge)</span>
+                          <div style={{ display: 'flex', gap: '8px', marginBottom: '4px' }}>
+                            <button
+                              onClick={() => setActivePointToNudge('point1')}
+                              style={{
+                                flex: 1, padding: '5px', borderRadius: '4px', border: `1px solid ${activePointToNudge === 'point1' ? COLORS.blueAccent : COLORS.border}`,
+                                backgroundColor: activePointToNudge === 'point1' ? 'rgba(113, 75, 103, 0.08)' : 'transparent',
+                                color: activePointToNudge === 'point1' ? COLORS.blueAccent : COLORS.textMuted, fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer'
+                              }}
+                            >
+                              Point A (x1, y1)
+                            </button>
+                            <button
+                              onClick={() => setActivePointToNudge('point2')}
+                              style={{
+                                flex: 1, padding: '5px', borderRadius: '4px', border: `1px solid ${activePointToNudge === 'point2' ? COLORS.blueAccent : COLORS.border}`,
+                                backgroundColor: activePointToNudge === 'point2' ? 'rgba(113, 75, 103, 0.08)' : 'transparent',
+                                color: activePointToNudge === 'point2' ? COLORS.blueAccent : COLORS.textMuted, fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer'
+                              }}
+                            >
+                              Point B (x2, y2)
+                            </button>
+                          </div>
+                          
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px', width: '120px', margin: '0 auto' }}>
+                            <div />
+                            <button onClick={() => handleNudge(0, -1)} style={{ padding: '4px', border: `1px solid ${COLORS.border}`, borderRadius: '4px', backgroundColor: 'white', cursor: 'pointer', fontSize: '0.7rem' }}>▲</button>
+                            <div />
+                            <button onClick={() => handleNudge(-1, 0)} style={{ padding: '4px', border: `1px solid ${COLORS.border}`, borderRadius: '4px', backgroundColor: 'white', cursor: 'pointer', fontSize: '0.7rem' }}>◀</button>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 800, color: COLORS.blueAccent }}>1px</div>
+                            <button onClick={() => handleNudge(1, 0)} style={{ padding: '4px', border: `1px solid ${COLORS.border}`, borderRadius: '4px', backgroundColor: 'white', cursor: 'pointer', fontSize: '0.7rem' }}>▶</button>
+                            <div />
+                            <button onClick={() => handleNudge(0, 1)} style={{ padding: '4px', border: `1px solid ${COLORS.border}`, borderRadius: '4px', backgroundColor: 'white', cursor: 'pointer', fontSize: '0.7rem' }}>▼</button>
+                            <div />
+                          </div>
+                        </div>
+                      )}
+
+                      <button
+                        onClick={handleCalculateScale}
+                        disabled={!draggedLine}
+                        style={{
+                          width: '100%', padding: '10px', borderRadius: '6px', border: 'none',
+                          backgroundColor: draggedLine ? COLORS.blueAccent : '#1f293d',
+                          color: draggedLine ? 'white' : COLORS.textMuted,
+                          fontWeight: 700, cursor: draggedLine ? 'pointer' : 'not-allowed',
+                          fontSize: '0.85rem', transition: 'all 0.2s', marginTop: '4px'
+                        }}
+                      >
+                        Calculate Scale Factor
+                      </button>
+                    </div>
                   </div>
 
-                  <div style={{ position: 'relative', width: '100%', height: '380px', display: 'flex', justifyContent: 'center', backgroundColor: '#0a0d16' }}>
-                    <canvas
-                      ref={scaleCanvasRef}
-                      width={640}
-                      height={380}
-                      onMouseDown={handleScaleMouseDown}
-                      onMouseMove={handleScaleMouseMove}
-                      onMouseUp={handleScaleMouseUp}
-                      style={{ 
-                        maxWidth: '100%', height: '100%', objectFit: 'contain', cursor: 'crosshair',
-                        userSelect: 'none'
-                      }}
-                    />
+                  {/* Scale outputs summary */}
+                  <div style={{ backgroundColor: COLORS.cardDark, borderRadius: '8px', border: `1px solid ${COLORS.border}`, padding: '16px' }}>
+                    <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', fontWeight: 800 }}>Scale Factor Results</h4>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <div style={{ backgroundColor: '#f1f5f9', padding: '12px', borderRadius: '4px', border: `1px solid ${COLORS.border}`, textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.65rem', color: COLORS.textMuted, textTransform: 'uppercase', marginBottom: '4px' }}>Computed Ratio</div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 900, color: COLORS.greenAccent }}>
+                          1 Pixel = {pixelScaleFactor.toFixed(4)} <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>mm</span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                        <span style={{ color: COLORS.textMuted }}>Pixels per mm:</span>
+                        <span style={{ fontWeight: 700 }}>{(1 / pixelScaleFactor).toFixed(2)} px/mm</span>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                        <span style={{ color: COLORS.textMuted }}>Last Calibrated:</span>
+                        <span style={{ fontWeight: 700 }}>{calibrationResult.lastCalibrated === 'N/A' ? 'Not Calibrated' : calibrationResult.lastCalibrated.split(' ')[0]}</span>
+                      </div>
+                    </div>
                   </div>
+
                 </div>
               </div>
 
-              {/* Right Column Controls */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <div style={{ backgroundColor: COLORS.cardDark, borderRadius: '8px', border: `1px solid ${COLORS.border}`, padding: '16px' }}>
-                  <h4 style={{ margin: '0 0 16px 0', fontSize: '0.85rem', fontWeight: 800 }}>Scale Calibration</h4>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.7rem', color: COLORS.textMuted, fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
-                        Known Reference Length
-                      </label>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <input 
-                          type="number" step="0.01" value={knownLengthMm}
-                          onChange={(e) => setKnownLengthMm(parseFloat(e.target.value))}
-                          style={{ 
-                            flex: 1, backgroundColor: COLORS.cardDark, color: COLORS.textLight, border: `1px solid ${COLORS.border}`, 
-                            borderRadius: '6px', padding: '10px', fontSize: '0.85rem'
-                          }}
-                        />
-                        <span style={{ fontSize: '0.85rem', color: COLORS.textMuted, fontWeight: 600 }}>mm</span>
+              {/* ── PANDUAN KALIBRASI SKALA ── */}
+              <div style={{ backgroundColor: COLORS.cardDark, borderRadius: '8px', border: `1px solid ${COLORS.border}`, overflow: 'hidden' }}>
+                <div style={{ 
+                  padding: '14px 20px', borderBottom: `1px solid ${COLORS.border}`,
+                  background: 'linear-gradient(135deg, rgba(113,75,103,0.06), rgba(37,99,235,0.06))',
+                  display: 'flex', alignItems: 'center', gap: '10px'
+                }}>
+                  <Info size={18} color={COLORS.blueAccent} />
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: COLORS.textLight }}>Panduan Kalibrasi Skala (Step-by-Step)</h3>
+                    <p style={{ margin: '2px 0 0 0', fontSize: '0.7rem', color: COLORS.textMuted }}>Ikuti langkah-langkah berikut untuk mendapatkan nilai scale factor yang presisi dan akurat</p>
+                  </div>
+                </div>
+
+                <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  {/* Kolom Kiri: Langkah-Langkah */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <h4 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 800, color: COLORS.blueAccent, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Langkah-Langkah Kalibrasi</h4>
+
+                    {[
+                      { step: 1, title: 'Persiapkan Objek Referensi', desc: 'Letakkan objek dengan ukuran fisik yang diketahui di bawah kamera. Contoh: gauge block, penggaris, atau koin. Pastikan objek sejajar dengan bidang fokus kamera dan pencahayaan cukup merata.' },
+                      { step: 2, title: 'Hubungkan Kamera', desc: 'Buka menu Camera Setup, pilih kamera yang benar, lalu klik CONNECT CAMERA. Pastikan live feed sudah terlihat jelas di Scale Measurement Canvas di atas.' },
+                      { step: 3, title: 'Atur Ukuran Referensi', desc: 'Pilih preset standar dari dropdown Reference Presets, atau ketik manual ukuran fisik (mm) pada kolom Known Reference Length. Pastikan nilainya tepat sesuai objek referensi yang digunakan.' },
+                      { step: 4, title: 'Gambar Garis Kalibrasi', desc: 'Klik dan seret (drag) pada canvas di atas dari satu tepi objek referensi ke tepi satunya. Garis biru akan muncul beserta jarak pixel dan sudut kemiringan secara real-time.' },
+                      { step: 5, title: 'Fine-Tune Posisi Titik', desc: 'Gunakan panel Fine Control (Micro Nudge) di sidebar kanan. Pilih Point A atau Point B, lalu klik tombol panah (▲▼◀▶) untuk menggeser ujung garis sebanyak 1 pixel agar posisi tepat di batas tepi objek.' },
+                      { step: 6, title: 'Hitung Scale Factor', desc: 'Klik tombol Calculate Scale Factor. Sistem akan membagi ukuran fisik (mm) dengan jarak pixel yang terdeteksi untuk menghasilkan rasio mm/pixel. Hasil akan muncul di panel Scale Factor Results.' },
+                      { step: 7, title: 'Simpan Konfigurasi', desc: 'Kembali ke Camera Setup, klik SAVE CONFIG untuk menyimpan scale factor ke database Supabase. Nilai ini akan otomatis digunakan oleh Vision Setup dan Dimension Detector di seluruh sistem.' },
+                    ].map((item) => (
+                      <div key={item.step} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                        <div style={{
+                          flexShrink: 0, width: '28px', height: '28px', borderRadius: '50%',
+                          backgroundColor: COLORS.blueAccent, color: 'white',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 800, fontSize: '0.75rem'
+                        }}>{item.step}</div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '0.78rem', fontWeight: 700, color: COLORS.textLight, marginBottom: '2px' }}>{item.title}</div>
+                          <div style={{ fontSize: '0.68rem', color: COLORS.textMuted, lineHeight: 1.5 }}>{item.desc}</div>
+                        </div>
                       </div>
-                      <p style={{ margin: '6px 0 0 0', fontSize: '0.65rem', color: COLORS.textMuted }}>
-                        Specify physical size of calibration block target.
+                    ))}
+                  </div>
+
+                  {/* Kolom Kanan: Tips, Shortcut, Best Practice */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+                    {/* Keyboard Shortcuts */}
+                    <div style={{ backgroundColor: '#f8fafc', borderRadius: '6px', border: `1px solid ${COLORS.border}`, padding: '14px' }}>
+                      <h4 style={{ margin: '0 0 10px 0', fontSize: '0.8rem', fontWeight: 800, color: COLORS.textLight }}>⌨️ Keyboard Shortcuts</h4>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {[
+                          { key: 'Shift + Drag', desc: 'Snap garis lurus horizontal/vertikal' },
+                          { key: 'Nudge ▲▼◀▶', desc: 'Geser titik aktif 1 pixel per klik' },
+                        ].map((shortcut, idx) => (
+                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem' }}>
+                            <span style={{ 
+                              padding: '2px 6px', borderRadius: '4px', 
+                              backgroundColor: '#e2e8f0', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.68rem', color: '#334155'
+                            }}>{shortcut.key}</span>
+                            <span style={{ color: COLORS.textMuted, textAlign: 'right', flex: 1, marginLeft: '8px' }}>{shortcut.desc}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Fitur Zoom Loupe */}
+                    <div style={{ backgroundColor: '#eff6ff', borderRadius: '6px', border: '1px solid #bfdbfe', padding: '14px' }}>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: '0.8rem', fontWeight: 800, color: '#1e40af' }}>🔍 Zoom Loupe (Kaca Pembesar)</h4>
+                      <p style={{ margin: 0, fontSize: '0.7rem', color: '#1e40af', lineHeight: 1.5 }}>
+                        Saat Anda mengeklik dan menarik garis kalibrasi, jendela zoom <strong>4x</strong> muncul otomatis di pojok kanan atas canvas. 
+                        Gunakan ini untuk memastikan ujung garis tepat berada pada batas tepi objek referensi secara pixel-perfect. 
+                        Crosshair merah menunjukkan posisi aktif kursor Anda.
                       </p>
                     </div>
 
-                    <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: '16px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: COLORS.textMuted, marginBottom: '6px' }}>
-                        <span>Detected Line Length:</span>
-                        <span style={{ fontWeight: 750, color: COLORS.textLight }}>
-                          {draggedLine ? `${Math.round(Math.sqrt(Math.pow(draggedLine.x2 - draggedLine.x1, 2) + Math.pow(draggedLine.y2 - draggedLine.y1, 2)))} px` : 'No line drawn'}
-                        </span>
-                      </div>
+                    {/* Tips Akurasi */}
+                    <div style={{ backgroundColor: '#f0fdf4', borderRadius: '6px', border: '1px solid #bbf7d0', padding: '14px' }}>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: '0.8rem', fontWeight: 800, color: '#166534' }}>✅ Tips Mendapatkan Akurasi Maksimal</h4>
+                      <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                        {[
+                          'Gunakan gauge block bersertifikat (ISO 3650) untuk presisi terbaik.',
+                          'Pastikan objek referensi tegak lurus (perpendicular) terhadap sumbu lensa kamera.',
+                          'Aktifkan Snap Orthogonal untuk memastikan garis lurus sempurna (0° / 90°).',
+                          'Gunakan Fine Control nudge untuk menggeser ujung garis 1 px agar tepat di batas warna.',
+                          'Ulangi kalibrasi 3 kali dan bandingkan hasilnya — deviasi < 0.5% menandakan kalibrasi valid.',
+                          'Jangan geser atau ubah posisi kamera setelah kalibrasi tanpa melakukan re-kalibrasi.',
+                        ].map((tip, idx) => (
+                          <li key={idx} style={{ fontSize: '0.68rem', color: '#166534', lineHeight: 1.45 }}>{tip}</li>
+                        ))}
+                      </ul>
                     </div>
 
-                    <button
-                      onClick={handleCalculateScale}
-                      disabled={!draggedLine}
-                      style={{
-                        width: '100%', padding: '10px', borderRadius: '6px', border: 'none',
-                        backgroundColor: draggedLine ? COLORS.blueAccent : '#1f293d',
-                        color: draggedLine ? 'white' : COLORS.textMuted,
-                        fontWeight: 700, cursor: draggedLine ? 'pointer' : 'not-allowed',
-                        fontSize: '0.85rem', transition: 'all 0.2s'
-                      }}
-                    >
-                      Calculate Scale Factor
-                    </button>
+                    {/* Peringatan / Warning */}
+                    <div style={{ backgroundColor: '#fef3c7', borderRadius: '6px', border: '1px solid #fde68a', padding: '14px' }}>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: '0.8rem', fontWeight: 800, color: '#92400e' }}>⚠️ Peringatan Penting</h4>
+                      <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                        {[
+                          'Jika garis kalibrasi miring (angle > 2°), panjang pixel terhitung akan lebih besar dari sebenarnya dan merusak akurasi.',
+                          'Setiap kali Anda mengubah posisi / ketinggian kamera, Anda WAJIB melakukan re-kalibrasi ulang.',
+                          'Resolusi kamera harus konsisten — jangan ubah resolusi setelah kalibrasi tanpa menghitung ulang scale factor.',
+                          'Pastikan pencahayaan merata; bayangan pada tepi objek referensi akan menggeser titik tepi yang terdeteksi.',
+                        ].map((warn, idx) => (
+                          <li key={idx} style={{ fontSize: '0.68rem', color: '#92400e', lineHeight: 1.45 }}>{warn}</li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Alur Integrasi */}
+                    <div style={{ backgroundColor: '#faf5ff', borderRadius: '6px', border: '1px solid #e9d5ff', padding: '14px' }}>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: '0.8rem', fontWeight: 800, color: '#6b21a8' }}>🔗 Alur Integrasi Scale Factor</h4>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        {[
+                          'Scale Calibration',
+                          '→',
+                          'Camera Setup (Save Config)',
+                          '→',
+                          'Supabase DB',
+                          '→',
+                          'Vision Setup (Dimension Detector)',
+                          '→',
+                          'Hasil Pengukuran (mm / inch)'
+                        ].map((item, idx) => (
+                          <span key={idx} style={{
+                            fontSize: '0.68rem', fontWeight: item === '→' ? 400 : 700,
+                            color: item === '→' ? '#a78bfa' : '#6b21a8',
+                            padding: item === '→' ? '0' : '3px 8px',
+                            borderRadius: item === '→' ? '0' : '4px',
+                            backgroundColor: item === '→' ? 'transparent' : '#ede9fe'
+                          }}>{item}</span>
+                        ))}
+                      </div>
+                      <p style={{ margin: '8px 0 0 0', fontSize: '0.66rem', color: '#7c3aed', lineHeight: 1.5 }}>
+                        Setelah disimpan, nilai mm/pixel akan otomatis digunakan oleh semua detektor dimensi dan pengukuran objek di seluruh modul Vision.
+                      </p>
+                    </div>
                   </div>
                 </div>
-
-                {/* Scale outputs summary */}
-                <div style={{ backgroundColor: COLORS.cardDark, borderRadius: '8px', border: `1px solid ${COLORS.border}`, padding: '16px' }}>
-                  <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', fontWeight: 800 }}>Scale Factor Results</h4>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div style={{ backgroundColor: '#f1f5f9', padding: '12px', borderRadius: '4px', border: `1px solid ${COLORS.border}`, textAlign: 'center' }}>
-                      <div style={{ fontSize: '0.65rem', color: COLORS.textMuted, textTransform: 'uppercase', marginBottom: '4px' }}>Computed Ratio</div>
-                      <div style={{ fontSize: '1.4rem', fontWeight: 900, color: COLORS.greenAccent }}>
-                        1 Pixel = {pixelScaleFactor.toFixed(4)} <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>mm</span>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                      <span style={{ color: COLORS.textMuted }}>Pixels per mm:</span>
-                      <span style={{ fontWeight: 700 }}>{(1 / pixelScaleFactor).toFixed(2)} px/mm</span>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                      <span style={{ color: COLORS.textMuted }}>Last Calibrated:</span>
-                      <span style={{ fontWeight: 700 }}>{calibrationResult.lastCalibrated === 'N/A' ? 'Not Calibrated' : calibrationResult.lastCalibrated.split(' ')[0]}</span>
-                    </div>
-                  </div>
-                </div>
-
               </div>
             </div>
           )}

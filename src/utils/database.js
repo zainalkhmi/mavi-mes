@@ -274,8 +274,7 @@ export async function getMachineActivityLogs(machineId) {
     const { data, error } = await supabase
         .from('audit_logs')
         .select('*')
-        .eq('entity_type', 'machine')
-        .eq('entity_id', machineId)
+        .eq('station_id', machineId)
         .order('created_at', { ascending: false })
         .limit(200);
     
