@@ -123,7 +123,7 @@ const VisionManager = () => {
     const [isUploadingFiles, setIsUploadingFiles] = useState(false);
     const [uploadStatus, setUploadStatus] = useState('');
 
-    // Keyence-Style AI Studio States
+    // MAVi-Style AI Studio States
     const [backendImages, setBackendImages] = useState([]);
     const [isLoadingBackendImages, setIsLoadingBackendImages] = useState(false);
     const [showPaintModal, setShowPaintModal] = useState(false);
@@ -1025,7 +1025,7 @@ const VisionManager = () => {
                                 fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.15s'
                             }}
                         >
-                            🎓 Keyence AI Guide
+                            🎓 MAVi AI Guide
                         </button>
                     </div>
                 </div>
@@ -2352,13 +2352,13 @@ const VisionManager = () => {
                     </div>
                 </div>
 
-                {/* KEYENCE-STYLE DATASET INSPECTOR & ACTIVE LEARNING STUDIO */}
+                {/* MAVi-STYLE DATASET INSPECTOR & ACTIVE LEARNING STUDIO */}
                 {selectedDataset && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '24px', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', marginTop: '20px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px' }}>
                             <div>
                                 <h3 style={{ margin: 0, fontSize: '1.18rem', fontWeight: 900, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    🔍 Keyence AI Studio: Dataset Inspector
+                                    🔍 MAVi AI Studio: Dataset Inspector
                                 </h3>
                                 <p style={{ margin: '2px 0 0 0', color: '#64748b', fontSize: '0.78rem' }}>
                                     Kelola dataset "<strong>{selectedDataset}</strong>" langsung di server. Lukis cacat produk dengan kuas mask interaktif.
@@ -2684,7 +2684,7 @@ const VisionManager = () => {
                 </div>
             )}
 
-            {/* TAB CONTENT: KEYENCE AI USE CASES GUIDE */}
+            {/* TAB CONTENT: MAVi AI USE CASES GUIDE */}
             {activeTab === 'ai_guide' && <AiGuideView />}
         </div>
     );
@@ -6023,7 +6023,7 @@ function CameraRegionEditor({
     );
 }
 
-// ─── KEYENCE-STYLE HTML5 DRAWING & PAINT CANVAS OVERLAY MODAL ────────────────
+// ─── MAVi-STYLE HTML5 DRAWING & PAINT CANVAS OVERLAY MODAL ────────────────
 function DefectPainterModal({ image, datasetName, onClose }) {
     const canvasRef = useRef(null);
     const contextRef = useRef(null);
@@ -6418,11 +6418,31 @@ function DefectPainterModal({ image, datasetName, onClose }) {
     );
 }
 
-// ─── INTERACTIVE KEYENCE AI USE CASES CONFIGURATION GUIDE ────────────────────
+// ─── INTERACTIVE MAVi AI USE CASES CONFIGURATION GUIDE ────────────────────
 function AiGuideView() {
-    const [activeCaseId, setActiveCaseId] = useState('auto_metal_foreign');
+    const [activeCaseId, setActiveCaseId] = useState('general_workflow_guide');
 
     const categories = [
+        {
+            name: "MAVi Workflow Guide",
+            icon: "🚀",
+            cases: [
+                {
+                    id: "general_workflow_guide",
+                    title: "Panduan Integrasi MAVi A-Z: Dari Kamera Hingga App Builder & Live Player",
+                    mode: "Panduan Alur Sistem Lengkap",
+                    image: "/assets/shop-floor-connectivity.png",
+                    desc: "Panduan terstruktur langkah-demi-langkah bagi operator dan sistem integrator untuk menyetujui, melatih, menghubungkan, dan menjalankan sistem visual inspeksi otomatis berbasis MAVi AI.",
+                    setup: [
+                        "LANGKAH 1: KONFIGURASI KAMERA & DATASET (Camera & Dataset) — Pergi ke tab 'Camera Configurations', tambahkan kamera baru (masukkan nama, tipe IP RTSP stream atau Webcam lokal). Klik 'Save Camera'. Setelah kamera aktif, pergi ke tab 'Visual Inspection Datasets', buat folder dataset baru, dan mulailah mengambil gambar sampel produk yang lewat (minimal 10-20 sampel).",
+                        "LANGKAH 2: ANOTASI DI MAVi AI STUDIO (Labeling & Painting) — Pergi ke tab 'AI Models & Inspection' dan pilih dataset Anda. Di bagian bawah, panel 'MAVi AI Studio: Dataset Inspector' akan terbuka. Klik tombol 'Paint Defect' pada foto produk. Gunakan 'Brush Tool' atau 'Polygon Tool' untuk menandai dengan presisi area cacat produk dengan warna merah transparan, lalu klik 'Simpan Mask ke Server'. Tekan 'AI Auto Image Selector' jika Anda ingin AI memilih otomatis gambar tersisa yang paling membingungkan model untuk segera Anda warnai.",
+                        "LANGKAH 3: PELATIHAN & OPTIMASI MODEL (Training & Threshold) — Pada form 'Train a New AI Model', pilih tipe inspeksi (Anomaly, Classification, atau Segmentation), masukkan nama model, dan tentukan jumlah Epochs. Tekan 'START TRAINING'. Setelah pelatihan selesai, analisis hasil sebaran OK vs NG di 'Degree of Separation Graph'. Geser garis pembatas cutoff threshold vertikal ke titik overlap terendah untuk memastikan performa pemisahan OK/NG yang paling aman tanpa salah reject.",
+                        "LANGKAH 4: INTEGRASI KE WIDGET APP BUILDER (HMI/SCADA Binding) — Buka menu utama 'App Builder' di MAVi-MES. Tarik widget 'CAMERA' ke dalam area kanvas desain HMI Anda. Klik widget tersebut, lalu pada panel properti kanan, ikat (bind) widget ke nama kamera MAVi yang telah Anda buat di tab Vision. Tambahkan widget indikator status SCADA (seperti Lampu Status atau Teks) dan hubungkan ke variabel output deteksi model AI (misal: 'model_result'). Untuk otomatisasi perangkat keras, buka 'Blockly Editor' atau 'Automation Editor', lalu buat aturan logika: 'JIKA model_result = NG, MAKA picu PLC Write Tag ke register Output Silinder Penolak'."
+                    ],
+                    verify: "LANGKAH 5: EKSEKUSI REAL-TIME DI APP PLAYER (Live Shop Floor Execution) — Buka menu utama 'App Player' dan jalankan aplikasi HMI yang Anda desain. Klik tombol 'START STREAMING' pada widget kamera. Kamera akan membaca konveyor secara real-time, AI akan menjalankan inferensi lokal pada setiap frame, menampilkan heatmap cacat merah di layar, dan jika terdeteksi NG, aplikasi secara otomatis mengirimkan instruksi ke PLC untuk menggerakkan aktuator silinder penolak guna membuang barang cacat secara fisik dari jalur konveyor."
+                }
+            ]
+        },
         {
             name: "Automotive & Metals",
             icon: "🚗",
@@ -6431,6 +6451,7 @@ function AiGuideView() {
                     id: "auto_metal_foreign",
                     title: "Detection of Foreign Objects (Deteksi Benda Asing)",
                     mode: "Anomaly Detection (Unsupervised)",
+                    image: "/assets/auto_metal_foreign.png",
                     desc: "Mendeteksi partikel asing, kotoran, oli, atau sisa serpihan logam di dalam wadah/palet kosong sebelum perakitan.",
                     setup: [
                         "1. Image Acquisition: Pasang kamera tegak lurus di atas palet. Berikan pencahayaan rata (dome light/diffuser) untuk menghilangkan refleksi mengkilap dari bahan palet.",
@@ -6443,6 +6464,7 @@ function AiGuideView() {
                     id: "auto_metal_thread",
                     title: "Thread Inspection on Screws (Ulir Baut)",
                     mode: "Defect Segmentation (Supervised U-Net)",
+                    image: "/assets/guide_auto_metals.png",
                     desc: "Mendeteksi bagian ulir baut yang aus, terpotong, atau penyok secara presisi terlepas dari pantulan kilau logam.",
                     setup: [
                         "1. Image Acquisition: Tempatkan sensor sela/kamera di posisi lateral sekrup. Gunakan backlight untuk menghasilkan gambar siluet hitam-putih baut yang tajam dan kontras tinggi.",
@@ -6455,6 +6477,7 @@ function AiGuideView() {
                     id: "auto_metal_rubber",
                     title: "Defect on Rubber Hoses (Selang Karet)",
                     mode: "Anomaly Detection atau Defect Segmentation",
+                    image: "/assets/guide_auto_metals.png",
                     desc: "Mengidentifikasi retakan halus, robekan, atau gelembung pada permukaan selang karet hitam bergelombang.",
                     setup: [
                         "1. Image Acquisition: Gunakan ring light terpolarisasi untuk meminimalkan bayangan tajam yang ditimbulkan oleh kerutan permukaan selang karet.",
@@ -6467,6 +6490,7 @@ function AiGuideView() {
                     id: "auto_metal_weld",
                     title: "Weld Inspection (Porositas & Lubang Las)",
                     mode: "Defect Segmentation (Supervised U-Net)",
+                    image: "/assets/guide_auto_metals.png",
                     desc: "Mendeteksi lubang jarum (blowhole), cipratan las (spatter), dan lasan yang terputus pada sambungan logam.",
                     setup: [
                         "1. Image Acquisition: Arahkan kamera ke sambungan las. Gunakan pencahayaan coaxial light atau angle bar light untuk menonjolkan tekstur manik-manik lasan.",
@@ -6485,6 +6509,7 @@ function AiGuideView() {
                     id: "food_crates",
                     title: "Appearance Inspection of Crates & Totes (Residu Keranjang)",
                     mode: "Anomaly Detection (Unsupervised)",
+                    image: "/assets/guide_food_pharma.png",
                     desc: "Mendeteksi sisa segel plastik, keretakan, atau deformasi bentuk pada keranjang wadah logistik farmasi/snack.",
                     setup: [
                         "1. Image Acquisition: Pasang kamera tegak lurus di atas konveyor cuci keranjang. Gunakan dome light seragam.",
@@ -6497,6 +6522,7 @@ function AiGuideView() {
                     id: "food_spillage",
                     title: "Inspection for Spillage (Kebocoran Cairan Botol)",
                     mode: "Anomaly Detection (Unsupervised)",
+                    image: "/assets/guide_food_pharma.png",
                     desc: "Mendeteksi tumpahan atau kebocoran cairan di leher botol atau badan botol kaca obat/snack.",
                     setup: [
                         "1. Image Acquisition: Gunakan backlight berintensitas tinggi di belakang botol untuk memperlihatkan bayangan tingkat pengisian air.",
@@ -6509,6 +6535,7 @@ function AiGuideView() {
                     id: "food_bakery",
                     title: "Food Appearance Inspection (Cacat Kue/Biskuit)",
                     mode: "Anomaly Detection (Unsupervised)",
+                    image: "/assets/guide_food_pharma.png",
                     desc: "Mendeteksi cacat gosong, patah, atau perubahan pola permukaan pada biskuit makanan.",
                     setup: [
                         "1. Image Acquisition: Gunakan konveyor sabuk makanan dengan pencahayaan overhead diffuser light.",
@@ -6521,6 +6548,7 @@ function AiGuideView() {
                     id: "food_bristle",
                     title: "Toothbrush Bristle Tips (Bulu Sikat Gigi)",
                     mode: "Anomaly Detection (Unsupervised)",
+                    image: "/assets/guide_food_pharma.png",
                     desc: "Mendeteksi bulu sikat gigi yang mekar, miring, atau tidak merata pada lini perakitan sikat gigi.",
                     setup: [
                         "1. Image Acquisition: Gunakan ujung lensa pembesar (macro zoom) dengan ring light agar ujung bulu sikat gigi terlihat kontras.",
@@ -6533,6 +6561,7 @@ function AiGuideView() {
                     id: "food_shrink",
                     title: "Shrink Wrap & Label Wrinkle (Label Kemasan Kusut)",
                     mode: "Defect Segmentation (Supervised U-Net)",
+                    image: "/assets/guide_food_pharma.png",
                     desc: "Mendeteksi lipatan/kerutan lecek pada plastik label kemasan yang dapat merusak penampilan kemasan produk.",
                     setup: [
                         "1. Image Acquisition: Pasang lampu di sudut samping kemasan (low-angle light) untuk menciptakan bayangan pada lipatan plastik lecek.",
@@ -6545,6 +6574,7 @@ function AiGuideView() {
                     id: "food_alignment",
                     title: "Packaging Alignment Inspection (Tata Letak Botol)",
                     mode: "Anomaly Detection (Unsupervised)",
+                    image: "/assets/guide_food_pharma.png",
                     desc: "Mendeteksi botol yang terbalik, kosong, miring, atau hilang di dalam boks kemasan kardus isi banyak.",
                     setup: [
                         "1. Image Acquisition: Pasang kamera di atas boks kemasan secara tegak lurus (bird's-eye view).",
@@ -6563,6 +6593,7 @@ function AiGuideView() {
                     id: "elec_wafer",
                     title: "Wafer Appearance Inspection (Cacat Silikon Wafer)",
                     mode: "Defect Segmentation (Supervised U-Net)",
+                    image: "/assets/guide_electronics.png",
                     desc: "Mendeteksi goresan halus (scratch) atau rompal (chipping) pada tepi silikon wafer semikonduktor.",
                     setup: [
                         "1. Image Acquisition: Gunakan pencahayaan darkfield (cahaya dari samping) untuk memantulkan retakan halus wafer ke kamera.",
@@ -6575,6 +6606,7 @@ function AiGuideView() {
                     id: "elec_winding",
                     title: "Inductor Winding Inspection (Lilitan Kabel Induktor)",
                     mode: "Anomaly Detection (Unsupervised)",
+                    image: "/assets/guide_electronics.png",
                     desc: "Mendeteksi kawat tembaga induktor yang terlilit berantakan, renggang, atau keluar jalur lilitan.",
                     setup: [
                         "1. Image Acquisition: Pasang kamera fokus makro dengan backlight dikombinasikan dengan overhead ring light.",
@@ -6587,6 +6619,7 @@ function AiGuideView() {
                     id: "elec_capacitor",
                     title: "Capacitor Sleeve Inspection (Sobek Selongsong Kondensator)",
                     mode: "Defect Segmentation (Supervised U-Net)",
+                    image: "/assets/guide_electronics.png",
                     desc: "Mendeteksi sobekan kecil atau goresan pada selongsong plastik pembungkus kondensator.",
                     setup: [
                         "1. Image Acquisition: Gunakan kamera 360-derajat atau putar produk di bawah kamera dengan pencahayaan dome light.",
@@ -6599,6 +6632,7 @@ function AiGuideView() {
                     id: "elec_gasket",
                     title: "Gasket Float Inspection (Deteksi Floter Gasket)",
                     mode: "Anomaly Detection (Unsupervised)",
+                    image: "/assets/guide_electronics.png",
                     desc: "Mendeteksi gasket karet atau segel yang melayang/longgar pada celah bodi logam.",
                     setup: [
                         "1. Image Acquisition: Pasang kamera dari samping produk. Gunakan lampu sorot terarah.",
@@ -6611,6 +6645,7 @@ function AiGuideView() {
                     id: "elec_connector",
                     title: "Connector Short Shot Inspection (Plastik Konektor Cacat)",
                     mode: "Anomaly Detection (Unsupervised)",
+                    image: "/assets/guide_electronics.png",
                     desc: "Mendeteksi plastik cetakan konektor yang kurang terinjeksi (*short shot*) pada pin-pin konektor.",
                     setup: [
                         "1. Image Acquisition: Arahkan kamera makro ke pin konektor. Gunakan backlight untuk mempertegas bentuk pin.",
@@ -6623,6 +6658,7 @@ function AiGuideView() {
                     id: "elec_module",
                     title: "Module Alignment Confirmation (Tumpukan Modul PCB)",
                     mode: "Anomaly Detection (Unsupervised)",
+                    image: "/assets/guide_electronics.png",
                     desc: "Mendeteksi kesalahan susunan PCB atau modul elektronik yang terbalik atau miring pada baki perakitan.",
                     setup: [
                         "1. Image Acquisition: Gunakan kamera overhead dengan pencahayaan ring light.",
@@ -6641,6 +6677,7 @@ function AiGuideView() {
                     id: "robot_overlapped",
                     title: "Detection of Overlapped Products (Barang Bertumpuk)",
                     mode: "Anomaly Detection + Koordinat JSON",
+                    image: "/assets/guide_robotics.png",
                     desc: "Mendeteksi produk yang bertumpuk atau tumpang tindih di nampan agar lengan robot tidak salah mencengkeram produk.",
                     setup: [
                         "1. Image Acquisition: Tempatkan kamera 2D tepat di atas area pengambilan robot (picking area) dengan pencahayaan merata.",
@@ -6653,6 +6690,7 @@ function AiGuideView() {
                     id: "robot_guidance",
                     title: "Vision Guidance & Type Identification (Klasifikasi & Panduan Pemetik)",
                     mode: "Classification (OK/NG) + Panduan Posisi",
+                    image: "/assets/guide_robotics.png",
                     desc: "Mendeteksi orientasi posisi produk dan mengklasifikasikan jenis produk (misal rasa stroberi vs jeruk) untuk menyortir produk.",
                     setup: [
                         "1. Image Acquisition: Pasang kamera di ujung lengan robot atau di atas konveyor feeder robot.",
