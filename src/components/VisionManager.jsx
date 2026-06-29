@@ -2686,6 +2686,18 @@ const VisionManager = () => {
 
             {/* TAB CONTENT: MAVi AI USE CASES GUIDE */}
             {activeTab === 'ai_guide' && <AiGuideView />}
+
+            {showPaintModal && paintImage && (
+                <DefectPainterModal
+                    image={paintImage}
+                    datasetName={selectedDataset}
+                    onClose={() => {
+                        setShowPaintModal(false);
+                        setPaintImage(null);
+                        loadBackendImages(selectedDataset);
+                    }}
+                />
+            )}
         </div>
     );
 };
@@ -3031,6 +3043,11 @@ function CameraRegionEditor({
     const avgColorsRef = useRef({});
     const prevIntensityRef = useRef({});
     const lastAnalysisTimeRef = useRef(0);
+    const lastFetchTimesRef = useRef({});
+    const activeFetchesRef = useRef({});
+    const detectionResultsRef = useRef({});
+    const lastLogValuesRef = useRef({});
+    const lastSuccessTimesRef = useRef({});
     const logsRef = useRef([
         {
             id: 'init_1',
@@ -3739,6 +3756,8 @@ function CameraRegionEditor({
                 const jigDet = region.detectors?.jigDetector;
                 const ocrDet = region.detectors?.ocrDetector;
                 const dimDet = region.detectors?.dimensionDetector;
+                const barcode1dDet = region.detectors?.barcode1dDetector;
+                const barcode2dDet = region.detectors?.barcode2dDetector;
 
                 if (hasVideoFeed && shouldAnalyze) {
                     try {
@@ -3757,6 +3776,113 @@ function CameraRegionEditor({
                         const avgB = bSum / count;
                         
                         avgColorsRef.current[region.id] = { r: avgR, g: avgG, b: avgB };
+                        
+                        // Barcode 1D / 2D and OCR backend fetching
+                        const handleBackendDetector = (detector, detectorKey, url, detectorName) => {
+                            if (detector && detector.enabled) {
+                                const cacheKey = region.id + '-' + detectorKey;
+                                const lastFetch = lastFetchTimesRef.current[cacheKey] || 0;
+                                const isFetching = activeFetchesRef.current[cacheKey] || false;
+                                
+                                if (!isFetching && now - lastFetch > 800) {
+                                    activeFetchesRef.current[cacheKey] = true;
+                                    lastFetchTimesRef.current[cacheKey] = now;
+                                    
+                                    const cropCanvas = document.createElement('canvas');
+                                    cropCanvas.width = rw;
+                                    cropCanvas.height = rh;
+                                    const cropCtx = cropCanvas.getContext('2d');
+                                    if (cropCtx) {
+                                        if (!configureOffline && hasPermission && camera.cameraSource === 'DEVICE' && videoRef.current && videoRef.current.readyState >= 2) {
+                                            const scaleX = videoRef.current.videoWidth / w;
+                                            const scaleY = videoRef.current.videoHeight / h;
+                                            cropCtx.drawImage(
+                                                videoRef.current,
+                                                rx * scaleX, ry * scaleY, rw * scaleX, rh * scaleY,
+                                                0, 0, rw, rh
+                                            );
+                                        } else {
+                                            cropCtx.drawImage(
+                                                canvas,
+                                                rx, ry, rw, rh,
+                                                0, 0, rw, rh
+                                            );
+                                        }
+                                        
+                                        cropCanvas.toBlob((blob) => {
+                                            if (!blob) {
+                                                activeFetchesRef.current[cacheKey] = false;
+                                                return;
+                                            }
+                                            const formData = new FormData();
+                                            formData.append('file', blob, 'region.jpg');
+                                            if (detectorKey === 'ocrDetector') {
+                                                formData.append('languages', detector.language === 'Indonesian' ? 'id,en' : 'en');
+                                            }
+                                            
+                                            fetch(url, {
+                                                method: 'POST',
+                                                body: formData
+                                            })
+                                            .then(res => {
+                                                if (!res.ok) throw new Error('API error');
+                                                const val = res.headers.get('X-Calculated-Value') || '';
+                                                const isPassedStr = res.headers.get('X-Is-Passed') || 'false';
+                                                
+                                                // Expected value validation
+                                                let finalPass = isPassedStr === 'true';
+                                                const expected = detector.expectedValue || detector.matchPattern || '';
+                                                if (expected && val && !val.toLowerCase().includes('no code') && !val.toLowerCase().includes('no text')) {
+                                                    const cleanVal = val.includes(':') ? val.split(':').slice(1).join(':').trim() : val.trim();
+                                                    const pattern = expected.replace(/[-\/\\^$*+?.()|[\]{}]/g, (m) => m === '*' ? '.*' : '\\' + m);
+                                                    const regex = new RegExp('^' + pattern + '$', 'i');
+                                                    finalPass = regex.test(cleanVal);
+                                                }
+
+                                                detectionResultsRef.current[cacheKey] = {
+                                                    value: val,
+                                                    isPassed: finalPass,
+                                                    lastUpdated: Date.now()
+                                                };
+                                                
+                                                // Trigger successful scan animation
+                                                if (val && !val.toLowerCase().includes('no code') && !val.toLowerCase().includes('no text')) {
+                                                    const cacheKeySuccess = region.id + '-success';
+                                                    const lastSuccess = lastSuccessTimesRef.current[cacheKeySuccess] || 0;
+                                                    if (lastLogValuesRef.current[cacheKey] !== val || (Date.now() - lastSuccess > 2500)) {
+                                                        lastSuccessTimesRef.current[cacheKeySuccess] = Date.now();
+                                                    }
+                                                }
+
+                                                if (lastLogValuesRef.current[cacheKey] !== val) {
+                                                    lastLogValuesRef.current[cacheKey] = val;
+                                                    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                                                    const newLog = {
+                                                        id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                                                        time: timestamp,
+                                                        regionName: region.name,
+                                                        detectorType: detectorName,
+                                                        value: val,
+                                                        status: finalPass ? 'MATCH' : 'NO MATCH'
+                                                    };
+                                                    logsRef.current = [newLog, ...logsRef.current].slice(0, 20);
+                                                }
+                                            })
+                                            .catch(err => {
+                                                console.error('Region API error:', err);
+                                            })
+                                            .finally(() => {
+                                                activeFetchesRef.current[cacheKey] = false;
+                                            });
+                                        }, 'image/jpeg', 0.85);
+                                    }
+                                }
+                            }
+                        };
+                        
+                        handleBackendDetector(barcode1dDet, 'barcode1dDetector', 'http://localhost:8000/cv/barcode', 'Barcode 1D');
+                        handleBackendDetector(barcode2dDet, 'barcode2dDetector', 'http://localhost:8000/cv/barcode', '2D Code');
+                        handleBackendDetector(ocrDet, 'ocrDetector', 'http://localhost:8000/cv/ocr', 'OCR Text');
                         
                         // Compute color similarity
                         if (colorDet && colorDet.enabled) {
@@ -4041,12 +4167,24 @@ function CameraRegionEditor({
                     borderColor = '#a855f7'; // Purple
                     fillStyle = 'rgba(168, 85, 247, 0.04)';
                 } else if (ocrDet && ocrDet.enabled) {
-                    borderColor = '#ec4899'; // Pink
-                    fillStyle = 'rgba(236, 72, 153, 0.04)';
+                    const result = detectionResultsRef.current[region.id + '-ocrDetector'];
+                    const isPass = result ? result.isPassed : true;
+                    borderColor = isPass ? '#ec4899' : '#ef4444';
+                    fillStyle = isPass ? 'rgba(236, 72, 153, 0.04)' : 'rgba(239, 68, 68, 0.03)';
                 } else if (dimDet && dimDet.enabled) {
                     const isPass = region.lastPassStatus ?? false;
                     borderColor = isPass ? '#10b981' : '#ef4444';
                     fillStyle = isPass ? 'rgba(16, 185, 129, 0.04)' : 'rgba(239, 68, 68, 0.03)';
+                } else if (barcode1dDet && barcode1dDet.enabled) {
+                    const result = detectionResultsRef.current[region.id + '-barcode1dDetector'];
+                    const isPass = result ? result.isPassed : true;
+                    borderColor = isPass ? '#38bdf8' : '#ef4444';
+                    fillStyle = isPass ? 'rgba(56, 189, 248, 0.04)' : 'rgba(239, 68, 68, 0.03)';
+                } else if (barcode2dDet && barcode2dDet.enabled) {
+                    const result = detectionResultsRef.current[region.id + '-barcode2dDetector'];
+                    const isPass = result ? result.isPassed : true;
+                    borderColor = isPass ? '#38bdf8' : '#ef4444';
+                    fillStyle = isPass ? 'rgba(56, 189, 248, 0.04)' : 'rgba(239, 68, 68, 0.03)';
                 }
 
                 if (isSelected) {
@@ -4095,6 +4233,38 @@ function CameraRegionEditor({
                 // Light tint inside region
                 ctx.fillStyle = fillStyle;
                 ctx.fillRect(region.x + 1, region.y + 1, region.w - 2, region.h - 2);
+
+                // Success Scan Ripple & Glow Animation
+                const lastSuccess = lastSuccessTimesRef.current[region.id + '-success'];
+                if (lastSuccess && now - lastSuccess < 800) {
+                    const elapsed = now - lastSuccess;
+                    
+                    // Ripple expanding outward
+                    const progressRipple = elapsed / 800;
+                    const alphaRipple = 1 - progressRipple;
+                    const padRipple = progressRipple * 24;
+                    ctx.strokeStyle = `rgba(34, 197, 94, ${alphaRipple})`;
+                    ctx.lineWidth = 2.5;
+                    ctx.strokeRect(region.x - padRipple, region.y - padRipple, region.w + padRipple * 2, region.h + padRipple * 2);
+                    
+                    // Glow flashing inward
+                    const progressGlow = Math.min(1, elapsed / 400);
+                    const alphaGlow = 0.25 * (1 - progressGlow);
+                    ctx.fillStyle = `rgba(34, 197, 94, ${alphaGlow})`;
+                    ctx.fillRect(region.x + 1, region.y + 1, region.w - 2, region.h - 2);
+
+                    // Dynamic scanning bar sweeping down
+                    const scanY = region.y + (elapsed / 800) * region.h;
+                    ctx.strokeStyle = 'rgba(34, 197, 94, 0.8)';
+                    ctx.lineWidth = 2;
+                    ctx.shadowColor = '#22c55e';
+                    ctx.shadowBlur = 6;
+                    ctx.beginPath();
+                    ctx.moveTo(region.x, scanY);
+                    ctx.lineTo(region.x + region.w, scanY);
+                    ctx.stroke();
+                    ctx.shadowBlur = 0; // Reset shadow
+                }
 
                 // Region name label
                 ctx.fillStyle = '#ffffff';
@@ -4146,10 +4316,12 @@ function CameraRegionEditor({
                     ctx.textAlign = 'left';
                     ctx.fillText(`Jig ID: ${jigDet.markerId ?? 0}`, region.x + 6, region.y + region.h - 8);
                 } else if (ocrDet && ocrDet.enabled && hasVideoFeed) {
+                    const result = detectionResultsRef.current[region.id + '-ocrDetector'];
+                    const val = result ? result.value : 'OCR Active';
                     ctx.fillStyle = '#ec4899';
                     ctx.font = '600 10px Inter, system-ui, sans-serif';
                     ctx.textAlign = 'left';
-                    ctx.fillText(`OCR Active`, region.x + 6, region.y + region.h - 8);
+                    ctx.fillText(val, region.x + 6, region.y + region.h - 8);
                 } else if (dimDet && dimDet.enabled && hasVideoFeed) {
                     const isPass = region.lastPassStatus ?? false;
                     ctx.fillStyle = isPass ? '#10b981' : '#ef4444';
@@ -4159,6 +4331,20 @@ function CameraRegionEditor({
                     const val = region.measuredValue !== undefined ? region.measuredValue : 0;
                     const shape = region.objectBox?.shape || 'Object';
                     ctx.fillText(`${shape} (${mode}): ${val} ${dimDet.unit ?? 'mm'} (${isPass ? 'PASS' : 'FAIL'})`, region.x + 6, region.y + region.h - 8);
+                } else if (barcode1dDet && barcode1dDet.enabled && hasVideoFeed) {
+                    const result = detectionResultsRef.current[region.id + '-barcode1dDetector'];
+                    const val = result ? result.value : 'Barcode Active';
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.font = '600 10px Inter, system-ui, sans-serif';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(val, region.x + 6, region.y + region.h - 8);
+                } else if (barcode2dDet && barcode2dDet.enabled && hasVideoFeed) {
+                    const result = detectionResultsRef.current[region.id + '-barcode2dDetector'];
+                    const val = result ? result.value : '2D Code Active';
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.font = '600 10px Inter, system-ui, sans-serif';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(val, region.x + 6, region.y + region.h - 8);
                 }
             });
 
@@ -6006,17 +6192,6 @@ function CameraRegionEditor({
                         </div>
                     )}
 
-                    {showPaintModal && paintImage && (
-                        <DefectPainterModal
-                            image={paintImage}
-                            datasetName={selectedDataset}
-                            onClose={() => {
-                                setShowPaintModal(false);
-                                setPaintImage(null);
-                                loadBackendImages(selectedDataset);
-                            }}
-                        />
-                    )}
                 </div>
             </div>
         </div>

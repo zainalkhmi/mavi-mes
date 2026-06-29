@@ -13653,6 +13653,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
   const prevIntensityRef = useRef({});
   const lastAnalysisTimeRef = useRef(0);
   const [cameraConfig, setCameraConfig] = useState(null);
+  const [isSimulated, setIsSimulated] = useState(false);
 
   const cameraSource = cameraConfig?.type || comp?.props?.cameraSource || 'DEVICE';
   const ipCameraUrl = cameraConfig?.url || comp?.props?.ipCameraUrl || '';
@@ -13716,7 +13717,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
     const offscreenCtx = offscreenCanvas.getContext('2d');
     if (!offscreenCtx) return callback(null);
     
-    if (cameraSource === 'IP_CAMERA') {
+    if (cameraSource === 'IP_CAMERA' || isSimulated) {
       drawSimulatedIPStream(offscreenCtx, w, h);
     } else if (video) {
       offscreenCtx.drawImage(video, 0, 0, w, h);
@@ -13725,7 +13726,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
     }
     
     offscreenCanvas.toBlob(callback, mimeType, quality);
-  }, [cameraSource]);
+  }, [cameraSource, isSimulated]);
 
   useEffect(() => {
     if (comp?.props?.filterType === 'RULER_VISION') {
@@ -13922,8 +13923,17 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
     ctx.textAlign = 'left';
   };
 
+  useEffect(() => {
+    setIsSimulated(false);
+    setLoadingError('');
+  }, [cameraSource]);
+
   // Camera stream and loop control
   useEffect(() => {
+    if (isSimulated) {
+      setCameraActive(true);
+      return;
+    }
 
     if (cameraSource === 'IP_CAMERA') {
       setCameraActive(true);
@@ -13969,7 +13979,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
         localStream.getTracks().forEach(t => t.stop());
       }
     };
-  }, [cameraSource]);
+  }, [cameraSource, isSimulated]);
 
   // Helper to calculate mouse/touch position scaled to the canvas with objectFit: cover
   const getCanvasMousePos = (e) => {
@@ -14408,7 +14418,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
       if (!isProcessing) return;
 
       try {
-        if (cameraSource !== 'IP_CAMERA' && (video.paused || video.ended)) {
+        if (cameraSource !== 'IP_CAMERA' && !isSimulated && (video.paused || video.ended)) {
           requestRef.current = requestAnimationFrame(processFrame);
           return;
         }
@@ -14531,7 +14541,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
               calculatedVal = stateRef.measurement;
               isPassed = true;
             } else {
-              if (cameraSource === 'IP_CAMERA') {
+              if (cameraSource === 'IP_CAMERA' || isSimulated) {
                 drawSimulatedIPStream(ctx, width, height);
               } else {
                 ctx.drawImage(video, 0, 0, width, height);
@@ -14592,7 +14602,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
         } else {
           // Fast Canvas 2D fallback rendering (when OpenCV is downloading or offline or IP Camera)
           const ctx = canvas.getContext('2d');
-          if (cameraSource === 'IP_CAMERA') {
+          if (cameraSource === 'IP_CAMERA' || isSimulated) {
             drawSimulatedIPStream(ctx, width, height);
           } else {
             ctx.drawImage(video, 0, 0, width, height);
@@ -14769,14 +14779,18 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
             isPassed = simulatedCode !== 'WAITING FOR CODE...';
           }   else if (filterType === 'YOLO_DETECTOR') {
             const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, width, height);
+            if (cameraSource === 'IP_CAMERA' || isSimulated) {
+              drawSimulatedIPStream(ctx, width, height);
+            } else {
+              ctx.drawImage(video, 0, 0, width, height);
+            }
             const res = runYoloDetector(ctx, canvas, width, height);
             calculatedVal = res.calculatedVal;
             isPassed = res.isPassed;
           }  else if (filterType === 'CIRCLE_DETECT') {
             // ── CIRCLE/DIAMETER DETECTION (Python API) ──
             const ctx = canvas.getContext('2d');
-            if (cameraSource === 'IP_CAMERA') {
+            if (cameraSource === 'IP_CAMERA' || isSimulated) {
               drawSimulatedIPStream(ctx, width, height);
             } else {
               ctx.drawImage(video, 0, 0, width, height);
@@ -14837,7 +14851,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
           } else if (filterType === 'ANGLE_MEASURE') {
             // ── ANGLE MEASUREMENT (Python API) ──
             const ctx = canvas.getContext('2d');
-            if (cameraSource === 'IP_CAMERA') {
+            if (cameraSource === 'IP_CAMERA' || isSimulated) {
               drawSimulatedIPStream(ctx, width, height);
             } else {
               ctx.drawImage(video, 0, 0, width, height);
@@ -14897,7 +14911,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
           } else if (filterType === 'CONTOUR_GEOMETRY') {
             // ── PERIMETER & AREA (Python API) ──
             const ctx = canvas.getContext('2d');
-            if (cameraSource === 'IP_CAMERA') {
+            if (cameraSource === 'IP_CAMERA' || isSimulated) {
               drawSimulatedIPStream(ctx, width, height);
             } else {
               ctx.drawImage(video, 0, 0, width, height);
@@ -14979,7 +14993,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
         } catch (e) {}
       }
     };
-  }, [cameraActive, comp.props.filterType, comp.props.thresholdValue, comp.props.yoloModelType, comp.props.yoloConfidence, comp.props.yoloTargetClass, isRulerModeActive, isCircleModeActive, isAngleModeActive, isContourModeActive, rulerPoints, rulerDragStart, rulerDragCurrent]);
+  }, [cameraActive, comp.props.filterType, comp.props.thresholdValue, comp.props.yoloModelType, comp.props.yoloConfidence, comp.props.yoloTargetClass, isRulerModeActive, isCircleModeActive, isAngleModeActive, isContourModeActive, rulerPoints, rulerDragStart, rulerDragCurrent, isSimulated]);
 
   const isDark = selectedApp?.config?.appThemeMode === 'DARK';
   const textColor = isDark ? '#f8fafc' : '#0f172a';
@@ -14989,7 +15003,11 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600 }}>
           {comp.props.label || 'OpenCV Live Stream'} ({comp.props.filterType || 'CANNY'})
-          {false && <span style={{ color: '#fbbf24', marginLeft: '6px', fontSize: '0.65rem', fontWeight: 'bold' }}>(Simulated Mode)</span>}
+          {(isSimulated || cameraSource === 'IP_CAMERA') && (
+            <span style={{ color: '#fbbf24', marginLeft: '6px', fontSize: '0.65rem', fontWeight: 'bold' }}>
+              (Simulated Mode)
+            </span>
+          )}
         </div>
         
         {/* Auto Save Toggle */}
@@ -15049,7 +15067,32 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', color: isDark ? '#94a3b8' : '#64748b' }}>
             {loadingError ? (
-              <span style={{ color: '#ef4444', fontSize: '0.8rem', textAlign: 'center' }}>⚠️ {loadingError}</span>
+              <>
+                <span style={{ color: '#ef4444', fontSize: '0.8rem', textAlign: 'center', maxWidth: '80%' }}>⚠️ {loadingError}</span>
+                <button
+                  onClick={() => {
+                    setLoadingError('');
+                    setIsSimulated(true);
+                  }}
+                  style={{
+                    marginTop: '8px',
+                    padding: '8px 16px',
+                    backgroundColor: '#7c3aed',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: '0 4px 6px rgba(124, 58, 237, 0.2)'
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#6d28d9'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = '#7c3aed'}
+                >
+                  Gunakan Kamera Simulasi
+                </button>
+              </>
             ) : (
               <>
                 <Loader2 size={24} className="animate-spin" style={{ color: '#7c3aed' }} />
