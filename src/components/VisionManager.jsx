@@ -33,7 +33,34 @@ import {
 import JSZip from 'jszip';
 import toast from 'react-hot-toast';
 import { getAllCameras, saveCamera, deleteCamera, getAllDatasets, saveDataset, deleteDataset } from '../utils/supabaseUtilityDB';
-import { getStations } from '../utils/supabaseFrontlineDB';
+import { getStations, getAllVariables } from '../utils/supabaseFrontlineDB';
+import QuickBuildPipeline from './QuickBuildPipeline';
+
+// Fuzzy similarity score calculation (Levenshtein Distance based)
+const calculateLevenshteinSimilarity = (s1, s2) => {
+    if (!s1 || !s2) return 0;
+    if (s1 === s2) return 1;
+    const l1 = s1.length;
+    const l2 = s2.length;
+    const matrix = Array.from({ length: l1 + 1 }, () => Array(l2 + 1).fill(0));
+
+    for (let i = 0; i <= l1; i++) matrix[i][0] = i;
+    for (let j = 0; j <= l2; j++) matrix[0][j] = j;
+
+    for (let i = 1; i <= l1; i++) {
+        for (let j = 1; j <= l2; j++) {
+            const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
+            matrix[i][j] = Math.min(
+                matrix[i - 1][j] + 1, // deletion
+                matrix[i][j - 1] + 1, // insertion
+                matrix[i - 1][j - 1] + cost // substitution
+            );
+        }
+    }
+    const distance = matrix[l1][l2];
+    const maxLength = Math.max(l1, l2);
+    return (maxLength - distance) / maxLength;
+};
 
 const VisionManager = () => {
     // Tab Management: 'cameras' | 'datasets' | 'privacy'
@@ -49,6 +76,7 @@ const VisionManager = () => {
 
     // Camera Config State
     const [cameraConfigs, setCameraConfigs] = useState([]);
+    const [appVariables, setAppVariables] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [showCameraForm, setShowCameraForm] = useState(false);
     const [newCameraName, setNewCameraName] = useState('');
@@ -226,11 +254,21 @@ const VisionManager = () => {
             loadDatasets();
         } else if (activeTab === 'cameras') {
             loadCameras();
+            loadAppVariables();
         } else if (activeTab === 'ai_models') {
             loadAiModels();
             loadAiDatasets();
         }
     }, [activeTab]);
+
+    const loadAppVariables = async () => {
+        try {
+            const vars = await getAllVariables();
+            setAppVariables(vars || []);
+        } catch (err) {
+            console.error('Failed to load variables:', err);
+        }
+    };
 
     const loadDatasets = async () => {
         setIsLoadingDatasets(true);
@@ -1026,6 +1064,16 @@ const VisionManager = () => {
                             }}
                         >
                             🎓 MAVi AI Guide
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('pipeline_builder')}
+                            style={{
+                                padding: '10px 4px', border: 'none', borderBottom: activeTab === 'pipeline_builder' ? '3px solid #f97316' : '3px solid transparent',
+                                backgroundColor: 'transparent', color: activeTab === 'pipeline_builder' ? '#f97316' : '#64748b',
+                                fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.15s'
+                            }}
+                        >
+                            ⚡ QuickBuild Pipeline
                         </button>
                     </div>
                 </div>
@@ -2687,6 +2735,11 @@ const VisionManager = () => {
             {/* TAB CONTENT: MAVi AI USE CASES GUIDE */}
             {activeTab === 'ai_guide' && <AiGuideView />}
 
+            {/* TAB CONTENT: QUICKBUILD PIPELINE BUILDER */}
+            {activeTab === 'pipeline_builder' && (
+                <QuickBuildPipeline appVariables={appVariables} />
+            )}
+
             {showPaintModal && paintImage && (
                 <DefectPainterModal
                     image={paintImage}
@@ -2986,7 +3039,13 @@ function CameraRegionEditor({
                     name: `${r.name} OCR`,
                     language: 'English',
                     matchPattern: '',
-                    confidenceThreshold: 80
+                    confidenceThreshold: 80,
+                    ocvEnabled: false,
+                    ocvMode: 'static',
+                    ocvExpectedString: '',
+                    ocvExpectedVariable: '',
+                    ocvMatchCase: false,
+                    ocvSimilarityThreshold: 100
                 },
                 dimensionDetector: {
                     enabled: false,
@@ -3953,14 +4012,46 @@ function CameraRegionEditor({
                                                 const val = res.headers.get('X-Calculated-Value') || '';
                                                 const isPassedStr = res.headers.get('X-Is-Passed') || 'false';
                                                 
-                                                // Expected value validation
+                                                // Expected value validation / OCV verification
                                                 let finalPass = isPassedStr === 'true';
-                                                const expected = detector.expectedValue || detector.matchPattern || '';
-                                                if (expected && val && !val.toLowerCase().includes('no code') && !val.toLowerCase().includes('no text')) {
-                                                    const cleanVal = val.includes(':') ? val.split(':').slice(1).join(':').trim() : val.trim();
-                                                    const pattern = expected.replace(/[-\/\\^$*+?.()|[\]{}]/g, (m) => m === '*' ? '.*' : '\\' + m);
-                                                    const regex = new RegExp('^' + pattern + '$', 'i');
-                                                    finalPass = regex.test(cleanVal);
+                                                
+                                                if (detectorKey === 'ocrDetector' && detector.ocvEnabled) {
+                                                    let targetExpected = '';
+                                                    if (detector.ocvMode === 'dynamic') {
+                                                        const matchingVar = appVariables.find(v => v.name === detector.ocvExpectedVariable);
+                                                        if (matchingVar) {
+                                                            targetExpected = String(matchingVar.defaultValue || '');
+                                                        }
+                                                    } else {
+                                                        targetExpected = detector.ocvExpectedString || '';
+                                                    }
+
+                                                    if (targetExpected && val && !val.toLowerCase().includes('no text') && !val.toLowerCase().includes('[ocr engine not installed]')) {
+                                                        const cleanVal = val.includes(':') ? val.split(':').slice(1).join(':').trim() : val.trim();
+                                                        const cleanExpected = targetExpected.trim();
+                                                        
+                                                        const matchCase = detector.ocvMatchCase ?? false;
+                                                        const checkVal = matchCase ? cleanVal : cleanVal.toLowerCase();
+                                                        const checkExp = matchCase ? cleanExpected : cleanExpected.toLowerCase();
+
+                                                        const similarityThreshold = detector.ocvSimilarityThreshold ?? 100;
+                                                        if (similarityThreshold === 100) {
+                                                            finalPass = checkVal === checkExp;
+                                                        } else {
+                                                            const similarity = calculateLevenshteinSimilarity(checkVal, checkExp);
+                                                            finalPass = (similarity * 100) >= similarityThreshold;
+                                                        }
+                                                    } else {
+                                                        finalPass = false;
+                                                    }
+                                                } else {
+                                                    const expected = detector.expectedValue || detector.matchPattern || '';
+                                                    if (expected && val && !val.toLowerCase().includes('no code') && !val.toLowerCase().includes('no text')) {
+                                                        const cleanVal = val.includes(':') ? val.split(':').slice(1).join(':').trim() : val.trim();
+                                                        const pattern = expected.replace(/[-\/\\^$*+?.()|[\]{}]/g, (m) => m === '*' ? '.*' : '\\' + m);
+                                                        const regex = new RegExp('^' + pattern + '$', 'i');
+                                                        finalPass = regex.test(cleanVal);
+                                                    }
                                                 }
 
                                                 detectionResultsRef.current[cacheKey] = {
@@ -5863,6 +5954,100 @@ function CameraRegionEditor({
                                                                 style={{ height: '4px', cursor: 'pointer' }}
                                                             />
                                                         </div>
+
+                                                        {/* OCV Verification Toggle */}
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderTop: '1px solid #cbd5e1', paddingTop: '12px' }}>
+                                                            <input
+                                                                type="checkbox"
+                                                                id={`ocv_enabled_${selectedRegion.id}`}
+                                                                checked={selectedRegion.detectors.ocrDetector.ocvEnabled ?? false}
+                                                                onChange={(e) => updateOcrDetectorSetting(selectedRegion.id, 'ocvEnabled', e.target.checked)}
+                                                                style={{ cursor: 'pointer' }}
+                                                            />
+                                                            <label htmlFor={`ocv_enabled_${selectedRegion.id}`} style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0f172a', cursor: 'pointer' }}>
+                                                                Enable OCV (Character Verification)
+                                                            </label>
+                                                        </div>
+
+                                                        {selectedRegion.detectors.ocrDetector.ocvEnabled && (
+                                                            <div style={{ borderLeft: '3px solid #db2777', paddingLeft: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                                                
+                                                                {/* OCV Mode */}
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569' }}>Verification Reference Mode</span>
+                                                                    <select
+                                                                        value={selectedRegion.detectors.ocrDetector.ocvMode || 'static'}
+                                                                        onChange={(e) => updateOcrDetectorSetting(selectedRegion.id, 'ocvMode', e.target.value)}
+                                                                        style={{ padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.82rem', backgroundColor: 'white', width: '100%', outline: 'none' }}
+                                                                    >
+                                                                        <option value="static">Static Reference Text</option>
+                                                                        <option value="dynamic">Dynamic Database Variable</option>
+                                                                    </select>
+                                                                </div>
+
+                                                                {/* Static expected string */}
+                                                                {selectedRegion.detectors.ocrDetector.ocvMode !== 'dynamic' ? (
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                                        <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569' }}>Expected Text String</span>
+                                                                        <input
+                                                                            type="text"
+                                                                            value={selectedRegion.detectors.ocrDetector.ocvExpectedString || ''}
+                                                                            onChange={(e) => updateOcrDetectorSetting(selectedRegion.id, 'ocvExpectedString', e.target.value)}
+                                                                            placeholder="e.g. LOT-1234"
+                                                                            style={{ padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.82rem', width: '100%', outline: 'none' }}
+                                                                        />
+                                                                    </div>
+                                                                ) : (
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                                        <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569' }}>Dynamic MES Variable</span>
+                                                                        <select
+                                                                            value={selectedRegion.detectors.ocrDetector.ocvExpectedVariable || ''}
+                                                                            onChange={(e) => updateOcrDetectorSetting(selectedRegion.id, 'ocvExpectedVariable', e.target.value)}
+                                                                            style={{ padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.82rem', backgroundColor: 'white', width: '100%', outline: 'none' }}
+                                                                        >
+                                                                            <option value="">Select MES variable...</option>
+                                                                            {appVariables.map(v => (
+                                                                                <option key={v.id} value={v.name}>{v.name} ({v.type})</option>
+                                                                            ))}
+                                                                        </select>
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Case Sensitive Toggle */}
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        id={`ocv_case_${selectedRegion.id}`}
+                                                                        checked={selectedRegion.detectors.ocrDetector.ocvMatchCase ?? false}
+                                                                        onChange={(e) => updateOcrDetectorSetting(selectedRegion.id, 'ocvMatchCase', e.target.checked)}
+                                                                        style={{ cursor: 'pointer' }}
+                                                                    />
+                                                                    <label htmlFor={`ocv_case_${selectedRegion.id}`} style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
+                                                                        Case-Sensitive (Exact casing match)
+                                                                    </label>
+                                                                </div>
+
+                                                                {/* Similarity Threshold */}
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                                        <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569' }}>Fuzzy Similarity Threshold (%)</span>
+                                                                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#db2777' }}>
+                                                                            {selectedRegion.detectors.ocrDetector.ocvSimilarityThreshold ?? 100}%
+                                                                        </span>
+                                                                    </div>
+                                                                    <input
+                                                                        type="range" min="10" max="100" step="5"
+                                                                        value={selectedRegion.detectors.ocrDetector.ocvSimilarityThreshold ?? 100}
+                                                                        onChange={(e) => updateOcrDetectorSetting(selectedRegion.id, 'ocvSimilarityThreshold', Number(e.target.value))}
+                                                                        style={{ height: '4px', cursor: 'pointer' }}
+                                                                    />
+                                                                    <span style={{ fontSize: '0.65rem', color: '#64748b' }}>
+                                                                        {(selectedRegion.detectors.ocrDetector.ocvSimilarityThreshold ?? 100) === 100 ? 'Strict 100% exact match required.' : `Allows minor OCR character noise down to ${selectedRegion.detectors.ocrDetector.ocvSimilarityThreshold ?? 100}%.`}
+                                                                    </span>
+                                                                </div>
+
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>

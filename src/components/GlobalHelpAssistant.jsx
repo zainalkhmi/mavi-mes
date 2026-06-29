@@ -872,6 +872,20 @@ Berikut adalah fungsi dan instruksi cara setup dari masing-masing 10 detektor ya
   1. Gambar ROI pada area pola kalibrasi checkerboard atau titik ukur referensi.
   2. Pilih tipe kalibrasi: **Scale Factor (mm/px)** atau **Lens Distortion**.
   3. Panel status akan menampilkan indikator hijau **"Camera matrix loaded & active"** untuk menandakan koreksi geometri OpenCV sedang berjalan aktif secara real-time pada frame video.
+
+#### 11. Visual Tool Chain Builder (QuickBuild)
+* **Fungsi**: Memungkinkan penyusunan alur kerja inspeksi visual (kamera) dengan menghubungkan blok-blok fungsional secara dinamis (Acquire → Locate → Measure → Inspect → Decide) lewat flowchart editor interaktif tanpa menulis kode program.
+* **Cara Setup**:
+  1. Masuk ke halaman **Vision**, lalu klik tab **⚡ QuickBuild Pipeline**.
+  2. Gunakan sidebar **QuickBuild Tool Blocks** untuk menambahkan blok ke kanvas:
+     * **Acquire**: Mengatur input kamera dan pemicu tangkapan (trigger).
+     * **Locate**: Melacak pergerakan pola untuk meluruskan titik ukur (alignment).
+     * **Measure**: Melakukan pengukuran sub-pixel caliper.
+     * **Inspect**: Menjalankan analisis khusus (OCR, OCV, barcode, atau AI Anomaly).
+     * **Decide**: Menentukan status kelulusan akhir (PASS/FAIL) dan mengirimkan perintah reject ke mesin/PLC.
+  3. Hubungkan pin bulat di kanan suatu blok ke pin kiri blok lainnya untuk mengalirkan data (kawat kustom akan terbentuk secara otomatis).
+  4. Klik blok mana saja untuk memunculkan panel setelan parameter spesifiknya di sisi kanan.
+  5. Tekan **RUN PIPELINE** untuk menyimulasikan aliran proses QC dan melihat status kelulusan visual langkah demi langkah.
 `
   },
   {

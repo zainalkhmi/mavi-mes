@@ -49,7 +49,8 @@ import {
     Move,
     Scissors,
     RotateCw,
-    FlipHorizontal
+    FlipHorizontal,
+    Minimize2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getAllDrawings, saveDrawing, deleteDrawing } from '../utils/supabaseUtilityDB';
@@ -320,6 +321,8 @@ export default function DrawingManager() {
     });
     const selectedDwg = drawings.find(d => d.id === selectedDwgId) || drawings[0];
     const [activeLayer, setActiveLayer] = useState('All Layers');
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const fullscreenRef = useRef(null);
 
     const [activeDimId, setActiveDimId] = useState(() => {
         const savedActive = localStorage.getItem('mavi_selected_dwg_id');
@@ -571,6 +574,29 @@ export default function DrawingManager() {
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('keyup', handleKeyUp);
         };
+    }, []);
+
+    // Toggle browser Fullscreen API
+    const toggleFullscreen = () => {
+        if (!document.fullscreenElement) {
+            fullscreenRef.current?.requestFullscreen?.().then(() => setIsFullscreen(true)).catch(() => {
+                // Fallback: use CSS fullscreen if API fails
+                setIsFullscreen(true);
+            });
+        } else {
+            document.exitFullscreen?.().then(() => setIsFullscreen(false));
+        }
+    };
+
+    // Sync state when user exits fullscreen via Esc (browser handles Esc natively)
+    useEffect(() => {
+        const onFsChange = () => {
+            if (!document.fullscreenElement) {
+                setIsFullscreen(false);
+            }
+        };
+        document.addEventListener('fullscreenchange', onFsChange);
+        return () => document.removeEventListener('fullscreenchange', onFsChange);
     }, []);
 
     // Auto-reveal QC Inspector panel when active dimension changes
@@ -4008,8 +4034,13 @@ export default function DrawingManager() {
     const totalFloorReal = scale ? (totalFloorPx * (scale ** 2)) / 1000000 : totalFloorPx;
 
     return (
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#f1f5f9', fontFamily: "'Inter', sans-serif" }}>
-            
+        <div ref={fullscreenRef} style={{
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            backgroundColor: '#f1f5f9',
+            fontFamily: "'Inter', sans-serif"
+        }}>            
             {/* Header */}
             <div style={{ padding: '12px 24px', backgroundColor: 'white', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                 <div>
@@ -4173,6 +4204,40 @@ export default function DrawingManager() {
                         )}
                         <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
                     </div>
+
+                    {/* Fullscreen Toggle Button */}
+                    <button
+                        onClick={toggleFullscreen}
+                        title={isFullscreen ? 'Keluar Fullscreen (Esc)' : 'Mode Fullscreen'}
+                        style={{
+                            padding: '8px',
+                            borderRadius: '8px',
+                            border: '1px solid #cbd5e1',
+                            backgroundColor: isFullscreen ? '#1e40af' : '#f8fafc',
+                            color: isFullscreen ? '#ffffff' : '#334155',
+                            cursor: 'pointer',
+                            transition: 'all 0.25s ease',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}
+                        onMouseEnter={(e) => {
+                            if (!isFullscreen) {
+                                e.currentTarget.style.backgroundColor = '#dbeafe';
+                                e.currentTarget.style.borderColor = '#3b82f6';
+                                e.currentTarget.style.color = '#1e40af';
+                            }
+                        }}
+                        onMouseLeave={(e) => {
+                            if (!isFullscreen) {
+                                e.currentTarget.style.backgroundColor = '#f8fafc';
+                                e.currentTarget.style.borderColor = '#cbd5e1';
+                                e.currentTarget.style.color = '#334155';
+                            }
+                        }}
+                    >
+                        {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                    </button>
 
                     {/* Drawing Management Dropdown Menu */}
                     <div style={{ position: 'relative' }} ref={mgmtMenuRef}>

@@ -18049,12 +18049,12 @@ const AppBuilder = () => {
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
                                                         <div style={{ padding: '12px', border: '1px solid var(--border-secondary)', borderRadius: '8px' }}>
                                                             <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>OpenCV Vision Properties</label>
-                                                            {selectedComp.props.cameraConfigId ? (() => {
+                                                            {selectedComp.props.cameraConfigId && (() => {
                                                                 const activeCam = builderCameras.find(c => c.id === selectedComp.props.cameraConfigId);
                                                                 const detectors = activeCam?.settings?.detectors || [];
                                                                 const regionsCount = activeCam?.settings?.regionsCount || activeCam?.settings?.regions?.length || 0;
                                                                 return (
-                                                                    <div style={{ padding: '10px', backgroundColor: 'var(--bg-panel)', borderRadius: '6px', border: '1px solid var(--border-primary)', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                                                    <div style={{ padding: '10px', backgroundColor: 'var(--bg-panel)', borderRadius: '6px', border: '1px solid var(--border-primary)', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>
                                                                         <div style={{ marginBottom: '8px' }}>
                                                                             <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '2px' }}>Monitored Regions</span>
                                                                             <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{regionsCount} Region(s) Registered</span>
@@ -18075,8 +18075,7 @@ const AppBuilder = () => {
                                                                         </div>
                                                                     </div>
                                                                 );
-                                                            })() : (
-                                                                <>
+                                                            })()}
                                                                     <div className="prop-group" style={{ marginBottom: '12px' }}>
                                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Vision Filter Type</label>
                                                                         <select
@@ -18503,8 +18502,6 @@ const AppBuilder = () => {
                                                                             </div>
                                                                         </div>
                                                                     )}
-                                                                </>
-                                                            )}
                                                         </div>
                                                     </div>
                                                 )}

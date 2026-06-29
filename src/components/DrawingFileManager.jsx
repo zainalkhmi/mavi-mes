@@ -18,7 +18,9 @@ import {
     Info,
     FileText,
     ArrowRight,
-    Search
+    Search,
+    Maximize2,
+    Minimize2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getAllDrawings, saveDrawing, deleteDrawing } from '../utils/supabaseUtilityDB';
@@ -133,6 +135,28 @@ export default function DrawingFileManager() {
     const fileInputRef = useRef(null);
     const fileSchemaRef = useRef(null);
     const globalMenuRef = useRef(null);
+    const fullscreenRef = useRef(null);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+
+    // Toggle browser Fullscreen API
+    const toggleFullscreen = () => {
+        if (!document.fullscreenElement) {
+            fullscreenRef.current?.requestFullscreen?.().then(() => setIsFullscreen(true)).catch(() => {
+                setIsFullscreen(true);
+            });
+        } else {
+            document.exitFullscreen?.().then(() => setIsFullscreen(false));
+        }
+    };
+
+    // Sync state when user exits fullscreen via Esc
+    useEffect(() => {
+        const onFsChange = () => {
+            if (!document.fullscreenElement) setIsFullscreen(false);
+        };
+        document.addEventListener('fullscreenchange', onFsChange);
+        return () => document.removeEventListener('fullscreenchange', onFsChange);
+    }, []);
 
     // Save drawings to localStorage on changes
     useEffect(() => {
@@ -474,7 +498,7 @@ export default function DrawingFileManager() {
     };
 
     return (
-        <div style={{ flex: 1, overflowY: 'auto', backgroundColor: '#f8fafc', padding: '24px', fontFamily: "'Inter', sans-serif" }}>
+        <div ref={fullscreenRef} style={{ flex: 1, overflowY: 'auto', backgroundColor: '#f8fafc', padding: '24px', fontFamily: "'Inter', sans-serif" }}>
             
             {/* Header Title */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
@@ -489,6 +513,42 @@ export default function DrawingFileManager() {
                         Unggah model blueprint CAD (.DXF, .SVG, .PDF) dan kelola daftar file gambar integrasi QMS Anda.
                     </p>
                 </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    {/* Fullscreen Toggle Button */}
+                    <button
+                        onClick={toggleFullscreen}
+                        title={isFullscreen ? 'Keluar Fullscreen (Esc)' : 'Mode Fullscreen'}
+                        style={{
+                            padding: '9px',
+                            borderRadius: '8px',
+                            border: '1px solid #cbd5e1',
+                            backgroundColor: isFullscreen ? '#1e40af' : 'white',
+                            color: isFullscreen ? '#ffffff' : '#334155',
+                            cursor: 'pointer',
+                            transition: 'all 0.25s ease',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                        }}
+                        onMouseEnter={(e) => {
+                            if (!isFullscreen) {
+                                e.currentTarget.style.backgroundColor = '#dbeafe';
+                                e.currentTarget.style.borderColor = '#3b82f6';
+                                e.currentTarget.style.color = '#1e40af';
+                            }
+                        }}
+                        onMouseLeave={(e) => {
+                            if (!isFullscreen) {
+                                e.currentTarget.style.backgroundColor = 'white';
+                                e.currentTarget.style.borderColor = '#cbd5e1';
+                                e.currentTarget.style.color = '#334155';
+                            }
+                        }}
+                    >
+                        {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                    </button>
 
                 {/* Global Actions dropdown */}
                 <div style={{ position: 'relative' }} ref={globalMenuRef}>
@@ -553,6 +613,7 @@ export default function DrawingFileManager() {
                             </button>
                         </div>
                     )}
+                </div>
                 </div>
             </div>
 
