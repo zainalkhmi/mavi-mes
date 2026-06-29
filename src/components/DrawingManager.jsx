@@ -319,6 +319,7 @@ export default function DrawingManager() {
         return drawings.length > 0 ? drawings[0].id : '';
     });
     const selectedDwg = drawings.find(d => d.id === selectedDwgId) || drawings[0];
+    const [activeLayer, setActiveLayer] = useState('All Layers');
 
     const [activeDimId, setActiveDimId] = useState(() => {
         const savedActive = localStorage.getItem('mavi_selected_dwg_id');
@@ -661,6 +662,7 @@ export default function DrawingManager() {
         setPanOffset({ x: 0, y: 0 });
         setZoom(1.0);
         setActiveTakeoffCategory(null);
+        setActiveLayer('All Layers');
     }, [selectedDwgId]);
 
     // PDF backdrop rendering state and effect
@@ -3401,6 +3403,8 @@ export default function DrawingManager() {
                     fileType: extension.toUpperCase(),
                     uploadedAt: new Date().toISOString(),
                     dimensions: result.dimensions,
+                    entities: result.entities || [],
+                    layers: result.layers || [],
                     dataUrl: result.rendered_image || dataUrl
                 };
 
@@ -3432,6 +3436,8 @@ export default function DrawingManager() {
                 const result = event.target.result || '';
                 const fileContent = extension === 'pdf' ? '' : result;
                 let extractedDims = [];
+                let newDwgEntities = [];
+                let newDwgLayers = [];
 
                 if (extension === 'svg') {
                     const circleRegex = /<circle[^>]*\sr="([^"]+)"[^>]*>/gi;
@@ -3477,20 +3483,87 @@ export default function DrawingManager() {
                         }
                     }
                 } else if (extension === 'dxf') {
-                    const circleMatches = fileContent.match(/CIRCLE[\s\S]*?\b40\s+([0-9.]+)/gi);
-                    if (circleMatches) {
-                        circleMatches.slice(0, 3).forEach((cm, idx) => {
-                            const radiusVal = parseFloat(cm.replace(/CIRCLE[\s\S]*?\b40\s+/, '').trim());
-                            if (!isNaN(radiusVal)) {
-                                extractedDims.push({
-                                    id: `dim_dxf_c_${idx}_${Date.now()}`, label: `Outer Flange Diameter ${idx + 1}`,
-                                    spec: (radiusVal * 2).toFixed(1), tolMin: parseFloat((radiusVal * 2 - 0.2).toFixed(2)), tolMax: parseFloat((radiusVal * 2 + 0.2).toFixed(2)),
-                                    variable: 'Meas_Diameter', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀',
-                                    x1: 240, y1: 170, x2: 240 + Math.round(radiusVal), y2: 170, lx: 240 + Math.round(radiusVal) + 15, ly: 170 + 20 * idx,
-                                });
-                            }
-                        });
+                    // Client-side lightweight DXF group code parser
+                    const lines = fileContent.split(/\r?\n/);
+                    const groups = [];
+                    for (let i = 0; i < lines.length; i += 2) {
+                        if (i + 1 >= lines.length) break;
+                        const code = parseInt(lines[i].trim(), 10);
+                        const value = lines[i+1].trim();
+                        groups.push({ code, value });
                     }
+                    
+                    const parsedEntities = [];
+                    const parsedLayers = new Set();
+                    let inEntitiesSec = false;
+                    let currentEnt = null;
+                    
+                    for (let i = 0; i < groups.length; i++) {
+                        const { code, value } = groups[i];
+                        if (code === 0 && value === 'SECTION') {
+                            const next = groups[i+1];
+                            if (next && next.code === 2 && next.value === 'ENTITIES') {
+                                inEntitiesSec = true;
+                                i++;
+                            }
+                        } else if (code === 0 && value === 'ENDSEC') {
+                            inEntitiesSec = false;
+                        }
+                        
+                        if (inEntitiesSec) {
+                            if (code === 0) {
+                                if (currentEnt) parsedEntities.push(currentEnt);
+                                if (['LINE', 'CIRCLE', 'ARC', 'TEXT', 'MTEXT'].includes(value)) {
+                                    currentEnt = { type: value, layer: '0' };
+                                } else {
+                                    currentEnt = null;
+                                }
+                            } else if (currentEnt) {
+                                switch (code) {
+                                    case 8: currentEnt.layer = value; parsedLayers.add(value); break;
+                                    case 10: currentEnt.x1 = parseFloat(value); currentEnt.cx = parseFloat(value); break;
+                                    case 20: currentEnt.y1 = parseFloat(value); currentEnt.cy = parseFloat(value); break;
+                                    case 30: currentEnt.z1 = parseFloat(value); currentEnt.cz = parseFloat(value); break;
+                                    case 11: currentEnt.x2 = parseFloat(value); break;
+                                    case 21: currentEnt.y2 = parseFloat(value); break;
+                                    case 31: currentEnt.z2 = parseFloat(value); break;
+                                    case 40: currentEnt.radius = parseFloat(value); break;
+                                    case 50: currentEnt.startAngle = parseFloat(value); break;
+                                    case 51: currentEnt.endAngle = parseFloat(value); break;
+                                    case 1: currentEnt.text = value; break;
+                                }
+                            }
+                        }
+                    }
+                    if (currentEnt) parsedEntities.push(currentEnt);
+                    
+                    // Create dimensions for circles
+                    const circleEnts = parsedEntities.filter(e => e.type === 'CIRCLE');
+                    circleEnts.slice(0, 3).forEach((c, idx) => {
+                        extractedDims.push({
+                            id: `dim_dxf_c_${idx}_${Date.now()}`,
+                            label: `Outer Flange Diameter ${idx + 1}`,
+                            spec: (c.radius * 2).toFixed(1),
+                            tolMin: parseFloat((c.radius * 2 - 0.2).toFixed(2)),
+                            tolMax: parseFloat((c.radius * 2 + 0.2).toFixed(2)),
+                            variable: 'Meas_Diameter',
+                            unit: 'mm',
+                            category: 'diameter',
+                            measureType: 'diameter',
+                            indicatorType: 'radial',
+                            gdt_symbol: '⌀',
+                            x1: c.cx - c.radius,
+                            y1: c.cy,
+                            x2: c.cx + c.radius,
+                            y2: c.cy,
+                            lx: c.cx,
+                            ly: c.cy - 15,
+                            layer: c.layer || "0"
+                        });
+                    });
+                    
+                    newDwgEntities = parsedEntities;
+                    newDwgLayers = Array.from(parsedLayers);
                 } else if (extension === 'dwg') {
                     // Fallback heuristics for DWG when backend is offline
                     extractedDims = [
@@ -3503,7 +3576,7 @@ export default function DrawingManager() {
                 setParseStatusText('Melakukan OCR & text parsing...');
 
                 // Fallback heuristics
-                if (extractedDims.length === 0) {
+                if (extractedDims.length === 0 && newDwgEntities.length === 0) {
                     const nameLower = file.name.toLowerCase();
                     if (nameLower.includes('shaft') || nameLower.includes('rod') || nameLower.includes('piston')) {
                         extractedDims = [
@@ -3526,6 +3599,55 @@ export default function DrawingManager() {
                     }
                 }
 
+                // Coordinate normalization for client side fallback
+                if (newDwgEntities && newDwgEntities.length > 0) {
+                    const allX = [];
+                    const allY = [];
+                    extractedDims.forEach(d => { allX.push(d.x1, d.x2); allY.push(d.y1, d.y2); });
+                    newDwgEntities.forEach(ent => {
+                        if (ent.type === 'LINE') { allX.push(ent.x1, ent.x2); allY.push(ent.y1, ent.y2); }
+                        else if (ent.type === 'CIRCLE' || ent.type === 'ARC') { allX.push(ent.cx - ent.radius, ent.cx + ent.radius); allY.push(ent.cy - ent.radius, ent.cy + ent.radius); }
+                        else if (ent.type === 'TEXT') { allX.push(ent.cx); allY.push(ent.cy); }
+                    });
+                    
+                    if (allX.length > 0 && allY.length > 0) {
+                        const minX = Math.min(...allX);
+                        const maxX = Math.max(...allX);
+                        const minY = Math.min(...allY);
+                        const maxY = Math.max(...allY);
+                        const spanX = (maxX !== minX) ? (maxX - minX) : 1.0;
+                        const spanY = (maxY !== minY) ? (maxY - minY) : 1.0;
+                        
+                        extractedDims.forEach(d => {
+                            d.x1 = 50 + ((d.x1 - minX) / spanX) * 400;
+                            d.x2 = 50 + ((d.x2 - minX) / spanX) * 400;
+                            d.y1 = 310 - ((d.y1 - minY) / spanY) * 260;
+                            d.y2 = 310 - ((d.y2 - minY) / spanY) * 260;
+                            d.lx = (d.x1 + d.x2) / 2;
+                            d.ly = (d.y1 + d.y2) / 2 - 15;
+                        });
+                        
+                        newDwgEntities.forEach(ent => {
+                            if (ent.type === 'LINE') {
+                                ent.x1 = 50 + ((ent.x1 - minX) / spanX) * 400;
+                                ent.x2 = 50 + ((ent.x2 - minX) / spanX) * 400;
+                                ent.y1 = 310 - ((ent.y1 - minY) / spanY) * 260;
+                                ent.y2 = 310 - ((ent.y2 - minY) / spanY) * 260;
+                            } else if (ent.type === 'CIRCLE' || ent.type === 'ARC') {
+                                ent.cx = 50 + ((ent.cx - minX) / spanX) * 400;
+                                ent.cy = 310 - ((ent.cy - minY) / spanY) * 260;
+                                const scaleX = 400 / spanX;
+                                const scaleY = 260 / spanY;
+                                const avgScale = (scaleX + scaleY) / 2;
+                                ent.radius = ent.radius * avgScale;
+                            } else if (ent.type === 'TEXT') {
+                                ent.cx = 50 + ((ent.cx - minX) / spanX) * 400;
+                                ent.cy = 310 - ((ent.cy - minY) / spanY) * 260;
+                            }
+                        });
+                    }
+                }
+
                 setParseProgress(95);
                 setParseStatusText('Membangun pemetaan koordinat interaktif...');
 
@@ -3538,6 +3660,8 @@ export default function DrawingManager() {
                         fileType: extension.toUpperCase(),
                         uploadedAt: new Date().toISOString(),
                         dimensions: extractedDims,
+                        entities: newDwgEntities,
+                        layers: newDwgLayers,
                         dataUrl: dataUrl
                     };
 
@@ -3907,6 +4031,7 @@ export default function DrawingManager() {
                             onChange={(e) => {
                                 const id = e.target.value;
                                 setSelectedDwgId(id);
+                                setActiveLayer('All Layers'); // Reset active layer on switch
                                 const dwg = drawings.find(d => d.id === id);
                                 if (dwg) {
                                     if (dwg.dimensions && dwg.dimensions.length > 0) {
@@ -3943,6 +4068,58 @@ export default function DrawingManager() {
                                 ))
                             )}
                         </select>
+                    </div>
+
+                    {/* AutoCAD Layer Selector */}
+                    {selectedDwg?.layers && selectedDwg.layers.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#64748b' }}>Layer:</span>
+                            <select
+                                value={activeLayer}
+                                onChange={(e) => setActiveLayer(e.target.value)}
+                                style={{
+                                    padding: '8px 12px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #cbd5e1',
+                                    backgroundColor: 'white',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 700,
+                                    color: '#0f766e',
+                                    outline: 'none',
+                                    cursor: 'pointer',
+                                    minWidth: '120px'
+                                }}
+                            >
+                                <option value="All Layers">All Layers (AutoCAD)</option>
+                                {selectedDwg.layers.map(layer => (
+                                    <option key={layer} value={layer}>{layer}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+                    {/* Prominent NEW Drawing Button */}
+                    <div>
+                        <button
+                            onClick={handleCreateBlankDrawing}
+                            style={{
+                                padding: '8px 14px',
+                                borderRadius: '8px',
+                                border: '1px solid #bfdbfe',
+                                backgroundColor: '#eff6ff',
+                                color: '#2563eb',
+                                fontSize: '0.78rem',
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#dbeafe'; e.currentTarget.style.borderColor = '#3b82f6'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#eff6ff'; e.currentTarget.style.borderColor = '#bfdbfe'; }}
+                        >
+                            <Plus size={14} strokeWidth={2.5} /> NEW
+                        </button>
                     </div>
 
                     {/* Compact Upload Button */}
@@ -5057,8 +5234,87 @@ export default function DrawingManager() {
                                         </g>
                                     ) : null}
 
+                                    {/* AutoCAD Vector Entities Rendering (DXF) */}
+                                    {selectedDwg?.entities && selectedDwg.entities.length > 0 && (
+                                        <g id="autocad_vector_entities">
+                                            {selectedDwg.entities
+                                                .filter(ent => activeLayer === 'All Layers' || ent.layer === activeLayer)
+                                                .map((ent, idx) => {
+                                                    const strokeColor = '#3b82f6';
+                                                    const strokeWidth = 1.0;
+                                                    
+                                                    if (ent.type === 'LINE') {
+                                                        return (
+                                                            <line
+                                                                key={`line_${idx}`}
+                                                                x1={ent.x1}
+                                                                y1={ent.y1}
+                                                                x2={ent.x2}
+                                                                y2={ent.y2}
+                                                                stroke={strokeColor}
+                                                                strokeWidth={strokeWidth}
+                                                            />
+                                                        );
+                                                    }
+                                                    if (ent.type === 'CIRCLE') {
+                                                        return (
+                                                            <circle
+                                                                key={`circle_${idx}`}
+                                                                cx={ent.cx}
+                                                                cy={ent.cy}
+                                                                r={ent.radius}
+                                                                fill="none"
+                                                                stroke={strokeColor}
+                                                                strokeWidth={strokeWidth}
+                                                            />
+                                                        );
+                                                    }
+                                                    if (ent.type === 'ARC') {
+                                                        const radStart = (ent.startAngle * Math.PI) / 180;
+                                                        const radEnd = (ent.endAngle * Math.PI) / 180;
+                                                        const x1 = ent.cx + ent.radius * Math.cos(radStart);
+                                                        const y1 = ent.cy - ent.radius * Math.sin(radStart);
+                                                        const x2 = ent.cx + ent.radius * Math.cos(radEnd);
+                                                        const y2 = ent.cy - ent.radius * Math.sin(radEnd);
+                                                        const largeArcFlag = (ent.endAngle - ent.startAngle + 360) % 360 <= 180 ? 0 : 1;
+                                                        const pathD = `M ${x1} ${y1} A ${ent.radius} ${ent.radius} 0 ${largeArcFlag} 0 ${x2} ${y2}`;
+                                                        return (
+                                                            <path
+                                                                key={`arc_${idx}`}
+                                                                d={pathD}
+                                                                fill="none"
+                                                                stroke={strokeColor}
+                                                                strokeWidth={strokeWidth}
+                                                            />
+                                                        );
+                                                    }
+                                                    if (ent.type === 'TEXT') {
+                                                        return (
+                                                            <text
+                                                                key={`text_${idx}`}
+                                                                x={ent.cx}
+                                                                y={ent.cy}
+                                                                fill="#475569"
+                                                                fontSize="8"
+                                                                fontFamily="monospace"
+                                                            >
+                                                                {ent.text}
+                                                            </text>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })}
+                                        </g>
+                                    )}
+
                                     {/* Dynamic Indicators */}
-                                    {selectedDwg && renderDimensionIndicators(selectedDwg.dimensions)}
+                                    {selectedDwg && renderDimensionIndicators(
+                                        selectedDwg.dimensions.filter(dim => 
+                                            activeLayer === 'All Layers' || 
+                                            dim.layer === activeLayer ||
+                                            !dim.id.startsWith('dim_dxf')
+                                        )
+                                    )}
 
                                     {/* Custom CAD Drawing Overlay */}
                                     {selectedDwg && (selectedDwg.shapes || []).map((shape) => {

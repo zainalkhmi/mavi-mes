@@ -2947,6 +2947,122 @@ function CameraRegionEditor({
     const [cameraLoading, setCameraLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
 
+    // Normalize regions to ensure all detectors are defined (backward compatibility)
+    useEffect(() => {
+        if (!camera.id || !regionsByCamera[camera.id]) return;
+        const currentRegions = regionsByCamera[camera.id];
+        let hasChanges = false;
+        
+        const normalized = currentRegions.map(r => {
+            let rChanged = false;
+            const updatedDetectors = { ...r.detectors };
+            
+            const defaults = {
+                changeDetector: {
+                    enabled: false,
+                    beginThreshold: 40,
+                    upperThreshold: 100,
+                    lowerThreshold: 10,
+                    adaptationSpeed: 'Medium',
+                    resetOnEnd: true,
+                    resetDuration: 0.50
+                },
+                colorDetector: {
+                    enabled: false,
+                    name: `${r.name} Color`,
+                    beginThreshold: 72,
+                    endThreshold: 66,
+                    targetColor: '#eab308',
+                    similarity: 0
+                },
+                jigDetector: {
+                    enabled: false,
+                    name: `${r.name} Jig`,
+                    markerType: 'ArUco',
+                    markerId: 0
+                },
+                ocrDetector: {
+                    enabled: false,
+                    name: `${r.name} OCR`,
+                    language: 'English',
+                    matchPattern: '',
+                    confidenceThreshold: 80
+                },
+                dimensionDetector: {
+                    enabled: false,
+                    name: `${r.name} Dimension`,
+                    referenceSize: 20,
+                    measureMode: 'Width',
+                    unit: 'mm',
+                    minArea: 100,
+                    cannyThreshold: 100,
+                    lsl: 19.5,
+                    usl: 20.5
+                },
+                aiDetector: {
+                    enabled: false,
+                    name: `${r.name} AI`,
+                    modelType: 'anomaly',
+                    modelName: 'default',
+                    anomalyThreshold: 0.5,
+                    expectedClass: 'ok',
+                    threshold: 0.5,
+                    defectAreaLimit: 100
+                },
+                countDetector: {
+                    enabled: false,
+                    name: `${r.name} Count`,
+                    targetClass: 'object',
+                    expectedCount: 1,
+                    confidenceThreshold: 50
+                },
+                barcode1dDetector: {
+                    enabled: false,
+                    name: `${r.name} Barcode`,
+                    barcodeType: 'ANY',
+                    expectedValue: ''
+                },
+                barcode2dDetector: {
+                    enabled: false,
+                    name: `${r.name} 2D Code`,
+                    codeType: 'ANY',
+                    expectedValue: ''
+                },
+                calibrationDetector: {
+                    enabled: false,
+                    name: `${r.name} Calibration`,
+                    calibrationType: 'Scale Factor',
+                    unit: 'mm'
+                }
+            };
+            
+            if (!r.detectors) {
+                r.detectors = {};
+                rChanged = true;
+            }
+            
+            Object.keys(defaults).forEach(key => {
+                if (!r.detectors[key]) {
+                    updatedDetectors[key] = defaults[key];
+                    rChanged = true;
+                }
+            });
+            
+            if (rChanged) {
+                hasChanges = true;
+                return { ...r, detectors: updatedDetectors };
+            }
+            return r;
+        });
+        
+        if (hasChanges) {
+            setRegionsByCamera(prev => ({
+                ...prev,
+                [camera.id]: normalized
+            }));
+        }
+    }, [camera.id]);
+
     // Camera Selection State
     const [availableCameras, setAvailableCameras] = useState([]);
     const [selectedCameraId, setSelectedCameraId] = useState('');
@@ -3095,6 +3211,10 @@ function CameraRegionEditor({
                 if (r.detectors?.ocrDetector?.enabled) activeDetectors.push('OCR Detector');
                 if (r.detectors?.dimensionDetector?.enabled) activeDetectors.push('Dimension Detector');
                 if (r.detectors?.aiDetector?.enabled) activeDetectors.push('AI Detector');
+                if (r.detectors?.countDetector?.enabled) activeDetectors.push('Count Detector');
+                if (r.detectors?.barcode1dDetector?.enabled) activeDetectors.push('1D Code Reader');
+                if (r.detectors?.barcode2dDetector?.enabled) activeDetectors.push('2D Code Reader');
+                if (r.detectors?.calibrationDetector?.enabled) activeDetectors.push('Calibration Tool');
             });
             const uniqueDets = [...new Set(activeDetectors)];
             if (uniqueDets.length === 0) uniqueDets.push('Change Detector');
@@ -3140,6 +3260,10 @@ function CameraRegionEditor({
                     if (r.detectors?.ocrDetector?.enabled) activeDetectors.push('OCR Detector');
                     if (r.detectors?.dimensionDetector?.enabled) activeDetectors.push('Dimension Detector');
                     if (r.detectors?.aiDetector?.enabled) activeDetectors.push('AI Detector');
+                    if (r.detectors?.countDetector?.enabled) activeDetectors.push('Count Detector');
+                    if (r.detectors?.barcode1dDetector?.enabled) activeDetectors.push('1D Code Reader');
+                    if (r.detectors?.barcode2dDetector?.enabled) activeDetectors.push('2D Code Reader');
+                    if (r.detectors?.calibrationDetector?.enabled) activeDetectors.push('Calibration Tool');
                 });
                 const uniqueDets = [...new Set(activeDetectors)];
                 if (uniqueDets.length === 0) uniqueDets.push('Change Detector');
@@ -4281,6 +4405,35 @@ function CameraRegionEditor({
                 ctx.fillStyle = '#ffffff';
                 ctx.fillText(labelText, labelX + 6, labelY + 14);
 
+                // Draw active detector icons at top-right of the region box
+                const activeIcons = [];
+                if (colorDet && colorDet.enabled) activeIcons.push('🎨');
+                if (changeDet && changeDet.enabled) activeIcons.push('⚡');
+                if (jigDet && jigDet.enabled) activeIcons.push('🧩');
+                if (ocrDet && ocrDet.enabled) activeIcons.push('📝');
+                if (dimDet && dimDet.enabled) activeIcons.push('📐');
+                if (region.detectors?.aiDetector?.enabled) activeIcons.push('🤖');
+                if (region.detectors?.countDetector?.enabled) activeIcons.push('🔢');
+                if (barcode1dDet && barcode1dDet.enabled) activeIcons.push('📊');
+                if (barcode2dDet && barcode2dDet.enabled) activeIcons.push('📱');
+                if (region.detectors?.calibrationDetector?.enabled) activeIcons.push('📏');
+                
+                if (activeIcons.length > 0) {
+                    ctx.font = '11px sans-serif';
+                    ctx.textAlign = 'right';
+                    
+                    const iconsText = activeIcons.join(' ');
+                    const pillWidth = ctx.measureText(iconsText).width + 10;
+                    const pillX = region.x + region.w - 6 - pillWidth;
+                    const pillY = region.y + 6;
+                    
+                    ctx.fillStyle = 'rgba(15, 23, 42, 0.65)';
+                    ctx.fillRect(pillX, pillY, pillWidth, 20);
+                    
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillText(iconsText, region.x + region.w - 11, pillY + 14);
+                }
+
                 // Selected region resize handles
                 if (isSelected) {
                     const handleSize = 6;
@@ -4898,19 +5051,102 @@ function CameraRegionEditor({
                 {/* Right: Tulip-style Region Configuration Panel */}
                 <div style={{ borderLeft: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: '#ffffff' }}>
                     {!selectedRegion ? (
-                        /* Empty state — Tulip-style */
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 32px', textAlign: 'center' }}>
-                            <div style={{ 
-                                width: '72px', height: '72px', border: '2px dashed #d1d5db', borderRadius: '12px', 
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px', color: '#d1d5db' 
-                            }}>
-                                <Maximize size={28} />
+                        regions.length === 0 ? (
+                            /* Empty state — Tulip-style */
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 32px', textAlign: 'center' }}>
+                                <div style={{ 
+                                    width: '72px', height: '72px', border: '2px dashed #d1d5db', borderRadius: '12px', 
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px', color: '#d1d5db' 
+                                }}>
+                                    <Maximize size={28} />
+                                </div>
+                                <h3 style={{ margin: '0 0 8px 0', fontSize: '0.95rem', fontWeight: 700, color: '#111827' }}>No region has been created</h3>
+                                <p style={{ margin: 0, fontSize: '0.8rem', color: '#6b7280', lineHeight: 1.5, maxWidth: '240px' }}>
+                                    Regions are areas of interests within which events such as color change can be detected. Drag anywhere on the Live Station View to create a new region. <a href="#learn" style={{ color: '#3b82f6', textDecoration: 'none', fontWeight: 600 }}>Learn more</a>
+                                </p>
                             </div>
-                            <h3 style={{ margin: '0 0 8px 0', fontSize: '0.95rem', fontWeight: 700, color: '#111827' }}>No region has been created</h3>
-                            <p style={{ margin: 0, fontSize: '0.8rem', color: '#6b7280', lineHeight: 1.5, maxWidth: '240px' }}>
-                                Regions are areas of interests within which events such as color change can be detected. Drag anywhere on the Live Station View to create a new region. <a href="#learn" style={{ color: '#3b82f6', textDecoration: 'none', fontWeight: 600 }}>Learn more</a>
-                            </p>
-                        </div>
+                        ) : (
+                            /* List of existing regions when regions exist but none is selected */
+                            <div className="custom-scrollbar" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '20px', overflowY: 'auto' }}>
+                                <h3 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#1e293b', marginBottom: '14px' }}>
+                                    Active Regions ({regions.length})
+                                </h3>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    {regions.map((r, idx) => {
+                                        // Find active detectors for this region
+                                        const activeDets = [];
+                                        if (r.detectors?.colorDetector?.enabled) activeDets.push('Color');
+                                        if (r.detectors?.changeDetector?.enabled) activeDets.push('Change');
+                                        if (r.detectors?.jigDetector?.enabled) activeDets.push('Jig');
+                                        if (r.detectors?.ocrDetector?.enabled) activeDets.push('OCR');
+                                        if (r.detectors?.dimensionDetector?.enabled) activeDets.push('Dimension');
+                                        if (r.detectors?.aiDetector?.enabled) activeDets.push('AI Anomaly');
+                                        if (r.detectors?.countDetector?.enabled) activeDets.push('Count');
+                                        if (r.detectors?.barcode1dDetector?.enabled) activeDets.push('Barcode 1D');
+                                        if (r.detectors?.barcode2dDetector?.enabled) activeDets.push('2D Code');
+                                        if (r.detectors?.calibrationDetector?.enabled) activeDets.push('Calibration');
+                                        
+                                        return (
+                                            <div
+                                                key={r.id}
+                                                onClick={() => setSelectedRegionId(r.id)}
+                                                style={{
+                                                    padding: '12px 16px',
+                                                    borderRadius: '8px',
+                                                    border: '1px solid #e2e8f0',
+                                                    backgroundColor: '#ffffff',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.15s',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    gap: '6px'
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.currentTarget.style.borderColor = '#3b82f6';
+                                                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.borderColor = '#e2e8f0';
+                                                    e.currentTarget.style.boxShadow = 'none';
+                                                }}
+                                            >
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                                                        {r.name}
+                                                    </span>
+                                                    <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>
+                                                        {r.w}x{r.h} px
+                                                    </span>
+                                                </div>
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                                    {activeDets.length === 0 ? (
+                                                        <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                                                            No active detectors
+                                                        </span>
+                                                    ) : (
+                                                        activeDets.map(detName => (
+                                                            <span
+                                                                key={detName}
+                                                                style={{
+                                                                    padding: '2px 6px',
+                                                                    borderRadius: '4px',
+                                                                    fontSize: '0.65rem',
+                                                                    fontWeight: 600,
+                                                                    backgroundColor: '#f1f5f9',
+                                                                    color: '#475569'
+                                                                }}
+                                                            >
+                                                                {detName}
+                                                            </span>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )
                     ) : (
                         /* Tulip-style Region configuration panel */
                         <div className="custom-scrollbar" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
@@ -6000,8 +6236,7 @@ function CameraRegionEditor({
                                                 )}
                                             </div>
                                         )}
-
-                                        {/* 8. 1D Code Reader */}
+                                                  {/* 8. 1D Code Reader */}
                                         {selectedRegion.detectors?.barcode1dDetector?.enabled && (
                                             <div style={{ borderBottom: '1px solid #f1f5f9' }}>
                                                 <div 
@@ -6009,23 +6244,23 @@ function CameraRegionEditor({
                                                         display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
                                                         padding: '12px 20px', cursor: 'pointer', transition: 'background-color 0.15s',
                                                         backgroundColor: barcode1dDetectorExpanded ? '#f8fafc' : 'transparent'
-                                                    }}
+                                                     }}
                                                     onClick={() => setBarcode1dDetectorExpanded(prev => !prev)}
                                                 >
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                                         {barcode1dDetectorExpanded ? <ChevronDown size={14} color="#64748b" /> : <ChevronDown size={14} color="#64748b" style={{ transform: 'rotate(-90deg)', transition: 'transform 0.15s' }} />}
                                                         <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#3b82f6' }} />
                                                         <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
-                                                            {selectedRegion.detectors.barcode1dDetector.name || `${selectedRegion.name} Barcode`}
+                                                            {selectedRegion.detectors?.barcode1dDetector?.name || `${selectedRegion.name} Barcode`}
                                                         </span>
                                                     </div>
                                                     <button
                                                         onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (confirm('Remove Barcode Reader from this region?')) {
-                                                                toggleDetector(selectedRegion.id, 'barcode1dDetector', false);
-                                                            }
-                                                        }}
+                                                             e.stopPropagation();
+                                                             if (confirm('Remove Barcode Reader from this region?')) {
+                                                                 toggleDetector(selectedRegion.id, 'barcode1dDetector', false);
+                                                             }
+                                                         }}
                                                         style={{ border: 'none', backgroundColor: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', padding: '4px', borderRadius: '4px', transition: 'all 0.15s' }}
                                                         title="Remove Detector"
                                                         onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
@@ -6034,13 +6269,13 @@ function CameraRegionEditor({
                                                         <Trash2 size={14} />
                                                     </button>
                                                 </div>
-
+ 
                                                 {barcode1dDetectorExpanded && (
                                                     <div style={{ padding: '12px 20px 18px 44px', display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: '#f8fafc' }}>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                                                             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Symbology Filter</span>
                                                             <select
-                                                                value={selectedRegion.detectors.barcode1dDetector.barcodeType || 'ANY'}
+                                                                value={selectedRegion.detectors?.barcode1dDetector?.barcodeType || 'ANY'}
                                                                 onChange={(e) => updateGenericDetectorSetting(selectedRegion.id, 'barcode1dDetector', 'barcodeType', e.target.value)}
                                                                 style={{ padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.82rem', backgroundColor: 'white', width: '100%', outline: 'none' }}
                                                             >
@@ -6055,7 +6290,7 @@ function CameraRegionEditor({
                                                             <input
                                                                 type="text"
                                                                 placeholder="e.g. PROD-* (Optional)"
-                                                                value={selectedRegion.detectors.barcode1dDetector.expectedValue || ''}
+                                                                value={selectedRegion.detectors?.barcode1dDetector?.expectedValue || ''}
                                                                 onChange={(e) => updateGenericDetectorSetting(selectedRegion.id, 'barcode1dDetector', 'expectedValue', e.target.value)}
                                                                 style={{ padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.82rem', width: '100%', outline: 'none' }}
                                                             />
@@ -6064,7 +6299,7 @@ function CameraRegionEditor({
                                                 )}
                                             </div>
                                         )}
-
+ 
                                         {/* 9. 2D Code Reader */}
                                         {selectedRegion.detectors?.barcode2dDetector?.enabled && (
                                             <div style={{ borderBottom: '1px solid #f1f5f9' }}>
@@ -6073,23 +6308,23 @@ function CameraRegionEditor({
                                                         display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
                                                         padding: '12px 20px', cursor: 'pointer', transition: 'background-color 0.15s',
                                                         backgroundColor: barcode2dDetectorExpanded ? '#f8fafc' : 'transparent'
-                                                    }}
+                                                     }}
                                                     onClick={() => setBarcode2dDetectorExpanded(prev => !prev)}
                                                 >
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                                         {barcode2dDetectorExpanded ? <ChevronDown size={14} color="#64748b" /> : <ChevronDown size={14} color="#64748b" style={{ transform: 'rotate(-90deg)', transition: 'transform 0.15s' }} />}
                                                         <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#3b82f6' }} />
                                                         <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
-                                                            {selectedRegion.detectors.barcode2dDetector.name || `${selectedRegion.name} 2D Code`}
+                                                            {selectedRegion.detectors?.barcode2dDetector?.name || `${selectedRegion.name} 2D Code`}
                                                         </span>
                                                     </div>
                                                     <button
                                                         onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (confirm('Remove 2D Code Reader from this region?')) {
-                                                                toggleDetector(selectedRegion.id, 'barcode2dDetector', false);
-                                                            }
-                                                        }}
+                                                             e.stopPropagation();
+                                                             if (confirm('Remove 2D Code Reader from this region?')) {
+                                                                 toggleDetector(selectedRegion.id, 'barcode2dDetector', false);
+                                                             }
+                                                         }}
                                                         style={{ border: 'none', backgroundColor: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', padding: '4px', borderRadius: '4px', transition: 'all 0.15s' }}
                                                         title="Remove Detector"
                                                         onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
@@ -6098,13 +6333,13 @@ function CameraRegionEditor({
                                                         <Trash2 size={14} />
                                                     </button>
                                                 </div>
-
+ 
                                                 {barcode2dDetectorExpanded && (
                                                     <div style={{ padding: '12px 20px 18px 44px', display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: '#f8fafc' }}>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                                                             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Code Format</span>
                                                             <select
-                                                                value={selectedRegion.detectors.barcode2dDetector.codeType || 'ANY'}
+                                                                value={selectedRegion.detectors?.barcode2dDetector?.codeType || 'ANY'}
                                                                 onChange={(e) => updateGenericDetectorSetting(selectedRegion.id, 'barcode2dDetector', 'codeType', e.target.value)}
                                                                 style={{ padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.82rem', backgroundColor: 'white', width: '100%', outline: 'none' }}
                                                             >
@@ -6118,7 +6353,7 @@ function CameraRegionEditor({
                                                             <input
                                                                 type="text"
                                                                 placeholder="e.g. SN-*"
-                                                                value={selectedRegion.detectors.barcode2dDetector.expectedValue || ''}
+                                                                value={selectedRegion.detectors?.barcode2dDetector?.expectedValue || ''}
                                                                 onChange={(e) => updateGenericDetectorSetting(selectedRegion.id, 'barcode2dDetector', 'expectedValue', e.target.value)}
                                                                 style={{ padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.82rem', width: '100%', outline: 'none' }}
                                                             />
@@ -6127,7 +6362,7 @@ function CameraRegionEditor({
                                                 )}
                                             </div>
                                         )}
-
+ 
                                         {/* 10. Calibration Tool */}
                                         {selectedRegion.detectors?.calibrationDetector?.enabled && (
                                             <div style={{ borderBottom: '1px solid #f1f5f9' }}>
@@ -6136,23 +6371,23 @@ function CameraRegionEditor({
                                                         display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
                                                         padding: '12px 20px', cursor: 'pointer', transition: 'background-color 0.15s',
                                                         backgroundColor: calibrationDetectorExpanded ? '#f8fafc' : 'transparent'
-                                                    }}
+                                                     }}
                                                     onClick={() => setCalibrationDetectorExpanded(prev => !prev)}
                                                 >
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                                         {calibrationDetectorExpanded ? <ChevronDown size={14} color="#64748b" /> : <ChevronDown size={14} color="#64748b" style={{ transform: 'rotate(-90deg)', transition: 'transform 0.15s' }} />}
                                                         <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#3b82f6' }} />
                                                         <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
-                                                            {selectedRegion.detectors.calibrationDetector.name || `${selectedRegion.name} Calibration`}
+                                                            {selectedRegion.detectors?.calibrationDetector?.name || `${selectedRegion.name} Calibration`}
                                                         </span>
                                                     </div>
                                                     <button
                                                         onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (confirm('Remove Calibration Tool from this region?')) {
-                                                                toggleDetector(selectedRegion.id, 'calibrationDetector', false);
-                                                            }
-                                                        }}
+                                                             e.stopPropagation();
+                                                             if (confirm('Remove Calibration Tool from this region?')) {
+                                                                 toggleDetector(selectedRegion.id, 'calibrationDetector', false);
+                                                             }
+                                                         }}
                                                         style={{ border: 'none', backgroundColor: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', padding: '4px', borderRadius: '4px', transition: 'all 0.15s' }}
                                                         title="Remove Detector"
                                                         onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
@@ -6161,13 +6396,13 @@ function CameraRegionEditor({
                                                         <Trash2 size={14} />
                                                     </button>
                                                 </div>
-
+ 
                                                 {calibrationDetectorExpanded && (
                                                     <div style={{ padding: '12px 20px 18px 44px', display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: '#f8fafc' }}>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                                                             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Calibration Type</span>
                                                             <select
-                                                                value={selectedRegion.detectors.calibrationDetector.calibrationType || 'Scale Factor'}
+                                                                value={selectedRegion.detectors?.calibrationDetector?.calibrationType || 'Scale Factor'}
                                                                 onChange={(e) => updateGenericDetectorSetting(selectedRegion.id, 'calibrationDetector', 'calibrationType', e.target.value)}
                                                                 style={{ padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.82rem', backgroundColor: 'white', width: '100%', outline: 'none' }}
                                                             >

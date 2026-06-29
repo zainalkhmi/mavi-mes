@@ -1096,6 +1096,11 @@ async def parse_blueprint(file: UploadFile = File(...)):
             msp = doc.modelspace()
             dimensions = []
             
+            # Extract AutoCAD Layers
+            layers = set()
+            for layer in doc.layers:
+                layers.add(layer.dxf.name)
+            
             # 1. Parse DIMENSION entities
             for idx, entity in enumerate(msp.query("DIMENSION")):
                 try:
@@ -1142,7 +1147,8 @@ async def parse_blueprint(file: UploadFile = File(...)):
                         "gdt_symbol": "",
                         "x1": float(x1), "y1": float(y1),
                         "x2": float(x2), "y2": float(y2),
-                        "lx": float((x1 + x2) / 2), "ly": float((y1 + y2) / 2 + 10)
+                        "lx": float((x1 + x2) / 2), "ly": float((y1 + y2) / 2 + 10),
+                        "layer": entity.dxf.layer if hasattr(entity.dxf, 'layer') else "0"
                     })
                 except Exception as ex:
                     print(f"Error parsing dxf dimension: {ex}")
@@ -1169,31 +1175,115 @@ async def parse_blueprint(file: UploadFile = File(...)):
                             "gdt_symbol": "⌀",
                             "x1": float(cx - radius), "y1": float(cy),
                             "x2": float(cx + radius), "y2": float(cy),
-                            "lx": float(cx), "ly": float(cy)
+                            "lx": float(cx), "ly": float(cy),
+                            "layer": entity.dxf.layer if hasattr(entity.dxf, 'layer') else "0"
                         })
                     except Exception as ex:
                         print(f"Error parsing dxf circle: {ex}")
-                        
-            # Normalize coordinates to fit React canvas 500x360
-            if dimensions:
-                all_x = []
-                all_y = []
+            
+            # Parse AutoCAD Drawing Entities (LINE, CIRCLE, ARC, TEXT)
+            entities = []
+            
+            # Lines
+            for line in msp.query("LINE"):
+                entities.append({
+                    "type": "LINE",
+                    "layer": line.dxf.layer if hasattr(line.dxf, 'layer') else "0",
+                    "x1": float(line.dxf.start.x),
+                    "y1": float(line.dxf.start.y),
+                    "x2": float(line.dxf.end.x),
+                    "y2": float(line.dxf.end.y)
+                })
+            
+            # Circles
+            for circle in msp.query("CIRCLE"):
+                entities.append({
+                    "type": "CIRCLE",
+                    "layer": circle.dxf.layer if hasattr(circle.dxf, 'layer') else "0",
+                    "cx": float(circle.dxf.center.x),
+                    "cy": float(circle.dxf.center.y),
+                    "radius": float(circle.dxf.radius)
+                })
+                
+            # Arcs
+            for arc in msp.query("ARC"):
+                entities.append({
+                    "type": "ARC",
+                    "layer": arc.dxf.layer if hasattr(arc.dxf, 'layer') else "0",
+                    "cx": float(arc.dxf.center.x),
+                    "cy": float(arc.dxf.center.y),
+                    "radius": float(arc.dxf.radius),
+                    "startAngle": float(arc.dxf.start_angle),
+                    "endAngle": float(arc.dxf.end_angle)
+                })
+                
+            # Texts
+            for text in msp.query("TEXT"):
+                entities.append({
+                    "type": "TEXT",
+                    "layer": text.dxf.layer if hasattr(text.dxf, 'layer') else "0",
+                    "cx": float(text.dxf.insert.x),
+                    "cy": float(text.dxf.insert.y),
+                    "text": text.dxf.text
+                })
+            for mtext in msp.query("MTEXT"):
+                entities.append({
+                    "type": "TEXT",
+                    "layer": mtext.dxf.layer if hasattr(mtext.dxf, 'layer') else "0",
+                    "cx": float(mtext.dxf.insert.x),
+                    "cy": float(mtext.dxf.insert.y),
+                    "text": mtext.text
+                })
+
+            # Bounding box calculation for normalization
+            all_x = []
+            all_y = []
+            for d in dimensions:
+                all_x.extend([d["x1"], d["x2"]])
+                all_y.extend([d["y1"], d["y2"]])
+            for ent in entities:
+                if ent["type"] == "LINE":
+                    all_x.extend([ent["x1"], ent["x2"]])
+                    all_y.extend([ent["y1"], ent["y2"]])
+                elif ent["type"] in ("CIRCLE", "ARC"):
+                    all_x.extend([ent["cx"] - ent["radius"], ent["cx"] + ent["radius"]])
+                    all_y.extend([ent["cy"] - ent["radius"], ent["cy"] + ent["radius"]])
+                elif ent["type"] == "TEXT":
+                    all_x.append(ent["cx"])
+                    all_y.append(ent["cy"])
+
+            if all_x and all_y:
+                min_x, max_x = min(all_x), max(all_x)
+                min_y, max_y = min(all_y), max(all_y)
+                span_x = max_x - min_x if max_x != min_x else 1.0
+                span_y = max_y - min_y if max_y != min_y else 1.0
+                
+                # Normalize dimensions (flipping Y axis because AutoCAD is Y-Up, SVG is Y-Down)
                 for d in dimensions:
-                    all_x.extend([d["x1"], d["x2"]])
-                    all_y.extend([d["y1"], d["y2"]])
-                if all_x and all_y:
-                    min_x, max_x = min(all_x), max(all_x)
-                    min_y, max_y = min(all_y), max(all_y)
-                    span_x = max_x - min_x if max_x != min_x else 1.0
-                    span_y = max_y - min_y if max_y != min_y else 1.0
+                    d["x1"] = 50 + ((d["x1"] - min_x) / span_x) * 400
+                    d["x2"] = 50 + ((d["x2"] - min_x) / span_x) * 400
+                    d["y1"] = 310 - ((d["y1"] - min_y) / span_y) * 260
+                    d["y2"] = 310 - ((d["y2"] - min_y) / span_y) * 260
+                    d["lx"] = (d["x1"] + d["x2"]) / 2
+                    d["ly"] = (d["y1"] + d["y2"]) / 2 - 15
                     
-                    for d in dimensions:
-                        d["x1"] = 50 + ((d["x1"] - min_x) / span_x) * 400
-                        d["x2"] = 50 + ((d["x2"] - min_x) / span_x) * 400
-                        d["y1"] = 50 + ((d["y1"] - min_y) / span_y) * 260
-                        d["y2"] = 50 + ((d["y2"] - min_y) / span_y) * 260
-                        d["lx"] = (d["x1"] + d["x2"]) / 2
-                        d["ly"] = (d["y1"] + d["y2"]) / 2 - 15
+                # Normalize entities
+                for ent in entities:
+                    if ent["type"] == "LINE":
+                        ent["x1"] = 50 + ((ent["x1"] - min_x) / span_x) * 400
+                        ent["x2"] = 50 + ((ent["x2"] - min_x) / span_x) * 400
+                        ent["y1"] = 310 - ((ent["y1"] - min_y) / span_y) * 260
+                        ent["y2"] = 310 - ((ent["y2"] - min_y) / span_y) * 260
+                    elif ent["type"] in ("CIRCLE", "ARC"):
+                        ent["cx"] = 50 + ((ent["cx"] - min_x) / span_x) * 400
+                        ent["cy"] = 310 - ((ent["cy"] - min_y) / span_y) * 260
+                        scale_x = 400 / span_x
+                        scale_y = 260 / span_y
+                        avg_scale = (scale_x + scale_y) / 2
+                        ent["radius"] = ent["radius"] * avg_scale
+                    elif ent["type"] == "TEXT":
+                        ent["cx"] = 50 + ((ent["cx"] - min_x) / span_x) * 400
+                        ent["cy"] = 310 - ((ent["cy"] - min_y) / span_y) * 260
             
             if not dimensions:
                 dimensions = [
@@ -1210,13 +1300,19 @@ async def parse_blueprint(file: UploadFile = File(...)):
                         "indicatorType": "horizontal",
                         "gdt_symbol": "",
                         "x1": 100, "y1": 180, "x2": 400, "y2": 180,
-                        "lx": 250, "ly": 170
+                        "lx": 250, "ly": 170,
+                        "layer": "0"
                     }
                 ]
                 
-            return {"success": True, "dimensions": dimensions}
+            return {
+                "success": True, 
+                "dimensions": dimensions, 
+                "entities": entities, 
+                "layers": sorted(list(layers))
+            }
         except Exception as e:
-            return {"success": False, "error": f"Failed to parse DXF file: {str(e)}", "dimensions": []}
+            return {"success": False, "error": f"Failed to parse DXF file: {str(e)}", "dimensions": [], "entities": [], "layers": []}
             
     elif filename.endswith(".pdf"):
         # PDF Parsing
@@ -3682,20 +3778,55 @@ async def cv_barcode(file: UploadFile = File(...)):
         
         try:
             from pyzbar import pyzbar
+            
+            # Preprocessing pipeline to handle low-resolution, blurry, or low-contrast barcodes
+            scale_factor = 1.0
             decoded_objects = pyzbar.decode(img)
             
+            # Step 2: Try Grayscale
+            if not decoded_objects:
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                decoded_objects = pyzbar.decode(gray)
+                
+            # Step 3: Try 2x Upscaling (helps with small/blurry barcodes in cropped region)
+            if not decoded_objects:
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                resized = cv2.resize(gray, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
+                decoded_objects = pyzbar.decode(resized)
+                if decoded_objects:
+                    scale_factor = 2.0
+                    
+            # Step 4: Try Binarization (Otsu Thresholding) on Upscaled Grayscale
+            if not decoded_objects:
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                resized = cv2.resize(gray, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
+                _, binarized = cv2.threshold(resized, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                decoded_objects = pyzbar.decode(binarized)
+                if decoded_objects:
+                    scale_factor = 2.0
+
+            # Step 5: Try Bilateral Filtering (removes noise while preserving edges) + Otsu
+            if not decoded_objects:
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                filtered = cv2.bilateralFilter(gray, 9, 75, 75)
+                resized = cv2.resize(filtered, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
+                _, binarized = cv2.threshold(resized, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                decoded_objects = pyzbar.decode(binarized)
+                if decoded_objects:
+                    scale_factor = 2.0
+            
             for obj in decoded_objects:
-                # Get bounding box
+                # Get bounding box and adjust coordinates based on scale_factor
                 points = obj.polygon
                 if len(points) == 4:
-                    pts = np.array([(p.x, p.y) for p in points], dtype=np.int32)
+                    pts = np.array([(int(p.x / scale_factor), int(p.y / scale_factor)) for p in points], dtype=np.int32)
                 else:
                     rect = obj.rect
                     pts = np.array([
-                        [rect.left, rect.top],
-                        [rect.left + rect.width, rect.top],
-                        [rect.left + rect.width, rect.top + rect.height],
-                        [rect.left, rect.top + rect.height]
+                        [int(rect.left / scale_factor), int(rect.top / scale_factor)],
+                        [int((rect.left + rect.width) / scale_factor), int(rect.top / scale_factor)],
+                        [int((rect.left + rect.width) / scale_factor), int((rect.top + rect.height) / scale_factor)],
+                        [int(rect.left / scale_factor), int((rect.top + rect.height) / scale_factor)]
                     ], dtype=np.int32)
                 
                 # Draw polygon
