@@ -3295,6 +3295,43 @@ const LiveTerminal = () => {
     return 'none';
   }, [isPreset, isDark]);
 
+  const renderComponentInColumn = (comp, idx) => {
+    const err = validationErrors[comp?.id];
+    const heightStyle = comp?.h ? `${comp.h}px` : 'auto';
+    return (
+      <div
+        key={comp?.id || idx}
+        id={comp?.id ? `terminal-comp-${comp.id}` : undefined}
+        ref={(el) => { if (comp?.id) widgetContainerRefs.current[comp.id] = el; }}
+        className={comp?.props?.isBlinking ? 'animate-blink' : ''}
+        style={{
+          width: '100%',
+          height: heightStyle,
+          marginBottom: '16px',
+          position: 'relative',
+          flexShrink: 0
+        }}
+      >
+        <div style={{
+          border: err ? '2px solid #ef4444' : 'none',
+          borderRadius: '8px',
+          padding: err ? '10px' : 0,
+          backgroundColor: err ? '#fee2e2' : 'transparent',
+          height: '100%',
+          position: 'relative',
+          boxSizing: 'border-box'
+        }}>
+          {renderComponent(comp)}
+        </div>
+        {err && (
+          <div style={{ marginTop: '6px', fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>
+            {err}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // --- OBD2 INTEGRATION ---
   useEffect(() => {
     const unsubStatus = obd2Service.subscribeStatus(s => setObd2Status(s));
@@ -12657,98 +12694,156 @@ const LiveTerminal = () => {
                   : (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f1f5f9')
               }}
             >
-              {/* Scaled Layout Wrapper */}
-              <div style={{
-                width: (effectiveScalingMode === 'FIT_WIDTH') ? '100%' : `${layoutWidth * scaleX}px`,
-                height: `${layoutHeight * scaleY}px`,
-                position: 'relative',
-                overflow: 'hidden',
-                flexShrink: 0,
-                flex: 'none',
-                backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff',
-                borderRadius: (isPreset && effectiveScalingMode === 'FIT_SCREEN') ? canvasFrameRadius : '0px',
-                boxShadow: (isPreset && effectiveScalingMode === 'FIT_SCREEN') ? canvasFrameShadow : 'none',
-                border: (isPreset && effectiveScalingMode === 'FIT_SCREEN') ? canvasFrameBorder : 'none'
-              }}>
-                {/* App Components Render */}
-                <div id="terminal-canvas-content" style={{
-                  width: `${layoutWidth}px`,
-                  height: `${layoutHeight}px`,
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  transform: `scale(${scaleX}, ${scaleY})`,
-                  transformOrigin: 'top left',
+              {isResponsiveMode ? (
+                /* RESPONSIVE FLEXBOX 2-COLUMN SPLIT LAYOUT (Tulip-Style) */
+                <div style={{
+                  display: 'flex',
+                  width: '100%',
+                  height: '100%',
+                  gap: '24px',
+                  padding: '24px',
+                  boxSizing: 'border-box',
+                  overflowY: 'auto',
                   backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff'
                 }}>
-                  {/* App Components Render */}
-                  {appComponents.length > 0 ? (
-                    <div style={{
-                      position: 'relative',
-                      width: '100%',
-                      height: '100%'
-                    }}>
-                      {[...appComponents]
+                  {/* Left Column (Main instructions, tables, content) */}
+                  <div style={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minWidth: '320px',
+                    height: '100%',
+                    overflowY: 'auto',
+                    paddingRight: '4px'
+                  }}>
+                    {appComponents.length > 0 ? (
+                      appComponents
                         .filter(c => visibilityMap[c.id] !== false)
                         .sort((a, b) => (a.props?.zIndex || 0) - (b.props?.zIndex || 0))
-                        .map((comp, idx) => {
-                          const isAbsolute = comp.x != null && comp.y != null;
+                        .filter(c => c.x == null || c.x < layoutWidth / 2)
+                        .map((comp, idx) => renderComponentInColumn(comp, idx))
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '30px', marginTop: '40px' }}>
+                        <img src="/assets/assembly_procedure.png" style={{ maxWidth: '100%', borderRadius: '4px' }} alt="Visual" />
+                        <p style={{ textAlign: 'center', color: '#475569', fontSize: '1.1rem', lineHeight: '1.6' }}>
+                          {activeStep?.description || "Follow the standard procedure defined for this assembly step."}
+                        </p>
+                      </div>
+                    )}
+                  </div>
 
-                          const containerStyle = isAbsolute ? {
-                            position: 'absolute',
-                            left: `${comp.x}px`,
-                            top: `${comp.y}px`,
-                            width: comp.w ? `${comp.w}px` : 'auto',
-                            height: comp.h ? `${comp.h}px` : 'auto',
-                            zIndex: comp.props?.zIndex || 100,
-                            transform: `rotate(${comp.props?.rotation || 0}deg)`,
-                            overflow: 'visible' // Allow labels/shadows to show
-                          } : {
-                            width: '100%',
-                            transform: `rotate(${comp.props?.rotation || 0}deg)`,
-                            marginBottom: '20px',
-                            position: 'relative'
-                          };
-
-                          const err = validationErrors[comp.id];
-                          return (
-                            <div
-                              key={comp.id || idx}
-                              id={comp.id ? `terminal-comp-${comp.id}` : undefined}
-                              ref={(el) => { if (comp?.id) widgetContainerRefs.current[comp.id] = el; }}
-                              className={comp.props?.isBlinking ? 'animate-blink' : ''}
-                              style={containerStyle}
-                            >
-                              <div style={{
-                                border: err ? '2px solid #ef4444' : 'none',
-                                borderRadius: '8px',
-                                padding: err ? '10px' : 0,
-                                backgroundColor: err ? '#fee2e2' : 'transparent',
-                                height: isAbsolute ? '100%' : 'auto',
-                                position: 'relative',
-                                boxSizing: 'border-box'
-                              }}>
-                                {renderComponent(comp)}
-                              </div>
-                              {err && (
-                                <div style={{ marginTop: '6px', fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>
-                                  {err}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '30px', marginTop: '40px' }}>
-                      <img src="/assets/assembly_procedure.png" style={{ maxWidth: '100%', borderRadius: '4px' }} alt="Visual" />
-                      <p style={{ textAlign: 'center', color: '#475569', fontSize: '1.1rem', lineHeight: '1.6' }}>
-                        {activeStep?.description || "Follow the standard procedure defined for this assembly step."}
-                      </p>
+                  {/* Right Column (Cams, trigger buttons, form inputs) */}
+                  {appComponents.filter(c => visibilityMap[c.id] !== false && c.x != null && c.x >= layoutWidth / 2).length > 0 && (
+                    <div style={{
+                      width: '450px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      height: '100%',
+                      overflowY: 'auto',
+                      borderLeft: selectedApp?.config?.appThemeMode === 'DARK' ? '1px solid #334155' : '1px solid #e2e8f0',
+                      paddingLeft: '24px',
+                      flexShrink: 0
+                    }}>
+                      {appComponents
+                        .filter(c => visibilityMap[c.id] !== false)
+                        .sort((a, b) => (a.props?.zIndex || 0) - (b.props?.zIndex || 0))
+                        .filter(c => c.x != null && c.x >= layoutWidth / 2)
+                        .map((comp, idx) => renderComponentInColumn(comp, idx))}
                     </div>
                   )}
                 </div>
-              </div>
+              ) : (
+                /* FIXED CANVAS SCALED LAYOUT */
+                <div style={{
+                  width: (effectiveScalingMode === 'FIT_WIDTH') ? '100%' : `${layoutWidth * scaleX}px`,
+                  height: `${layoutHeight * scaleY}px`,
+                  position: 'relative',
+                  overflow: 'hidden',
+                  flexShrink: 0,
+                  flex: 'none',
+                  backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff',
+                  borderRadius: (isPreset && effectiveScalingMode === 'FIT_SCREEN') ? canvasFrameRadius : '0px',
+                  boxShadow: (isPreset && effectiveScalingMode === 'FIT_SCREEN') ? canvasFrameShadow : 'none',
+                  border: (isPreset && effectiveScalingMode === 'FIT_SCREEN') ? canvasFrameBorder : 'none'
+                }}>
+                  <div id="terminal-canvas-content" style={{
+                    width: `${layoutWidth}px`,
+                    height: `${layoutHeight}px`,
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    transform: `scale(${scaleX}, ${scaleY})`,
+                    transformOrigin: 'top left',
+                    backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff'
+                  }}>
+                    {appComponents.length > 0 ? (
+                      <div style={{
+                        position: 'relative',
+                        width: '100%',
+                        height: '100%'
+                      }}>
+                        {[...appComponents]
+                          .filter(c => visibilityMap[c.id] !== false)
+                          .sort((a, b) => (a.props?.zIndex || 0) - (b.props?.zIndex || 0))
+                          .map((comp, idx) => {
+                            const isAbsolute = comp.x != null && comp.y != null;
+
+                            const containerStyle = isAbsolute ? {
+                              position: 'absolute',
+                              left: `${comp.x}px`,
+                              top: `${comp.y}px`,
+                              width: comp.w ? `${comp.w}px` : 'auto',
+                              height: comp.h ? `${comp.h}px` : 'auto',
+                              zIndex: comp.props?.zIndex || 100,
+                              transform: `rotate(${comp.props?.rotation || 0}deg)`,
+                              overflow: 'visible'
+                            } : {
+                              width: '100%',
+                              transform: `rotate(${comp.props?.rotation || 0}deg)`,
+                              marginBottom: '20px',
+                              position: 'relative'
+                            };
+
+                            const err = validationErrors[comp.id];
+                            return (
+                              <div
+                                key={comp.id || idx}
+                                id={comp.id ? `terminal-comp-${comp.id}` : undefined}
+                                ref={(el) => { if (comp?.id) widgetContainerRefs.current[comp.id] = el; }}
+                                className={comp.props?.isBlinking ? 'animate-blink' : ''}
+                                style={containerStyle}
+                              >
+                                <div style={{
+                                  border: err ? '2px solid #ef4444' : 'none',
+                                  borderRadius: '8px',
+                                  padding: err ? '10px' : 0,
+                                  backgroundColor: err ? '#fee2e2' : 'transparent',
+                                  height: isAbsolute ? '100%' : 'auto',
+                                  position: 'relative',
+                                  boxSizing: 'border-box'
+                                }}>
+                                  {renderComponent(comp)}
+                                </div>
+                                {err && (
+                                  <div style={{ marginTop: '6px', fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>
+                                    {err}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '30px', marginTop: '40px' }}>
+                        <img src="/assets/assembly_procedure.png" style={{ maxWidth: '100%', borderRadius: '4px' }} alt="Visual" />
+                        <p style={{ textAlign: 'center', color: '#475569', fontSize: '1.1rem', lineHeight: '1.6' }}>
+                          {activeStep?.description || "Follow the standard procedure defined for this assembly step."}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* WORK SEQUENCE FOOTER (IN CENTER PANEL) */}
