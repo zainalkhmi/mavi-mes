@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { createIncomingInspectionTemplate } from '../utils/incomingInspectionTemplate';
 import { createWeighDispenseTemplate } from '../utils/weighDispenseTemplate';
 import { createVisionInspectionTemplate } from '../utils/visionInspectionTemplate';
+import { createQuickBuildCadVisionTemplate } from '../utils/quickbuildVisionDrawingTemplate';
 import { createAssyLineProductionTemplate } from '../utils/assyLineProductionTemplate';
 import { createInventoryAlertTemplate } from '../utils/inventoryAlertTemplate';
 import { createCarWorkshopTemplate } from '../utils/carWorkshopTemplate';
@@ -480,6 +481,35 @@ const AppStore = () => {
                     { name: 'Dimensional Checks', description: 'Interactive steps to measure lengths and diameters using specified equipment, automatically verifying against LSL/USL.' },
                     { name: 'Visual Inspection', description: 'Operator checks for visual defects like lead damage and logs the pass/fail result.' },
                     { name: 'Review & Sign-off', description: 'Summary of all recorded measurements and overall pass/fail judgment with digital signature.' }
+                ]
+            }
+        },
+        {
+            id: 'quickbuild-cad-vision',
+            name: 'QuickBuild CAD & Vision QC',
+            category: 'Quality',
+            description: 'Advanced vision inspection system powered by QuickBuild sequential pipelines, dynamically linked to AutoCAD/CAD specifications.',
+            longDescription: 'Deploy drawing-integrated caliper measurement pipelines. This template links CAD blueprints directly to the QuickBuild vision tools, enabling automatic spec limit checks, live canvas overlay displays, and database log syncs.',
+            icon: <Activity size={28} color="#2563eb" />,
+            bg: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+            accent: '#2563eb',
+            rating: 5.0,
+            installs: 'New',
+            features: ['QuickBuild Flowcharts', 'AutoCAD DXF Sync', 'Real-time Calipers', 'Yield Judge'],
+            guide: {
+                operation: '1. Setup work order & select active CAD drawing blueprint\n2. Run live camera inspection with the QuickBuild caliper node overlay\n3. System automatically compares specs from CAD features\n4. Confirm readouts and submit record to database logs',
+                widgets: ['OpenCV Camera (QuickBuild Full Pipeline)', 'CAD Blueprint Card', 'Real-time Stats Display'],
+                components: ['Integrated CAD HMI Flow', 'Sequential Tool Chain Parser', 'Live Overlays Renderer'],
+                tables: [
+                    { name: 'live_measurements', description: 'Primary database table storing all real-time measurements.' }
+                ],
+                triggers: [
+                    { event: 'ON_CLICK (Submit)', function: 'Saves Meas_Bore, Meas_Length, and Yield_Result to database logs.' }
+                ],
+                mechanism: 'Binds measure nodes in QuickBuild to layers and dimensions extracted from the active CAD blueprint drawing.',
+                steps: [
+                    { name: 'CAD & Info Setup', description: 'Operator validation and target blueprint selection.' },
+                    { name: 'QuickBuild Inspection', description: 'Live vision check (OK/NG) with dynamic CAD spec limit validation.' }
                 ]
             }
         },
@@ -1724,6 +1754,30 @@ const AppStore = () => {
                     }
                 } catch (iqcErr) {
                     console.warn('Could not create IQC table:', iqcErr);
+                }
+            } else if (templateId === 'quickbuild-cad-vision') {
+                templateApp = createQuickBuildCadVisionTemplate();
+                try {
+                    const visionTable = await getOrCreateTableAndSeed(allTables, {
+                        name: 'live_measurements',
+                        fields: [
+                            { name: 'Work_Order', type: 'text' },
+                            { name: 'Lot_Number', type: 'text' },
+                            { name: 'Operator', type: 'text' },
+                            { name: 'Meas_Bore', type: 'number' },
+                            { name: 'Meas_Length', type: 'number' },
+                            { name: 'Yield_Score', type: 'number' },
+                            { name: 'Yield_Result', type: 'text' },
+                            { name: 'Timestamp', type: 'datetime' }
+                        ]
+                    });
+                    if (visionTable && visionTable.id) {
+                        const appStr = JSON.stringify(templateApp).replace(/live_measurements/g, visionTable.id);
+                        templateApp = JSON.parse(appStr);
+                        templateApp.config.appTables = [visionTable.id];
+                    }
+                } catch (vErr) {
+                    console.warn('Could not create live measurements table for quickbuild template:', vErr);
                 }
             } else if (templateId === 'work-instructions') {
                 templateApp = createWorkInstructionsTemplate();

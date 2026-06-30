@@ -1890,12 +1890,76 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                         drawAiHud('🎨 COLOR INSPECTION (HSV)', '#ec4899', colorInspectRef.current);
 
                     } else if (filterType === 'FULL_PIPELINE') {
-                        const modelName = comp?.props?.aiModelName || 'default';
-                        const steps = comp?.props?.pipelineSteps || '["anomaly"]';
-                        aiProcessFrame(pipelineRef.current, `http://localhost:8000/pipeline/inspect`, {
-                            model_name: modelName, steps: steps
-                        }, 'OnPipelineInspect', 700);
-                        drawAiHud('⚡ FULL INSPECTION PIPELINE', '#f97316', pipelineRef.current);
+                        const qbName = comp?.props?.quickbuildPipelineName;
+                        if (qbName) {
+                            // Find the pipeline nodes & links in localStorage
+                            const local = localStorage.getItem('mavi_quickbuild_pipelines') || '[]';
+                            const customList = JSON.parse(local);
+                            const foundPipeline = customList.find(p => p.name === qbName);
+                            
+                            // Define standard templates just in case they select one of them
+                            const templates = [
+                                {
+                                    name: 'Flange Connector Check',
+                                    nodes: [
+                                        { id: 'n_acq', type: 'acquire', name: 'Acquire Frame', params: { camera: 'Main Inspection Camera', trigger: 'PLC Continuous' }, outputs: ['image'], status: 'idle', value: null },
+                                        { id: 'n_loc', type: 'locate', name: 'Geometric Align', params: { template: 'flange_rim_align', angleTolerance: 15, scoreThreshold: 85 }, inputs: ['image'], outputs: ['offset'], status: 'idle', value: null },
+                                        { id: 'n_meas', type: 'measure', name: 'Bore Caliper', params: { tool: 'Circle Diameter Caliper', nominalSize: '25.0 mm', lsl: '24.9', usl: '25.1' }, inputs: ['image', 'offset'], outputs: ['dimension'], status: 'idle', value: null },
+                                        { id: 'n_ins', type: 'inspect', name: 'Scratch Detect', params: { mode: 'Anomaly Segmentation', thresholdArea: 50 }, inputs: ['image', 'offset'], outputs: ['defects'], status: 'idle', value: null },
+                                        { id: 'n_dec', type: 'decide', name: 'Yield Judge', params: { minPassedScore: 90, failAction: 'Trigger Alert Light' }, inputs: ['dimension', 'defects'], outputs: ['status'], status: 'idle', value: null }
+                                    ],
+                                    links: [
+                                        { id: 'l1', fromNode: 'n_acq', fromPin: 'image', toNode: 'n_loc', toPin: 'image' },
+                                        { id: 'l2', fromNode: 'n_acq', fromPin: 'image', toNode: 'n_meas', toPin: 'image' },
+                                        { id: 'l3', fromNode: 'n_acq', fromPin: 'image', toNode: 'n_ins', toPin: 'image' },
+                                        { id: 'l4', fromNode: 'n_loc', fromPin: 'offset', toNode: 'n_meas', toPin: 'offset' },
+                                        { id: 'l5', fromNode: 'n_loc', fromPin: 'offset', toNode: 'n_ins', toPin: 'offset' },
+                                        { id: 'l6', fromNode: 'n_meas', fromPin: 'dimension', toNode: 'n_dec', toPin: 'dimension' },
+                                        { id: 'l7', fromNode: 'n_ins', fromPin: 'defects', toNode: 'n_dec', toPin: 'defects' }
+                                    ]
+                                },
+                                {
+                                    name: 'Lot Expiry OCR & OCV Verify',
+                                    nodes: [
+                                        { id: 'n_acq', type: 'acquire', name: 'Acquire Packaging', params: { camera: 'Packaging Line Camera', trigger: 'Sensor Trigger' }, outputs: ['image'], status: 'idle', value: null },
+                                        { id: 'n_ocr', type: 'inspect', name: 'Tesseract OCR', params: { mode: 'OCR Reading', language: 'English', matchPattern: 'EXP:\\s*\\d{2}/\\d{2}' }, inputs: ['image'], outputs: ['text'], status: 'idle', value: null },
+                                        { id: 'n_ocv', type: 'inspect', name: 'OCV Validator', params: { mode: 'OCV Verification', referenceSource: 'Variable: Active_Batch_Code', similarityThreshold: 85 }, inputs: ['text'], outputs: ['matchStatus'], status: 'idle', value: null },
+                                        { id: 'n_dec', type: 'decide', name: 'PLC Reject Control', params: { minPassedScore: 100, failAction: 'Activate Reject Arm' }, inputs: ['matchStatus'], outputs: ['status'], status: 'idle', value: null }
+                                    ],
+                                    links: [
+                                        { id: 'l1', fromNode: 'n_acq', fromPin: 'image', toNode: 'n_ocr', toPin: 'image' },
+                                        { id: 'l2', fromNode: 'n_ocr', fromPin: 'text', toNode: 'n_ocv', toPin: 'text' },
+                                        { id: 'l3', fromNode: 'n_ocv', fromPin: 'matchStatus', toNode: 'n_dec', toPin: 'matchStatus' }
+                                    ]
+                                }
+                            ];
+                            const template = templates.find(t => t.name === qbName);
+                            const pipeline = foundPipeline || template;
+                            
+                            if (pipeline) {
+                                const templateIdx = qbName === 'Flange Connector Check' ? 0 : 1;
+                                aiProcessFrame(pipelineRef.current, `http://localhost:8000/quickbuild/run`, {
+                                    nodes: JSON.stringify(pipeline.nodes),
+                                    links: JSON.stringify(pipeline.links),
+                                    template_index: templateIdx.toString()
+                                }, 'OnPipelineInspect', 700);
+                                drawAiHud(`⚡ QB: ${qbName.toUpperCase()}`, '#f97316', pipelineRef.current);
+                            } else {
+                                const modelName = comp?.props?.aiModelName || 'default';
+                                const steps = comp?.props?.pipelineSteps || '["anomaly"]';
+                                aiProcessFrame(pipelineRef.current, `http://localhost:8000/pipeline/inspect`, {
+                                    model_name: modelName, steps: steps
+                                }, 'OnPipelineInspect', 700);
+                                drawAiHud('⚡ FULL INSPECTION PIPELINE', '#f97316', pipelineRef.current);
+                            }
+                        } else {
+                            const modelName = comp?.props?.aiModelName || 'default';
+                            const steps = comp?.props?.pipelineSteps || '["anomaly"]';
+                            aiProcessFrame(pipelineRef.current, `http://localhost:8000/pipeline/inspect`, {
+                                model_name: modelName, steps: steps
+                                }, 'OnPipelineInspect', 700);
+                            drawAiHud('⚡ FULL INSPECTION PIPELINE', '#f97316', pipelineRef.current);
+                        }
                     }
 
                 } catch (e) {

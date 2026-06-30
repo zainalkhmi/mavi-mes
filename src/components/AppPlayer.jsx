@@ -13,6 +13,7 @@ import iotConnector from '../utils/iotConnector';
 import { useLanguage } from '../contexts/LanguageContext';
 import { createIncomingInspectionTemplate } from '../utils/incomingInspectionTemplate';
 import { createProductDrawingInspectionTemplate } from '../utils/productDrawingInspectionTemplate';
+import { createQuickBuildCadVisionTemplate } from '../utils/quickbuildVisionDrawingTemplate';
 import { logout } from '../utils/auth';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -1173,6 +1174,30 @@ const AppPlayer = () => {
                     templateApp.config.appTables = tIds;
                 } catch (qiErr) {
                     console.warn('Could not create Quality Inspection tables for product drawing inspection:', qiErr);
+                }
+            } else if (templateId === 'quickbuild-cad-vision') {
+                templateApp = createQuickBuildCadVisionTemplate();
+                try {
+                    const visionTable = await createTable({
+                        name: 'live_measurements',
+                        fields: [
+                            { name: 'Work_Order', type: 'text' },
+                            { name: 'Lot_Number', type: 'text' },
+                            { name: 'Operator', type: 'text' },
+                            { name: 'Meas_Bore', type: 'number' },
+                            { name: 'Meas_Length', type: 'number' },
+                            { name: 'Yield_Score', type: 'number' },
+                            { name: 'Yield_Result', type: 'text' },
+                            { name: 'Timestamp', type: 'datetime' }
+                        ]
+                    });
+                    if (visionTable && visionTable.id) {
+                        const appStr = JSON.stringify(templateApp).replace(/live_measurements/g, visionTable.id);
+                        templateApp = JSON.parse(appStr);
+                        templateApp.config.appTables = [visionTable.id];
+                    }
+                } catch (vErr) {
+                    console.warn('Could not create live measurements table for quickbuild template:', vErr);
                 }
             } else {
                 templateApp = createIncomingInspectionTemplate();

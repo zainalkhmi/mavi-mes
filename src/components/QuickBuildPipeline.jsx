@@ -75,6 +75,65 @@ export default function QuickBuildPipeline({ appVariables = [] }) {
     const [isSimulating, setIsSimulating] = useState(false);
     const [simStepIndex, setSimStepIndex] = useState(-1);
     
+    // Live Python Engine states
+    const [uploadedFile, setUploadedFile] = useState(null);
+    const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
+    const [processedImage, setProcessedImage] = useState(null);
+    const [isRunning, setIsRunning] = useState(false);
+
+    // Saved custom pipelines loaded from localStorage
+    const [savedPipelines, setSavedPipelines] = useState(() => {
+        const local = localStorage.getItem('mavi_quickbuild_pipelines');
+        return local ? JSON.parse(local) : [];
+    });
+    // Active pipeline name (either a template or custom saved)
+    const [activePipelineName, setActivePipelineName] = useState(TEMPLATES[0].name);
+
+    // Custom overlay modal state for prompts & confirmations
+    const [modalConfig, setModalConfig] = useState(null);
+
+    // CAD Drawing lists loaded from localStorage/defaults for integration
+    const DEFAULT_DRAWINGS = [
+        {
+            id: 'dwg_flange_connector',
+            name: 'Flange Connector CAD Model',
+            fileName: 'industrial-flange-rev2.dxf',
+            fileType: 'DXF',
+            dimensions: [
+                { id: 'dim_len', label: 'Overall Length (L)', spec: '120.0', tolMin: 119.5, tolMax: 120.5, variable: 'Meas_Length', unit: 'mm' },
+                { id: 'dim_dia', label: 'Flange Diameter (D)', spec: '80.0', tolMin: 79.8, tolMax: 80.2, variable: 'Meas_Diameter', unit: 'mm' },
+                { id: 'dim_bore', label: 'Center Bore (B)', spec: '25.0', tolMin: 24.9, tolMax: 25.1, variable: 'Meas_Bore', unit: 'mm' },
+                { id: 'dim_angle_1', label: 'Chamfer Angle', spec: '45.0', tolMin: 44.0, tolMax: 46.0, variable: 'Meas_Angle', unit: '°' },
+                { id: 'dim_ra_1', label: 'Surface Finish Ra', spec: '1.6', tolMin: 0.0, tolMax: 3.2, variable: 'Meas_Ra', unit: 'μm' },
+            ]
+        },
+        {
+            id: 'dwg_hydraulic_cylinder',
+            name: 'Hydraulic Cylinder Blueprint',
+            fileName: 'hydraulic-cyl-assembly.pdf',
+            fileType: 'PDF',
+            dimensions: [
+                { id: 'hc_bore', label: 'Cylinder Bore', spec: '80.0', tolMin: 79.95, tolMax: 80.05, variable: 'Cylinder_Bore_Dia', unit: 'mm' },
+                { id: 'hc_rod', label: 'Rod Diameter', spec: '56.0', tolMin: 55.98, tolMax: 56.02, variable: 'Rod_Diameter_Spec', unit: 'mm' },
+                { id: 'hc_stroke', label: 'Stroke Length', spec: '500.0', tolMin: 499.5, tolMax: 500.5, variable: 'Stroke_Length_Actual', unit: 'mm' },
+                { id: 'hc_area', label: 'Piston Area', spec: '5026.5', tolMin: 5000.0, tolMax: 5050.0, variable: 'Meas_Area', unit: 'mm²' },
+            ]
+        }
+    ];
+
+    const [drawingsList, setDrawingsList] = useState(() => {
+        const saved = localStorage.getItem('mavi_drawings');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            } catch (e) {
+                console.error(e);
+            }
+        }
+        return DEFAULT_DRAWINGS;
+    });
+
     // UI dragging states
     const [draggingNodeId, setDraggingNodeId] = useState(null);
     const dragOffset = useRef({ x: 0, y: 0 });
@@ -83,15 +142,128 @@ export default function QuickBuildPipeline({ appVariables = [] }) {
     // Active linking state
     const [activeLinkStart, setActiveLinkStart] = useState(null); // { nodeId, pinName, type: 'input'|'output' }
 
-    // Load template
-    const handleLoadTemplate = (index) => {
-        setActiveTemplateIndex(index);
-        setNodes(JSON.parse(JSON.stringify(TEMPLATES[index].nodes)));
-        setLinks(JSON.parse(JSON.stringify(TEMPLATES[index].links)));
-        setSelectedNodeId(null);
-        setSimStepIndex(-1);
-        setIsSimulating(false);
-        toast.success(`Loaded template: "${TEMPLATES[index].name}"`);
+    // Load template or custom pipeline by name
+    const handleLoadPipelineByName = (name) => {
+        // Search templates
+        const template = TEMPLATES.find(t => t.name === name);
+        if (template) {
+            const index = TEMPLATES.indexOf(template);
+            setActiveTemplateIndex(index);
+            setActivePipelineName(name);
+            setNodes(JSON.parse(JSON.stringify(template.nodes)));
+            setLinks(JSON.parse(JSON.stringify(template.links)));
+            setSelectedNodeId(null);
+            setSimStepIndex(-1);
+            setIsSimulating(false);
+            setUploadedFile(null);
+            setImagePreviewUrl(null);
+            setProcessedImage(null);
+            toast.success(`Loaded template: "${name}"`);
+            return;
+        }
+
+        // Search custom saved pipelines
+        const custom = savedPipelines.find(p => p.name === name);
+        if (custom) {
+            setActiveTemplateIndex(-1);
+            setActivePipelineName(name);
+            setNodes(JSON.parse(JSON.stringify(custom.nodes)));
+            setLinks(JSON.parse(JSON.stringify(custom.links)));
+            setSelectedNodeId(null);
+            setSimStepIndex(-1);
+            setIsSimulating(false);
+            setUploadedFile(null);
+            setImagePreviewUrl(null);
+            setProcessedImage(null);
+            toast.success(`Loaded sequence: "${name}"`);
+        }
+    };
+
+    // Create a new blank sequence
+    const handleCreateNewPipeline = () => {
+        if (nodes.length > 0) {
+            setModalConfig({
+                type: 'confirm',
+                title: 'Clear Canvas',
+                message: 'Are you sure you want to clear the canvas layout and start a new sequence?',
+                onConfirm: () => {
+                    setNodes([]);
+                    setLinks([]);
+                    setSelectedNodeId(null);
+                    setSimStepIndex(-1);
+                    setIsSimulating(false);
+                    setUploadedFile(null);
+                    setImagePreviewUrl(null);
+                    setProcessedImage(null);
+                    setActivePipelineName("");
+                    setActiveTemplateIndex(-1);
+                    toast.success("Canvas cleared. Start by adding tool blocks!");
+                }
+            });
+        } else {
+            toast.error("Canvas is already empty.");
+        }
+    };
+
+    // Save current sequence
+    const handleSavePipeline = () => {
+        setModalConfig({
+            type: 'prompt',
+            title: 'Save Inspection Sequence',
+            message: 'Enter a name to save this layout configuration:',
+            defaultValue: activePipelineName || 'New Sequence',
+            onConfirm: (name) => {
+                if (!name || !name.trim()) return;
+                const trimmedName = name.trim();
+
+                // Protect templates
+                if (TEMPLATES.some(t => t.name.toLowerCase() === trimmedName.toLowerCase())) {
+                    toast.error("Cannot overwrite default templates. Please choose a different name.");
+                    return;
+                }
+
+                const newPipeline = {
+                    name: trimmedName,
+                    nodes,
+                    links
+                };
+
+                setSavedPipelines(prev => {
+                    const filtered = prev.filter(p => p.name.toLowerCase() !== trimmedName.toLowerCase());
+                    const updated = [...filtered, newPipeline];
+                    localStorage.setItem('mavi_quickbuild_pipelines', JSON.stringify(updated));
+                    return updated;
+                });
+
+                setActivePipelineName(trimmedName);
+                setActiveTemplateIndex(-1);
+                toast.success(`Inspection sequence "${trimmedName}" saved successfully!`);
+            }
+        });
+    };
+
+    // Delete saved custom sequence
+    const handleDeletePipeline = (name) => {
+        if (!name) return;
+        if (TEMPLATES.some(t => t.name === name)) {
+            toast.error("Cannot delete default templates.");
+            return;
+        }
+
+        setModalConfig({
+            type: 'confirm',
+            title: 'Delete Sequence',
+            message: `Are you sure you want to delete custom sequence "${name}"?`,
+            onConfirm: () => {
+                const updated = savedPipelines.filter(p => p.name !== name);
+                localStorage.setItem('mavi_quickbuild_pipelines', JSON.stringify(updated));
+                setSavedPipelines(updated);
+                
+                // Revert back to first template
+                handleLoadPipelineByName(TEMPLATES[0].name);
+                toast.success(`Deleted custom sequence: "${name}"`);
+            }
+        });
     };
 
     // Node parameter changes
@@ -148,6 +320,7 @@ export default function QuickBuildPipeline({ appVariables = [] }) {
     const handleNodeMouseDown = (e, nodeId) => {
         if (e.target.closest('.pin-connector')) return; // ignore pin clicks
         setDraggingNodeId(nodeId);
+        setSelectedNodeId(nodeId); // SELECT THE NODE WHEN MOUSE DOWN/CLICKED!
         const node = nodes.find(n => n.id === nodeId);
         if (node) {
             dragOffset.current = {
@@ -225,6 +398,56 @@ export default function QuickBuildPipeline({ appVariables = [] }) {
         toast.error('Link disconnected.');
     };
 
+    // Connect to Python server quickbuild/run backend endpoint
+    const handleRunPipeline = async () => {
+        if (isRunning) return;
+        setIsRunning(true);
+        setProcessedImage(null);
+        
+        // Reset all nodes status to showing active processing state
+        setNodes(prev => prev.map(n => ({ ...n, status: 'idle', value: 'Processing...' })));
+        
+        try {
+            const formData = new FormData();
+            if (uploadedFile) {
+                formData.append('file', uploadedFile);
+            }
+            formData.append('nodes', JSON.stringify(nodes));
+            formData.append('links', JSON.stringify(links));
+            formData.append('template_index', activeTemplateIndex.toString());
+            
+            const response = await fetch('http://localhost:8000/quickbuild/run', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Server returned ${response.status} ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            if (data.success) {
+                // Update workspace nodes with server calculated checks
+                setNodes(data.nodes);
+                setProcessedImage(data.image);
+                
+                if (data.overall_pass) {
+                    toast.success('QuickBuild Inspection: PASSED');
+                } else {
+                    toast.error('QuickBuild Inspection: FAILED (Defects Detected)');
+                }
+            } else {
+                toast.error(`Engine Error: ${data.error || 'Unknown failure'}`);
+            }
+        } catch (error) {
+            console.error('FastAPI Connection Error, falling back to simulator:', error);
+            toast.error(`Backend offline. Running offline simulator...`);
+            handleRunSimulation();
+        } finally {
+            setIsRunning(false);
+        }
+    };
+
     // Run execution simulation
     const handleRunSimulation = () => {
         if (isSimulating) return;
@@ -290,45 +513,102 @@ export default function QuickBuildPipeline({ appVariables = [] }) {
                     <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                         <Sliders size={16} color="#64748b" />
                         <span style={{ fontSize: '0.88rem', fontWeight: 800 }}>Sequence Designer</span>
-                        <div style={{ display: 'flex', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', backgroundColor: 'white', padding: '2px' }}>
-                            {TEMPLATES.map((t, idx) => (
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            {/* Pipeline Selection Dropdown */}
+                            <select
+                                value={activePipelineName}
+                                onChange={(e) => handleLoadPipelineByName(e.target.value)}
+                                style={{
+                                    padding: '6px 12px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #cbd5e1',
+                                    backgroundColor: 'white',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    color: '#334155',
+                                    outline: 'none',
+                                    cursor: 'pointer',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                }}
+                            >
+                                <option value="" disabled>-- Select Sequence --</option>
+                                <optgroup label="Default Templates">
+                                    {TEMPLATES.map(t => (
+                                        <option key={t.name} value={t.name}>{t.name}</option>
+                                    ))}
+                                </optgroup>
+                                {savedPipelines.length > 0 && (
+                                    <optgroup label="Saved Custom Sequences">
+                                        {savedPipelines.map(p => (
+                                            <option key={p.name} value={p.name}>{p.name}</option>
+                                        ))}
+                                    </optgroup>
+                                )}
+                            </select>
+
+                            {/* Delete Custom Pipeline */}
+                            {savedPipelines.some(p => p.name === activePipelineName) && (
                                 <button
-                                    key={t.name}
-                                    onClick={() => handleLoadTemplate(idx)}
+                                    onClick={() => handleDeletePipeline(activePipelineName)}
+                                    title="Delete this custom sequence"
                                     style={{
-                                        border: 'none',
-                                        background: activeTemplateIndex === idx ? 'linear-gradient(135deg, #3b82f6, #8b5cf6)' : 'none',
-                                        color: activeTemplateIndex === idx ? 'white' : '#64748b',
-                                        padding: '5px 12px',
-                                        borderRadius: '6px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        padding: '6px',
+                                        borderRadius: '8px',
+                                        border: '1px solid #fee2e2',
+                                        backgroundColor: '#fef2f2',
+                                        color: '#ef4444',
                                         cursor: 'pointer',
-                                        fontSize: '0.75rem',
-                                        fontWeight: 700
+                                        transition: 'background-color 0.15s'
                                     }}
                                 >
-                                    {t.name}
+                                    <Trash2 size={13} />
                                 </button>
-                            ))}
+                            )}
+
+                            {/* Create New Button */}
+                            <button
+                                onClick={handleCreateNewPipeline}
+                                title="Create new blank sequence"
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    padding: '6px 12px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #e2e8f0',
+                                    backgroundColor: 'white',
+                                    color: '#475569',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s'
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#94a3b8'; e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.backgroundColor = 'white'; }}
+                            >
+                                <Plus size={12} /> New
+                            </button>
                         </div>
                     </div>
                     
                     <div style={{ display: 'flex', gap: '10px' }}>
                         <button
-                            onClick={handleRunSimulation}
-                            disabled={isSimulating}
+                            onClick={handleRunPipeline}
+                            disabled={isRunning || isSimulating}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: '6px',
                                 padding: '6px 14px', borderRadius: '8px', border: 'none',
-                                backgroundColor: isSimulating ? '#94a3b8' : '#10b981',
-                                color: 'white', fontWeight: 700, fontSize: '0.78rem', cursor: isSimulating ? 'default' : 'pointer'
+                                backgroundColor: (isRunning || isSimulating) ? '#94a3b8' : '#10b981',
+                                color: 'white', fontWeight: 700, fontSize: '0.78rem', cursor: (isRunning || isSimulating) ? 'default' : 'pointer'
                             }}
                         >
-                            <Play size={12} fill="white" /> {isSimulating ? 'SIMULATING...' : 'RUN PIPELINE'}
+                            <Play size={12} fill="white" /> {isRunning ? 'RUNNING...' : isSimulating ? 'SIMULATING...' : 'RUN PIPELINE'}
                         </button>
                         <button
-                            onClick={() => {
-                                toast.success('Inspection sequence config saved successfully!');
-                            }}
+                            onClick={handleSavePipeline}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: '6px',
                                 padding: '6px 14px', borderRadius: '8px', border: '1px solid #cbd5e1',
@@ -520,6 +800,116 @@ export default function QuickBuildPipeline({ appVariables = [] }) {
             {/* Right Control Panels */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto' }}>
                 
+                {/* Live Inspection Monitor */}
+                <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #cbd5e1', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Activity size={14} color="#3b82f6" /> Live Inspection Monitor
+                        </span>
+                        <span style={{ fontSize: '0.62rem', padding: '3px 6px', borderRadius: '4px', backgroundColor: processedImage ? '#e2fbe8' : '#f1f5f9', color: processedImage ? '#10b981' : '#64748b', fontWeight: 700 }}>
+                            {processedImage ? 'ACTIVE FEED' : 'NO FEED'}
+                        </span>
+                    </div>
+
+                    {/* Image Viewer Container */}
+                    <div style={{ 
+                        position: 'relative', 
+                        width: '100%', 
+                        aspectRatio: '4/3', 
+                        backgroundColor: '#0f172a', 
+                        borderRadius: '8px', 
+                        overflow: 'hidden', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        border: '1px solid #e2e8f0' 
+                    }}>
+                        {processedImage ? (
+                            <img 
+                                src={processedImage} 
+                                style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+                                alt="Processed visual inspection feed" 
+                            />
+                        ) : imagePreviewUrl ? (
+                            <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                                <img 
+                                    src={imagePreviewUrl} 
+                                    style={{ width: '100%', height: '100%', objectFit: 'contain', opacity: 0.6 }} 
+                                    alt="Uploaded test frame preview" 
+                                />
+                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '0.75rem', fontWeight: 700, textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+                                    READY TO RUN PIPELINE
+                                </div>
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', color: '#94a3b8', padding: '20px', textAlign: 'center' }}>
+                                <Eye size={24} color="#64748b" />
+                                <span style={{ fontSize: '0.7rem', fontWeight: 700 }}>No active image feed</span>
+                                <span style={{ fontSize: '0.6rem', color: '#64748b' }}>Upload a test image or click Run to use synthetic camera feed.</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Upload Controls */}
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <label style={{ 
+                            flex: 1, 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            gap: '6px', 
+                            padding: '6px 12px', 
+                            borderRadius: '8px', 
+                            border: '1px solid #cbd5e1', 
+                            backgroundColor: 'white', 
+                            color: '#334155', 
+                            fontSize: '0.72rem', 
+                            fontWeight: 700, 
+                            cursor: 'pointer', 
+                            transition: 'background-color 0.15s' 
+                        }}>
+                            <Download size={12} style={{ transform: 'rotate(180deg)' }} /> Upload Image
+                            <input 
+                                type="file" 
+                                accept="image/*" 
+                                onChange={(e) => {
+                                    const file = e.target.files[0];
+                                    if (file) {
+                                        setUploadedFile(file);
+                                        setImagePreviewUrl(URL.createObjectURL(file));
+                                        setProcessedImage(null);
+                                        toast.success(`Loaded custom image: ${file.name}`);
+                                    }
+                                }} 
+                                style={{ display: 'none' }} 
+                            />
+                        </label>
+
+                        {(uploadedFile || processedImage) && (
+                            <button
+                                onClick={() => {
+                                    setUploadedFile(null);
+                                    setImagePreviewUrl(null);
+                                    setProcessedImage(null);
+                                    toast.success('Reset to synthetic target generator feed.');
+                                }}
+                                style={{ 
+                                    padding: '6px 12px', 
+                                    borderRadius: '8px', 
+                                    border: '1px solid #fee2e2', 
+                                    backgroundColor: '#fef2f2', 
+                                    color: '#ef4444', 
+                                    fontSize: '0.72rem', 
+                                    fontWeight: 700, 
+                                    cursor: 'pointer' 
+                                }}
+                            >
+                                Reset
+                            </button>
+                        )}
+                    </div>
+                </div>
+
                 {/* 1. Tool Block spawning panel */}
                 <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #cbd5e1', padding: '16px' }}>
                     <h3 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', fontWeight: 800 }}>QuickBuild Tool Blocks</h3>
@@ -650,12 +1040,70 @@ export default function QuickBuildPipeline({ appVariables = [] }) {
 
                             {selectedNode.type === 'measure' && (
                                 <>
+                                    {/* CAD Link Section */}
+                                    <div style={{ padding: '10px', backgroundColor: 'rgba(59, 130, 246, 0.05)', border: '1px solid rgba(59, 130, 246, 0.15)', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '8px' }}>
+                                        <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#2563eb', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            📐 CAD Drawing Integration
+                                        </span>
+                                        
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                            <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#64748b' }}>Link CAD Model</span>
+                                            <select
+                                                value={selectedNode.params.linkedDrawingId || ''}
+                                                onChange={(e) => {
+                                                    const dwgId = e.target.value;
+                                                    updateNodeParam(selectedNode.id, 'linkedDrawingId', dwgId);
+                                                    // Reset dimension link
+                                                    updateNodeParam(selectedNode.id, 'linkedDimensionId', '');
+                                                }}
+                                                style={{ padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.75rem', outline: 'none', backgroundColor: 'white' }}
+                                            >
+                                                <option value="">Manual Entry (No CAD Link)</option>
+                                                {drawingsList.map(d => (
+                                                    <option key={d.id} value={d.id}>{d.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        {selectedNode.params.linkedDrawingId && (() => {
+                                            const activeDwg = drawingsList.find(d => d.id === selectedNode.params.linkedDrawingId);
+                                            const dims = activeDwg?.dimensions || [];
+                                            return (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                    <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#64748b' }}>Select CAD Dimension</span>
+                                                    <select
+                                                        value={selectedNode.params.linkedDimensionId || ''}
+                                                        onChange={(e) => {
+                                                            const dimId = e.target.value;
+                                                            const dimObj = dims.find(d => d.id === dimId);
+                                                            updateNodeParam(selectedNode.id, 'linkedDimensionId', dimId);
+                                                            if (dimObj) {
+                                                                // Automatically load and lock parameters
+                                                                updateNodeParam(selectedNode.id, 'nominalSize', `${dimObj.spec} ${dimObj.unit || 'mm'}`);
+                                                                updateNodeParam(selectedNode.id, 'lsl', dimObj.tolMin.toString());
+                                                                updateNodeParam(selectedNode.id, 'usl', dimObj.tolMax.toString());
+                                                                toast.success(`Locked parameters to CAD spec: ${dimObj.label}`);
+                                                            }
+                                                        }}
+                                                        style={{ padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.75rem', outline: 'none', backgroundColor: 'white' }}
+                                                    >
+                                                        <option value="">-- Select CAD Feature --</option>
+                                                        {dims.map(d => (
+                                                            <option key={d.id} value={d.id}>{d.label} (Spec: {d.spec})</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                         <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#64748b' }}>Caliper Scan Tool</span>
                                         <select
                                             value={selectedNode.params.tool || ''}
                                             onChange={(e) => updateNodeParam(selectedNode.id, 'tool', e.target.value)}
                                             style={{ padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.78rem', outline: 'none', backgroundColor: 'white' }}
+                                            disabled={!!selectedNode.params.linkedDimensionId}
                                         >
                                             <option value="Caliper Edge-to-Edge">Caliper Edge-to-Edge</option>
                                             <option value="Circle Diameter Caliper">Circle Diameter Caliper</option>
@@ -668,8 +1116,31 @@ export default function QuickBuildPipeline({ appVariables = [] }) {
                                             type="text"
                                             value={selectedNode.params.nominalSize || ''}
                                             onChange={(e) => updateNodeParam(selectedNode.id, 'nominalSize', e.target.value)}
-                                            style={{ padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.78rem', outline: 'none' }}
+                                            style={{ padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.78rem', outline: 'none', backgroundColor: selectedNode.params.linkedDimensionId ? '#f1f5f9' : 'white' }}
+                                            disabled={!!selectedNode.params.linkedDimensionId}
                                         />
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#64748b' }}>LSL (Min)</span>
+                                            <input
+                                                type="text"
+                                                value={selectedNode.params.lsl || ''}
+                                                onChange={(e) => updateNodeParam(selectedNode.id, 'lsl', e.target.value)}
+                                                style={{ padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.78rem', outline: 'none', backgroundColor: selectedNode.params.linkedDimensionId ? '#f1f5f9' : 'white' }}
+                                                disabled={!!selectedNode.params.linkedDimensionId}
+                                            />
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#64748b' }}>USL (Max)</span>
+                                            <input
+                                                type="text"
+                                                value={selectedNode.params.usl || ''}
+                                                onChange={(e) => updateNodeParam(selectedNode.id, 'usl', e.target.value)}
+                                                style={{ padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.78rem', outline: 'none', backgroundColor: selectedNode.params.linkedDimensionId ? '#f1f5f9' : 'white' }}
+                                                disabled={!!selectedNode.params.linkedDimensionId}
+                                            />
+                                        </div>
                                     </div>
                                 </>
                             )}
@@ -755,6 +1226,101 @@ export default function QuickBuildPipeline({ appVariables = [] }) {
                 </div>
 
             </div>
+
+            {/* Custom Premium Modal Overlay */}
+            {modalConfig && (
+                <div style={{
+                    position: 'absolute',
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+                    backdropFilter: 'blur(4px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 1000
+                }}>
+                    <div style={{
+                        backgroundColor: 'white',
+                        borderRadius: '16px',
+                        border: '1px solid #e2e8f0',
+                        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                        padding: '24px',
+                        width: '380px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '16px'
+                    }}>
+                        <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#1e293b' }}>
+                            {modalConfig.title}
+                        </h3>
+                        <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748b', lineHeight: 1.5 }}>
+                            {modalConfig.message}
+                        </p>
+                        {modalConfig.type === 'prompt' && (
+                            <input
+                                type="text"
+                                id="custom-modal-input"
+                                defaultValue={modalConfig.defaultValue}
+                                style={{
+                                    width: '100%',
+                                    padding: '8px 12px',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: '8px',
+                                    fontSize: '0.8rem',
+                                    outline: 'none',
+                                    boxSizing: 'border-box'
+                                }}
+                                autoFocus
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        const val = e.target.value;
+                                        if (val && val.trim()) {
+                                            modalConfig.onConfirm(val);
+                                            setModalConfig(null);
+                                        }
+                                    }
+                                }}
+                            />
+                        )}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                            <button
+                                onClick={() => setModalConfig(null)}
+                                style={{
+                                    padding: '6px 14px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #cbd5e1',
+                                    backgroundColor: 'white',
+                                    color: '#64748b',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const val = modalConfig.type === 'prompt' 
+                                        ? document.getElementById('custom-modal-input')?.value 
+                                        : undefined;
+                                    modalConfig.onConfirm(val);
+                                    setModalConfig(null);
+                                }}
+                                style={{
+                                    padding: '6px 14px',
+                                    borderRadius: '8px',
+                                    border: 'none',
+                                    backgroundColor: '#3b82f6',
+                                    color: 'white',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Confirm
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             
         </div>
     );

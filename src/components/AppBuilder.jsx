@@ -18439,12 +18439,34 @@ const AppBuilder = () => {
                                                                                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Model Name / ID</label>
                                                                                     <input type="text" value={selectedComp.props.aiModelName || 'default'} onChange={(e) => updateComponentProps(selectedComp.id, { aiModelName: e.target.value })} placeholder="e.g. default, model_v1" style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }} />
                                                                                 </div>
-                                                                                {selectedComp.props.filterType === 'FULL_PIPELINE' && (
-                                                                                    <div className="prop-group" style={{ marginTop: '8px', marginBottom: '4px' }}>
-                                                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Pipeline Steps (JSON Array)</label>
-                                                                                        <input type="text" value={selectedComp.props.pipelineSteps || '["anomaly"]'} onChange={(e) => updateComponentProps(selectedComp.id, { pipelineSteps: e.target.value })} placeholder='e.g. ["alignment", "anomaly", "measure"]' style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', fontFamily: 'monospace', fontSize: '0.75rem' }} />
-                                                                                    </div>
-                                                                                )}
+                                                                                {selectedComp.props.filterType === 'FULL_PIPELINE' && (() => {
+                                                                                    // Load saved pipelines
+                                                                                    const saved = localStorage.getItem('mavi_quickbuild_pipelines');
+                                                                                    const customList = saved ? JSON.parse(saved) : [];
+                                                                                    return (
+                                                                                        <>
+                                                                                            <div className="prop-group" style={{ marginTop: '8px', marginBottom: '4px' }}>
+                                                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Select QuickBuild Pipeline</label>
+                                                                                                <select
+                                                                                                    value={selectedComp.props.quickbuildPipelineName || ''}
+                                                                                                    onChange={(e) => updateComponentProps(selectedComp.id, { quickbuildPipelineName: e.target.value })}
+                                                                                                    style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                                                                                >
+                                                                                                    <option value="">-- Select Pipeline --</option>
+                                                                                                    <option value="Flange Connector Check">Flange Connector Check (Default)</option>
+                                                                                                    <option value="Lot Expiry OCR & OCV Verify">Lot Expiry OCR & OCV Verify (Default)</option>
+                                                                                                    {customList.map(p => (
+                                                                                                        <option key={p.name} value={p.name}>{p.name}</option>
+                                                                                                    ))}
+                                                                                                </select>
+                                                                                            </div>
+                                                                                            <div className="prop-group" style={{ marginTop: '8px', marginBottom: '4px' }}>
+                                                                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Pipeline Steps (Fallback)</label>
+                                                                                                <input type="text" value={selectedComp.props.pipelineSteps || '["anomaly"]'} onChange={(e) => updateComponentProps(selectedComp.id, { pipelineSteps: e.target.value })} placeholder='e.g. ["alignment", "anomaly", "measure"]' style={{ width: '100%', padding: '8px', border: '1px solid var(--border-primary)', borderRadius: '4px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', fontFamily: 'monospace', fontSize: '0.75rem' }} />
+                                                                                            </div>
+                                                                                        </>
+                                                                                    );
+                                                                                })()}
                                                                             </div>
                                                                         </div>
                                                                     )}
