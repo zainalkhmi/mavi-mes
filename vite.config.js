@@ -96,9 +96,6 @@ export default defineConfig({
             if (id.includes('tesseract')) {
               return 'vendor-tesseract';
             }
-            if (id.includes('recharts') || id.includes('d3') || id.includes('reactflow')) {
-              return 'vendor-charts';
-            }
             return 'vendor';
           }
         }
