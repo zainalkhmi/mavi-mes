@@ -12300,63 +12300,124 @@ const LiveTerminal = () => {
       {/* MAVI HEADER */}
       {window.self === window.top && (
         <div className="mavi-header" style={{ display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-          {/* Row 1: Dark Header */}
+          {/* Consolidated Header Bar */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: '0 16px',
-            height: '36px',
+            height: '48px',
             backgroundColor: activeAndon ? '#dc2626' : '#090d16',
-            color: '#94a3b8',
+            color: 'white',
             borderBottom: '1px solid #1e293b',
             fontSize: '0.75rem',
             fontWeight: 600,
-            transition: 'background-color 0.3s ease'
+            transition: 'background-color 0.3s ease',
+            position: 'relative'
           }}>
-            {/* Left side: Operator and Station Info */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'white', fontWeight: 900 }}>
+            {/* Left side: Logo, App Title, Badge, Duration, Step, User/Station */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flexWrap: 'nowrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'white', fontWeight: 900, marginRight: '4px' }}>
                 <Zap size={14} fill="white" /> MAVI-M
               </div>
-              <div style={{ width: '1px', height: '12px', backgroundColor: '#1e293b' }} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
-                <User size={12} color="#3b82f6" />
+              <span style={{ fontSize: '1.05rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {selectedApp ? selectedApp.name : (selectedManual ? selectedManual.title : 'Live Terminal')}
+              </span>
+              {selectedApp && (
+                <span style={{ fontSize: '0.75rem', color: '#cbd5e1', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                  {!selectedApp.is_published ? (
+                    <span style={{ backgroundColor: '#ef4444', color: 'white', padding: '1px 6px', borderRadius: '4px', fontWeight: 800, fontSize: '0.65rem' }}>DRAFT</span>
+                  ) : (
+                    <span style={{ backgroundColor: '#22c55e', color: 'white', padding: '1px 6px', borderRadius: '4px', fontWeight: 800, fontSize: '0.65rem' }}>V{selectedApp.version}</span>
+                  )}
+                </span>
+              )}
+              
+              {(selectedApp || selectedManual) && (
+                <>
+                  <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.15)' }} />
+                  <span style={{ fontSize: '0.72rem', color: '#cbd5e1', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                    Duration: <strong style={{ color: 'white', fontFamily: 'monospace' }}>{formatTime(timer)}</strong>
+                  </span>
+                </>
+              )}
+
+              {stepLabel && (
+                <>
+                  <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.15)' }} />
+                  <span style={{
+                    fontSize: '0.7rem', fontWeight: 700,
+                    color: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : '#001e3c',
+                    backgroundColor: 'white',
+                    borderRadius: '4px', padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap',
+                    overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px'
+                  }}>
+                    <ChevronRight size={11} /> {stepLabel}
+                  </span>
+                </>
+              )}
+
+              <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.15)' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', color: '#94a3b8' }}>
+                <User size={11} color="#3b82f6" />
                 <span>USER: <strong style={{ color: 'white' }}>{appContext.user || '-'}</strong></span>
               </div>
-              <div style={{ width: '1px', height: '12px', backgroundColor: '#1e293b' }} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
-                <MapPin size={12} color="#10b981" />
+
+              <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.15)' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', color: '#94a3b8', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <MapPin size={11} color="#10b981" />
                 <span>STATION: <strong style={{ color: 'white' }}>{appContext.station || '-'}</strong></span>
               </div>
             </div>
 
-            {/* Right side: Global settings */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {/* Right side: Status, Language, scale, menu, logout */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
               {/* Network Connectivity Badge */}
               <div style={{
-                display: 'flex', alignItems: 'center', gap: '6px',
-                padding: '2px 8px', borderRadius: '20px',
-                backgroundColor: isOnline ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)',
-                color: 'white',
-                fontSize: '0.65rem', fontWeight: 800,
-                border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`
+                display: 'flex', alignItems: 'center', gap: '4px',
+                padding: '3px 8px', borderRadius: '20px',
+                backgroundColor: isOnline ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                color: isOnline ? '#4ade80' : '#fca5a5',
+                fontSize: '0.62rem', fontWeight: 800,
+                border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`
               }}>
-                <span className={`pulse-dot ${isOnline ? 'pulse-dot-success' : 'pulse-dot-danger'}`} style={{ width: '6px', height: '6px' }} />
+                <span className={`pulse-dot ${isOnline ? 'pulse-dot-success' : 'pulse-dot-danger'}`} style={{ width: '5px', height: '5px' }} />
                 <span>{isOnline ? 'ONLINE' : 'OFFLINE'}</span>
               </div>
 
               {/* Language Selection */}
               <div
-                style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '4px 8px', borderRadius: '4px' }}
                 onClick={() => setShowOperatorMenu(true)}
                 title="Change Language / Operator Settings"
               >
-                <Globe size={12} color="#cbd5e1" />
-                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#cbd5e1' }}>{currentLanguage}</span>
+                <Globe size={10} color="#cbd5e1" />
+                <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#cbd5e1' }}>{currentLanguage}</span>
               </div>
 
-              <div style={{ width: '1px', height: '12px', backgroundColor: '#1e293b' }} />
+              {(selectedApp || selectedManual) && (
+                <button
+                  onClick={() => setRuntimeScaleMode(prev => prev === 'FIT_SCREEN' ? 'FIT_WIDTH' : 'FIT_SCREEN')}
+                  title={runtimeScaleMode === 'FIT_SCREEN' ? 'Switch to Fit Width' : 'Switch to Fit Screen'}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    backgroundColor: runtimeScaleMode === 'FIT_SCREEN' ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.05)',
+                    color: runtimeScaleMode === 'FIT_SCREEN' ? '#86efac' : 'white',
+                    fontWeight: 700,
+                    fontSize: '0.68rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  <Maximize2 size={10} />
+                  {runtimeScaleMode === 'FIT_SCREEN' ? 'Fit Screen' : 'Fit Width'}
+                </button>
+              )}
 
               {/* Logout button */}
               <button
@@ -12367,12 +12428,12 @@ const LiveTerminal = () => {
                   }
                 }}
                 style={{
-                  background: 'rgba(239, 68, 68, 0.2)',
-                  border: '1px solid rgba(239, 68, 68, 0.4)',
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.25)',
                   color: '#fca5a5',
-                  padding: '3px 8px',
+                  padding: '4px 8px',
                   borderRadius: '4px',
-                  fontSize: '0.7rem',
+                  fontSize: '0.68rem',
                   fontWeight: 700,
                   cursor: 'pointer',
                   display: 'flex',
@@ -12384,107 +12445,28 @@ const LiveTerminal = () => {
                 <LogOut size={10} />
                 Logout
               </button>
-            </div>
-          </div>
 
-          {/* Row 2: Slate Title Bar */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '0 16px',
-            height: '52px',
-            backgroundColor: activeAndon ? '#b91c1c' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : '#001e3c'),
-            color: 'white',
-            borderBottom: activeAndon ? '1px solid #b91c1c' : '1px solid rgba(255,255,255,0.1)',
-            position: 'relative'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-              <span style={{ fontSize: '1.15rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {selectedApp ? selectedApp.name : (selectedManual ? selectedManual.title : 'Live Terminal')}
-              </span>
-              {selectedApp && (
-                <>
-                  <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
-                  <span style={{ fontSize: '0.75rem', color: '#cbd5e1', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
-                    {!selectedApp.is_published ? (
-                      <span style={{ backgroundColor: '#ef4444', color: 'white', padding: '1px 6px', borderRadius: '4px', fontWeight: 800, fontSize: '0.65rem' }}>DRAFT</span>
-                    ) : (
-                      <span style={{ backgroundColor: '#22c55e', color: 'white', padding: '1px 6px', borderRadius: '4px', fontWeight: 800, fontSize: '0.65rem' }}>V{selectedApp.version}</span>
-                    )}
-                  </span>
-                </>
-              )}
-              {(selectedApp || selectedManual) && (
-                <>
-                  <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
-                  <span style={{ fontSize: '0.75rem', color: '#cbd5e1', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
-                    Duration: <strong style={{ color: 'white', fontFamily: 'monospace' }}>{formatTime(timer)}</strong>
-                  </span>
-                </>
-              )}
-              {stepLabel && (
-                <>
-                  <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
-                  <span style={{
-                    fontSize: '0.72rem', fontWeight: 700,
-                    color: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : '#001e3c',
-                    backgroundColor: 'white',
-                    borderRadius: '4px', padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap',
-                    overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '300px'
-                  }}>
-                    <ChevronRight size={12} /> {stepLabel}
-                  </span>
-                </>
-              )}
-            </div>
-
-            {/* Right side: Consolidated Actions Dropdown Menu */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {(selectedApp || selectedManual) && (
-                <button
-                  onClick={() => setRuntimeScaleMode(prev => prev === 'FIT_SCREEN' ? 'FIT_WIDTH' : 'FIT_SCREEN')}
-                  title={runtimeScaleMode === 'FIT_SCREEN' ? 'Switch to Fit Width' : 'Switch to Fit Screen'}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    backgroundColor: runtimeScaleMode === 'FIT_SCREEN' ? 'rgba(34,197,94,0.18)' : 'rgba(255,255,255,0.05)',
-                    color: runtimeScaleMode === 'FIT_SCREEN' ? '#86efac' : 'white',
-                    fontWeight: 700,
-                    fontSize: '0.75rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s'
-                  }}
-                >
-                  <Maximize2 size={12} />
-                  {runtimeScaleMode === 'FIT_SCREEN' ? 'Fit Screen' : 'Fit Width'}
-                </button>
-              )}
-              <div style={{ position: 'relative' }}>
+              <div style={{ position: 'relative', flexShrink: 0 }}>
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px',
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid rgba(255,255,255,0.25)',
+                  gap: '6px',
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  border: '1px solid rgba(255,255,255,0.15)',
                   backgroundColor: menuOpen ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)',
                   color: 'white',
                   fontWeight: 700,
-                  fontSize: '0.78rem',
+                  fontSize: '0.68rem',
                   cursor: 'pointer',
                   transition: 'all 0.15s'
                 }}
               >
-                <Menu size={14} />
+                <Menu size={12} />
                 Menu
-                <ChevronDown size={12} style={{ transform: menuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                <ChevronDown size={10} style={{ transform: menuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
               </button>
 
               {menuOpen && (

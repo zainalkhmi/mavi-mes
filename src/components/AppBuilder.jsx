@@ -25100,10 +25100,16 @@ D3:0
 
                                             <div className="prop-group">
                                                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>RESOLUTION</label>
-                                                <select style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)' }}>
-                                                    <option>1080p (1920x1080)</option>
-                                                    <option>720p (1280x720)</option>
-                                                    <option>Tablet (1024x768)</option>
+                                                <select
+                                                    value={previewDevice}
+                                                    onChange={e => handleDeviceChange(e.target.value)}
+                                                    style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)' }}
+                                                >
+                                                    {Object.entries(DEVICE_PRESETS).map(([key, pr]) => (
+                                                        <option key={key} value={key}>
+                                                            {pr.label}{pr.width ? ` (${pr.width}x${pr.height})` : ''}
+                                                        </option>
+                                                    ))}
                                                 </select>
                                             </div>
 

@@ -16,9 +16,12 @@ import {
     Zap,
     Download,
     Eye,
-    RefreshCw
+    RefreshCw,
+    Camera,
+    Video
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import Webcam from 'react-webcam';
 
 // Default templates to choose from
 const TEMPLATES = [
@@ -80,6 +83,87 @@ export default function QuickBuildPipeline({ appVariables = [] }) {
     const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
     const [processedImage, setProcessedImage] = useState(null);
     const [isRunning, setIsRunning] = useState(false);
+
+    // Live Webcam states
+    const webcamRef = useRef(null);
+    const [useLiveCamera, setUseLiveCamera] = useState(false);
+    const [devices, setDevices] = useState([]);
+    const [selectedDeviceId, setSelectedDeviceId] = useState('');
+    const [isContinuous, setIsContinuous] = useState(false);
+
+    // List webcam devices
+    useEffect(() => {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+            return;
+        }
+        navigator.mediaDevices.enumerateDevices().then(mediaDevices => {
+            const videoDevices = mediaDevices.filter(({ kind }) => kind === 'videoinput');
+            setDevices(videoDevices);
+            if (videoDevices.length > 0 && !selectedDeviceId) {
+                setSelectedDeviceId(videoDevices[0].deviceId);
+            }
+        }).catch(err => {
+            console.error("Error enumerating devices:", err);
+        });
+    }, [useLiveCamera]);
+
+    // DataURL to Blob helper
+    const dataURLtoBlob = (dataurl) => {
+        if (!dataurl) return null;
+        let arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
+            bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+        while(n--){
+            u8arr[n] = bstr.charCodeAt(n);
+        }
+        return new Blob([u8arr], {type:mime});
+    };
+
+    // Continuous tick runner
+    const runSingleContinuousTick = async () => {
+        if (isRunning || !useLiveCamera || !webcamRef.current) return;
+        
+        try {
+            const screenshot = webcamRef.current.getScreenshot();
+            if (!screenshot) return;
+            
+            const blob = dataURLtoBlob(screenshot);
+            const fileToSend = new File([blob], "camera_frame.jpg", { type: "image/jpeg" });
+            
+            const formData = new FormData();
+            formData.append('file', fileToSend);
+            formData.append('nodes', JSON.stringify(nodes));
+            formData.append('links', JSON.stringify(links));
+            formData.append('template_index', activeTemplateIndex.toString());
+            
+            const response = await fetch('http://localhost:8000/quickbuild/run', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    setNodes(data.nodes);
+                    setProcessedImage(data.image);
+                }
+            }
+        } catch (error) {
+            console.error('Continuous fetch error:', error);
+        }
+    };
+
+    // Continuous run loop
+    useEffect(() => {
+        let intervalId;
+        if (isContinuous && useLiveCamera) {
+            intervalId = setInterval(() => {
+                runSingleContinuousTick();
+            }, 1500);
+        }
+        return () => {
+            if (intervalId) clearInterval(intervalId);
+        };
+    }, [isContinuous, useLiveCamera, nodes, links, activeTemplateIndex]);
 
     // Saved custom pipelines loaded from localStorage
     const [savedPipelines, setSavedPipelines] = useState(() => {
@@ -409,8 +493,18 @@ export default function QuickBuildPipeline({ appVariables = [] }) {
         
         try {
             const formData = new FormData();
-            if (uploadedFile) {
-                formData.append('file', uploadedFile);
+            let fileToSend = uploadedFile;
+            if (useLiveCamera && webcamRef.current) {
+                const screenshot = webcamRef.current.getScreenshot();
+                if (screenshot) {
+                    const blob = dataURLtoBlob(screenshot);
+                    if (blob) {
+                        fileToSend = new File([blob], "camera_frame.jpg", { type: "image/jpeg" });
+                    }
+                }
+            }
+            if (fileToSend) {
+                formData.append('file', fileToSend);
             }
             formData.append('nodes', JSON.stringify(nodes));
             formData.append('links', JSON.stringify(links));
@@ -806,8 +900,15 @@ export default function QuickBuildPipeline({ appVariables = [] }) {
                         <span style={{ fontSize: '0.85rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <Activity size={14} color="#3b82f6" /> Live Inspection Monitor
                         </span>
-                        <span style={{ fontSize: '0.62rem', padding: '3px 6px', borderRadius: '4px', backgroundColor: processedImage ? '#e2fbe8' : '#f1f5f9', color: processedImage ? '#10b981' : '#64748b', fontWeight: 700 }}>
-                            {processedImage ? 'ACTIVE FEED' : 'NO FEED'}
+                        <span style={{ 
+                            fontSize: '0.62rem', 
+                            padding: '3px 6px', 
+                            borderRadius: '4px', 
+                            backgroundColor: (processedImage || useLiveCamera) ? '#e2fbe8' : '#f1f5f9', 
+                            color: (processedImage || useLiveCamera) ? '#10b981' : '#64748b', 
+                            fontWeight: 700 
+                        }}>
+                            {(processedImage || useLiveCamera) ? 'ACTIVE FEED' : 'NO FEED'}
                         </span>
                     </div>
 
@@ -825,11 +926,71 @@ export default function QuickBuildPipeline({ appVariables = [] }) {
                         border: '1px solid #e2e8f0' 
                     }}>
                         {processedImage ? (
-                            <img 
-                                src={processedImage} 
-                                style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
-                                alt="Processed visual inspection feed" 
-                            />
+                            <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                                <img 
+                                    src={processedImage} 
+                                    style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+                                    alt="Processed visual inspection feed" 
+                                />
+                                {useLiveCamera && (
+                                    <button
+                                        onClick={() => {
+                                            setProcessedImage(null);
+                                            setIsContinuous(false);
+                                        }}
+                                        style={{
+                                            position: 'absolute',
+                                            bottom: '12px',
+                                            left: '12px',
+                                            backgroundColor: '#3b82f6',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            padding: '4px 10px',
+                                            fontSize: '0.65rem',
+                                            fontWeight: 700,
+                                            cursor: 'pointer',
+                                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '4px'
+                                        }}
+                                    >
+                                        <RefreshCw size={10} /> Resume Live Feed
+                                    </button>
+                                )}
+                            </div>
+                        ) : useLiveCamera ? (
+                            <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                                <Webcam
+                                    audio={false}
+                                    ref={webcamRef}
+                                    screenshotFormat="image/jpeg"
+                                    videoConstraints={
+                                        selectedDeviceId 
+                                            ? { deviceId: { exact: selectedDeviceId }, width: 640, height: 480 } 
+                                            : { facingMode: "environment", width: 640, height: 480 }
+                                    }
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '12px',
+                                    left: '12px',
+                                    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                                    color: '#38bdf8',
+                                    padding: '3px 8px',
+                                    borderRadius: '12px',
+                                    fontSize: '0.58rem',
+                                    fontWeight: 'bold',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                }}>
+                                    <span style={{ display: 'inline-block', width: '6px', height: '6px', backgroundColor: '#38bdf8', borderRadius: '50%' }}></span>
+                                    LIVE CAMERA
+                                </div>
+                            </div>
                         ) : imagePreviewUrl ? (
                             <div style={{ position: 'relative', width: '100%', height: '100%' }}>
                                 <img 
@@ -850,62 +1011,184 @@ export default function QuickBuildPipeline({ appVariables = [] }) {
                         )}
                     </div>
 
-                    {/* Upload Controls */}
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                        <label style={{ 
-                            flex: 1, 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'center', 
-                            gap: '6px', 
-                            padding: '6px 12px', 
-                            borderRadius: '8px', 
-                            border: '1px solid #cbd5e1', 
-                            backgroundColor: 'white', 
-                            color: '#334155', 
-                            fontSize: '0.72rem', 
-                            fontWeight: 700, 
-                            cursor: 'pointer', 
-                            transition: 'background-color 0.15s' 
-                        }}>
-                            <Download size={12} style={{ transform: 'rotate(180deg)' }} /> Upload Image
-                            <input 
-                                type="file" 
-                                accept="image/*" 
-                                onChange={(e) => {
-                                    const file = e.target.files[0];
-                                    if (file) {
-                                        setUploadedFile(file);
-                                        setImagePreviewUrl(URL.createObjectURL(file));
-                                        setProcessedImage(null);
-                                        toast.success(`Loaded custom image: ${file.name}`);
-                                    }
-                                }} 
-                                style={{ display: 'none' }} 
-                            />
-                        </label>
-
-                        {(uploadedFile || processedImage) && (
+                    {/* Camera Select and Toggle Controls */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {/* Mode Select Row */}
+                        <div style={{ display: 'flex', gap: '8px' }}>
                             <button
                                 onClick={() => {
-                                    setUploadedFile(null);
-                                    setImagePreviewUrl(null);
+                                    setUseLiveCamera(false);
+                                    setIsContinuous(false);
                                     setProcessedImage(null);
-                                    toast.success('Reset to synthetic target generator feed.');
                                 }}
-                                style={{ 
-                                    padding: '6px 12px', 
-                                    borderRadius: '8px', 
-                                    border: '1px solid #fee2e2', 
-                                    backgroundColor: '#fef2f2', 
-                                    color: '#ef4444', 
-                                    fontSize: '0.72rem', 
-                                    fontWeight: 700, 
-                                    cursor: 'pointer' 
+                                style={{
+                                    flex: 1,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '6px',
+                                    padding: '6px 12px',
+                                    borderRadius: '8px',
+                                    border: `1px solid ${!useLiveCamera ? '#3b82f6' : '#cbd5e1'}`,
+                                    backgroundColor: !useLiveCamera ? '#eff6ff' : 'white',
+                                    color: !useLiveCamera ? '#2563eb' : '#334155',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    outline: 'none'
                                 }}
                             >
-                                Reset
+                                <Download size={12} style={{ transform: 'rotate(180deg)' }} /> Upload Mode
                             </button>
+                            <button
+                                onClick={() => {
+                                    setUseLiveCamera(true);
+                                    setProcessedImage(null);
+                                }}
+                                style={{
+                                    flex: 1,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '6px',
+                                    padding: '6px 12px',
+                                    borderRadius: '8px',
+                                    border: `1px solid ${useLiveCamera ? '#3b82f6' : '#cbd5e1'}`,
+                                    backgroundColor: useLiveCamera ? '#eff6ff' : 'white',
+                                    color: useLiveCamera ? '#2563eb' : '#334155',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    outline: 'none'
+                                }}
+                            >
+                                <Camera size={12} /> Camera Mode
+                            </button>
+                        </div>
+
+                        {/* Conditional controls depending on Mode */}
+                        {!useLiveCamera ? (
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <label style={{ 
+                                    flex: 1, 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    justifyContent: 'center', 
+                                    gap: '6px', 
+                                    padding: '8px 12px', 
+                                    borderRadius: '8px', 
+                                    border: '1px solid #cbd5e1', 
+                                    backgroundColor: 'white', 
+                                    color: '#334155', 
+                                    fontSize: '0.72rem', 
+                                    fontWeight: 700, 
+                                    cursor: 'pointer', 
+                                    transition: 'background-color 0.15s' 
+                                }}>
+                                    <Download size={12} style={{ transform: 'rotate(180deg)' }} /> Upload Image
+                                    <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        onChange={(e) => {
+                                            const file = e.target.files[0];
+                                            if (file) {
+                                                setUploadedFile(file);
+                                                setImagePreviewUrl(URL.createObjectURL(file));
+                                                setProcessedImage(null);
+                                                toast.success(`Loaded custom image: ${file.name}`);
+                                            }
+                                        }} 
+                                        style={{ display: 'none' }} 
+                                    />
+                                </label>
+
+                                {(uploadedFile || processedImage) && (
+                                    <button
+                                        onClick={() => {
+                                            setUploadedFile(null);
+                                            setImagePreviewUrl(null);
+                                            setProcessedImage(null);
+                                            toast.success('Reset to synthetic target generator feed.');
+                                        }}
+                                        style={{ 
+                                            padding: '8px 16px', 
+                                            borderRadius: '8px', 
+                                            border: '1px solid #fee2e2', 
+                                            backgroundColor: '#fef2f2', 
+                                            color: '#ef4444', 
+                                            fontSize: '0.72rem', 
+                                            fontWeight: 700, 
+                                            cursor: 'pointer' 
+                                        }}
+                                    >
+                                        Reset
+                                    </button>
+                                )}
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                {/* Device select */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#64748b' }}>PILIH KAMERA AKTIF:</span>
+                                    <select
+                                        value={selectedDeviceId}
+                                        onChange={(e) => {
+                                            setSelectedDeviceId(e.target.value);
+                                            setProcessedImage(null);
+                                        }}
+                                        style={{ 
+                                            width: '100%', 
+                                            padding: '6px 8px', 
+                                            borderRadius: '6px', 
+                                            border: '1px solid #cbd5e1', 
+                                            fontSize: '0.72rem', 
+                                            backgroundColor: 'white',
+                                            outline: 'none'
+                                        }}
+                                    >
+                                        {devices.length === 0 ? (
+                                            <option value="">No cameras detected</option>
+                                        ) : (
+                                            devices.map(device => (
+                                                <option key={device.deviceId} value={device.deviceId}>
+                                                    {device.label || `Camera ${devices.indexOf(device) + 1}`}
+                                                </option>
+                                            ))
+                                        )}
+                                    </select>
+                                </div>
+
+                                {/* Continuous mode toggle */}
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
+                                    <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#475569' }}>Continuous Live Inspection:</span>
+                                    <label style={{ position: 'relative', display: 'inline-block', width: '34px', height: '20px' }}>
+                                        <input 
+                                            type="checkbox" 
+                                            checked={isContinuous} 
+                                            onChange={(e) => {
+                                                setIsContinuous(e.target.checked);
+                                                if (e.target.checked) {
+                                                    setProcessedImage(null);
+                                                    toast.success('Continuous inspection active.');
+                                                } else {
+                                                    toast.success('Continuous inspection paused.');
+                                                }
+                                            }}
+                                            style={{ opacity: 0, width: 0, height: 0 }}
+                                        />
+                                        <span style={{
+                                            position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
+                                            backgroundColor: isContinuous ? '#10b981' : '#cbd5e1',
+                                            transition: '.3s', borderRadius: '20px'
+                                        }}>
+                                            <span style={{
+                                                position: 'absolute', content: '""', height: '14px', width: '14px', left: isContinuous ? '16px' : '3px', bottom: '3px',
+                                                backgroundColor: 'white', transition: '.3s', borderRadius: '50%'
+                                            }} />
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
                         )}
                     </div>
                 </div>

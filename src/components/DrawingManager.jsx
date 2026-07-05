@@ -662,6 +662,7 @@ export default function DrawingManager() {
     useEffect(() => {
         if (activeDimId) {
             setShowQCInspector(true);
+            setQcTab('properties');
         }
     }, [activeDimId]);
 
@@ -682,6 +683,7 @@ export default function DrawingManager() {
     const [drawingCategory, setDrawingCategory] = useState('dimension'); // dimension, diameter, radius, angle, etc.
     const [dimMoveMode, setDimMoveMode] = useState(null); // null, 'all', 'label'
     const [dragAnchor, setDragAnchor] = useState(null); // { dimId, anchorKey: 'p1' | 'p2' | 'center' | 'label' }
+    const [showCtxCoords, setShowCtxCoords] = useState(false); // coordinate sliders accordion in context menu
     const [cadColor, setCadColor] = useState('#3b82f6');
     const [cadWidth, setCadWidth] = useState(2);
     const [gridSnap, setGridSnap] = useState(false);
@@ -736,6 +738,19 @@ export default function DrawingManager() {
     const mgmtMenuRef = useRef(null);
     const fileSchemaRef = useRef(null);
     const imageInsertRef = useRef(null); // for image insertion into canvas
+
+    // OSNAP (Object Snap) states
+    const [osnapActive, setOsnapActive] = useState(true);
+    const [osnapModes, setOsnapModes] = useState({
+        endpoint: true,
+        midpoint: true,
+        center: true,
+        quadrant: true,
+        perpendicular: true,
+        intersection: true
+    });
+    const [snappedPoint, setSnappedPoint] = useState(null);
+    const [showOsnapModal, setShowOsnapModal] = useState(false);
     const [dragImageShape, setDragImageShape] = useState(null); // image being dragged/resized on canvas
     const [selectedShapeId, setSelectedShapeId] = useState(null); // currently selected shape ID (e.g. image)
 
@@ -1233,6 +1248,49 @@ export default function DrawingManager() {
             if (prop === 'category') setEditCategory(value);
         }
         saveDrawing(updatedDwg).catch(err => console.error('Failed to auto-save prop:', err));
+    };
+
+    const handleSliderCoordinateChange = (dimObj, key, val) => {
+        const numVal = parseInt(val);
+        const isAngle = dimObj.category === 'angle';
+        
+        let extraFields = {};
+        if (isAngle) {
+            const cx = key === 'cx' ? numVal : (dimObj.cx ?? 250);
+            const cy = key === 'cy' ? numVal : (dimObj.cy ?? 180);
+            const x1 = key === 'x1' ? numVal : (dimObj.x1 ?? 150);
+            const y1 = key === 'y1' ? numVal : (dimObj.y1 ?? 180);
+            const x2 = key === 'x2' ? numVal : (dimObj.x2 ?? 350);
+            const y2 = key === 'y2' ? numVal : (dimObj.y2 ?? 180);
+            
+            const angleStart = Math.round(Math.atan2(y1 - cy, x1 - cx) * (180 / Math.PI));
+            const angleEnd = Math.round(Math.atan2(y2 - cy, x2 - cx) * (180 / Math.PI));
+            
+            extraFields = { angleStart, angleEnd };
+        }
+        
+        const updatedDwg = {
+            ...selectedDwg,
+            dimensions: selectedDwg.dimensions.map(d => {
+                if (d.id === dimObj.id) {
+                    return { ...d, [key]: numVal, ...extraFields };
+                }
+                return d;
+            })
+        };
+        setDrawings(prev => prev.map(d => d.id === selectedDwgId ? updatedDwg : d));
+        
+        // Sync local edit values if this is the active dim
+        if (activeDimId === dimObj.id) {
+            if (key === 'lx') setEditLx(numVal);
+            if (key === 'ly') setEditLy(numVal);
+            if (key === 'x1') setEditX1(numVal);
+            if (key === 'y1') setEditY1(numVal);
+            if (key === 'x2') setEditX2(numVal);
+            if (key === 'y2') setEditY2(numVal);
+        }
+        
+        saveDrawing(updatedDwg).catch(err => console.error('Failed to save slider position:', err));
     };
 
     const handleChangeDimensionCategory = (dimId, newCategory) => {
@@ -1737,26 +1795,322 @@ export default function DrawingManager() {
                 setDimDraftCoords(null);
                 setSelectedShapeId(null);
             }
+
+            // 4. F3 -> Toggle OSNAP Mode
+            if (e.key === 'F3') {
+                e.preventDefault();
+                setOsnapActive(prev => {
+                    const nextVal = !prev;
+                    toast.success(nextVal ? 'OSNAP Aktif' : 'OSNAP Nonaktif', { id: 'osnap-toggle' });
+                    return nextVal;
+                });
+            }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [activeDimId, selectedDwg, handleDeleteDimension, handleDuplicateDimension]);
+    }, [activeDimId, selectedDwg, handleDeleteDimension, handleDuplicateDimension, setOsnapActive]);
+
+    const getSnappedCoords = (rawX, rawY) => {
+        if (!osnapActive) return { x: rawX, y: rawY, snap: null };
+
+        const segments = [];
+        const circles = [];
+        const arcs = [];
+        const rects = [];
+
+        const addSegment = (p1, p2) => {
+            if (p1 && p2) segments.push({ p1, p2 });
+        };
+
+        if (selectedDwg) {
+            // User shapes
+            (selectedDwg.shapes || []).forEach(s => {
+                if (s.type === 'line') {
+                    addSegment({ x: s.x1, y: s.y1 }, { x: s.x2, y: s.y2 });
+                } else if (s.type === 'polyline' && s.points) {
+                    for (let i = 0; i < s.points.length - 1; i++) {
+                        addSegment(s.points[i], s.points[i+1]);
+                    }
+                } else if (s.type === 'rect') {
+                    const x = s.x;
+                    const y = s.y;
+                    const w = s.width;
+                    const h = s.height;
+                    rects.push({ x, y, w, h });
+                    addSegment({ x, y }, { x: x + w, y });
+                    addSegment({ x: x + w, y }, { x: x + w, y: y + h });
+                    addSegment({ x: x + w, y: y + h }, { x, y: y + h });
+                    addSegment({ x, y: y + h }, { x, y });
+                } else if (s.type === 'circle') {
+                    circles.push({ cx: s.cx, cy: s.cy, r: s.r });
+                } else if (s.type === 'arc') {
+                    arcs.push({ cx: s.cx, cy: s.cy, r: s.r, startAngle: s.startAngle, endAngle: s.endAngle });
+                }
+            });
+
+            // DXF entities
+            (selectedDwg.entities || []).forEach(e => {
+                if (e.type === 'LINE') {
+                    addSegment({ x: e.x1, y: e.y1 }, { x: e.x2, y: e.y2 });
+                } else if (e.type === 'CIRCLE') {
+                    circles.push({ cx: e.cx, cy: e.cy, r: e.radius });
+                } else if (e.type === 'ARC') {
+                    arcs.push({ cx: e.cx, cy: e.cy, r: e.radius, startAngle: e.startAngle, endAngle: e.endAngle });
+                }
+            });
+
+            // Dimensions
+            (selectedDwg.dimensions || []).forEach(d => {
+                if (d.x1 !== undefined && d.y1 !== undefined && d.x2 !== undefined && d.y2 !== undefined) {
+                    addSegment({ x: d.x1, y: d.y1 }, { x: d.x2, y: d.y2 });
+                }
+            });
+        }
+
+        // 1b. Inject hardcoded blueprint mockups for OSNAP detection
+        if (selectedDwgId === 'dwg_flange_connector') {
+            const g1x = 10;
+            circles.push({ cx: 140 + g1x, cy: 180, r: 90 });
+            circles.push({ cx: 140 + g1x, cy: 180, r: 65 });
+            circles.push({ cx: 140 + g1x, cy: 180, r: 30 });
+            addSegment({ x: 140 + g1x, y: 75 }, { x: 140 + g1x, y: 285 });
+            addSegment({ x: 35 + g1x, y: 180 }, { x: 245 + g1x, y: 180 });
+            [0, 45, 90, 135, 180, 225, 270, 315].forEach(angle => {
+                const rad = (angle * Math.PI) / 180;
+                const bx = 140 + 65 * Math.cos(rad) + g1x;
+                const by = 180 + 65 * Math.sin(rad);
+                circles.push({ cx: bx, cy: by, r: 8 });
+            });
+
+            const g2x = 300;
+            addSegment({ x: 100 + g2x, y: 65 }, { x: 100 + g2x, y: 295 });
+            const pts = [
+                { x: 40 + g2x, y: 110 }, { x: 100 + g2x, y: 110 }, { x: 100 + g2x, y: 140 },
+                { x: 90 + g2x, y: 140 }, { x: 90 + g2x, y: 220 }, { x: 100 + g2x, y: 220 },
+                { x: 100 + g2x, y: 250 }, { x: 40 + g2x, y: 250 }, { x: 40 + g2x, y: 220 },
+                { x: 15 + g2x, y: 220 }, { x: 15 + g2x, y: 140 }, { x: 40 + g2x, y: 140 }
+            ];
+            for (let i = 0; i < pts.length; i++) {
+                addSegment(pts[i], pts[(i + 1) % pts.length]);
+            }
+        } else if (selectedDwgId === 'dwg_hydraulic_cylinder') {
+            const gx = 40;
+            const gy = 20;
+            rects.push({ x: 60 + gx, y: 100 + gy, w: 220, h: 120 });
+            rects.push({ x: 280 + gx, y: 130 + gy, w: 140, h: 60 });
+            circles.push({ cx: 435 + gx, cy: 160 + gy, r: 15 });
+            addSegment({ x: 20 + gx, y: 160 + gy }, { x: 450 + gx, y: 160 + gy });
+            
+            addSegment({ x: 60 + gx, y: 100 + gy }, { x: 280 + gx, y: 100 + gy });
+            addSegment({ x: 280 + gx, y: 100 + gy }, { x: 280 + gx, y: 220 + gy });
+            addSegment({ x: 280 + gx, y: 220 + gy }, { x: 60 + gx, y: 220 + gy });
+            addSegment({ x: 60 + gx, y: 220 + gy }, { x: 60 + gx, y: 100 + gy });
+            
+            addSegment({ x: 280 + gx, y: 130 + gy }, { x: 420 + gx, y: 130 + gy });
+            addSegment({ x: 420 + gx, y: 130 + gy }, { x: 420 + gx, y: 190 + gy });
+            addSegment({ x: 420 + gx, y: 190 + gy }, { x: 280 + gx, y: 190 + gy });
+            addSegment({ x: 280 + gx, y: 190 + gy }, { x: 280 + gx, y: 130 + gy });
+        } else if (selectedDwgId === 'dwg_product_checking') {
+            const pts = [
+                { x: 30, y: 350 }, { x: 30, y: 300 }, { x: 50, y: 300 }, { x: 250, y: 300 },
+                { x: 270, y: 300 }, { x: 270, y: 350 }, { x: 350, y: 350 }, { x: 350, y: 250 },
+                { x: 470, y: 250 }, { x: 470, y: 350 }
+            ];
+            for (let i = 0; i < pts.length; i++) {
+                addSegment(pts[i], pts[(i + 1) % pts.length]);
+            }
+            addSegment({ x: 30, y: 300 }, { x: 270, y: 300 });
+
+            circles.push({ cx: 200, cy: 200, r: 15 });
+            circles.push({ cx: 200, cy: 200, r: 8 });
+            addSegment({ x: 170, y: 200 }, { x: 230, y: 200 });
+            addSegment({ x: 200, y: 170 }, { x: 200, y: 230 });
+
+            rects.push({ x: 385, y: 100, w: 30, h: 100 });
+            addSegment({ x: 385, y: 100 }, { x: 415, y: 100 });
+            addSegment({ x: 415, y: 100 }, { x: 415, y: 200 });
+            addSegment({ x: 415, y: 200 }, { x: 385, y: 200 });
+            addSegment({ x: 385, y: 200 }, { x: 385, y: 100 });
+            addSegment({ x: 400, y: 80 }, { x: 400, y: 220 });
+
+            circles.push({ cx: 150, cy: 250, r: 10 });
+            addSegment({ x: 135, y: 250 }, { x: 165, y: 250 });
+            addSegment({ x: 150, y: 235 }, { x: 150, y: 265 });
+
+            rects.push({ x: 90, y: 90, w: 20, h: 20 });
+            addSegment({ x: 90, y: 90 }, { x: 110, y: 90 });
+            addSegment({ x: 110, y: 90 }, { x: 110, y: 110 });
+            addSegment({ x: 110, y: 110 }, { x: 90, y: 110 });
+            addSegment({ x: 90, y: 110 }, { x: 90, y: 90 });
+
+            rects.push({ x: 290, y: 140, w: 20, h: 20 });
+            addSegment({ x: 290, y: 140 }, { x: 310, y: 140 });
+            addSegment({ x: 310, y: 140 }, { x: 310, y: 160 });
+            addSegment({ x: 310, y: 160 }, { x: 290, y: 160 });
+            addSegment({ x: 290, y: 160 }, { x: 290, y: 140 });
+        }
+
+        const candidates = [];
+
+        const addCandidate = (x, y, type) => {
+            if (isNaN(x) || isNaN(y)) return;
+            candidates.push({ x: Math.round(x), y: Math.round(y), type });
+        };
+
+        // endpoint
+        if (osnapModes.endpoint) {
+            segments.forEach(s => {
+                addCandidate(s.p1.x, s.p1.y, 'endpoint');
+                addCandidate(s.p2.x, s.p2.y, 'endpoint');
+            });
+            rects.forEach(r => {
+                addCandidate(r.x, r.y, 'endpoint');
+                addCandidate(r.x + r.w, r.y, 'endpoint');
+                addCandidate(r.x + r.w, r.y + r.h, 'endpoint');
+                addCandidate(r.x, r.y + r.h, 'endpoint');
+            });
+            arcs.forEach(a => {
+                const radStart = (a.startAngle * Math.PI) / 180;
+                const radEnd = (a.endAngle * Math.PI) / 180;
+                addCandidate(a.cx + a.r * Math.cos(radStart), a.cy - a.r * Math.sin(radStart), 'endpoint');
+                addCandidate(a.cx + a.r * Math.cos(radEnd), a.cy - a.r * Math.sin(radEnd), 'endpoint');
+            });
+        }
+
+        // midpoint
+        if (osnapModes.midpoint) {
+            segments.forEach(s => {
+                addCandidate((s.p1.x + s.p2.x) / 2, (s.p1.y + s.p2.y) / 2, 'midpoint');
+            });
+            arcs.forEach(a => {
+                let diff = a.endAngle - a.startAngle;
+                if (diff < 0) diff += 360;
+                const midAngle = a.startAngle + diff / 2;
+                const radMid = (midAngle * Math.PI) / 180;
+                addCandidate(a.cx + a.r * Math.cos(radMid), a.cy - a.r * Math.sin(radMid), 'midpoint');
+            });
+        }
+
+        // center
+        if (osnapModes.center) {
+            circles.forEach(c => {
+                addCandidate(c.cx, c.cy, 'center');
+            });
+            arcs.forEach(a => {
+                addCandidate(a.cx, a.cy, 'center');
+            });
+            rects.forEach(r => {
+                addCandidate(r.x + r.w / 2, r.y + r.h / 2, 'center');
+            });
+        }
+
+        // quadrant
+        if (osnapModes.quadrant) {
+            circles.forEach(c => {
+                addCandidate(c.cx + c.r, c.cy, 'quadrant');
+                addCandidate(c.cx - c.r, c.cy, 'quadrant');
+                addCandidate(c.cx, c.cy + c.r, 'quadrant');
+                addCandidate(c.cx, c.cy - c.r, 'quadrant');
+            });
+        }
+
+        // perpendicular
+        if (osnapModes.perpendicular) {
+            let pStart = null;
+            if (drawingShape && drawingShape.type === 'line') {
+                pStart = { x: drawingShape.x1, y: drawingShape.y1 };
+            } else if (polylineDraftPoints.length > 1) {
+                pStart = polylineDraftPoints[polylineDraftPoints.length - 2];
+            } else if (dimDraftCoords && dimDrawState === 'waiting_end') {
+                pStart = { x: dimDraftCoords.x1, y: dimDraftCoords.y1 };
+            } else if (scaleDraftCoords && scaleDrawState === 'drawing') {
+                pStart = { x: scaleDraftCoords.x1, y: scaleDraftCoords.y1 };
+            }
+
+            if (pStart) {
+                segments.forEach(s => {
+                    const dx = s.p2.x - s.p1.x;
+                    const dy = s.p2.y - s.p1.y;
+                    const lenSq = dx * dx + dy * dy;
+                    if (lenSq > 0) {
+                        const t = ((pStart.x - s.p1.x) * dx + (pStart.y - s.p1.y) * dy) / lenSq;
+                        if (t >= 0 && t <= 1) {
+                            addCandidate(s.p1.x + t * dx, s.p1.y + t * dy, 'perpendicular');
+                        }
+                    }
+                });
+            }
+        }
+
+        // intersection
+        if (osnapModes.intersection) {
+            const getSegmentIntersection = (p1, p2, p3, p4) => {
+                const denom = (p4.y - p3.y) * (p2.x - p1.x) - (p4.x - p3.x) * (p2.y - p1.y);
+                if (denom === 0) return null;
+                const ua = ((p4.x - p3.x) * (p1.y - p3.y) - (p4.y - p3.y) * (p1.x - p3.x)) / denom;
+                const ub = ((p2.x - p1.x) * (p1.y - p3.y) - (p2.y - p1.y) * (p1.x - p3.x)) / denom;
+                if (ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1) {
+                    return {
+                        x: p1.x + ua * (p2.x - p1.x),
+                        y: p1.y + ua * (p2.y - p1.y)
+                    };
+                }
+                return null;
+            };
+
+            for (let i = 0; i < segments.length; i++) {
+                for (let j = i + 1; j < segments.length; j++) {
+                    const pt = getSegmentIntersection(segments[i].p1, segments[i].p2, segments[j].p1, segments[j].p2);
+                    if (pt) {
+                        addCandidate(pt.x, pt.y, 'intersection');
+                    }
+                }
+            }
+        }
+
+        const snapRadius = 15 / zoom;
+        let bestTarget = null;
+        let minDistance = Infinity;
+
+        candidates.forEach(tc => {
+            const dist = Math.hypot(tc.x - rawX, tc.y - rawY);
+            if (tc.x >= 0 && tc.x <= canvasSize.width && tc.y >= 0 && tc.y <= canvasSize.height) {
+                if (dist < snapRadius && dist < minDistance) {
+                    minDistance = dist;
+                    bestTarget = tc;
+                }
+            }
+        });
+
+        if (bestTarget) {
+            return { x: bestTarget.x, y: bestTarget.y, snap: bestTarget };
+        }
+
+        return { x: rawX, y: rawY, snap: null };
+    };
 
     const getCanvasCoords = (e) => {
         if (!svgRef.current) return { x: 0, y: 0 };
         const rect = svgRef.current.getBoundingClientRect();
 
-        // Client click relative to SVG client dimensions
         const clickX = e.clientX - rect.left;
         const clickY = e.clientY - rect.top;
 
         const cx = canvasSize.width / 2;
         const cy = canvasSize.height / 2;
 
-        // Reverse scale relative to the coordinate center (cx, cy) and panOffset:
         let x = cx + (clickX - cx - panOffset.x) / zoom;
         let y = cy + (clickY - cy - panOffset.y) / zoom;
+
+        // Perform OSNAP check first
+        const snapRes = getSnappedCoords(x, y);
+        if (snapRes.snap) {
+            setSnappedPoint(snapRes.snap);
+            return { x: snapRes.x, y: snapRes.y };
+        } else {
+            setSnappedPoint(null);
+        }
 
         if (gridSnap) {
             x = Math.round(x / 10) * 10;
@@ -1766,7 +2120,6 @@ export default function DrawingManager() {
             y = Math.round(y);
         }
 
-        // Clamp bounds to prevent drawings from exceeding viewport limits
         x = Math.max(0, Math.min(canvasSize.width, x));
         y = Math.max(0, Math.min(canvasSize.height, y));
 
@@ -1903,6 +2256,10 @@ export default function DrawingManager() {
                 setOrthoMode(o => !o);
                 successMessage = `ORTHO MODE toggled.`;
                 break;
+            case 'osnap':
+                setShowOsnapModal(true);
+                successMessage = 'OSNAP Settings opened.';
+                break;
             case 'clear':
                 updateShapes([]);
                 successMessage = 'Canvas shapes cleared.';
@@ -1912,7 +2269,7 @@ export default function DrawingManager() {
                     ...prev,
                     'Available commands: LINE, CIRCLE, RECT, ARC, POLYLINE, TEXT, IMAGE',
                     'Editing commands: MOVE, ROTATE, MIRROR, TRIM, ERASE, SELECT, UNDO, REDO',
-                    'Toggles: GRID (toggle snap), ORTHO (toggle drawing lock), CLEAR (clear shapes), HELP'
+                    'Toggles: GRID (toggle snap), ORTHO (toggle drawing lock), OSNAP (Object Snap settings), CLEAR (clear shapes), HELP'
                 ]);
                 matched = false;
                 break;
@@ -6856,6 +7213,82 @@ export default function DrawingManager() {
                                                         })()}
                                                     </g>
                                                 )}
+                                                {/* OSNAP Snapped Point Marker Overlay */}
+                                                {osnapActive && snappedPoint && (
+                                                    <g>
+                                                        {snappedPoint.type === 'endpoint' && (
+                                                            <rect
+                                                                x={snappedPoint.x - 5}
+                                                                y={snappedPoint.y - 5}
+                                                                width={10}
+                                                                height={10}
+                                                                fill="none"
+                                                                stroke="#22c55e"
+                                                                strokeWidth={1.5}
+                                                                style={{ pointerEvents: 'none' }}
+                                                            />
+                                                        )}
+                                                        {snappedPoint.type === 'midpoint' && (
+                                                            <polygon
+                                                                points={`${snappedPoint.x},${snappedPoint.y - 6} ${snappedPoint.x - 6},${snappedPoint.y + 4} ${snappedPoint.x + 6},${snappedPoint.y + 4}`}
+                                                                fill="none"
+                                                                stroke="#22c55e"
+                                                                strokeWidth={1.5}
+                                                                style={{ pointerEvents: 'none' }}
+                                                            />
+                                                        )}
+                                                        {snappedPoint.type === 'center' && (
+                                                            <circle
+                                                                cx={snappedPoint.x}
+                                                                cy={snappedPoint.y}
+                                                                r={5}
+                                                                fill="none"
+                                                                stroke="#22c55e"
+                                                                strokeWidth={1.5}
+                                                                style={{ pointerEvents: 'none' }}
+                                                            />
+                                                        )}
+                                                        {snappedPoint.type === 'quadrant' && (
+                                                            <polygon
+                                                                points={`${snappedPoint.x},${snappedPoint.y - 6} ${snappedPoint.x + 6},${snappedPoint.y} ${snappedPoint.x},${snappedPoint.y + 6} ${snappedPoint.x - 6},${snappedPoint.y}`}
+                                                                fill="none"
+                                                                stroke="#22c55e"
+                                                                strokeWidth={1.5}
+                                                                style={{ pointerEvents: 'none' }}
+                                                            />
+                                                        )}
+                                                        {snappedPoint.type === 'perpendicular' && (
+                                                            <path
+                                                                d={`M ${snappedPoint.x - 5} ${snappedPoint.y} L ${snappedPoint.x - 5} ${snappedPoint.y + 5} L ${snappedPoint.x} ${snappedPoint.y + 5}`}
+                                                                fill="none"
+                                                                stroke="#22c55e"
+                                                                strokeWidth={1.5}
+                                                                style={{ pointerEvents: 'none' }}
+                                                            />
+                                                        )}
+                                                        {snappedPoint.type === 'intersection' && (
+                                                            <path
+                                                                d={`M ${snappedPoint.x - 5} ${snappedPoint.y - 5} L ${snappedPoint.x + 5} ${snappedPoint.y + 5} M ${snappedPoint.x - 5} ${snappedPoint.y + 5} L ${snappedPoint.x + 5} ${snappedPoint.y - 5}`}
+                                                                fill="none"
+                                                                stroke="#22c55e"
+                                                                strokeWidth={1.5}
+                                                                style={{ pointerEvents: 'none' }}
+                                                            />
+                                                        )}
+                                                        {/* Small text tag */}
+                                                        <text
+                                                            x={snappedPoint.x + 8}
+                                                            y={snappedPoint.y + 4}
+                                                            fill="#22c55e"
+                                                            fontSize="6.5"
+                                                            fontWeight="bold"
+                                                            fontFamily="monospace"
+                                                            style={{ pointerEvents: 'none', filter: 'drop-shadow(0px 1px 1px rgba(0,0,0,0.6))' }}
+                                                        >
+                                                            {snappedPoint.type.toUpperCase()}
+                                                        </text>
+                                                    </g>
+                                                )}
                                             </g>
 
                                             {/* UCS Coordinate Axis Indicator */}
@@ -7308,6 +7741,166 @@ export default function DrawingManager() {
                                                     </div>
                                                 </div>
 
+                                                {/* Coordinates Sliders Accordion */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setShowCtxCoords(!showCtxCoords);
+                                                        }}
+                                                        style={{
+                                                            width: '100%',
+                                                            padding: '5px 8px',
+                                                            backgroundColor: '#1e293b',
+                                                            color: '#f8fafc',
+                                                            border: '1px solid #334155',
+                                                            borderRadius: '6px',
+                                                            fontSize: '0.68rem',
+                                                            fontWeight: 'bold',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'space-between',
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#334155'; }}
+                                                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#1e293b'; }}
+                                                    >
+                                                        <span>🎛️ Penyesuaian Koordinat</span>
+                                                        <span style={{ fontSize: '0.55rem' }}>{showCtxCoords ? '▼' : '▶'}</span>
+                                                    </button>
+                                                    {showCtxCoords && (
+                                                        <div style={{
+                                                            display: 'flex',
+                                                            flexDirection: 'column',
+                                                            gap: '6px',
+                                                            backgroundColor: '#0f172a80',
+                                                            padding: '8px',
+                                                            borderRadius: '6px',
+                                                            border: '1px solid #334155',
+                                                            marginTop: '2px'
+                                                        }}>
+                                                            {/* Label Coordinate Sliders */}
+                                                            <div>
+                                                                <span style={{ display: 'block', fontSize: '0.55rem', color: '#94a3b8', fontWeight: 700, marginBottom: '2px', textTransform: 'uppercase' }}>
+                                                                    Posisi Balloon
+                                                                </span>
+                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                                                                    <div>
+                                                                        <label style={{ display: 'block', fontSize: '0.55rem', color: '#cbd5e1' }}>Label X: {dim.lx ?? 250}</label>
+                                                                        <input
+                                                                            type="range"
+                                                                            min="10"
+                                                                            max="490"
+                                                                            value={dim.lx ?? 250}
+                                                                            onChange={(e) => handleSliderCoordinateChange(dim, 'lx', e.target.value)}
+                                                                            style={{ width: '100%', accentColor: '#10b981', height: '3px', cursor: 'pointer' }}
+                                                                        />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label style={{ display: 'block', fontSize: '0.55rem', color: '#cbd5e1' }}>Label Y: {dim.ly ?? 200}</label>
+                                                                        <input
+                                                                            type="range"
+                                                                            min="10"
+                                                                            max="350"
+                                                                            value={dim.ly ?? 200}
+                                                                            onChange={(e) => handleSliderCoordinateChange(dim, 'ly', e.target.value)}
+                                                                            style={{ width: '100%', accentColor: '#10b981', height: '3px', cursor: 'pointer' }}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Caliper Endpoints Coordinate Sliders */}
+                                                            <div style={{ borderTop: '1px solid #334155', paddingTop: '4px' }}>
+                                                                <span style={{ display: 'block', fontSize: '0.55rem', color: '#94a3b8', fontWeight: 700, marginBottom: '2px', textTransform: 'uppercase' }}>
+                                                                    Garis Penunjuk / Caliper
+                                                                </span>
+                                                                
+                                                                {dim.category === 'angle' ? (
+                                                                    <>
+                                                                        {/* Angle center/vertex */}
+                                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '4px' }}>
+                                                                            <div>
+                                                                                <label style={{ display: 'block', fontSize: '0.55rem', color: '#cbd5e1' }}>Vertex X: {dim.cx ?? 250}</label>
+                                                                                <input
+                                                                                    type="range"
+                                                                                    min="10"
+                                                                                    max="490"
+                                                                                    value={dim.cx ?? 250}
+                                                                                    onChange={(e) => handleSliderCoordinateChange(dim, 'cx', e.target.value)}
+                                                                                    style={{ width: '100%', accentColor: '#f59e0b', height: '3px', cursor: 'pointer' }}
+                                                                                />
+                                                                            </div>
+                                                                            <div>
+                                                                                <label style={{ display: 'block', fontSize: '0.55rem', color: '#cbd5e1' }}>Vertex Y: {dim.cy ?? 180}</label>
+                                                                                <input
+                                                                                    type="range"
+                                                                                    min="10"
+                                                                                    max="350"
+                                                                                    value={dim.cy ?? 180}
+                                                                                    onChange={(e) => handleSliderCoordinateChange(dim, 'cy', e.target.value)}
+                                                                                    style={{ width: '100%', accentColor: '#f59e0b', height: '3px', cursor: 'pointer' }}
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+                                                                    </>
+                                                                ) : null}
+
+                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '4px' }}>
+                                                                    <div>
+                                                                        <label style={{ display: 'block', fontSize: '0.55rem', color: '#cbd5e1' }}>Awal X (P1): {dim.x1 ?? 150}</label>
+                                                                        <input
+                                                                            type="range"
+                                                                            min="10"
+                                                                            max="490"
+                                                                            value={dim.x1 ?? 150}
+                                                                            onChange={(e) => handleSliderCoordinateChange(dim, 'x1', e.target.value)}
+                                                                            style={{ width: '100%', accentColor: '#3b82f6', height: '3px', cursor: 'pointer' }}
+                                                                        />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label style={{ display: 'block', fontSize: '0.55rem', color: '#cbd5e1' }}>Awal Y (P1): {dim.y1 ?? 180}</label>
+                                                                        <input
+                                                                            type="range"
+                                                                            min="10"
+                                                                            max="350"
+                                                                            value={dim.y1 ?? 180}
+                                                                            onChange={(e) => handleSliderCoordinateChange(dim, 'y1', e.target.value)}
+                                                                            style={{ width: '100%', accentColor: '#3b82f6', height: '3px', cursor: 'pointer' }}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+
+                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                                                                    <div>
+                                                                        <label style={{ display: 'block', fontSize: '0.55rem', color: '#cbd5e1' }}>Akhir X (P2): {dim.x2 ?? 350}</label>
+                                                                        <input
+                                                                            type="range"
+                                                                            min="10"
+                                                                            max="490"
+                                                                            value={dim.x2 ?? 350}
+                                                                            onChange={(e) => handleSliderCoordinateChange(dim, 'x2', e.target.value)}
+                                                                            style={{ width: '100%', accentColor: '#3b82f6', height: '3px', cursor: 'pointer' }}
+                                                                        />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label style={{ display: 'block', fontSize: '0.55rem', color: '#cbd5e1' }}>Akhir Y (P2): {dim.y2 ?? 180}</label>
+                                                                        <input
+                                                                            type="range"
+                                                                            min="10"
+                                                                            max="350"
+                                                                            value={dim.y2 ?? 180}
+                                                                            onChange={(e) => handleSliderCoordinateChange(dim, 'y2', e.target.value)}
+                                                                            style={{ width: '100%', accentColor: '#3b82f6', height: '3px', cursor: 'pointer' }}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+
                                                 {/* Rotate */}
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                                     <span style={{ fontSize: '0.58rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -7618,7 +8211,7 @@ export default function DrawingManager() {
                                                     gap: '2px'
                                                 }}
                                             >
-                                                <Magnet size={9} /> SNAP
+                                                            <Magnet size={9} /> SNAP
                                             </button>
 
                                             <button
@@ -7639,6 +8232,30 @@ export default function DrawingManager() {
                                                 }}
                                             >
                                                 <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M4 20 L20 20 M4 20 L4 4" /></svg> ORTHO
+                                            </button>
+
+                                            <button
+                                                onClick={() => setOsnapActive(o => !o)}
+                                                onContextMenu={(e) => {
+                                                    e.preventDefault();
+                                                    setShowOsnapModal(true);
+                                                }}
+                                                title="Object Snap (F3) - Right click for settings"
+                                                style={{
+                                                    backgroundColor: osnapActive ? '#2563eb20' : 'transparent',
+                                                    border: '1px solid ' + (osnapActive ? '#2563eb' : '#334155'),
+                                                    color: osnapActive ? '#60a5fa' : '#64748b',
+                                                    borderRadius: '4px',
+                                                    padding: '2px 6px',
+                                                    fontSize: '0.55rem',
+                                                    fontWeight: 'bold',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '2px'
+                                                }}
+                                            >
+                                                <Square size={9} /> OSNAP
                                             </button>
                                         </div>
 
@@ -7683,51 +8300,122 @@ export default function DrawingManager() {
                         </div>
                     </div>
 
-                    {/* Right Sidebar: Parameter Mapping (Top) + QC Simulator (Bottom) */}
+                    {/* Right Sidebar: QC Inspector (Tabs: Parameter Mapping / QC Simulator) */}
                     {showQCInspector && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', height: '100%', minHeight: 0 }}>
-                            {/* Parameter Mapping Panel */}
+                        <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            height: '100%',
+                            minHeight: 0,
+                            backgroundColor: 'white',
+                            borderRadius: '16px',
+                            border: '1px solid #e2e8f0',
+                            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+                            overflow: 'hidden',
+                            fontFamily: "'Inter', sans-serif",
+                            color: '#1e293b'
+                        }}>
+                            {/* Unified Panel Header */}
                             <div style={{
-                                flex: 1.2,
-                                backgroundColor: 'white',
-                                borderRadius: '16px',
-                                border: '1px solid #e2e8f0',
-                                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
                                 display: 'flex',
-                                flexDirection: 'column',
-                                overflow: 'hidden',
-                                minHeight: 0,
-                                fontFamily: "'Inter', sans-serif",
-                                color: '#1e293b'
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '12px 16px',
+                                borderBottom: '1px solid rgba(226, 232, 240, 0.8)',
+                                backgroundColor: 'rgba(248, 250, 252, 0.8)'
                             }}>
-                                {/* Panel Header */}
+                                {/* Tab Switcher / Pills */}
                                 <div style={{
                                     display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    padding: '12px 16px',
-                                    borderBottom: '1px solid rgba(226, 232, 240, 0.8)',
-                                    backgroundColor: 'rgba(248, 250, 252, 0.8)'
+                                    padding: '3px',
+                                    backgroundColor: '#e2e8f0',
+                                    borderRadius: '8px',
+                                    gap: '2px'
                                 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <span style={{ fontSize: '1rem' }}>≡ƒöº</span>
-                                        <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>
-                                            Parameter Mapping
-                                        </h3>
-                                        {activeDim && (
-                                            <span style={{
-                                                fontSize: '0.62rem',
-                                                backgroundColor: '#eff6ff',
-                                                color: '#2563eb',
-                                                padding: '2px 8px',
-                                                borderRadius: '12px',
-                                                fontWeight: 'bold'
-                                            }}>
-                                                Balloon #{selectedDwg?.dimensions?.findIndex(d => d.id === activeDim.id) + 1 || '?'}
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <button
+                                        onClick={() => setQcTab('properties')}
+                                        style={{
+                                            padding: '6px 12px',
+                                            borderRadius: '6px',
+                                            border: 'none',
+                                            fontSize: '0.72rem',
+                                            fontWeight: 800,
+                                            cursor: 'pointer',
+                                            backgroundColor: qcTab === 'properties' ? 'white' : 'transparent',
+                                            color: qcTab === 'properties' ? '#0f172a' : '#64748b',
+                                            boxShadow: qcTab === 'properties' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
+                                            transition: 'all 0.2s',
+                                            outline: 'none'
+                                        }}
+                                    >
+                                        QC Parameter
+                                    </button>
+                                    <button
+                                        onClick={() => setQcTab('simulator')}
+                                        style={{
+                                            padding: '6px 12px',
+                                            borderRadius: '6px',
+                                            border: 'none',
+                                            fontSize: '0.72rem',
+                                            fontWeight: 800,
+                                            cursor: 'pointer',
+                                            backgroundColor: qcTab === 'simulator' ? 'white' : 'transparent',
+                                            color: qcTab === 'simulator' ? '#0f172a' : '#64748b',
+                                            boxShadow: qcTab === 'simulator' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
+                                            transition: 'all 0.2s',
+                                            outline: 'none'
+                                        }}
+                                    >
+                                        Simulator
+                                    </button>
+                                </div>
+
+                                {/* Right side items + Close Button */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    {/* Close Button */}
+                                    <button
+                                        onClick={() => setShowQCInspector(false)}
+                                        style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            color: '#64748b',
+                                            fontSize: '0.9rem',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            padding: '4px',
+                                            borderRadius: '50%'
+                                        }}
+                                        onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(226, 232, 240, 0.5)'}
+                                        onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Tab Content Body */}
+                            {qcTab === 'properties' ? (
+                                <div style={{ flex: 1, overflowY: 'auto', padding: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    {/* Action Row containing Balloon indicator and Add Button */}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px', marginBottom: '4px' }}>
+                                        <div>
+                                            {activeDim && (
+                                                <span style={{
+                                                    fontSize: '0.7rem',
+                                                    backgroundColor: '#eff6ff',
+                                                    color: '#2563eb',
+                                                    padding: '3px 10px',
+                                                    borderRadius: '12px',
+                                                    fontWeight: 'bold',
+                                                    display: 'inline-block'
+                                                }}>
+                                                    Balloon #{selectedDwg?.dimensions?.findIndex(d => d.id === activeDim.id) + 1 || '?'}
+                                                </span>
+                                            )}
+                                        </div>
+                                        
                                         {/* Add button with category picker */}
                                         <div style={{ position: 'relative' }} ref={addPickerRef}>
                                             <button
@@ -7765,30 +8453,8 @@ export default function DrawingManager() {
                                                 </div>
                                             )}
                                         </div>
-                                        <button
-                                            onClick={() => setShowQCInspector(false)}
-                                            style={{
-                                                background: 'none',
-                                                border: 'none',
-                                                color: '#64748b',
-                                                fontSize: '0.9rem',
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                padding: '4px',
-                                                borderRadius: '50%'
-                                            }}
-                                            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(226, 232, 240, 0.5)'}
-                                            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
-                                        >
-                                            <X size={14} />
-                                        </button>
                                     </div>
-                                </div>
 
-                                {/* Panel Body */}
-                                <div style={{ flex: 1, overflowY: 'auto', padding: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                     {activeDim ? (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                             {/* Category + GD&T Symbol header */}
@@ -7915,15 +8581,14 @@ export default function DrawingManager() {
                                             {editCategory === 'angle' && (
                                                 <div style={{ backgroundColor: '#fffbeb', padding: '10px', borderRadius: '8px', border: '1px solid #fde68a', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                                     <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#92400e', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                        Γêá Parameter Sudut
+                                                        ∠ Parameter Sudut
                                                     </div>
                                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
                                                         <div>
-                                                            <label style={{ ...labelStyle, color: '#92400e' }}>Sudut Mulai (┬░)</label>
+                                                            <label style={{ ...labelStyle, color: '#92400e' }}>Sudut Mulai (°)</label>
                                                             <input type="number" value={editAngleStart} onChange={(e) => updateActiveDimProp('angleStart', e.target.value)} style={inputStyle} />
                                                         </div>
                                                         <div>
-                                                            <label style={{ ...labelStyle, color: '#92400e' }}>Sudut Akhir (┬░)</label>
                                                             <label style={{ ...labelStyle, color: '#92400e' }}>Sudut Akhir (°)</label>
                                                             <input type="number" value={editAngleEnd} onChange={(e) => updateActiveDimProp('angleEnd', e.target.value)} style={inputStyle} />
                                                         </div>
@@ -8277,7 +8942,7 @@ export default function DrawingManager() {
                                                     </div>
 
                                                     {/* Interactive Joystick & Fine-Tune layout */}
-                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', gap: '10px', marginTop: '4px' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContainer: 'space-around', gap: '10px', marginTop: '4px' }}>
 
                                                         {/* Joystick Pad */}
                                                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
@@ -8401,60 +9066,28 @@ export default function DrawingManager() {
                                         </div>
                                     )}
                                 </div>
-                            </div>
-
-                            {/* QC Simulator Panel */}
-                            <div style={{
-                                flex: 0.8,
-                                backgroundColor: 'white',
-                                borderRadius: '16px',
-                                border: '1px solid #e2e8f0',
-                                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                overflow: 'hidden',
-                                minHeight: 0,
-                                fontFamily: "'Inter', sans-serif",
-                                color: '#1e293b'
-                            }}>
-                                {/* Panel Header */}
-                                <div style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    padding: '12px 16px',
-                                    borderBottom: '1px solid rgba(226, 232, 240, 0.8)',
-                                    backgroundColor: 'rgba(248, 250, 252, 0.8)'
-                                }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <span style={{ fontSize: '1rem' }}>ΓÜí</span>
-                                        <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>
-                                            QC Simulator
-                                        </h3>
-                                    </div>
-
-                                    {/* Overall Judgment Status Badge */}
-                                    {selectedDwg?.dimensions?.length > 0 && (
-                                        <span style={{
-                                            fontSize: '0.65rem',
-                                            fontWeight: 900,
-                                            padding: '2px 8px',
-                                            borderRadius: '4px',
-                                            backgroundColor: overallJudgment === 'PASS' ? '#ecfdf5' : overallJudgment === 'FAIL' ? '#fee2e2' : '#f1f5f9',
-                                            color: overallJudgment === 'PASS' ? '#059669' : overallJudgment === 'FAIL' ? '#dc2626' : '#64748b',
-                                            border: `1px solid ${overallJudgment === 'PASS' ? '#a7f3d0' : overallJudgment === 'FAIL' ? '#fecaca' : '#cbd5e1'}`,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '3px'
-                                        }}>
-                                            {overallJudgment === 'PASS' ? <CheckCircle size={10} color="#059669" /> : overallJudgment === 'FAIL' ? <XCircle size={10} color="#dc2626" /> : <Info size={10} color="#64748b" />}
-                                            {overallJudgment}
-                                        </span>
-                                    )}
-                                </div>
-
-                                {/* Panel Body */}
+                            ) : (
                                 <div style={{ flex: 1, overflowY: 'auto', padding: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    {selectedDwg?.dimensions?.length > 0 && (
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '4px' }}>
+                                            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748b' }}>STATUS INSPEKSI:</span>
+                                            <span style={{
+                                                fontSize: '0.7rem',
+                                                fontWeight: 900,
+                                                padding: '3px 10px',
+                                                borderRadius: '4px',
+                                                backgroundColor: overallJudgment === 'PASS' ? '#ecfdf5' : overallJudgment === 'FAIL' ? '#fee2e2' : '#f1f5f9',
+                                                color: overallJudgment === 'PASS' ? '#059669' : overallJudgment === 'FAIL' ? '#dc2626' : '#64748b',
+                                                border: `1px solid ${overallJudgment === 'PASS' ? '#a7f3d0' : overallJudgment === 'FAIL' ? '#fecaca' : '#cbd5e1'}`,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '4px'
+                                            }}>
+                                                {overallJudgment === 'PASS' ? <CheckCircle size={11} color="#059669" /> : overallJudgment === 'FAIL' ? <XCircle size={11} color="#dc2626" /> : <Info size={11} color="#64748b" />}
+                                                {overallJudgment}
+                                            </span>
+                                        </div>
+                                    )}
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                         {(selectedDwg?.dimensions || []).map((dim, idx) => {
                                             const catDef = getCategoryDef(dim.category || 'dimension');
@@ -8476,10 +9109,10 @@ export default function DrawingManager() {
                                                             <span style={{ fontSize: '0.58rem', backgroundColor: '#e2e8f0', padding: '1px 4px', borderRadius: '4px' }}>#{idx + 1}</span>
                                                             <span style={{ color: catDef.color, fontSize: '0.75rem' }}>{catDef.icon}</span>
                                                             {dim.label}
-                                                            <span style={{ color: '#64748b', fontWeight: 600 }}>[{dim.tolMin}ΓÇô{dim.tolMax} {dim.unit}]</span>
+                                                            <span style={{ color: '#64748b', fontWeight: 600 }}>[{dim.tolMin}–{dim.tolMax} {dim.unit}]</span>
                                                             {triggerCount > 0 && (
                                                                 <span style={{ color: '#f59e0b', fontSize: '0.6rem', display: 'flex', alignItems: 'center', gap: '2px' }} title={`${triggerCount} trigger aktif`}>
-                                                                    ΓÜí{triggerCount}
+                                                                    ⚠️{triggerCount}
                                                                 </span>
                                                             )}
                                                         </span>
@@ -8597,9 +9230,10 @@ export default function DrawingManager() {
                                         </div>
                                     )}
                                 </div>
-                            </div>
+                            )}
                         </div>
                     )}
+
                 </div>
 
 
@@ -8665,6 +9299,122 @@ export default function DrawingManager() {
                                 Simpan Kalibrasi
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* OSNAP Settings Overlay Modal */}
+            {showOsnapModal && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+                    backgroundColor: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(4px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+                }}>
+                    <div style={{
+                        backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0',
+                        width: '360px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+                        display: 'flex', flexDirection: 'column', gap: '16px', fontFamily: "'Inter', sans-serif"
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '1.3rem' }}>🎯</span>
+                                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 900, color: '#0f172a' }}>Pengaturan Object Snap (OSNAP)</h3>
+                            </div>
+                            <button
+                                onClick={() => setShowOsnapModal(false)}
+                                style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8' }}
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* Overall Switch */}
+                        <div style={{
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            backgroundColor: '#f8fafc', padding: '10px 14px', borderRadius: '10px',
+                            border: '1px solid #e2e8f0'
+                        }}>
+                            <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#334155' }}>Status OSNAP (F3)</span>
+                            <label style={{ position: 'relative', display: 'inline-block', width: '34px', height: '20px' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={osnapActive}
+                                    onChange={(e) => {
+                                        setOsnapActive(e.target.checked);
+                                        toast.success(e.target.checked ? 'OSNAP Aktif' : 'OSNAP Nonaktif', { id: 'osnap-toggle' });
+                                    }}
+                                    style={{ opacity: 0, width: 0, height: 0 }}
+                                />
+                                <span style={{
+                                    position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
+                                    backgroundColor: osnapActive ? '#2563eb' : '#cbd5e1',
+                                    transition: '.3s', borderRadius: '20px'
+                                }}>
+                                    <span style={{
+                                        position: 'absolute', content: '""', height: '14px', width: '14px', left: osnapActive ? '16px' : '3px', bottom: '3px',
+                                        backgroundColor: 'white', transition: '.3s', borderRadius: '50%'
+                                    }} />
+                                </span>
+                            </label>
+                        </div>
+
+                        {/* Snap Modes Checkboxes List */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '2px' }}>
+                                Mode Deteksi Titik Otomatis
+                            </div>
+                            
+                            {[
+                                { key: 'endpoint', label: 'Endpoint', icon: '▢', desc: 'Ujung garis / sudut busur' },
+                                { key: 'midpoint', label: 'Midpoint', icon: '△', desc: 'Titik tengah garis / segmen' },
+                                { key: 'center', label: 'Center', icon: '◯', desc: 'Titik pusat lingkaran / busur' },
+                                { key: 'quadrant', label: 'Quadrant', icon: '◇', desc: 'Titik sudut jam 12, 3, 6, 9' },
+                                { key: 'perpendicular', label: 'Perpendicular', icon: '∟', desc: 'Titik proyeksi siku-siku (90°)' },
+                                { key: 'intersection', label: 'Intersection', icon: '✕', desc: 'Titik silang dua segmen' }
+                            ].map((mode) => (
+                                <label
+                                    key={mode.key}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '10px',
+                                        padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0',
+                                        cursor: 'pointer', transition: 'background-color 0.2s',
+                                        backgroundColor: osnapModes[mode.key] ? '#f0f9ff' : 'white'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = osnapModes[mode.key] ? '#f0f9ff' : '#f8fafc'}
+                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = osnapModes[mode.key] ? '#f0f9ff' : 'white'}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={osnapModes[mode.key]}
+                                        onChange={(e) => {
+                                            setOsnapModes(prev => ({
+                                                ...prev,
+                                                [mode.key]: e.target.checked
+                                            }));
+                                        }}
+                                        style={{ accentColor: '#2563eb' }}
+                                    />
+                                    <span style={{ fontSize: '1rem', fontWeight: 'bold', color: '#2563eb', width: '18px', textAlign: 'center' }}>
+                                        {mode.icon}
+                                    </span>
+                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                                        <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#1e293b' }}>{mode.label}</span>
+                                        <span style={{ fontSize: '0.62rem', color: '#64748b' }}>{mode.desc}</span>
+                                    </div>
+                                </label>
+                            ))}
+                        </div>
+
+                        <button
+                            onClick={() => setShowOsnapModal(false)}
+                            style={{
+                                padding: '10px', backgroundColor: '#0f172a', color: 'white',
+                                border: 'none', borderRadius: '8px', fontWeight: 700,
+                                cursor: 'pointer', fontSize: '0.78rem', marginTop: '4px'
+                            }}
+                        >
+                            Tutup & Terapkan
+                        </button>
                     </div>
                 </div>
             )}

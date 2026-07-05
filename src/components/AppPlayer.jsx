@@ -873,7 +873,7 @@ const AppPlayer = () => {
     // Player states
     const [isPaused, setIsPaused] = useState(false);
     const [devMode, setDevMode] = useState(() => loadLS(LS_DEV_MODE, false));
-    const [appScaleMode, setAppScaleMode] = useState(() => loadLS(LS_APP_SCALE_MODE, 'FIT_WIDTH'));
+    const [appScaleMode, setAppScaleMode] = useState(() => loadLS(LS_APP_SCALE_MODE, 'FIT_SCREEN'));
     const [showComments, setShowComments] = useState(false);
     const [newComment, setNewComment] = useState('');
     const [sessionComments, setSessionComments] = useState([]);
@@ -1579,38 +1579,79 @@ const AppPlayer = () => {
                     {/* Header */}
                     {activeApp ? (
                         <>
-                            {/* Row 1: Dark Header */}
+                            {/* Consolidated Header Bar */}
                             <div style={{
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
                                 padding: '0 16px',
-                                height: '36px',
+                                height: '48px',
                                 backgroundColor: '#090d16', // Ultra dark background
-                                color: '#94a3b8',
+                                color: 'white',
                                 borderBottom: '1px solid #1e293b',
                                 flexShrink: 0,
-                                fontSize: '0.75rem',
-                                fontWeight: 600
+                                position: 'relative'
                             }}>
-                                {/* Left side: Operator and Station Info */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', minWidth: 0 }}>
+                                {/* Left side: Logo, App Title, Badge, Duration, Step, User/Station Info */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flexWrap: 'nowrap' }}>
                                     {companyLogo && (
-                                        <img src={companyLogo} alt="Logo" style={{ height: '14px', objectFit: 'contain' }} />
+                                        <img src={companyLogo} alt="Logo" style={{ height: '14px', objectFit: 'contain', marginRight: '2px' }} />
                                     )}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
-                                        <User size={12} color="#3b82f6" />
+                                    <span style={{ fontSize: '1.05rem', fontWeight: 800, color: 'white', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {activeApp.name}
+                                    </span>
+                                    <span style={{
+                                        fontSize: '0.65rem', fontWeight: 800, color: 'white', 
+                                        backgroundColor: activeApp.approval_status === 'PUBLISHED' ? '#16a34a' : '#ef4444',
+                                        borderRadius: '4px', padding: '2px 6px', textTransform: 'uppercase', letterSpacing: '0.05em',
+                                        whiteSpace: 'nowrap'
+                                    }}>
+                                        {activeApp.approval_status || 'DRAFT'}
+                                    </span>
+                                    
+                                    <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.15)', flexShrink: 0 }} />
+                                    <span style={{ fontSize: '0.72rem', color: '#cbd5e1', whiteSpace: 'nowrap' }}>
+                                        Duration: <strong style={{ color: 'white', fontFamily: 'monospace' }}>{formatDuration(elapsedSeconds)}</strong>
+                                    </span>
+
+                                    {stepLabel && (
+                                        <>
+                                            <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.15)', flexShrink: 0 }} />
+                                            <span style={{
+                                                fontSize: '0.7rem', fontWeight: 700, color: '#090d16', backgroundColor: '#f1f5f9',
+                                                borderRadius: '4px', padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap',
+                                                overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px'
+                                            }}>
+                                                <ChevronRight size={11} /> {stepLabel}
+                                            </span>
+                                        </>
+                                    )}
+
+                                    <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.15)', flexShrink: 0 }} />
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', fontSize: '0.72rem', color: '#94a3b8' }}>
+                                        <User size={11} color="#3b82f6" />
                                         <span>USER: <strong style={{ color: 'white' }}>{operator || '-'}</strong></span>
                                     </div>
-                                    <div style={{ width: '1px', height: '12px', backgroundColor: '#1e293b', flexShrink: 0 }} />
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                        <MapPin size={12} color="#10b981" />
+
+                                    <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.15)', flexShrink: 0 }} />
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', fontSize: '0.72rem', color: '#94a3b8', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        <MapPin size={11} color="#10b981" />
                                         <span>STATION: <strong style={{ color: 'white' }}>{activeStationName || '-'}</strong></span>
                                     </div>
                                 </div>
 
-                                {/* Right side: Global settings */}
+                                {/* Right side: Status, Language, Dev Mode, Fullscreen, Scale Mode, Menu, Logout */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                    <div style={{ 
+                                        fontSize: '0.62rem', fontWeight: 800, padding: '3px 8px', borderRadius: '20px',
+                                        backgroundColor: isOnline ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                                        color: isOnline ? '#4ade80' : '#fca5a5',
+                                        display: 'flex', alignItems: 'center', gap: '4px', border: `1px solid ${isOnline ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`
+                                    }}>
+                                        <span className={`pulse-dot ${isOnline ? 'pulse-dot-success' : 'pulse-dot-danger'}`} style={{ width: '5px', height: '5px' }} />
+                                        {isOnline ? 'ONLINE' : 'OFFLINE'}
+                                    </div>
+
                                     {/* Language selection */}
                                     <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '1px 6px', borderRadius: '4px', gap: '2px' }}>
                                         <Globe size={10} color="#cbd5e1" />
@@ -1630,13 +1671,13 @@ const AppPlayer = () => {
                                         onClick={() => setDevMode(!devMode)}
                                         title="Toggle Developer Mode"
                                         style={{ 
-                                            padding: '3px 8px', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', 
+                                            padding: '4px 8px', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', 
                                             backgroundColor: devMode ? 'rgba(255,255,255,0.1)' : 'transparent', color: '#cbd5e1', 
                                             cursor: 'pointer', display: 'flex', gap: '4px', alignItems: 'center', fontWeight: 700, fontSize: '0.68rem',
                                             transition: 'all 0.2s'
                                         }}
                                     >
-                                        <Code size={10} /> {devMode ? 'Dev Mode' : 'Prod Mode'}
+                                        <Code size={10} /> {devMode ? 'Dev' : 'Prod'}
                                     </button>
 
                                     {/* Fullscreen Kiosk toggle */}
@@ -1644,15 +1685,286 @@ const AppPlayer = () => {
                                         onClick={toggleFullscreen}
                                         title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
                                         style={{ 
-                                            padding: '3px 8px', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', 
+                                            padding: '4px 8px', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', 
                                             backgroundColor: isFullscreen ? 'rgba(0,0,0,0.3)' : 'transparent', color: '#cbd5e1', 
                                             cursor: 'pointer', display: 'flex', gap: '4px', alignItems: 'center', fontWeight: 700, fontSize: '0.68rem',
                                             transition: 'all 0.2s'
                                         }}
                                     >
                                         {isFullscreen ? <Minimize2 size={10} /> : <Maximize2 size={10} />}
-                                        {isFullscreen ? 'Exit' : 'Kiosk'}
+                                        Kiosk
                                     </button>
+
+                                    <button
+                                        onClick={() => setAppScaleMode(prev => prev === 'FIT_SCREEN' ? 'FIT_WIDTH' : 'FIT_SCREEN')}
+                                        title={appScaleMode === 'FIT_SCREEN' ? 'Switch to Fit Width' : 'Switch to Fit Screen'}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            padding: '4px 8px',
+                                            borderRadius: '4px',
+                                            border: '1px solid rgba(255,255,255,0.15)',
+                                            backgroundColor: appScaleMode === 'FIT_SCREEN' ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.05)',
+                                            color: appScaleMode === 'FIT_SCREEN' ? '#86efac' : 'white',
+                                            fontWeight: 700,
+                                            fontSize: '0.68rem',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.15s'
+                                        }}
+                                    >
+                                        <Maximize2 size={10} />
+                                        {appScaleMode === 'FIT_SCREEN' ? 'Fit Screen' : 'Fit Width'}
+                                    </button>
+
+                                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                                        <button
+                                            onClick={() => setMenuOpen(!menuOpen)}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                padding: '4px 8px',
+                                                borderRadius: '4px',
+                                                border: '1px solid rgba(255,255,255,0.15)',
+                                                backgroundColor: menuOpen ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)',
+                                                color: 'white',
+                                                fontWeight: 700,
+                                                fontSize: '0.68rem',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.15s'
+                                            }}
+                                        >
+                                            <Menu size={12} />
+                                            Menu
+                                            <ChevronDown size={10} style={{ transform: menuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                                        </button>
+
+                                        {/* Dropdown Menu overlay - Glassmorphic Dark */}
+                                        {menuOpen && (
+                                            <div style={{
+                                                position: 'absolute',
+                                                top: '100%',
+                                                right: 0,
+                                                width: '260px',
+                                                background: 'linear-gradient(180deg, #0f172a 0%, #1e293b 100%)',
+                                                color: 'white',
+                                                borderRadius: '12px',
+                                                boxShadow: '0 20px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.08)',
+                                                padding: '8px 0',
+                                                border: '1px solid rgba(255,255,255,0.08)',
+                                                zIndex: 1000,
+                                                marginTop: '8px',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                backdropFilter: 'blur(20px)'
+                                            }}>
+                                                {/* Menu Header */}
+                                                <div style={{ padding: '6px 16px 10px', borderBottom: '1px solid rgba(255,255,255,0.08)', marginBottom: '4px' }}>
+                                                    <div style={{ fontSize: '0.6rem', fontWeight: 800, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                                                        App Controls
+                                                    </div>
+                                                </div>
+
+                                                {/* Comment item */}
+                                                <button
+                                                    onClick={() => { setShowComments(true); setMenuOpen(false); }}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '12px',
+                                                        padding: '9px 16px', width: '100%', border: 'none',
+                                                        background: 'none', textAlign: 'left', fontSize: '0.82rem',
+                                                        fontWeight: 600, color: 'rgba(255,255,255,0.75)',
+                                                        cursor: 'pointer', transition: 'all 0.15s'
+                                                    }}
+                                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
+                                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
+                                                >
+                                                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(100,116,139,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                        <MessageSquare size={13} color="#94a3b8" />
+                                                    </div>
+                                                    <span style={{ flex: 1 }}>Comments</span>
+                                                    {sessionComments.length > 0 && <span style={{ fontSize: '0.68rem', fontWeight: 800, backgroundColor: 'rgba(59,130,246,0.2)', color: '#93c5fd', borderRadius: '10px', padding: '1px 7px' }}>{sessionComments.length}</span>}
+                                                </button>
+
+                                                {/* Pause/Resume item */}
+                                                <button
+                                                    onClick={() => { handlePauseToggle(); setMenuOpen(false); }}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '12px',
+                                                        padding: '9px 16px', width: '100%', border: 'none',
+                                                        background: isPaused ? 'rgba(16,185,129,0.1)' : 'none',
+                                                        textAlign: 'left', fontSize: '0.82rem',
+                                                        fontWeight: 600, color: isPaused ? '#6ee7b7' : 'rgba(255,255,255,0.75)',
+                                                        cursor: 'pointer', transition: 'all 0.15s'
+                                                    }}
+                                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = isPaused ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
+                                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = isPaused ? 'rgba(16,185,129,0.1)' : 'transparent'; e.currentTarget.style.color = isPaused ? '#6ee7b7' : 'rgba(255,255,255,0.75)'; }}
+                                                >
+                                                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: isPaused ? 'rgba(16,185,129,0.2)' : 'rgba(245,158,11,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                        {isPaused ? <PlayIcon size={13} color="#34d399" /> : <Pause size={13} color="#fbbf24" />}
+                                                    </div>
+                                                    <span style={{ flex: 1 }}>{isPaused ? 'Resume App' : 'Pause App'}</span>
+                                                </button>
+
+                                                {/* Restart App item */}
+                                                <button
+                                                    onClick={() => { handleRestart(); setMenuOpen(false); }}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '12px',
+                                                        padding: '9px 16px', width: '100%', border: 'none',
+                                                        background: 'none', textAlign: 'left', fontSize: '0.82rem',
+                                                        fontWeight: 600, color: 'rgba(255,255,255,0.75)',
+                                                        cursor: 'pointer', transition: 'all 0.15s'
+                                                    }}
+                                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
+                                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
+                                                >
+                                                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(79,70,229,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                        <RotateCcw size={13} color="#a5b4fc" />
+                                                    </div>
+                                                    <span style={{ flex: 1 }}>Restart App</span>
+                                                </button>
+
+                                                <button
+                                                    onClick={() => { handleBackToBuilder(); setMenuOpen(false); }}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '12px',
+                                                        padding: '9px 16px', width: '100%', border: 'none',
+                                                        background: 'none', textAlign: 'left', fontSize: '0.82rem',
+                                                        fontWeight: 600, color: 'rgba(255,255,255,0.75)',
+                                                        cursor: 'pointer', transition: 'all 0.15s'
+                                                    }}
+                                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
+                                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
+                                                >
+                                                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(59,130,246,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                        <ExternalLink size={13} color="#93c5fd" />
+                                                    </div>
+                                                    <span style={{ flex: 1 }}>Back to App Builder</span>
+                                                </button>
+
+                                                {/* Change App item */}
+                                                <button
+                                                    onClick={() => { handleChangeApp(); setMenuOpen(false); }}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '12px',
+                                                        padding: '9px 16px', width: '100%', border: 'none',
+                                                        background: 'none', textAlign: 'left', fontSize: '0.82rem',
+                                                        fontWeight: 600, color: 'rgba(255,255,255,0.75)',
+                                                        cursor: 'pointer', transition: 'all 0.15s'
+                                                    }}
+                                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
+                                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
+                                                >
+                                                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(8,145,178,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                        <RefreshCw size={13} color="#38bdf8" />
+                                                    </div>
+                                                    <span style={{ flex: 1 }}>Change App</span>
+                                                </button>
+
+                                                {/* Camera Capture item */}
+                                                <button
+                                                    onClick={() => { setShowCameraModal(true); setMenuOpen(false); }}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '12px',
+                                                        padding: '9px 16px', width: '100%', border: 'none',
+                                                        background: 'none', textAlign: 'left', fontSize: '0.82rem',
+                                                        fontWeight: 600, color: 'rgba(255,255,255,0.75)',
+                                                        cursor: 'pointer', transition: 'all 0.15s'
+                                                    }}
+                                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
+                                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
+                                                >
+                                                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(13,148,136,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                        <Camera size={13} color="#2dd4bf" />
+                                                    </div>
+                                                    <span style={{ flex: 1 }}>Camera Capture</span>
+                                                </button>
+
+                                                {/* Sign Session item */}
+                                                <button
+                                                    onClick={() => { setShowSignatureModal(true); setMenuOpen(false); }}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '12px',
+                                                        padding: '9px 16px', width: '100%', border: 'none',
+                                                        background: 'none', textAlign: 'left', fontSize: '0.82rem',
+                                                        fontWeight: 600, color: 'rgba(255,255,255,0.75)',
+                                                        cursor: 'pointer', transition: 'all 0.15s'
+                                                    }}
+                                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
+                                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
+                                                >
+                                                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(234,88,12,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                        <PenTool size={13} color="#fb923c" />
+                                                    </div>
+                                                    <span style={{ flex: 1 }}>Sign Session</span>
+                                                </button>
+
+                                                {/* Panduan Aplikasi - hanya tampil jika app punya help guide */}
+                                                {activeApp?.config?.helpGuide && (
+                                                    <button
+                                                        onClick={() => { setShowHelpGuide(true); setMenuOpen(false); }}
+                                                        style={{
+                                                            display: 'flex', alignItems: 'center', gap: '12px',
+                                                            padding: '9px 16px', width: '100%', border: 'none',
+                                                            background: 'none', textAlign: 'left', fontSize: '0.82rem',
+                                                            fontWeight: 600, color: 'rgba(255,255,255,0.75)',
+                                                            cursor: 'pointer', transition: 'all 0.15s'
+                                                        }}
+                                                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
+                                                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
+                                                    >
+                                                        <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                            <BookOpen size={13} color="#a5b4fc" />
+                                                        </div>
+                                                        <span style={{ flex: 1 }}>Panduan Aplikasi</span>
+                                                    </button>
+                                                )}
+
+                                                <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.07)', margin: '6px 0' }} />
+
+                                                {/* Debug Panel toggle (if in dev mode) */}
+                                                {devMode && (
+                                                    <button
+                                                        onClick={() => { setShowDebugPanel(!showDebugPanel); setMenuOpen(false); }}
+                                                        style={{
+                                                            display: 'flex', alignItems: 'center', gap: '12px',
+                                                            padding: '9px 16px', width: '100%', border: 'none',
+                                                            background: 'none', textAlign: 'left', fontSize: '0.82rem',
+                                                            fontWeight: 600, color: 'rgba(255,255,255,0.75)',
+                                                            cursor: 'pointer', transition: 'all 0.15s'
+                                                        }}
+                                                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
+                                                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
+                                                    >
+                                                        <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(217,119,6,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                            <Bug size={13} color="#fbbf24" />
+                                                        </div>
+                                                        <span style={{ flex: 1 }}>{showDebugPanel ? 'Hide Debugger' : 'Show Debugger'}</span>
+                                                    </button>
+                                                )}
+
+                                                {/* Tech Details toggle */}
+                                                <button
+                                                    onClick={() => { setShowTechDetails(!showTechDetails); setMenuOpen(false); }}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '12px',
+                                                        padding: '9px 16px', width: '100%', border: 'none',
+                                                        background: 'none', textAlign: 'left', fontSize: '0.82rem',
+                                                        fontWeight: 600, color: 'rgba(255,255,255,0.75)',
+                                                        cursor: 'pointer', transition: 'all 0.15s'
+                                                    }}
+                                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
+                                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
+                                                >
+                                                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(71,85,105,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                        <Info size={13} color="#94a3b8" />
+                                                    </div>
+                                                    <span style={{ flex: 1 }}>Technical Details</span>
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
 
                                     {/* Logout */}
                                     <button
@@ -1664,328 +1976,14 @@ const AppPlayer = () => {
                                         }}
                                         title="Logout"
                                         style={{ 
-                                            padding: '3px 8px', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '4px', 
-                                            backgroundColor: 'rgba(239,68,68,0.05)', color: '#fca5a5', 
+                                            padding: '4px 8px', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '4px', 
+                                            backgroundColor: 'rgba(239,68,68,0.1)', color: '#fca5a5', 
                                             cursor: 'pointer', display: 'flex', gap: '4px', alignItems: 'center', fontWeight: 700, fontSize: '0.68rem',
                                             transition: 'all 0.2s'
                                         }}
                                     >
                                         <LogOut size={10} /> Logout
                                     </button>
-                                </div>
-                            </div>
-
-                            {/* Row 2: Slate Title Bar */}
-                            <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                padding: '0 16px',
-                                height: '52px',
-                                backgroundColor: themeColor || '#1e293b',
-                                color: 'white',
-                                borderBottom: `1px solid ${themeColor || '#1e293b'}`,
-                                flexShrink: 0,
-                                position: 'relative'
-                            }}>
-                                {/* Left side: App title and session parameters */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flexWrap: 'nowrap' }}>
-                                    <span style={{ fontSize: '1.15rem', fontWeight: 800, color: 'white', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                        {activeApp.name}
-                                    </span>
-                                    <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.2)', flexShrink: 0 }} />
-                                    <span style={{ fontSize: '0.75rem', color: '#cbd5e1', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
-                                        Version: <strong style={{ color: 'white' }}>{activeApp.version || 1} ({activeApp.approval_status || 'DRAFT'})</strong>
-                                    </span>
-                                    <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.2)', flexShrink: 0 }} />
-                                    <span style={{ fontSize: '0.75rem', color: '#cbd5e1', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
-                                        Duration: <strong style={{ color: 'white', fontFamily: 'monospace' }}>{formatDuration(elapsedSeconds)}</strong>
-                                    </span>
-                                    {stepLabel && (
-                                        <>
-                                            <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.2)', flexShrink: 0 }} />
-                                            <span style={{
-                                                fontSize: '0.72rem', fontWeight: 700, color: themeColor || '#1e293b', backgroundColor: 'white',
-                                                borderRadius: '4px', padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap',
-                                                overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '300px'
-                                            }}>
-                                                <ChevronRight size={12} /> {stepLabel}
-                                            </span>
-                                        </>
-                                    )}
-                                </div>
-
-                                {/* Right side: Consolidated Menu Button */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                                    <button
-                                        onClick={() => setAppScaleMode(prev => prev === 'FIT_SCREEN' ? 'FIT_WIDTH' : 'FIT_SCREEN')}
-                                        title={appScaleMode === 'FIT_SCREEN' ? 'Switch to Fit Width' : 'Switch to Fit Screen'}
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '6px',
-                                            padding: '6px 12px',
-                                            borderRadius: '6px',
-                                            border: '1px solid rgba(255,255,255,0.2)',
-                                            backgroundColor: appScaleMode === 'FIT_SCREEN' ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.05)',
-                                            color: appScaleMode === 'FIT_SCREEN' ? '#86efac' : 'white',
-                                            fontWeight: 700,
-                                            fontSize: '0.75rem',
-                                            cursor: 'pointer',
-                                            transition: 'all 0.15s'
-                                        }}
-                                    >
-                                        <Maximize2 size={12} />
-                                        {appScaleMode === 'FIT_SCREEN' ? 'Fit Screen' : 'Fit Width'}
-                                    </button>
-                                    <div style={{ position: 'relative', flexShrink: 0 }}>
-                                    <button
-                                        onClick={() => setMenuOpen(!menuOpen)}
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '8px',
-                                            padding: '6px 12px',
-                                            borderRadius: '6px',
-                                            border: '1px solid rgba(255,255,255,0.25)',
-                                            backgroundColor: menuOpen ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)',
-                                            color: 'white',
-                                            fontWeight: 700,
-                                            fontSize: '0.78rem',
-                                            cursor: 'pointer',
-                                            transition: 'all 0.15s'
-                                        }}
-                                    >
-                                        <Menu size={14} />
-                                        Menu
-                                        <ChevronDown size={12} style={{ transform: menuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-                                    </button>
-
-                                    {/* Dropdown Menu overlay - Glassmorphic Dark */}
-                                    {menuOpen && (
-                                        <div style={{
-                                            position: 'absolute',
-                                            top: '100%',
-                                            right: 0,
-                                            width: '260px',
-                                            background: 'linear-gradient(180deg, #0f172a 0%, #1e293b 100%)',
-                                            color: 'white',
-                                            borderRadius: '12px',
-                                            boxShadow: '0 20px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.08)',
-                                            padding: '8px 0',
-                                            border: '1px solid rgba(255,255,255,0.08)',
-                                            zIndex: 1000,
-                                            marginTop: '8px',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            backdropFilter: 'blur(20px)'
-                                        }}>
-                                            {/* Menu Header */}
-                                            <div style={{ padding: '6px 16px 10px', borderBottom: '1px solid rgba(255,255,255,0.08)', marginBottom: '4px' }}>
-                                                <div style={{ fontSize: '0.6rem', fontWeight: 800, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
-                                                    App Controls
-                                                </div>
-                                            </div>
-
-                                            {/* Comment item */}
-                                            <button
-                                                onClick={() => { setShowComments(true); setMenuOpen(false); }}
-                                                style={{
-                                                    display: 'flex', alignItems: 'center', gap: '12px',
-                                                    padding: '9px 16px', width: '100%', border: 'none',
-                                                    background: 'none', textAlign: 'left', fontSize: '0.82rem',
-                                                    fontWeight: 600, color: 'rgba(255,255,255,0.75)',
-                                                    cursor: 'pointer', transition: 'all 0.15s'
-                                                }}
-                                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
-                                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
-                                            >
-                                                <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(100,116,139,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                    <MessageSquare size={13} color="#94a3b8" />
-                                                </div>
-                                                <span style={{ flex: 1 }}>Comments</span>
-                                                {sessionComments.length > 0 && <span style={{ fontSize: '0.68rem', fontWeight: 800, backgroundColor: 'rgba(59,130,246,0.2)', color: '#93c5fd', borderRadius: '10px', padding: '1px 7px' }}>{sessionComments.length}</span>}
-                                            </button>
-
-                                            {/* Pause/Resume item */}
-                                            <button
-                                                onClick={() => { handlePauseToggle(); setMenuOpen(false); }}
-                                                style={{
-                                                    display: 'flex', alignItems: 'center', gap: '12px',
-                                                    padding: '9px 16px', width: '100%', border: 'none',
-                                                    background: isPaused ? 'rgba(16,185,129,0.1)' : 'none',
-                                                    textAlign: 'left', fontSize: '0.82rem',
-                                                    fontWeight: 600, color: isPaused ? '#6ee7b7' : 'rgba(255,255,255,0.75)',
-                                                    cursor: 'pointer', transition: 'all 0.15s'
-                                                }}
-                                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = isPaused ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
-                                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = isPaused ? 'rgba(16,185,129,0.1)' : 'transparent'; e.currentTarget.style.color = isPaused ? '#6ee7b7' : 'rgba(255,255,255,0.75)'; }}
-                                            >
-                                                <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: isPaused ? 'rgba(16,185,129,0.2)' : 'rgba(245,158,11,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                    {isPaused ? <PlayIcon size={13} color="#34d399" /> : <Pause size={13} color="#fbbf24" />}
-                                                </div>
-                                                <span style={{ flex: 1 }}>{isPaused ? 'Resume App' : 'Pause App'}</span>
-                                            </button>
-
-                                            {/* Restart App item */}
-                                            <button
-                                                onClick={() => { handleRestart(); setMenuOpen(false); }}
-                                                style={{
-                                                    display: 'flex', alignItems: 'center', gap: '12px',
-                                                    padding: '9px 16px', width: '100%', border: 'none',
-                                                    background: 'none', textAlign: 'left', fontSize: '0.82rem',
-                                                    fontWeight: 600, color: 'rgba(255,255,255,0.75)',
-                                                    cursor: 'pointer', transition: 'all 0.15s'
-                                                }}
-                                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
-                                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
-                                            >
-                                                <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(79,70,229,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                    <RotateCcw size={13} color="#a5b4fc" />
-                                                </div>
-                                                <span style={{ flex: 1 }}>Restart App</span>
-                                            </button>
-
-                                            <button
-                                                onClick={() => { handleBackToBuilder(); setMenuOpen(false); }}
-                                                style={{
-                                                    display: 'flex', alignItems: 'center', gap: '12px',
-                                                    padding: '9px 16px', width: '100%', border: 'none',
-                                                    background: 'none', textAlign: 'left', fontSize: '0.82rem',
-                                                    fontWeight: 600, color: 'rgba(255,255,255,0.75)',
-                                                    cursor: 'pointer', transition: 'all 0.15s'
-                                                }}
-                                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
-                                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
-                                            >
-                                                <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(59,130,246,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                    <ExternalLink size={13} color="#93c5fd" />
-                                                </div>
-                                                <span style={{ flex: 1 }}>Back to App Builder</span>
-                                            </button>
-
-                                            {/* Change App item */}
-                                            <button
-                                                onClick={() => { handleChangeApp(); setMenuOpen(false); }}
-                                                style={{
-                                                    display: 'flex', alignItems: 'center', gap: '12px',
-                                                    padding: '9px 16px', width: '100%', border: 'none',
-                                                    background: 'none', textAlign: 'left', fontSize: '0.82rem',
-                                                    fontWeight: 600, color: 'rgba(255,255,255,0.75)',
-                                                    cursor: 'pointer', transition: 'all 0.15s'
-                                                }}
-                                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
-                                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
-                                            >
-                                                <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(8,145,178,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                    <RefreshCw size={13} color="#38bdf8" />
-                                                </div>
-                                                <span style={{ flex: 1 }}>Change App</span>
-                                            </button>
-
-                                            {/* Camera Capture item */}
-                                            <button
-                                                onClick={() => { setShowCameraModal(true); setMenuOpen(false); }}
-                                                style={{
-                                                    display: 'flex', alignItems: 'center', gap: '12px',
-                                                    padding: '9px 16px', width: '100%', border: 'none',
-                                                    background: 'none', textAlign: 'left', fontSize: '0.82rem',
-                                                    fontWeight: 600, color: 'rgba(255,255,255,0.75)',
-                                                    cursor: 'pointer', transition: 'all 0.15s'
-                                                }}
-                                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
-                                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
-                                            >
-                                                <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(13,148,136,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                    <Camera size={13} color="#2dd4bf" />
-                                                </div>
-                                                <span style={{ flex: 1 }}>Camera Capture</span>
-                                            </button>
-
-                                            {/* Sign Session item */}
-                                            <button
-                                                onClick={() => { setShowSignatureModal(true); setMenuOpen(false); }}
-                                                style={{
-                                                    display: 'flex', alignItems: 'center', gap: '12px',
-                                                    padding: '9px 16px', width: '100%', border: 'none',
-                                                    background: 'none', textAlign: 'left', fontSize: '0.82rem',
-                                                    fontWeight: 600, color: 'rgba(255,255,255,0.75)',
-                                                    cursor: 'pointer', transition: 'all 0.15s'
-                                                }}
-                                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
-                                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
-                                            >
-                                                <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(234,88,12,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                    <PenTool size={13} color="#fb923c" />
-                                                </div>
-                                                <span style={{ flex: 1 }}>Sign Session</span>
-                                            </button>
-
-                                            {/* Panduan Aplikasi - hanya tampil jika app punya help guide */}
-                                            {activeApp?.config?.helpGuide && (
-                                                <button
-                                                    onClick={() => { setShowHelpGuide(true); setMenuOpen(false); }}
-                                                    style={{
-                                                        display: 'flex', alignItems: 'center', gap: '12px',
-                                                        padding: '9px 16px', width: '100%', border: 'none',
-                                                        background: 'none', textAlign: 'left', fontSize: '0.82rem',
-                                                        fontWeight: 600, color: 'rgba(255,255,255,0.75)',
-                                                        cursor: 'pointer', transition: 'all 0.15s'
-                                                    }}
-                                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
-                                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
-                                                >
-                                                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                        <BookOpen size={13} color="#a5b4fc" />
-                                                    </div>
-                                                    <span style={{ flex: 1 }}>Panduan Aplikasi</span>
-                                                </button>
-                                            )}
-
-                                            <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.07)', margin: '6px 0' }} />
-
-                                            {/* Debug Panel toggle (if in dev mode) */}
-                                            {devMode && (
-                                                <button
-                                                    onClick={() => { setShowDebugPanel(!showDebugPanel); setMenuOpen(false); }}
-                                                    style={{
-                                                        display: 'flex', alignItems: 'center', gap: '12px',
-                                                        padding: '9px 16px', width: '100%', border: 'none',
-                                                        background: 'none', textAlign: 'left', fontSize: '0.82rem',
-                                                        fontWeight: 600, color: 'rgba(255,255,255,0.75)',
-                                                        cursor: 'pointer', transition: 'all 0.15s'
-                                                    }}
-                                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
-                                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
-                                                >
-                                                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(217,119,6,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                        <Bug size={13} color="#fbbf24" />
-                                                    </div>
-                                                    <span style={{ flex: 1 }}>{showDebugPanel ? 'Hide Debugger' : 'Show Debugger'}</span>
-                                                </button>
-                                            )}
-
-                                            {/* Tech Details toggle */}
-                                            <button
-                                                onClick={() => { setShowTechDetails(!showTechDetails); setMenuOpen(false); }}
-                                                style={{
-                                                    display: 'flex', alignItems: 'center', gap: '12px',
-                                                    padding: '9px 16px', width: '100%', border: 'none',
-                                                    background: 'none', textAlign: 'left', fontSize: '0.82rem',
-                                                    fontWeight: 600, color: 'rgba(255,255,255,0.75)',
-                                                    cursor: 'pointer', transition: 'all 0.15s'
-                                                }}
-                                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
-                                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
-                                            >
-                                                <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(37,99,235,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                    <Info size={13} color="#93c5fd" />
-                                                </div>
-                                                <span style={{ flex: 1 }}>Technical Details</span>
-                                            </button>
-                                        </div>
-                                    )}
-                                    </div>
                                 </div>
                             </div>
                         </>
