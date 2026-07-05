@@ -681,6 +681,7 @@ export default function DrawingManager() {
     const [dimContextMenu, setDimContextMenu] = useState(null); // { dimId, x, y }
     const [drawingCategory, setDrawingCategory] = useState('dimension'); // dimension, diameter, radius, angle, etc.
     const [dimMoveMode, setDimMoveMode] = useState(null); // null, 'all', 'label'
+    const [dragAnchor, setDragAnchor] = useState(null); // { dimId, anchorKey: 'p1' | 'p2' | 'center' | 'label' }
     const [cadColor, setCadColor] = useState('#3b82f6');
     const [cadWidth, setCadWidth] = useState(2);
     const [gridSnap, setGridSnap] = useState(false);
@@ -1700,6 +1701,48 @@ export default function DrawingManager() {
         setZoom(1.0);
     }, [selectedDwgId]);
 
+    // Hotkeys / Keyboard shortcuts for dimension parameter editing
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            // Ignore hotkeys if user is currently typing in any input field or textarea
+            const activeTag = document.activeElement?.tagName?.toLowerCase();
+            if (activeTag === 'input' || activeTag === 'textarea' || document.activeElement?.isContentEditable) {
+                return;
+            }
+
+            if (activeDimId) {
+                const activeDim = selectedDwg?.dimensions?.find(d => d.id === activeDimId);
+
+                // 1. Delete / Backspace -> Delete Selected Parameter
+                if ((e.key === 'Delete' || e.key === 'Backspace') && activeDim && !activeDim.locked) {
+                    e.preventDefault();
+                    handleDeleteDimension(activeDimId);
+                    toast.success('Parameter dihapus via hotkey.');
+                }
+
+                // 2. Ctrl + D -> Duplicate Selected Parameter
+                if (e.ctrlKey && e.key.toLowerCase() === 'd') {
+                    e.preventDefault();
+                    handleDuplicateDimension(activeDimId);
+                    toast.success('Parameter diduplikat via hotkey.');
+                }
+            }
+
+            // 3. Escape -> Clear active selection / close menus
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                setDimContextMenu(null);
+                setDimMoveMode(null);
+                setDimDrawState('idle');
+                setDimDraftCoords(null);
+                setSelectedShapeId(null);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [activeDimId, selectedDwg, handleDeleteDimension, handleDuplicateDimension]);
+
     const getCanvasCoords = (e) => {
         if (!svgRef.current) return { x: 0, y: 0 };
         const rect = svgRef.current.getBoundingClientRect();
@@ -2303,6 +2346,54 @@ export default function DrawingManager() {
 
         const coords = getCanvasCoords(e);
         setCrosshairPos(coords);
+
+        if (dragAnchor) {
+            const { dimId, anchorKey } = dragAnchor;
+            const updatedDwg = {
+                ...selectedDwg,
+                dimensions: selectedDwg.dimensions.map(dim => {
+                    if (dim.id === dimId) {
+                        const isAngle = dim.category === 'angle';
+                        if (anchorKey === 'p1') {
+                            const newX1 = Math.round(coords.x);
+                            const newY1 = Math.round(coords.y);
+                            if (isAngle) {
+                                const cx = dim.cx ?? dim.lx;
+                                const cy = dim.cy ?? dim.ly;
+                                const angleStart = Math.round(Math.atan2(newY1 - cy, newX1 - cx) * (180 / Math.PI));
+                                return { ...dim, x1: newX1, y1: newY1, angleStart };
+                            }
+                            return { ...dim, x1: newX1, y1: newY1 };
+                        }
+                        if (anchorKey === 'p2') {
+                            const newX2 = Math.round(coords.x);
+                            const newY2 = Math.round(coords.y);
+                            if (isAngle) {
+                                const cx = dim.cx ?? dim.lx;
+                                const cy = dim.cy ?? dim.ly;
+                                const angleEnd = Math.round(Math.atan2(newY2 - cy, newX2 - cx) * (180 / Math.PI));
+                                return { ...dim, x2: newX2, y2: newY2, angleEnd };
+                            }
+                            return { ...dim, x2: newX2, y2: newY2 };
+                        }
+                        if (anchorKey === 'center') {
+                            const newCx = Math.round(coords.x);
+                            const newCy = Math.round(coords.y);
+                            const angleStart = Math.round(Math.atan2((dim.y1 ?? 180) - newCy, (dim.x1 ?? 150) - newCx) * (180 / Math.PI));
+                            const angleEnd = Math.round(Math.atan2((dim.y2 ?? 180) - newCy, (dim.x2 ?? 350) - newCx) * (180 / Math.PI));
+                            return { ...dim, cx: newCx, cy: newCy, angleStart, angleEnd };
+                        }
+                        if (anchorKey === 'label') {
+                            return { ...dim, lx: Math.round(coords.x), ly: Math.round(coords.y) };
+                        }
+                    }
+                    return dim;
+                })
+            };
+            setDrawings(prev => prev.map(d => d.id === selectedDwgId ? updatedDwg : d));
+            return;
+        }
+
         if (dragShape) {
             const currentShapes = selectedDwg.shapes || [];
             const startShape = dragShape.startShape;
@@ -2545,6 +2636,15 @@ export default function DrawingManager() {
     };
 
     const handleSvgMouseUp = () => {
+        if (dragAnchor) {
+            setDragAnchor(null);
+            if (selectedDwg) {
+                saveDrawing(selectedDwg).catch(err => console.error('Failed to save dimension after anchor drag:', err));
+            }
+            toast.success('Posisi parameter diperbarui.', { id: 'drag-anchor-success' });
+            return;
+        }
+
         if (isPanning) {
             setIsPanning(false);
             return;
@@ -2642,6 +2742,10 @@ export default function DrawingManager() {
         setSelectedShapeId(null);
 
         if (!activeDim) return;
+        if (activeDim.locked) {
+            toast.error('Parameter ini terkunci. Buka kunci untuk memindahkannya.', { id: 'dim-locked-warning' });
+            return;
+        }
         const coords = getCanvasCoords(e);
         const x = coords.x;
         const y = coords.y;
@@ -4122,6 +4226,102 @@ export default function DrawingManager() {
         );
     };
 
+    const handleAnchorDragStart = (dimId, anchorKey) => {
+        setDragAnchor({ dimId, anchorKey });
+    };
+
+    const renderDragHandles = (dim, isActive) => {
+        if (!isActive || dim.locked) return null;
+        
+        const handles = [];
+        
+        // Handle 1: End point 1 (x1, y1)
+        if (dim.x1 !== undefined && dim.y1 !== undefined) {
+            handles.push(
+                <circle
+                    key="p1"
+                    cx={dim.x1}
+                    cy={dim.y1}
+                    r="5"
+                    fill="white"
+                    stroke="#2563eb"
+                    strokeWidth="1.5"
+                    style={{ cursor: 'move' }}
+                    onMouseDown={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        handleAnchorDragStart(dim.id, 'p1');
+                    }}
+                />
+            );
+        }
+        
+        // Handle 2: End point 2 (x2, y2)
+        if (dim.x2 !== undefined && dim.y2 !== undefined) {
+            handles.push(
+                <circle
+                    key="p2"
+                    cx={dim.x2}
+                    cy={dim.y2}
+                    r="5"
+                    fill="white"
+                    stroke="#2563eb"
+                    strokeWidth="1.5"
+                    style={{ cursor: 'move' }}
+                    onMouseDown={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        handleAnchorDragStart(dim.id, 'p2');
+                    }}
+                />
+            );
+        }
+
+        // Handle 3: Center vertex (cx, cy) - only for angle/arc
+        if (dim.category === 'angle' && dim.cx !== undefined && dim.cy !== undefined) {
+            handles.push(
+                <circle
+                    key="center"
+                    cx={dim.cx}
+                    cy={dim.cy}
+                    r="5"
+                    fill="white"
+                    stroke="#f59e0b"
+                    strokeWidth="1.5"
+                    style={{ cursor: 'move' }}
+                    onMouseDown={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        handleAnchorDragStart(dim.id, 'center');
+                    }}
+                />
+            );
+        }
+
+        // Handle 4: Label position (lx, ly)
+        if (dim.lx !== undefined && dim.ly !== undefined) {
+            handles.push(
+                <circle
+                    key="label"
+                    cx={dim.lx}
+                    cy={dim.ly}
+                    r="4"
+                    fill="white"
+                    stroke="#10b981"
+                    strokeWidth="1.5"
+                    style={{ cursor: 'move' }}
+                    onMouseDown={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        handleAnchorDragStart(dim.id, 'label');
+                    }}
+                />
+            );
+        }
+
+        return <g>{handles}</g>;
+    };
+
     // ─── Canvas Indicator Renderers ───
     const renderDimensionIndicators = (dims) => {
         return dims.map((dim, idx) => {
@@ -4151,6 +4351,7 @@ export default function DrawingManager() {
                         <polygon points={`${x1},${ly - 5} ${x1 + arrowLen},${ly - 5 - arrowWidth} ${x1 + arrowLen},${ly - 5 + arrowWidth}`} fill={color} />
                         <polygon points={`${x2},${ly - 5} ${x2 - arrowLen},${ly - 5 - arrowWidth} ${x2 - arrowLen},${ly - 5 + arrowWidth}`} fill={color} />
                         {renderLabelBadge(dim, color, labelText, isActive, idx + 1)}
+                        {renderDragHandles(dim, isActive)}
                     </g>
                 );
             } else if (indicatorType === 'vertical') {
@@ -4162,6 +4363,7 @@ export default function DrawingManager() {
                         <polygon points={`${lx - 5},${y1} ${lx - 5 - arrowWidth},${y1 + arrowLen} ${lx - 5 + arrowWidth},${y1 + arrowLen}`} fill={color} />
                         <polygon points={`${lx - 5},${y2} ${lx - 5 - arrowWidth},${y2 - arrowLen} ${lx - 5 + arrowWidth},${y2 - arrowLen}`} fill={color} />
                         {renderLabelBadge(dim, color, labelText, isActive, idx + 1)}
+                        {renderDragHandles(dim, isActive)}
                     </g>
                 );
             } else if (indicatorType === 'arc') {
@@ -4196,6 +4398,7 @@ export default function DrawingManager() {
                         <circle cx={sx} cy={sy} r={Math.max(2, baseWidth * 1.25)} fill={color} />
                         <circle cx={ex} cy={ey} r={Math.max(2, baseWidth * 1.25)} fill={color} />
                         {renderLabelBadge(dim, color, `∠ ${dim.spec}°`, isActive, idx + 1)}
+                        {renderDragHandles(dim, isActive)}
                     </g>
                 );
             } else if (indicatorType === 'area_box') {
@@ -4211,6 +4414,7 @@ export default function DrawingManager() {
                         <line x1={bx} y1={by} x2={bx + bw} y2={by + bh} stroke={color} strokeWidth="0.5" strokeOpacity="0.3" />
                         <line x1={bx + bw} y1={by} x2={bx} y2={by + bh} stroke={color} strokeWidth="0.5" strokeOpacity="0.3" />
                         {renderLabelBadge(dim, color, `▢ ${dim.spec} ${dim.unit}`, isActive, idx + 1)}
+                        {renderDragHandles(dim, isActive)}
                     </g>
                 );
             } else if (indicatorType === 'callout') {
@@ -4229,6 +4433,7 @@ export default function DrawingManager() {
                             </g>
                         )}
                         {renderLabelBadge(dim, color, `${symbolChar} ${dim.spec} ${dim.unit}`, isActive, idx + 1)}
+                        {renderDragHandles(dim, isActive)}
                     </g>
                 );
             } else {
@@ -4245,6 +4450,7 @@ export default function DrawingManager() {
                             return <polygon points={`${x1},${y1} ${ax1},${ay1} ${ax2},${ay2}`} fill={color} />;
                         })()}
                         {renderLabelBadge(dim, color, labelText, isActive, idx + 1)}
+                        {renderDragHandles(dim, isActive)}
                     </g>
                 );
             }
@@ -7022,6 +7228,32 @@ export default function DrawingManager() {
                                                         onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#451a03'; }}
                                                     >
                                                         🗑️ Hapus
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            handleChangeDimensionProp(dim.id, 'locked', !dim.locked);
+                                                            setDimContextMenu(null);
+                                                            toast.success(dim.locked ? 'Parameter dibuka kuncinya.' : 'Parameter berhasil dikunci.');
+                                                        }}
+                                                        style={{
+                                                            padding: '6px 10px',
+                                                            backgroundColor: dim.locked ? '#064e3b' : '#1e293b',
+                                                            color: dim.locked ? '#10b981' : '#cbd5e1',
+                                                            border: '1px solid #334155',
+                                                            borderRadius: '6px',
+                                                            fontSize: '0.68rem',
+                                                            fontWeight: 'bold',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            gap: '4px',
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = dim.locked ? '#0f766e' : '#334155'; }}
+                                                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = dim.locked ? '#064e3b' : '#1e293b'; }}
+                                                    >
+                                                        {dim.locked ? '🔓 Buka' : '🔒 Kunci'}
                                                     </button>
                                                 </div>
 
