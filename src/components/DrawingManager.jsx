@@ -680,6 +680,7 @@ export default function DrawingManager() {
     const [mirrorMenu, setMirrorMenu] = useState(null); // { shapeId, x, y }
     const [dimContextMenu, setDimContextMenu] = useState(null); // { dimId, x, y }
     const [drawingCategory, setDrawingCategory] = useState('dimension'); // dimension, diameter, radius, angle, etc.
+    const [dimMoveMode, setDimMoveMode] = useState(null); // null, 'all', 'label'
     const [cadColor, setCadColor] = useState('#3b82f6');
     const [cadWidth, setCadWidth] = useState(2);
     const [gridSnap, setGridSnap] = useState(false);
@@ -2652,21 +2653,35 @@ export default function DrawingManager() {
             ...selectedDwg,
             dimensions: selectedDwg.dimensions.map(dim => {
                 if (dim.id === activeDimId) {
-                    const dx = x - (dim.lx || 250);
-                    const dy = y - (dim.ly || 200);
-                    return {
-                        ...dim,
-                        lx: x, ly: y,
-                        x1: dim.x1 !== undefined ? Math.max(10, Math.min(490, dim.x1 + dx)) : x - 30,
-                        y1: dim.y1 !== undefined ? Math.max(10, Math.min(350, dim.y1 + dy)) : y - 20,
-                        x2: dim.x2 !== undefined ? Math.max(10, Math.min(490, dim.x2 + dx)) : x + 30,
-                        y2: dim.y2 !== undefined ? Math.max(10, Math.min(350, dim.y2 + dy)) : y - 20,
-                    };
+                    if (dimMoveMode === 'label') {
+                        // Move label only
+                        return {
+                            ...dim,
+                            lx: x,
+                            ly: y
+                        };
+                    } else {
+                        // Move caliper and label (default behavior)
+                        const dx = x - (dim.lx || 250);
+                        const dy = y - (dim.ly || 200);
+                        return {
+                            ...dim,
+                            lx: x, ly: y,
+                            x1: dim.x1 !== undefined ? Math.max(10, Math.min(490, dim.x1 + dx)) : x - 30,
+                            y1: dim.y1 !== undefined ? Math.max(10, Math.min(350, dim.y1 + dy)) : y - 20,
+                            x2: dim.x2 !== undefined ? Math.max(10, Math.min(490, dim.x2 + dx)) : x + 30,
+                            y2: dim.y2 !== undefined ? Math.max(10, Math.min(350, dim.y2 + dy)) : y - 20,
+                            cx: dim.cx !== undefined ? Math.max(10, Math.min(490, dim.cx + dx)) : x,
+                            cy: dim.cy !== undefined ? Math.max(10, Math.min(350, dim.cy + dy)) : y,
+                        };
+                    }
                 }
                 return dim;
             })
         };
         setDrawings(prev => prev.map(d => d.id === selectedDwgId ? updatedDwg : d));
+        saveDrawing(updatedDwg).catch(err => console.error('Failed to auto-save after move:', err));
+        setDimMoveMode(null);
         toast.success(`Hotspot dipindahkan ke (${x}, ${y})`, { id: 'click-hotspot' });
     };
 
@@ -7008,6 +7023,57 @@ export default function DrawingManager() {
                                                     >
                                                         🗑️ Hapus
                                                     </button>
+                                                </div>
+
+                                                {/* Move / Pindahkan */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                    <span style={{ fontSize: '0.58rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                        Geser / Pindahkan
+                                                    </span>
+                                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                                        <button
+                                                            onClick={() => {
+                                                                setDimMoveMode('all');
+                                                                setCadTool('select');
+                                                                setDimContextMenu(null);
+                                                                toast.info('Klik di mana saja pada kanvas untuk memindahkan caliper.');
+                                                            }}
+                                                            style={{
+                                                                flex: 1,
+                                                                padding: '5px 6px',
+                                                                backgroundColor: '#1e293b',
+                                                                color: '#10b981',
+                                                                border: '1px solid #064e3b',
+                                                                borderRadius: '4px',
+                                                                fontSize: '0.65rem',
+                                                                fontWeight: 600,
+                                                                cursor: 'pointer'
+                                                            }}
+                                                        >
+                                                            🎯 Geser Semua
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                setDimMoveMode('label');
+                                                                setCadTool('select');
+                                                                setDimContextMenu(null);
+                                                                toast.info('Klik di mana saja pada kanvas untuk menggeser posisi label balon.');
+                                                            }}
+                                                            style={{
+                                                                flex: 1,
+                                                                padding: '5px 6px',
+                                                                backgroundColor: '#1e293b',
+                                                                color: '#10b981',
+                                                                border: '1px solid #064e3b',
+                                                                borderRadius: '4px',
+                                                                fontSize: '0.65rem',
+                                                                fontWeight: 600,
+                                                                cursor: 'pointer'
+                                                            }}
+                                                        >
+                                                            🏷️ Geser Label
+                                                        </button>
+                                                    </div>
                                                 </div>
 
                                                 {/* Rotate */}
