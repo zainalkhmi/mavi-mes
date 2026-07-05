@@ -679,6 +679,7 @@ export default function DrawingManager() {
     const [cadTool, setCadTool] = useState('select'); // select, line, circle, rect, text, erase
     const [mirrorMenu, setMirrorMenu] = useState(null); // { shapeId, x, y }
     const [dimContextMenu, setDimContextMenu] = useState(null); // { dimId, x, y }
+    const [drawingCategory, setDrawingCategory] = useState('dimension'); // dimension, diameter, radius, angle, etc.
     const [cadColor, setCadColor] = useState('#3b82f6');
     const [cadWidth, setCadWidth] = useState(2);
     const [gridSnap, setGridSnap] = useState(false);
@@ -1115,55 +1116,23 @@ export default function DrawingManager() {
         toast.success(`Parameter 3D ditambahkan pada koordinat (${x.toFixed(2)}, ${y.toFixed(2)}, ${z.toFixed(2)})`);
     };
 
-    // ─── Add new dimension by category ───
+    // ─── Add new dimension by category (starts interactive drawing) ───
     const handleAddDimension = (categoryKey) => {
         if (!selectedDwg) {
             toast.error('Pilih gambar blueprint terlebih dahulu.');
             return;
         }
-        const catDef = getCategoryDef(categoryKey);
-        const newDimId = generateDimId(categoryKey);
-
-        const defaultSpecs = {
-            dimension: { spec: '10.0', tolMin: 9.5, tolMax: 10.5 },
-            diameter: { spec: '25.0', tolMin: 24.9, tolMax: 25.1 },
-            radius: { spec: '12.5', tolMin: 12.3, tolMax: 12.7 },
-            angle: { spec: '90.0', tolMin: 89.0, tolMax: 91.0 },
-            area: { spec: '100.0', tolMin: 95.0, tolMax: 105.0 },
-            roughness: { spec: '1.6', tolMin: 0.0, tolMax: 3.2 },
-            custom: { spec: '0.0', tolMin: 0.0, tolMax: 0.0 },
-        };
-
-        const specs = defaultSpecs[categoryKey] || defaultSpecs.custom;
-        const suggestedVars = QMS_VARIABLES_BY_CATEGORY[categoryKey] || [];
-
-        const newDim = {
-            id: newDimId,
-            label: `${catDef.labelId} Baru`,
-            spec: specs.spec,
-            tolMin: specs.tolMin,
-            tolMax: specs.tolMax,
-            variable: suggestedVars[0] || '',
-            unit: catDef.defaultUnit,
-            category: categoryKey,
-            measureType: catDef.defaultMeasure,
-            indicatorType: catDef.defaultIndicator,
-            gdt_symbol: catDef.symbol,
-            x1: 150, y1: 180, x2: 350, y2: 180, lx: 250, ly: 200,
-            cx: 250, cy: 180, angleStart: 0, angleEnd: 90,
-            markerShape: 'default',
-            markerSize: 60,
-            lineWidth: 2,
-            triggers: [],
-            severity: 'Minor',
-            inspection_method: 'Caliper',
-        };
-
-        const updatedDwg = { ...selectedDwg, dimensions: [...selectedDwg.dimensions, newDim] };
-        setDrawings(prev => prev.map(d => d.id === selectedDwgId ? updatedDwg : d));
-        setActiveDimId(newDimId);
+        setDrawingCategory(categoryKey);
+        setCadTool('dimension');
+        setDimDrawState('idle');
+        setDimDraftCoords(null);
         setShowAddPicker(false);
-        toast.success(`Parameter ${catDef.label} berhasil ditambahkan.`);
+        const catDef = getCategoryDef(categoryKey);
+        if (categoryKey === 'angle') {
+            toast.success(`Menggambar ${catDef.labelId}: Klik titik pusat (Vertex), lalu lengan pertama, dan terakhir lengan kedua.`);
+        } else {
+            toast.success(`Menggambar ${catDef.labelId}: Klik titik awal dan titik akhir. Balon akan otomatis diletakkan di tengah.`);
+        }
     };
 
     const handleDeleteDimension = (dimId) => {
@@ -2125,59 +2094,129 @@ export default function DrawingManager() {
                 imageInsertRef.current.click();
             }
         } else if (cadTool === 'dimension') {
+            const isAngle = drawingCategory === 'angle';
+
             if (dimDrawState === 'idle') {
-                setDimDraftCoords({
-                    x1: coords.x,
-                    y1: coords.y,
-                    x2: coords.x,
-                    y2: coords.y,
-                    lx: coords.x,
-                    ly: coords.y
-                });
-                setDimDrawState('waiting_end');
-                toast.success('Titik awal ditempatkan. Klik titik kedua.');
+                if (isAngle) {
+                    setDimDraftCoords({
+                        cx: coords.x,
+                        cy: coords.y,
+                        x1: coords.x,
+                        y1: coords.y,
+                        x2: coords.x,
+                        y2: coords.y,
+                        lx: coords.x,
+                        ly: coords.y
+                    });
+                    setDimDrawState('waiting_end');
+                    toast.success('Titik pusat (Vertex) sudut ditentukan. Klik titik kedua untuk lengan pertama.');
+                } else {
+                    setDimDraftCoords({
+                        x1: coords.x,
+                        y1: coords.y,
+                        x2: coords.x,
+                        y2: coords.y,
+                        lx: coords.x,
+                        ly: coords.y
+                    });
+                    setDimDrawState('waiting_end');
+                    toast.success('Titik awal ditempatkan. Klik titik kedua.');
+                }
             } else if (dimDrawState === 'waiting_end') {
-                setDimDraftCoords(prev => ({
-                    ...prev,
-                    x2: coords.x,
-                    y2: coords.y
-                }));
-                setDimDrawState('waiting_offset');
-                toast.success('Titik kedua ditempatkan. Gerakkan kursor dan klik titik ketiga untuk offset.');
+                if (isAngle) {
+                    setDimDraftCoords(prev => ({
+                        ...prev,
+                        x1: coords.x,
+                        y1: coords.y
+                    }));
+                    setDimDrawState('waiting_offset');
+                    toast.success('Lengan pertama ditentukan. Klik titik ketiga untuk lengan kedua.');
+                } else {
+                    // For line/caliper parameters, 2 clicks is all it takes!
+                    // Balloon is automatically placed exactly in the middle.
+                    const x1 = dimDraftCoords.x1;
+                    const y1 = dimDraftCoords.y1;
+                    const x2 = coords.x;
+                    const y2 = coords.y;
+                    const lx = Math.round((x1 + x2) / 2);
+                    const ly = Math.round((y1 + y2) / 2);
+
+                    const pxDist = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+                    const currentScale = selectedDwg?.scaleFactor || 1.0;
+                    const initialSpec = (pxDist * currentScale).toFixed(2);
+                    
+                    const catDef = getCategoryDef(drawingCategory || 'dimension');
+                    const suggestedVars = QMS_VARIABLES_BY_CATEGORY[drawingCategory || 'dimension'] || [];
+
+                    setDimModalData({
+                        x1, y1, x2, y2, lx, ly,
+                        cx: Math.round((x1 + x2) / 2),
+                        cy: Math.round((y1 + y2) / 2),
+                        spec: initialSpec,
+                        label: `${catDef.labelId || 'Dimensi'} Baru`,
+                        category: drawingCategory || 'dimension',
+                        measureType: catDef.defaultMeasure,
+                        indicatorType: catDef.defaultIndicator,
+                        unit: catDef.defaultUnit,
+                        gdt_symbol: catDef.symbol,
+                        tolMin: (parseFloat(initialSpec) - 0.1).toFixed(2),
+                        tolMax: (parseFloat(initialSpec) + 0.1).toFixed(2),
+                        variable: suggestedVars[0] || 'Meas_Length',
+                        angleStart: 0,
+                        angleEnd: 90,
+                        markerShape: 'default',
+                        markerSize: 60
+                    });
+                    setIsDimModalOpen(true);
+                    setDimDrawState('idle');
+                    setDimDraftCoords(null);
+                    toast.success('Titik kedua ditempatkan. Dimensi berhasil dibuat.');
+                }
             } else if (dimDrawState === 'waiting_offset') {
-                const x1 = dimDraftCoords.x1;
-                const y1 = dimDraftCoords.y1;
-                const x2 = dimDraftCoords.x2;
-                const y2 = dimDraftCoords.y2;
-                const lx = coords.x;
-                const ly = coords.y;
+                if (isAngle) {
+                    const cx = dimDraftCoords.cx;
+                    const cy = dimDraftCoords.cy;
+                    const x1 = dimDraftCoords.x1;
+                    const y1 = dimDraftCoords.y1;
+                    const x2 = coords.x;
+                    const y2 = coords.y;
+                    
+                    const angleStart = Math.round(Math.atan2(y1 - cy, x1 - cx) * (180 / Math.PI));
+                    const angleEnd = Math.round(Math.atan2(y2 - cy, x2 - cx) * (180 / Math.PI));
+                    
+                    // Position balloon midway between angles
+                    const midAngle = (angleStart + angleEnd) / 2;
+                    const lx = Math.round(cx + 45 * Math.cos(midAngle * Math.PI / 180));
+                    const ly = Math.round(cy + 45 * Math.sin(midAngle * Math.PI / 180));
 
-                const pxDist = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
-                const currentScale = selectedDwg?.scaleFactor || 1.0;
-                const initialSpec = (pxDist * currentScale).toFixed(2);
+                    const diff = Math.abs(angleEnd - angleStart);
+                    const initialSpec = (diff > 180 ? 360 - diff : diff).toFixed(1);
+                    
+                    const catDef = getCategoryDef('angle');
+                    const suggestedVars = QMS_VARIABLES_BY_CATEGORY['angle'] || [];
 
-                setDimModalData({
-                    x1, y1, x2, y2, lx, ly,
-                    cx: Math.round((x1 + x2) / 2),
-                    cy: Math.round((y1 + y2) / 2),
-                    spec: initialSpec,
-                    label: 'Dimensi Baru',
-                    category: 'dimension',
-                    measureType: 'linear_horizontal',
-                    indicatorType: 'horizontal',
-                    unit: 'mm',
-                    gdt_symbol: '',
-                    tolMin: (parseFloat(initialSpec) - 0.1).toFixed(2),
-                    tolMax: (parseFloat(initialSpec) + 0.1).toFixed(2),
-                    variable: 'Meas_Length',
-                    angleStart: 0,
-                    angleEnd: 90,
-                    markerShape: 'default',
-                    markerSize: 60
-                });
-                setIsDimModalOpen(true);
-                setDimDrawState('idle');
-                setDimDraftCoords(null);
+                    setDimModalData({
+                        x1, y1, x2, y2, lx, ly, cx, cy,
+                        spec: initialSpec,
+                        label: 'Sudut Baru',
+                        category: 'angle',
+                        measureType: 'angle',
+                        indicatorType: 'arc',
+                        unit: '°',
+                        gdt_symbol: '∠',
+                        tolMin: (parseFloat(initialSpec) - 1.0).toFixed(1),
+                        tolMax: (parseFloat(initialSpec) + 1.0).toFixed(1),
+                        variable: suggestedVars[0] || 'Meas_Angle',
+                        angleStart,
+                        angleEnd,
+                        markerShape: 'default',
+                        markerSize: 60
+                    });
+                    setIsDimModalOpen(true);
+                    setDimDrawState('idle');
+                    setDimDraftCoords(null);
+                    toast.success('Lengan kedua ditentukan. Sudut berhasil dibuat.');
+                }
             }
         } else if (cadTool === 'scale') {
             if (scaleDrawState === 'idle') {
@@ -5296,7 +5335,7 @@ export default function DrawingManager() {
                                 {/* ANNOTATE SECTION */}
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%', alignItems: 'center' }}>
                                     <span style={{ fontSize: '0.45rem', color: '#64748b', fontWeight: 'bold' }}>ANNOT</span>
-                                    <button title="Interactive Dimension Tool (dimension)" onClick={() => setDimDrawState('idle') || setDimDraftCoords(null) || setCadTool('dimension')} style={{ background: cadTool === 'dimension' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '6px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <button title="Interactive Dimension Tool (dimension)" onClick={() => setDimDrawState('idle') || setDimDraftCoords(null) || setDrawingCategory('dimension') || setCadTool('dimension')} style={{ background: cadTool === 'dimension' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '6px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                         <Ruler size={14} />
                                     </button>
                                     <button title="Scale Calibration Tool (scale)" onClick={() => setScaleDrawState('idle') || setScaleDraftCoords(null) || setCadTool('scale')} style={{ background: cadTool === 'scale' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '6px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -6397,42 +6436,106 @@ export default function DrawingManager() {
                                                 {cadTool === 'dimension' && dimDraftCoords && (
                                                     <g style={{ pointerEvents: 'none' }}>
                                                         {dimDrawState === 'waiting_end' && (
-                                                            <>
-                                                                <line x1={dimDraftCoords.x1} y1={dimDraftCoords.y1} x2={dimDraftCoords.x2} y2={dimDraftCoords.y2} stroke="#3b82f6" strokeWidth="1.5" strokeDasharray="3,3" />
-                                                                <circle cx={dimDraftCoords.x1} cy={dimDraftCoords.y1} r="4" fill="#3b82f6" />
-                                                                <circle cx={dimDraftCoords.x2} cy={dimDraftCoords.y2} r="4" fill="#3b82f6" />
-                                                                {(() => {
-                                                                    const px = Math.sqrt((dimDraftCoords.x2 - dimDraftCoords.x1) ** 2 + (dimDraftCoords.y2 - dimDraftCoords.y1) ** 2);
-                                                                    const factor = selectedDwg?.scaleFactor || 1.0;
-                                                                    const text = selectedDwg?.scaleFactor ? `${(px * factor).toFixed(2)} mm` : `${px.toFixed(1)} px`;
-                                                                    return (
-                                                                        <g transform={`translate(${(dimDraftCoords.x1 + dimDraftCoords.x2) / 2}, ${(dimDraftCoords.y1 + dimDraftCoords.y2) / 2 - 15})`}>
-                                                                            <rect x="-40" y="-8" width="80" height="16" rx="2" fill="#0f172a" stroke="#3b82f6" strokeWidth="1" />
-                                                                            <text x="0" y="4" fill="#3b82f6" fontSize="9" fontWeight="bold" textAnchor="middle">{text}</text>
-                                                                        </g>
-                                                                    );
-                                                                })()}
-                                                            </>
+                                                            drawingCategory === 'angle' ? (
+                                                                <>
+                                                                    {/* Center Vertex */}
+                                                                    <circle cx={dimDraftCoords.cx} cy={dimDraftCoords.cy} r="5" fill="#f59e0b" />
+                                                                    <text x={dimDraftCoords.cx} y={dimDraftCoords.cy - 8} fill="#f59e0b" fontSize="8" fontWeight="bold" textAnchor="middle">SUDUT VERTEX</text>
+                                                                    {/* Line from center to current cursor */}
+                                                                    <line x1={dimDraftCoords.cx} y1={dimDraftCoords.cy} x2={dimDraftCoords.x2} y2={dimDraftCoords.y2} stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="3,3" />
+                                                                    <circle cx={dimDraftCoords.x2} cy={dimDraftCoords.y2} r="4" fill="#f59e0b" />
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <line x1={dimDraftCoords.x1} y1={dimDraftCoords.y1} x2={dimDraftCoords.x2} y2={dimDraftCoords.y2} stroke="#3b82f6" strokeWidth="1.5" strokeDasharray="3,3" />
+                                                                    <circle cx={dimDraftCoords.x1} cy={dimDraftCoords.y1} r="4" fill="#3b82f6" />
+                                                                    <circle cx={dimDraftCoords.x2} cy={dimDraftCoords.y2} r="4" fill="#3b82f6" />
+                                                                    {(() => {
+                                                                        const px = Math.sqrt((dimDraftCoords.x2 - dimDraftCoords.x1) ** 2 + (dimDraftCoords.y2 - dimDraftCoords.y1) ** 2);
+                                                                        const factor = selectedDwg?.scaleFactor || 1.0;
+                                                                        const text = selectedDwg?.scaleFactor ? `${(px * factor).toFixed(2)} mm` : `${px.toFixed(1)} px`;
+                                                                        return (
+                                                                            <g transform={`translate(${(dimDraftCoords.x1 + dimDraftCoords.x2) / 2}, ${(dimDraftCoords.y1 + dimDraftCoords.y2) / 2 - 15})`}>
+                                                                                <rect x="-40" y="-8" width="80" height="16" rx="2" fill="#0f172a" stroke="#3b82f6" strokeWidth="1" />
+                                                                                <text x="0" y="4" fill="#3b82f6" fontSize="9" fontWeight="bold" textAnchor="middle">{text}</text>
+                                                                            </g>
+                                                                        );
+                                                                    })()}
+                                                                </>
+                                                            )
                                                         )}
                                                         {dimDrawState === 'waiting_offset' && (
-                                                            <>
-                                                                <line x1={dimDraftCoords.x1} y1={dimDraftCoords.y1} x2={dimDraftCoords.x1} y2={dimDraftCoords.ly} stroke="rgba(148,163,184,0.4)" strokeWidth="0.75" strokeDasharray="2,2" />
-                                                                <line x1={dimDraftCoords.x2} y1={dimDraftCoords.y2} x2={dimDraftCoords.x2} y2={dimDraftCoords.ly} stroke="rgba(148,163,184,0.4)" strokeWidth="0.75" strokeDasharray="2,2" />
-                                                                <line x1={dimDraftCoords.x1} y1={dimDraftCoords.ly} x2={dimDraftCoords.x2} y2={dimDraftCoords.ly} stroke="#3b82f6" strokeWidth="1.5" />
-                                                                <polygon points={`${dimDraftCoords.x1},${dimDraftCoords.ly} ${dimDraftCoords.x1 + 8},${dimDraftCoords.ly - 3} ${dimDraftCoords.x1 + 8},${dimDraftCoords.ly + 3}`} fill="#3b82f6" />
-                                                                <polygon points={`${dimDraftCoords.x2},${dimDraftCoords.ly} ${dimDraftCoords.x2 - 8},${dimDraftCoords.ly - 3} ${dimDraftCoords.x2 - 8},${dimDraftCoords.ly + 3}`} fill="#3b82f6" />
+                                                            drawingCategory === 'angle' ? (
+                                                                <>
+                                                                    {/* Center Vertex */}
+                                                                    <circle cx={dimDraftCoords.cx} cy={dimDraftCoords.cy} r="5" fill="#f59e0b" />
+                                                                    {/* Arm 1 (center to point 1) */}
+                                                                    <line x1={dimDraftCoords.cx} y1={dimDraftCoords.cy} x2={dimDraftCoords.x1} y2={dimDraftCoords.y1} stroke="#f59e0b" strokeWidth="1.5" />
+                                                                    <circle cx={dimDraftCoords.x1} cy={dimDraftCoords.y1} r="4" fill="#f59e0b" />
+                                                                    
+                                                                    {/* Arm 2 (center to current cursor lx, ly) */}
+                                                                    <line x1={dimDraftCoords.cx} y1={dimDraftCoords.cy} x2={dimDraftCoords.lx} y2={dimDraftCoords.ly} stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="3,3" />
+                                                                    <circle cx={dimDraftCoords.lx} cy={dimDraftCoords.ly} r="4" fill="#f59e0b" />
 
-                                                                <g transform={`translate(${dimDraftCoords.lx}, ${dimDraftCoords.ly - 10})`}>
-                                                                    <rect x="-45" y="-8" width="90" height="16" rx="2" fill="#0f172a" stroke="#3b82f6" strokeWidth="1" />
-                                                                    <text x="0" y="4" fill="#3b82f6" fontSize="9" fontWeight="bold" textAnchor="middle">
-                                                                        {(() => {
-                                                                            const px = Math.sqrt((dimDraftCoords.x2 - dimDraftCoords.x1) ** 2 + (dimDraftCoords.y2 - dimDraftCoords.y1) ** 2);
-                                                                            const factor = selectedDwg?.scaleFactor || 1.0;
-                                                                            return selectedDwg?.scaleFactor ? `${(px * factor).toFixed(2)} mm` : `${px.toFixed(1)} px`;
-                                                                        })()}
-                                                                    </text>
-                                                                </g>
-                                                            </>
+                                                                    {/* Arc and angle value preview */}
+                                                                    {(() => {
+                                                                        const cx = dimDraftCoords.cx;
+                                                                        const cy = dimDraftCoords.cy;
+                                                                        const x1 = dimDraftCoords.x1;
+                                                                        const y1 = dimDraftCoords.y1;
+                                                                        const x2 = dimDraftCoords.lx;
+                                                                        const y2 = dimDraftCoords.ly;
+                                                                        const startAngle = Math.atan2(y1 - cy, x1 - cx);
+                                                                        const endAngle = Math.atan2(y2 - cy, x2 - cx);
+                                                                        
+                                                                        const arcRadius = 25;
+                                                                        const sx = cx + arcRadius * Math.cos(startAngle);
+                                                                        const sy = cy + arcRadius * Math.sin(startAngle);
+                                                                        const ex = cx + arcRadius * Math.cos(endAngle);
+                                                                        const ey = cy + arcRadius * Math.sin(endAngle);
+                                                                        
+                                                                        const startDeg = startAngle * (180 / Math.PI);
+                                                                        const endDeg = endAngle * (180 / Math.PI);
+                                                                        const diff = Math.abs(endDeg - startDeg);
+                                                                        const deg = (diff > 180 ? 360 - diff : diff).toFixed(1);
+                                                                        
+                                                                        const largeArc = diff > 180 ? 1 : 0;
+                                                                        const sweepFlag = endDeg > startDeg ? 1 : 0;
+
+                                                                        const midAngle = (startDeg + endDeg) / 2;
+                                                                        const tx = cx + 45 * Math.cos(midAngle * Math.PI / 180);
+                                                                        const ty = cy + 45 * Math.sin(midAngle * Math.PI / 180);
+
+                                                                        return (
+                                                                            <>
+                                                                                <path d={`M ${sx},${sy} A ${arcRadius},${arcRadius} 0 ${largeArc} ${sweepFlag} ${ex},${ey}`} fill="none" stroke="#f59e0b" strokeWidth="1.5" />
+                                                                                <g transform={`translate(${tx}, ${ty})`}>
+                                                                                    <rect x="-25" y="-8" width="50" height="16" rx="2" fill="#0f172a" stroke="#f59e0b" strokeWidth="1" />
+                                                                                    <text x="0" y="4" fill="#f59e0b" fontSize="9" fontWeight="bold" textAnchor="middle">{deg}°</text>
+                                                                                </g>
+                                                                            </>
+                                                                        );
+                                                                    })()}
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <line x1={dimDraftCoords.x1} y1={dimDraftCoords.y1} x2={dimDraftCoords.x1} y2={dimDraftCoords.ly} stroke="rgba(148,163,184,0.4)" strokeWidth="0.75" strokeDasharray="2,2" />
+                                                                    <line x1={dimDraftCoords.x2} y1={dimDraftCoords.y2} x2={dimDraftCoords.x2} y2={dimDraftCoords.ly} stroke="rgba(148,163,184,0.4)" strokeWidth="0.75" strokeDasharray="2,2" />
+                                                                    <line x1={dimDraftCoords.x1} y1={dimDraftCoords.ly} x2={dimDraftCoords.x2} y2={dimDraftCoords.ly} stroke="#3b82f6" strokeWidth="1.5" />
+                                                                    <polygon points={`${dimDraftCoords.x1},${dimDraftCoords.ly} ${dimDraftCoords.x1 + 8},${dimDraftCoords.ly - 3} ${dimDraftCoords.x1 + 8},${dimDraftCoords.ly + 3}`} fill="#3b82f6" />
+                                                                    <polygon points={`${dimDraftCoords.x2},${dimDraftCoords.ly} ${dimDraftCoords.x2 - 8},${dimDraftCoords.ly - 3} ${dimDraftCoords.x2 - 8},${dimDraftCoords.ly + 3}`} fill="#3b82f6" />
+                                                                    <g transform={`translate(${dimDraftCoords.lx}, ${dimDraftCoords.ly - 10})`}>
+                                                                        <rect x="-45" y="-8" width="90" height="16" rx="2" fill="#0f172a" stroke="#3b82f6" strokeWidth="1" />
+                                                                        <text x="0" y="4" fill="#3b82f6" fontSize="9" fontWeight="bold" textAnchor="middle">
+                                                                            {(() => {
+                                                                                const px = Math.sqrt((dimDraftCoords.x2 - dimDraftCoords.x1) ** 2 + (dimDraftCoords.y2 - dimDraftCoords.y1) ** 2);
+                                                                                const factor = selectedDwg?.scaleFactor || 1.0;
+                                                                                return selectedDwg?.scaleFactor ? `${(px * factor).toFixed(2)} mm` : `${px.toFixed(1)} px`;
+                                                                            })()}
+                                                                        </text>
+                                                                    </g>
+                                                                </>
+                                                            )
                                                         )}
                                                     </g>
                                                 )}
