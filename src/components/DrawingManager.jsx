@@ -678,6 +678,7 @@ export default function DrawingManager() {
     // AutoCAD CAD Editor States
     const [cadTool, setCadTool] = useState('select'); // select, line, circle, rect, text, erase
     const [mirrorMenu, setMirrorMenu] = useState(null); // { shapeId, x, y }
+    const [dimContextMenu, setDimContextMenu] = useState(null); // { dimId, x, y }
     const [cadColor, setCadColor] = useState('#3b82f6');
     const [cadWidth, setCadWidth] = useState(2);
     const [gridSnap, setGridSnap] = useState(false);
@@ -1172,7 +1173,142 @@ export default function DrawingManager() {
         if (activeDimId === dimId) {
             setActiveDimId(updatedDwg.dimensions.length > 0 ? updatedDwg.dimensions[0].id : '');
         }
+        saveDrawing(updatedDwg).catch(err => console.error('Failed to auto-save after delete:', err));
         toast.success('Parameter berhasil dihapus.');
+    };
+
+    const handleDuplicateDimension = (dimId) => {
+        if (!selectedDwg) return;
+        const original = selectedDwg.dimensions.find(d => d.id === dimId);
+        if (!original) return;
+        const newDimId = `dim_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+        const newDim = {
+            ...original,
+            id: newDimId,
+            label: `${original.label} (Copy)`,
+            // Offset coordinates slightly so they don't cover the original
+            x1: (original.x1 ?? 150) + 15,
+            y1: (original.y1 ?? 180) + 15,
+            x2: (original.x2 ?? 350) + 15,
+            y2: (original.y2 ?? 180) + 15,
+            lx: (original.lx ?? 250) + 15,
+            ly: (original.ly ?? 200) + 15,
+            cx: (original.cx ?? 250) + 15,
+            cy: (original.cy ?? 180) + 15
+        };
+
+        const updatedDwg = { ...selectedDwg, dimensions: [...selectedDwg.dimensions, newDim] };
+        setDrawings(prev => prev.map(d => d.id === selectedDwgId ? updatedDwg : d));
+        setActiveDimId(newDimId);
+        saveDrawing(updatedDwg).catch(err => console.error('Failed to auto-save after duplicate:', err));
+        toast.success('Parameter berhasil diduplikasi.');
+    };
+
+    const handleRotateDimension = (dimId, actionType = 'toggle') => {
+        if (!selectedDwg) return;
+        const updatedDwg = {
+            ...selectedDwg,
+            dimensions: selectedDwg.dimensions.map(dim => {
+                if (dim.id === dimId) {
+                    if (actionType === 'toggle') {
+                        const nextType = dim.indicatorType === 'horizontal' ? 'vertical' : 'horizontal';
+                        return { ...dim, indicatorType: nextType };
+                    } else if (actionType === '90deg') {
+                        const cx = ((dim.x1 ?? 150) + (dim.x2 ?? 350)) / 2;
+                        const cy = ((dim.y1 ?? 180) + (dim.y2 ?? 180)) / 2;
+                        const rx1 = cx - ((dim.y1 ?? 180) - cy);
+                        const ry1 = cy + ((dim.x1 ?? 150) - cx);
+                        const rx2 = cx - ((dim.y2 ?? 180) - cy);
+                        const ry2 = cy + ((dim.x2 ?? 350) - cx);
+                        const rlx = cx - ((dim.ly ?? 200) - cy);
+                        const rly = cy + ((dim.lx ?? 250) - cx);
+                        
+                        return {
+                            ...dim,
+                            x1: Math.round(rx1),
+                            y1: Math.round(ry1),
+                            x2: Math.round(rx2),
+                            y2: Math.round(ry2),
+                            lx: Math.round(rlx),
+                            ly: Math.round(rly),
+                            indicatorType: dim.indicatorType === 'horizontal' ? 'vertical' : (dim.indicatorType === 'vertical' ? 'horizontal' : dim.indicatorType)
+                        };
+                    }
+                }
+                return dim;
+            })
+        };
+        setDrawings(prev => prev.map(d => d.id === selectedDwgId ? updatedDwg : d));
+        saveDrawing(updatedDwg).catch(err => console.error('Failed to auto-save after rotate:', err));
+        toast.success('Parameter berhasil dirotasi.');
+    };
+
+    const handleChangeDimensionProp = (dimId, prop, value) => {
+        if (!selectedDwg) return;
+        const updatedDwg = {
+            ...selectedDwg,
+            dimensions: selectedDwg.dimensions.map(dim => {
+                if (dim.id === dimId) {
+                    return { ...dim, [prop]: value };
+                }
+                return dim;
+            })
+        };
+        setDrawings(prev => prev.map(d => d.id === selectedDwgId ? updatedDwg : d));
+        if (activeDimId === dimId) {
+            if (prop === 'markerSize') setEditMarkerSize(value);
+            if (prop === 'lineWidth') setEditLineWidth(value);
+            if (prop === 'markerShape') setEditMarkerShape(value);
+            if (prop === 'category') setEditCategory(value);
+        }
+        saveDrawing(updatedDwg).catch(err => console.error('Failed to auto-save prop:', err));
+    };
+
+    const handleChangeDimensionCategory = (dimId, newCategory) => {
+        if (!selectedDwg) return;
+        const catDef = getCategoryDef(newCategory);
+        const updatedDwg = {
+            ...selectedDwg,
+            dimensions: selectedDwg.dimensions.map(dim => {
+                if (dim.id === dimId) {
+                    return {
+                        ...dim,
+                        category: newCategory,
+                        measureType: catDef.defaultMeasure,
+                        indicatorType: catDef.defaultIndicator,
+                        unit: catDef.defaultUnit,
+                        gdt_symbol: catDef.symbol
+                    };
+                }
+                return dim;
+            })
+        };
+        setDrawings(prev => prev.map(d => d.id === selectedDwgId ? updatedDwg : d));
+        if (activeDimId === dimId) {
+            setEditCategory(newCategory);
+            setEditMeasureType(catDef.defaultMeasure);
+            setEditIndicatorType(catDef.defaultIndicator);
+            setEditUnit(catDef.defaultUnit);
+            setEditGdtSymbol(catDef.symbol);
+        }
+        saveDrawing(updatedDwg).catch(err => console.error('Failed to auto-save category change:', err));
+        toast.success(`Tipe parameter diubah ke ${catDef.label}.`);
+    };
+
+    const handleDimensionContextMenu = (e, dimId) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setActiveDimId(dimId);
+        if (svgRef.current) {
+            const parentRect = svgRef.current.parentElement.getBoundingClientRect();
+            const top = e.clientY - parentRect.top;
+            const left = e.clientX - parentRect.left;
+            setDimContextMenu({
+                dimId,
+                x: left,
+                y: top
+            });
+        }
     };
 
     // ─── Trigger Management Handlers ───
@@ -1898,6 +2034,7 @@ export default function DrawingManager() {
     };
 
     const handleSvgMouseDown = (e) => {
+        setDimContextMenu(null);
         // Intercept middle click, Spacebar + drag, or Pan tool active
         if (e.button === 1 || (e.button === 0 && spacePressed) || (cadTool === 'pan' && e.button === 0)) {
             setIsPanning(true);
@@ -2458,8 +2595,9 @@ export default function DrawingManager() {
     };
 
     const handleCanvasClick = (e) => {
+        setDimContextMenu(null);
         if (cadTool !== 'select') return;
-
+        
         // Clear active selection on background click
         setSelectedShapeId(null);
 
@@ -3774,7 +3912,7 @@ export default function DrawingManager() {
     const renderLabelBadge = (dim, color, labelText, isActive, balloonIndex) => {
         const size = dim.markerSize !== undefined ? dim.markerSize : 60;
         const shape = isBalloonMode ? 'circle' : (dim.markerShape || 'default');
-        const catColor = getCategoryColor(dim.category || 'dimension');
+        const catColor = dim.color || getCategoryColor(dim.category || 'dimension');
         const lx = dim.lx ?? 250;
         const ly = dim.ly ?? 200;
 
@@ -3900,7 +4038,7 @@ export default function DrawingManager() {
             </g>
         );
 
-        const fontSizeValue = isBalloonMode ? 9 : Math.max(7, Math.min(12, size * 0.15));
+        const fontSizeValue = dim.fontSize || (isBalloonMode ? 9 : Math.max(7, Math.min(12, size * 0.15)));
         const fontColor = isBalloonMode ? '#ffffff' : color;
 
         // Trigger indicator ⚡ badge
@@ -3942,7 +4080,7 @@ export default function DrawingManager() {
             // Simulation value
             const simVal = simValues[dim.id] !== undefined ? simValues[dim.id] : parseFloat(dim.spec) || 0;
             const valStatus = getValidationStatus(simVal, dim.tolMin, dim.tolMax);
-            const color = getStatusColor(valStatus, isActive);
+            const color = dim.color || getStatusColor(valStatus, isActive);
 
             const labelText = `${dim.gdt_symbol || ''}${dim.gdt_symbol ? ' ' : ''}${dim.spec}`;
             const baseWidth = dim.lineWidth !== undefined ? dim.lineWidth : 2;
@@ -3952,7 +4090,7 @@ export default function DrawingManager() {
 
             if (indicatorType === 'horizontal') {
                 return (
-                    <g key={dim.id} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setActiveDimId(dim.id); }}>
+                    <g key={dim.id} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setActiveDimId(dim.id); }} onContextMenu={(e) => handleDimensionContextMenu(e, dim.id)}>
                         <line x1={x1} y1={y1} x2={x1} y2={ly} stroke="rgba(148,163,184,0.3)" strokeWidth="0.75" strokeDasharray="2,2" />
                         <line x1={x2} y1={y2} x2={x2} y2={ly} stroke="rgba(148,163,184,0.3)" strokeWidth="0.75" strokeDasharray="2,2" />
                         <line x1={x1 + arrowLen - 2} y1={ly - 5} x2={x2 - arrowLen + 2} y2={ly - 5} stroke={color} strokeWidth={strokeW} />
@@ -3963,7 +4101,7 @@ export default function DrawingManager() {
                 );
             } else if (indicatorType === 'vertical') {
                 return (
-                    <g key={dim.id} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setActiveDimId(dim.id); }}>
+                    <g key={dim.id} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setActiveDimId(dim.id); }} onContextMenu={(e) => handleDimensionContextMenu(e, dim.id)}>
                         <line x1={x1} y1={y1} x2={lx} y2={y1} stroke="rgba(148,163,184,0.3)" strokeWidth="0.75" strokeDasharray="2,2" />
                         <line x1={x2} y1={y2} x2={lx} y2={y2} stroke="rgba(148,163,184,0.3)" strokeWidth="0.75" strokeDasharray="2,2" />
                         <line x1={lx - 5} y1={y1 + arrowLen - 2} x2={lx - 5} y2={y2 - arrowLen + 2} stroke={color} strokeWidth={strokeW} />
@@ -3994,7 +4132,7 @@ export default function DrawingManager() {
                 const ley = cy + lineLen * Math.sin(endAngle);
 
                 return (
-                    <g key={dim.id} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setActiveDimId(dim.id); }}>
+                    <g key={dim.id} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setActiveDimId(dim.id); }} onContextMenu={(e) => handleDimensionContextMenu(e, dim.id)}>
                         {/* Reference lines */}
                         <line x1={cx} y1={cy} x2={lsx} y2={lsy} stroke={color} strokeWidth="1" strokeDasharray="4,2" />
                         <line x1={cx} y1={cy} x2={lex} y2={ley} stroke={color} strokeWidth="1" strokeDasharray="4,2" />
@@ -4013,7 +4151,7 @@ export default function DrawingManager() {
                 const bw = Math.abs(x2 - x1);
                 const bh = Math.abs(y2 - y1);
                 return (
-                    <g key={dim.id} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setActiveDimId(dim.id); }}>
+                    <g key={dim.id} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setActiveDimId(dim.id); }} onContextMenu={(e) => handleDimensionContextMenu(e, dim.id)}>
                         <rect x={bx} y={by} width={bw} height={bh} fill={color} fillOpacity="0.06" stroke={color} strokeWidth={strokeW} strokeDasharray="6,3" rx="2" />
                         {/* Cross-hatch */}
                         <line x1={bx} y1={by} x2={bx + bw} y2={by + bh} stroke={color} strokeWidth="0.5" strokeOpacity="0.3" />
@@ -4025,7 +4163,7 @@ export default function DrawingManager() {
                 // Surface roughness / custom callout
                 const symbolChar = dim.gdt_symbol || '';
                 return (
-                    <g key={dim.id} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setActiveDimId(dim.id); }}>
+                    <g key={dim.id} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setActiveDimId(dim.id); }} onContextMenu={(e) => handleDimensionContextMenu(e, dim.id)}>
                         {/* Leader line */}
                         <line x1={x1} y1={y1} x2={lx} y2={ly - 14} stroke={color} strokeWidth={strokeW} />
                         <circle cx={x1} cy={y1} r={Math.max(2.5, baseWidth * 1.5)} fill="none" stroke={color} strokeWidth={strokeW} />
@@ -4042,7 +4180,7 @@ export default function DrawingManager() {
             } else {
                 // Radial / pointer (default for diameter, radius, custom)
                 return (
-                    <g key={dim.id} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setActiveDimId(dim.id); }}>
+                    <g key={dim.id} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setActiveDimId(dim.id); }} onContextMenu={(e) => handleDimensionContextMenu(e, dim.id)}>
                         <path d={`M ${x1},${y1} L ${x2},${y2} L ${lx},${ly}`} fill="none" stroke={color} strokeWidth={strokeW} />
                         {(() => {
                             const angle = Math.atan2(y2 - y1, x2 - x1);
@@ -6673,6 +6811,329 @@ export default function DrawingManager() {
                                             </button>
                                         </div>
                                     )}
+
+                                    {/* Absolutely positioned Dimension Inspect Parameter Context Menu */}
+                                    {dimContextMenu && (() => {
+                                        const dim = selectedDwg?.dimensions.find(d => d.id === dimContextMenu.dimId);
+                                        if (!dim) return null;
+                                        const catColor = dim.color || getCategoryColor(dim.category || 'dimension');
+                                        return (
+                                            <div style={{
+                                                position: 'absolute',
+                                                top: `${dimContextMenu.y}px`,
+                                                left: `${dimContextMenu.x}px`,
+                                                transform: 'translate(10px, 10px)',
+                                                backgroundColor: '#0f172af2',
+                                                border: `1px solid ${catColor}`,
+                                                borderRadius: '10px',
+                                                padding: '12px',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: '8px',
+                                                zIndex: 1100,
+                                                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
+                                                fontFamily: "'Inter', sans-serif",
+                                                minWidth: '220px',
+                                                backdropFilter: 'blur(4px)',
+                                                borderLeft: `4px solid ${catColor}`
+                                            }}>
+                                                {/* Title / Info */}
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #334155', paddingBottom: '6px', marginBottom: '2px' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                        <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#f8fafc' }}>
+                                                            {dim.label || 'Parameter'}
+                                                        </span>
+                                                        <span style={{ fontSize: '0.62rem', color: '#94a3b8' }}>
+                                                            Nilai Spec: {dim.spec} {dim.unit}
+                                                        </span>
+                                                    </div>
+                                                    <span style={{ fontSize: '0.9rem' }}>
+                                                        {getCategoryDef(dim.category || 'dimension').icon}
+                                                    </span>
+                                                </div>
+
+                                                {/* Actions: Duplicate & Delete */}
+                                                <div style={{ display: 'flex', gap: '4px' }}>
+                                                    <button
+                                                        onClick={() => {
+                                                            handleDuplicateDimension(dim.id);
+                                                            setDimContextMenu(null);
+                                                        }}
+                                                        style={{
+                                                            flex: 1,
+                                                            padding: '6px 8px',
+                                                            backgroundColor: '#1e293b',
+                                                            color: '#f8fafc',
+                                                            border: '1px solid #334155',
+                                                            borderRadius: '6px',
+                                                            fontSize: '0.68rem',
+                                                            fontWeight: 'bold',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            gap: '4px',
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#334155'; }}
+                                                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#1e293b'; }}
+                                                    >
+                                                        📋 Duplikat
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            handleDeleteDimension(dim.id);
+                                                            setDimContextMenu(null);
+                                                        }}
+                                                        style={{
+                                                            padding: '6px 10px',
+                                                            backgroundColor: '#451a03',
+                                                            color: '#ef4444',
+                                                            border: '1px solid #ef444450',
+                                                            borderRadius: '6px',
+                                                            fontSize: '0.68rem',
+                                                            fontWeight: 'bold',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            gap: '4px',
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#7c2d12'; }}
+                                                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#451a03'; }}
+                                                    >
+                                                        🗑️ Hapus
+                                                    </button>
+                                                </div>
+
+                                                {/* Rotate */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                    <span style={{ fontSize: '0.58rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                        Rotasi / Arah
+                                                    </span>
+                                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                                        <button
+                                                            onClick={() => {
+                                                                handleRotateDimension(dim.id, 'toggle');
+                                                                setDimContextMenu(null);
+                                                            }}
+                                                            style={{
+                                                                flex: 1,
+                                                                padding: '4px 6px',
+                                                                backgroundColor: '#1e293b',
+                                                                color: '#3b82f6',
+                                                                border: '1px solid #1e3a8a',
+                                                                borderRadius: '4px',
+                                                                fontSize: '0.65rem',
+                                                                fontWeight: 600,
+                                                                cursor: 'pointer'
+                                                            }}
+                                                        >
+                                                            ↕️ Tukar H/V
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                handleRotateDimension(dim.id, '90deg');
+                                                                setDimContextMenu(null);
+                                                            }}
+                                                            style={{
+                                                                flex: 1,
+                                                                padding: '4px 6px',
+                                                                backgroundColor: '#1e293b',
+                                                                color: '#3b82f6',
+                                                                border: '1px solid #1e3a8a',
+                                                                borderRadius: '4px',
+                                                                fontSize: '0.65rem',
+                                                                fontWeight: 600,
+                                                                cursor: 'pointer'
+                                                            }}
+                                                        >
+                                                            🔄 Putar 90°
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Change Type (Category) */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                    <span style={{ fontSize: '0.58rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                        Ubah Tipe
+                                                    </span>
+                                                    <select
+                                                        value={dim.category || 'dimension'}
+                                                        onChange={(e) => {
+                                                            handleChangeDimensionCategory(dim.id, e.target.value);
+                                                            setDimContextMenu(null);
+                                                        }}
+                                                        style={{
+                                                            width: '100%',
+                                                            padding: '4px 8px',
+                                                            borderRadius: '4px',
+                                                            border: '1px solid #334155',
+                                                            backgroundColor: '#1e293b',
+                                                            color: '#f8fafc',
+                                                            fontSize: '0.68rem',
+                                                            outline: 'none',
+                                                            cursor: 'pointer'
+                                                        }}
+                                                    >
+                                                        {PARAM_CATEGORIES.map(cat => (
+                                                            <option key={cat.key} value={cat.key}>
+                                                                {cat.icon} {cat.label}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                {/* Change Color Preset */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                    <span style={{ fontSize: '0.58rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                        Ubah Warna
+                                                    </span>
+                                                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', padding: '2px 0' }}>
+                                                        {[
+                                                            { name: 'Blue', value: '#3b82f6' },
+                                                            { name: 'Green', value: '#10b981' },
+                                                            { name: 'Red', value: '#ef4444' },
+                                                            { name: 'Purple', value: '#8b5cf6' },
+                                                            { name: 'Orange', value: '#f57c00' },
+                                                        ].map(preset => (
+                                                            <button
+                                                                key={preset.value}
+                                                                onClick={() => {
+                                                                    handleChangeDimensionProp(dim.id, 'color', preset.value);
+                                                                    setDimContextMenu(null);
+                                                                }}
+                                                                style={{
+                                                                    width: '16px',
+                                                                    height: '16px',
+                                                                    borderRadius: '50%',
+                                                                    backgroundColor: preset.value,
+                                                                    border: dim.color === preset.value ? '2px solid white' : '1px solid #475569',
+                                                                    cursor: 'pointer',
+                                                                    boxShadow: dim.color === preset.value ? '0 0 4px white' : 'none',
+                                                                    padding: 0
+                                                                }}
+                                                                title={preset.name}
+                                                            />
+                                                        ))}
+                                                        <button
+                                                            onClick={() => {
+                                                                handleChangeDimensionProp(dim.id, 'color', null);
+                                                                setDimContextMenu(null);
+                                                            }}
+                                                            style={{
+                                                                padding: '2px 6px',
+                                                                backgroundColor: '#1e293b',
+                                                                color: '#94a3b8',
+                                                                border: '1px solid #334155',
+                                                                borderRadius: '3px',
+                                                                fontSize: '0.58rem',
+                                                                cursor: 'pointer'
+                                                            }}
+                                                            title="Reset to category color"
+                                                        >
+                                                            Reset
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Font Size & Line Thickness */}
+                                                <div style={{ display: 'flex', gap: '8px' }}>
+                                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                        <span style={{ fontSize: '0.58rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                            Ukuran Font
+                                                        </span>
+                                                        <div style={{ display: 'flex', gap: '2px' }}>
+                                                            {[
+                                                                { label: 'S', value: 8 },
+                                                                { label: 'M', value: 11 },
+                                                                { label: 'L', value: 14 },
+                                                                { label: 'XL', value: 18 }
+                                                            ].map(sz => (
+                                                                <button
+                                                                    key={sz.value}
+                                                                    onClick={() => {
+                                                                        handleChangeDimensionProp(dim.id, 'fontSize', sz.value);
+                                                                        setDimContextMenu(null);
+                                                                    }}
+                                                                    style={{
+                                                                        flex: 1,
+                                                                        padding: '2px 0',
+                                                                        backgroundColor: (dim.fontSize || 11) === sz.value ? '#2563eb' : '#1e293b',
+                                                                        color: (dim.fontSize || 11) === sz.value ? 'white' : '#cbd5e1',
+                                                                        border: '1px solid #334155',
+                                                                        borderRadius: '3px',
+                                                                        fontSize: '0.58rem',
+                                                                        cursor: 'pointer',
+                                                                        fontWeight: 'bold'
+                                                                    }}
+                                                                >
+                                                                    {sz.label}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                        <span style={{ fontSize: '0.58rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                            Tebal Garis
+                                                        </span>
+                                                        <div style={{ display: 'flex', gap: '2px' }}>
+                                                            {[
+                                                                { label: '1px', value: 1 },
+                                                                { label: '2px', value: 2 },
+                                                                { label: '4px', value: 4 },
+                                                                { label: '6px', value: 6 }
+                                                            ].map(lw => (
+                                                                <button
+                                                                    key={lw.value}
+                                                                    onClick={() => {
+                                                                        handleChangeDimensionProp(dim.id, 'lineWidth', lw.value);
+                                                                        setDimContextMenu(null);
+                                                                    }}
+                                                                    style={{
+                                                                        flex: 1,
+                                                                        padding: '2px 0',
+                                                                        backgroundColor: (dim.lineWidth !== undefined ? dim.lineWidth : 2) === lw.value ? '#2563eb' : '#1e293b',
+                                                                        color: (dim.lineWidth !== undefined ? dim.lineWidth : 2) === lw.value ? 'white' : '#cbd5e1',
+                                                                        border: '1px solid #334155',
+                                                                        borderRadius: '3px',
+                                                                        fontSize: '0.55rem',
+                                                                        cursor: 'pointer',
+                                                                        fontWeight: 'bold'
+                                                                    }}
+                                                                >
+                                                                    {lw.label}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Cancel button */}
+                                                <button
+                                                    onClick={() => setDimContextMenu(null)}
+                                                    style={{
+                                                        background: 'transparent',
+                                                        border: 'none',
+                                                        color: '#94a3b8',
+                                                        fontSize: '0.62rem',
+                                                        fontWeight: 'bold',
+                                                        cursor: 'pointer',
+                                                        textAlign: 'center',
+                                                        padding: '4px 0 0 0',
+                                                        borderTop: '1px solid #334155',
+                                                        marginTop: '2px'
+                                                    }}
+                                                    onMouseEnter={e => e.currentTarget.style.color = 'white'}
+                                                    onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                                                >
+                                                    Tutup Menu
+                                                </button>
+                                            </div>
+                                        );
+                                    })()}
 
 
 
