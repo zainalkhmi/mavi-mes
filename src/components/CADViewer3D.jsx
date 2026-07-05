@@ -398,7 +398,11 @@ export function CADViewer3D({ fileUrl, appVariables, setAppVariables }) {
                     ]
                 };
                 parsed.push(templateDwg);
-                localStorage.setItem('mavi_drawings', JSON.stringify(parsed));
+                try {
+                    localStorage.setItem('mavi_drawings', JSON.stringify(parsed));
+                } catch (e) {
+                    console.warn('[Storage Quota] Failed to write drawings list in CADViewer3D:', e);
+                }
             }
             return parsed;
         } catch {

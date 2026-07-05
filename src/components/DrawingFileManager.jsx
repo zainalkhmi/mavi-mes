@@ -20,10 +20,11 @@ import {
     ArrowRight,
     Search,
     Maximize2,
-    Minimize2
+    Minimize2,
+    X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getAllDrawings, saveDrawing, deleteDrawing } from '../utils/supabaseUtilityDB';
+import { getAllDrawings, saveDrawing, deleteDrawing, safeSaveDrawingsToLocalStorage } from '../utils/supabaseUtilityDB';
 
 // Default Drawing Templates (matches DrawingManager.jsx)
 const DEFAULT_DRAWINGS = [
@@ -97,7 +98,7 @@ export default function DrawingFileManager() {
                         const templateDwg = DEFAULT_DRAWINGS.find(d => d.id === 'dwg_product_checking');
                         if (templateDwg) {
                             const updated = [...parsed, templateDwg];
-                            localStorage.setItem('mavi_drawings', JSON.stringify(updated));
+                            safeSaveDrawingsToLocalStorage(updated);
                             return updated;
                         }
                     }
@@ -138,6 +139,209 @@ export default function DrawingFileManager() {
     const fullscreenRef = useRef(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
 
+    const [showConvertPdfModal, setShowConvertPdfModal] = useState(false);
+    const [pendingPdfFile, setPendingPdfFile] = useState(null);
+    const [pendingPdfDataUrl, setPendingPdfDataUrl] = useState(null);
+
+    const [showCqModal, setShowCqModal] = useState(false);
+    const [cqType, setCqType] = useState('rectangular');
+    const [cqWidth, setCqWidth] = useState(120);
+    const [cqHeight, setCqHeight] = useState(100);
+    const [cqThickness, setCqThickness] = useState(12);
+    const [cqHoleDia, setCqHoleDia] = useState(16);
+    const [cqHoleCount, setCqHoleCount] = useState(4);
+    const [isGeneratingCq, setIsGeneratingCq] = useState(false);
+
+    const handleGenerateCqModel = async () => {
+        setIsGeneratingCq(true);
+        try {
+            const response = await fetch('http://localhost:8000/blueprint/cadquery/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    width: cqWidth,
+                    height: cqHeight,
+                    thickness: cqThickness,
+                    hole_dia: cqHoleDia,
+                    hole_count: cqHoleCount,
+                    bracket_type: cqType
+                })
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const result = await response.json();
+            if (result.success) {
+                const newDwg = {
+                    name: `PARAMETRIC ${cqType.toUpperCase()} BRACKET`,
+                    fileName: result.filename,
+                    fileType: 'DXF',
+                    uploadedAt: new Date().toISOString(),
+                    dimensions: result.dimensions,
+                    dataUrl: result.dxf_data_url
+                };
+                const saved = await saveDrawing(newDwg);
+                setDrawings(prev => [saved, ...prev]);
+                localStorage.setItem('mavi_selected_dwg_id', saved.id);
+                toast.success(`Geometri parametrik CadQuery berhasil dibuat! Terbentuk ${result.entity_count} entitas.`);
+                setShowCqModal(false);
+            } else {
+                toast.error(`Gagal membuat model: ${result.error}`);
+            }
+        } catch (e) {
+            toast.error(`Koneksi server gagal: ${e.message}`);
+        } finally {
+            setIsGeneratingCq(false);
+        }
+    };
+
+    const handleConvertPdfToDxf = async () => {
+        if (!pendingPdfFile || !pendingPdfDataUrl) return;
+        setShowConvertPdfModal(false);
+        setIsParsing(true);
+        setParseProgress(15);
+        setParseStatusText('Mengirim berkas PDF ke engine konverter vector...');
+        try {
+            const response = await fetch('http://localhost:8000/blueprint/pdf_to_dxf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    pdf_data_url: pendingPdfDataUrl,
+                    page_num: 0
+                })
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            setParseProgress(50);
+            setParseStatusText('Membaca geometri vector DXF hasil konversi...');
+            const result = await response.json();
+            
+            if (result.success && result.dxf_data_url) {
+                setParseProgress(80);
+                setParseStatusText('Menyimpan blueprint gambar CAD vector baru...');
+                
+                const newDwg = {
+                    name: pendingPdfFile.name.split('.')[0].replace(/[-_]/g, ' ').toUpperCase() + ' VECTOR CAD',
+                    fileName: result.filename || pendingPdfFile.name.replace(/\.pdf$/i, '.dxf'),
+                    fileType: 'DXF',
+                    uploadedAt: new Date().toISOString(),
+                    dimensions: [],
+                    dataUrl: result.dxf_data_url
+                };
+                
+                setParseProgress(100);
+                const saved = await saveDrawing(newDwg);
+                setDrawings(prev => [saved, ...prev]);
+                localStorage.setItem('mavi_selected_dwg_id', saved.id);
+                toast.success(`Konversi PDF ke DXF berhasil! Menghasilkan ${result.entity_count} entitas vector CAD.`);
+            } else {
+                throw new Error(result.error || 'Gagal melakukan konversi PDF.');
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error(`Koneksi gagal atau terjadi error konversi: ${err.message}`);
+        } finally {
+            setIsParsing(false);
+            setPendingPdfFile(null);
+            setPendingPdfDataUrl(null);
+        }
+    };
+
+    const handleImportStandardPdf = async () => {
+        if (!pendingPdfFile || !pendingPdfDataUrl) return;
+        setShowConvertPdfModal(false);
+        setIsParsing(true);
+        setParseProgress(10);
+        setParseStatusText('Mengunggah berkas PDF untuk ekstraksi OCR...');
+        
+        const file = pendingPdfFile;
+        const dataUrl = pendingPdfDataUrl;
+        
+        try {
+            setParseProgress(40);
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const response = await fetch('http://localhost:8000/blueprint/parse', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            
+            if (result.success && result.dimensions) {
+                setParseProgress(80);
+                setParseStatusText('Mengekstraksi anotasi GD&T...');
+                
+                const newDwg = {
+                    name: file.name.split('.')[0].replace(/[-_]/g, ' ').toUpperCase() + ' Blueprint',
+                    fileName: file.name,
+                    fileType: 'PDF',
+                    uploadedAt: new Date().toISOString(),
+                    dimensions: result.dimensions,
+                    dataUrl: result.rendered_image || dataUrl
+                };
+
+                setParseProgress(100);
+                const saved = await saveDrawing(newDwg);
+                setDrawings(prev => [saved, ...prev]);
+                localStorage.setItem('mavi_selected_dwg_id', saved.id);
+                toast.success(`Ekstraksi PDF selesai. Ditemukan ${result.dimensions.length} parameter.`);
+            } else {
+                throw new Error(result.error || 'Parsing gagal.');
+            }
+        } catch (err) {
+            console.warn(err);
+            // Fallback simulation logic
+            setParseProgress(45);
+            setParseStatusText('Menggunakan fallback simulasi PDF...');
+            
+            const timer1 = setTimeout(() => {
+                setParseProgress(75);
+                setParseStatusText('Mengekstraksi parameter toleransi simulasi...');
+            }, 600);
+
+            const timer2 = setTimeout(() => {
+                setParseProgress(95);
+                setParseStatusText('Membangun visualisasi model simulasi...');
+            }, 1200);
+
+            const timer3 = setTimeout(() => {
+                setParseProgress(100);
+                setIsParsing(false);
+
+                const extracted = [
+                    { id: `dim_pdf_gen_1_${Date.now()}`, label: 'Length Parameter', spec: '120.0', tolMin: -0.5, tolMax: 0.5, variable: 'Meas_Length', unit: 'mm', category: 'dimension', measureType: 'linear_horizontal', indicatorType: 'horizontal', gdt_symbol: '', x1: 50, y1: 150, x2: 450, y2: 150, lx: 250, ly: 135 },
+                    { id: `dim_pdf_gen_2_${Date.now()}`, label: 'Bore Parameter', spec: '25.0', tolMin: -0.1, tolMax: 0.1, variable: 'Meas_Bore', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 200, y1: 200, lx: 250, ly: 200 }
+                ];
+
+                const newDwg = {
+                    name: file.name.split('.')[0].replace(/[-_]/g, ' ').toUpperCase() + ' Blueprint (Simulasi)',
+                    fileName: file.name,
+                    fileType: 'PDF',
+                    uploadedAt: new Date().toISOString(),
+                    dimensions: extracted,
+                    dataUrl: dataUrl
+                };
+
+                saveDrawing(newDwg).then(saved => {
+                    setDrawings(prev => [saved, ...prev]);
+                    localStorage.setItem('mavi_selected_dwg_id', saved.id);
+                    toast.success(`Unggah PDF berhasil disimpan secara simulasi!`);
+                });
+            }, 1800);
+        } finally {
+            setIsParsing(false);
+            setPendingPdfFile(null);
+            setPendingPdfDataUrl(null);
+        }
+    };
+
     // Toggle browser Fullscreen API
     const toggleFullscreen = () => {
         if (!document.fullscreenElement) {
@@ -158,9 +362,8 @@ export default function DrawingFileManager() {
         return () => document.removeEventListener('fullscreenchange', onFsChange);
     }, []);
 
-    // Save drawings to localStorage on changes
     useEffect(() => {
-        localStorage.setItem('mavi_drawings', JSON.stringify(drawings));
+        safeSaveDrawingsToLocalStorage(drawings);
     }, [drawings]);
 
     // Close menus on outside click
@@ -367,24 +570,18 @@ export default function DrawingFileManager() {
             return;
         }
 
+        const dataUrl = await getFileDataUrl();
+
+        if (ext === 'pdf') {
+            setPendingPdfFile(file);
+            setPendingPdfDataUrl(dataUrl);
+            setShowConvertPdfModal(true);
+            return;
+        }
+
         setIsParsing(true);
         setParseProgress(10);
         setParseStatusText('Mengunggah berkas ke server QMS...');
-
-        // Helper to load file as dataURL for display
-        const getFileDataUrl = () => {
-            return new Promise((resolve) => {
-                const r = new FileReader();
-                r.onload = (ev) => resolve(ev.target.result);
-                if (ext === 'pdf' || ext === 'svg') {
-                    r.readAsDataURL(file);
-                } else {
-                    resolve(undefined);
-                }
-            });
-        };
-
-        const dataUrl = await getFileDataUrl();
 
         // 1. Try real Python parsing
         try {
@@ -550,8 +747,39 @@ export default function DrawingFileManager() {
                         {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
                     </button>
 
-                {/* Global Actions dropdown */}
-                <div style={{ position: 'relative' }} ref={globalMenuRef}>
+                    {/* CadQuery Parametric Generator Button */}
+                    <button
+                        onClick={() => setShowCqModal(true)}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            border: '1px solid #f59e0b',
+                            backgroundColor: '#fffbeb',
+                            color: '#b45309',
+                            padding: '10px 16px',
+                            borderRadius: '8px',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            outline: 'none',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                        }}
+                        onMouseEnter={e => {
+                            e.currentTarget.style.transform = 'translateY(-1px)';
+                            e.currentTarget.style.boxShadow = '0 4px 6px rgba(245, 158, 11, 0.12)';
+                        }}
+                        onMouseLeave={e => {
+                            e.currentTarget.style.transform = 'none';
+                            e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)';
+                        }}
+                    >
+                        📐 CadQuery Parametric
+                    </button>
+
+                    {/* Global Actions dropdown */}
+                    <div style={{ position: 'relative' }} ref={globalMenuRef}>
                     <button
                         onClick={() => setShowGlobalMenu(!showGlobalMenu)}
                         style={{
@@ -885,6 +1113,308 @@ export default function DrawingFileManager() {
                     <b>Integrasi QMS:</b> Semua perubahan file drawing, parameter toleransi, dan tag variabel disinkronkan secara realtime dengan modul QMS, ERP Bridge, dan Supabase Database.
                 </span>
             </div>
+
+            {/* PDF Conversion Selector Modal */}
+            {showConvertPdfModal && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+                    backdropFilter: 'blur(6px)',
+                    zIndex: 9999,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '20px',
+                    boxSizing: 'border-box'
+                }}>
+                    <div style={{
+                        backgroundColor: 'white',
+                        borderRadius: '16px',
+                        width: '480px',
+                        maxWidth: '100%',
+                        padding: '24px',
+                        boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '16px',
+                        border: '1px solid #e2e8f0',
+                        position: 'relative'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '1.5rem' }}>📄</span>
+                                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                                    Unggah Dokumen PDF
+                                </h3>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setShowConvertPdfModal(false);
+                                    setPendingPdfFile(null);
+                                    setPendingPdfDataUrl(null);
+                                }}
+                                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', outline: 'none' }}
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div style={{ fontSize: '0.8rem', color: '#475569', lineHeight: '1.5' }}>
+                            Dokumen gambar teknik bertipe PDF terdeteksi: <b>{pendingPdfFile?.name}</b>.
+                            <br /><br />
+                            Pilih jenis pemrosesan yang diinginkan:
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
+                            {/* Option 1 Button */}
+                            <button
+                                onClick={handleConvertPdfToDxf}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '12px',
+                                    padding: '16px',
+                                    borderRadius: '10px',
+                                    border: '1px solid #f59e0b',
+                                    backgroundColor: '#fffbeb',
+                                    color: '#b45309',
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    transition: 'all 0.2s',
+                                    outline: 'none'
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(245, 158, 11, 0.15)';
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.transform = 'none';
+                                    e.currentTarget.style.boxShadow = 'none';
+                                }}
+                            >
+                                <div style={{ fontSize: '1.5rem' }}>✨</div>
+                                <div>
+                                    <div style={{ fontWeight: 800, fontSize: '0.82rem' }}>Konversi ke Vector CAD (.dxf)</div>
+                                    <div style={{ fontSize: '0.7rem', color: '#d97706', marginTop: '2px' }}>
+                                        Ekstrak data geometri garis asli dan busur menjadi gambar blueprint DXF vector penuh.
+                                    </div>
+                                </div>
+                            </button>
+
+                            {/* Option 2 Button */}
+                            <button
+                                onClick={handleImportStandardPdf}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '12px',
+                                    padding: '16px',
+                                    borderRadius: '10px',
+                                    border: '1px solid #cbd5e1',
+                                    backgroundColor: '#f8fafc',
+                                    color: '#334155',
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    transition: 'all 0.2s',
+                                    outline: 'none'
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(148, 163, 184, 0.1)';
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.transform = 'none';
+                                    e.currentTarget.style.boxShadow = 'none';
+                                }}
+                            >
+                                <div style={{ fontSize: '1.5rem' }}>📋</div>
+                                <div>
+                                    <div style={{ fontWeight: 800, fontSize: '0.82rem' }}>Impor Sebagai PDF Standar</div>
+                                    <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>
+                                        Tampilkan gambar PDF asli dan lakukan scanning parameter toleransi via teks/OCR.
+                                    </div>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* CadQuery Parametric CAD Modal */}
+            {showCqModal && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+                    backdropFilter: 'blur(6px)',
+                    zIndex: 9999,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '20px',
+                    boxSizing: 'border-box'
+                }}>
+                    <div style={{
+                        backgroundColor: 'white',
+                        borderRadius: '16px',
+                        width: '500px',
+                        maxWidth: '100%',
+                        padding: '24px',
+                        boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '16px',
+                        border: '1px solid #e2e8f0',
+                        position: 'relative'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '1.5rem' }}>📐</span>
+                                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                                    CadQuery Parametric Generator
+                                </h3>
+                            </div>
+                            <button
+                                onClick={() => setShowCqModal(false)}
+                                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', outline: 'none' }}
+                                disabled={isGeneratingCq}
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                            Tentukan parameter dimensi di bawah ini untuk membuat gambar CAD secara otomatis menggunakan pustaka CadQuery / ezdxf.
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '0.8rem' }}>
+                            {/* Model Type */}
+                            <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <label style={{ fontWeight: 700, color: '#475569' }}>Tipe Braket</label>
+                                <select
+                                    value={cqType}
+                                    onChange={(e) => setCqType(e.target.value)}
+                                    style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', outline: 'none' }}
+                                >
+                                    <option value="rectangular">Plat Rectangular (Persegi)</option>
+                                    <option value="circular">Flange Circular (Bulat)</option>
+                                </select>
+                            </div>
+
+                            {/* Width / Diameter */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <label style={{ fontWeight: 700, color: '#475569' }}>
+                                    {cqType === 'circular' ? 'Diameter Luar (mm)' : 'Lebar Plat (mm)'}
+                                </label>
+                                <input
+                                    type="number"
+                                    value={cqWidth}
+                                    onChange={(e) => setCqWidth(Number(e.target.value))}
+                                    style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', outline: 'none' }}
+                                />
+                            </div>
+
+                            {/* Height */}
+                            {cqType === 'rectangular' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    <label style={{ fontWeight: 700, color: '#475569' }}>Tinggi Plat (mm)</label>
+                                    <input
+                                        type="number"
+                                        value={cqHeight}
+                                        onChange={(e) => setCqHeight(Number(e.target.value))}
+                                        style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', outline: 'none' }}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Thickness */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <label style={{ fontWeight: 700, color: '#475569' }}>Ketebalan (mm)</label>
+                                <input
+                                    type="number"
+                                    value={cqThickness}
+                                    onChange={(e) => setCqThickness(Number(e.target.value))}
+                                    style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', outline: 'none' }}
+                                />
+                            </div>
+
+                            {/* Hole Diameter */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <label style={{ fontWeight: 700, color: '#475569' }}>Diameter Lubang (mm)</label>
+                                <input
+                                    type="number"
+                                    value={cqHoleDia}
+                                    onChange={(e) => setCqHoleDia(Number(e.target.value))}
+                                    style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', outline: 'none' }}
+                                />
+                            </div>
+
+                            {/* Hole Count */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <label style={{ fontWeight: 700, color: '#475569' }}>
+                                    {cqType === 'circular' ? 'Jumlah Lubang Polar' : 'Pola Lubang'}
+                                </label>
+                                <select
+                                    value={cqHoleCount}
+                                    onChange={(e) => setCqHoleCount(Number(e.target.value))}
+                                    style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', outline: 'none' }}
+                                >
+                                    {cqType === 'circular' ? (
+                                        <>
+                                            <option value={4}>4 Lubang</option>
+                                            <option value={6}>6 Lubang</option>
+                                            <option value={8}>8 Lubang</option>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <option value={4}>4 Corner Holes (Pojok)</option>
+                                            <option value={1}>1 Center Hole (Tengah)</option>
+                                        </>
+                                    )}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                            <button
+                                onClick={() => setShowCqModal(false)}
+                                style={{
+                                    flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1',
+                                    backgroundColor: 'white', color: '#475569', fontWeight: 700, cursor: 'pointer', outline: 'none'
+                                }}
+                                disabled={isGeneratingCq}
+                            >
+                                Batal
+                            </button>
+                            <button
+                                onClick={handleGenerateCqModel}
+                                style={{
+                                    flex: 2, padding: '10px', borderRadius: '8px', border: 'none',
+                                    backgroundColor: '#f59e0b', color: 'white', fontWeight: 800,
+                                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                                    outline: 'none', boxShadow: '0 4px 6px -1px rgba(245, 158, 11, 0.2)'
+                                }}
+                                disabled={isGeneratingCq}
+                            >
+                                {isGeneratingCq ? (
+                                    <>
+                                        <RefreshCw size={14} style={{ animation: 'spin 1.5s linear infinite' }} /> Memproses CAD...
+                                    </>
+                                ) : (
+                                    <>Generasikan Model CAD</>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

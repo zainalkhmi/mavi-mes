@@ -53,7 +53,7 @@ import {
     Minimize2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getAllDrawings, saveDrawing, deleteDrawing } from '../utils/supabaseUtilityDB';
+import { getAllDrawings, saveDrawing, deleteDrawing, safeSaveDrawingsToLocalStorage } from '../utils/supabaseUtilityDB';
 import { CADViewer3DEditor } from './CADViewer3D';
 
 // ─────────────────────────────────────────
@@ -61,65 +61,65 @@ import { CADViewer3DEditor } from './CADViewer3D';
 // ─────────────────────────────────────────
 const PARAM_CATEGORIES = [
     { key: 'dimension', label: 'Linear Dimension', labelId: 'Dimensi Linear', icon: '📏', color: '#3b82f6', symbol: '', defaultUnit: 'mm', defaultMeasure: 'linear_horizontal', defaultIndicator: 'horizontal' },
-    { key: 'diameter',  label: 'Diameter',         labelId: 'Diameter',        icon: '⌀', color: '#8b5cf6', symbol: '⌀', defaultUnit: 'mm', defaultMeasure: 'diameter',         defaultIndicator: 'radial' },
-    { key: 'radius',    label: 'Radius',           labelId: 'Radius',          icon: '⊕', color: '#06b6d4', symbol: 'R', defaultUnit: 'mm', defaultMeasure: 'radius',           defaultIndicator: 'radial' },
-    { key: 'angle',     label: 'Angle',            labelId: 'Sudut',           icon: '∠', color: '#f59e0b', symbol: '∠', defaultUnit: '°',  defaultMeasure: 'angle',            defaultIndicator: 'arc' },
-    { key: 'area',      label: 'Area',             labelId: 'Luas Area',       icon: '▢', color: '#10b981', symbol: '',  defaultUnit: 'mm²', defaultMeasure: 'area',            defaultIndicator: 'area_box' },
+    { key: 'diameter', label: 'Diameter', labelId: 'Diameter', icon: '⌀', color: '#8b5cf6', symbol: '⌀', defaultUnit: 'mm', defaultMeasure: 'diameter', defaultIndicator: 'radial' },
+    { key: 'radius', label: 'Radius', labelId: 'Radius', icon: '⊕', color: '#06b6d4', symbol: 'R', defaultUnit: 'mm', defaultMeasure: 'radius', defaultIndicator: 'radial' },
+    { key: 'angle', label: 'Angle', labelId: 'Sudut', icon: '∠', color: '#f59e0b', symbol: '∠', defaultUnit: '°', defaultMeasure: 'angle', defaultIndicator: 'arc' },
+    { key: 'area', label: 'Area', labelId: 'Luas Area', icon: '▢', color: '#10b981', symbol: '', defaultUnit: 'mm²', defaultMeasure: 'area', defaultIndicator: 'area_box' },
     { key: 'roughness', label: 'Surface Roughness', labelId: 'Kekasaran Permukaan', icon: '△', color: '#ef4444', symbol: 'Ra', defaultUnit: 'μm', defaultMeasure: 'surface_roughness', defaultIndicator: 'callout' },
-    { key: 'custom',    label: 'Custom',           labelId: 'Kustom',          icon: '⚙', color: '#64748b', symbol: '',  defaultUnit: 'mm', defaultMeasure: 'custom',           defaultIndicator: 'callout' },
+    { key: 'custom', label: 'Custom', labelId: 'Kustom', icon: '⚙', color: '#64748b', symbol: '', defaultUnit: 'mm', defaultMeasure: 'custom', defaultIndicator: 'callout' },
 ];
 
 // ─────────────────────────────────────────
 // FEATURE TRIGGER — ACTION & CONDITION DEFINITIONS
 // ─────────────────────────────────────────
 const TRIGGER_ACTIONS = [
-    { key: 'NOTIFY_SUPERVISOR', label: 'Notifikasi Supervisor',   labelShort: 'Notify',    icon: '🔔', color: '#f59e0b', LucideIcon: Bell,           description: 'Kirim notifikasi ke supervisor / QC lead' },
-    { key: 'STOP_MACHINE',      label: 'Stop Machine',            labelShort: 'Stop',      icon: '🛑', color: '#ef4444', LucideIcon: Power,          description: 'Perintah stop mesin (integrasi PLC/IoT)' },
-    { key: 'CREATE_NCR',        label: 'Buat NCR',                labelShort: 'NCR',       icon: '📋', color: '#8b5cf6', LucideIcon: ClipboardList,  description: 'Buat Non-Conformance Report otomatis' },
-    { key: 'ESCALATE_QUALITY',  label: 'Eskalasi Quality',        labelShort: 'Escalate',  icon: '⚠️', color: '#f97316', LucideIcon: AlertTriangle,  description: 'Eskalasi ke tim Quality Engineering' },
-    { key: 'LOG_DEFECT',        label: 'Log Defect',              labelShort: 'Log',       icon: '📝', color: '#06b6d4', LucideIcon: FileText,       description: 'Catat defect ke tabel QMS database' },
-    { key: 'REWORK_ORDER',      label: 'Rework Order',            labelShort: 'Rework',    icon: '🔄', color: '#10b981', LucideIcon: RefreshCw,      description: 'Buat work order rework otomatis' },
-    { key: 'CUSTOM_WEBHOOK',    label: 'Custom Webhook',          labelShort: 'Webhook',   icon: '🌐', color: '#6366f1', LucideIcon: Globe,          description: 'Kirim data ke webhook URL kustom' },
+    { key: 'NOTIFY_SUPERVISOR', label: 'Notifikasi Supervisor', labelShort: 'Notify', icon: '🔔', color: '#f59e0b', LucideIcon: Bell, description: 'Kirim notifikasi ke supervisor / QC lead' },
+    { key: 'STOP_MACHINE', label: 'Stop Machine', labelShort: 'Stop', icon: '🛑', color: '#ef4444', LucideIcon: Power, description: 'Perintah stop mesin (integrasi PLC/IoT)' },
+    { key: 'CREATE_NCR', label: 'Buat NCR', labelShort: 'NCR', icon: '📋', color: '#8b5cf6', LucideIcon: ClipboardList, description: 'Buat Non-Conformance Report otomatis' },
+    { key: 'ESCALATE_QUALITY', label: 'Eskalasi Quality', labelShort: 'Escalate', icon: '⚠️', color: '#f97316', LucideIcon: AlertTriangle, description: 'Eskalasi ke tim Quality Engineering' },
+    { key: 'LOG_DEFECT', label: 'Log Defect', labelShort: 'Log', icon: '📝', color: '#06b6d4', LucideIcon: FileText, description: 'Catat defect ke tabel QMS database' },
+    { key: 'REWORK_ORDER', label: 'Rework Order', labelShort: 'Rework', icon: '🔄', color: '#10b981', LucideIcon: RefreshCw, description: 'Buat work order rework otomatis' },
+    { key: 'CUSTOM_WEBHOOK', label: 'Custom Webhook', labelShort: 'Webhook', icon: '🌐', color: '#6366f1', LucideIcon: Globe, description: 'Kirim data ke webhook URL kustom' },
 ];
 
 const TRIGGER_CONDITIONS = [
-    { key: 'ON_FAIL',          label: 'Saat FAIL (Out-of-Spec)',             description: 'Terpicu saat status = FAIL' },
-    { key: 'ON_WARNING',       label: 'Saat Mendekati Batas (Warning)',      description: 'Terpicu saat dalam 10% dari batas toleransi' },
-    { key: 'ON_PASS_TO_FAIL',  label: 'Saat Berubah PASS → FAIL',           description: 'Terpicu saat status berubah dari PASS ke FAIL' },
-    { key: 'ALWAYS',           label: 'Setiap Nilai Baru',                  description: 'Selalu terpicu saat ada nilai baru' },
+    { key: 'ON_FAIL', label: 'Saat FAIL (Out-of-Spec)', description: 'Terpicu saat status = FAIL' },
+    { key: 'ON_WARNING', label: 'Saat Mendekati Batas (Warning)', description: 'Terpicu saat dalam 10% dari batas toleransi' },
+    { key: 'ON_PASS_TO_FAIL', label: 'Saat Berubah PASS → FAIL', description: 'Terpicu saat status berubah dari PASS ke FAIL' },
+    { key: 'ALWAYS', label: 'Setiap Nilai Baru', description: 'Selalu terpicu saat ada nilai baru' },
 ];
 
 const generateTriggerId = () => `trig_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
 const MEASURE_TYPE_OPTIONS = {
-    dimension:  [{ value: 'linear_horizontal', label: 'Horizontal' }, { value: 'linear_vertical', label: 'Vertical' }],
-    diameter:   [{ value: 'diameter', label: 'Outer Diameter' }, { value: 'inner_diameter', label: 'Inner Diameter' }],
-    radius:     [{ value: 'radius', label: 'Outer Radius' }, { value: 'inner_radius', label: 'Inner Radius' }],
-    angle:      [{ value: 'angle', label: 'Included Angle' }, { value: 'taper_angle', label: 'Taper Angle' }],
-    area:       [{ value: 'area', label: 'Cross-Section Area' }, { value: 'surface_area', label: 'Surface Area' }],
-    roughness:  [{ value: 'surface_roughness', label: 'Ra (Average)' }, { value: 'rz_roughness', label: 'Rz (Max Peak)' }],
-    custom:     [{ value: 'custom', label: 'Custom Measurement' }],
+    dimension: [{ value: 'linear_horizontal', label: 'Horizontal' }, { value: 'linear_vertical', label: 'Vertical' }],
+    diameter: [{ value: 'diameter', label: 'Outer Diameter' }, { value: 'inner_diameter', label: 'Inner Diameter' }],
+    radius: [{ value: 'radius', label: 'Outer Radius' }, { value: 'inner_radius', label: 'Inner Radius' }],
+    angle: [{ value: 'angle', label: 'Included Angle' }, { value: 'taper_angle', label: 'Taper Angle' }],
+    area: [{ value: 'area', label: 'Cross-Section Area' }, { value: 'surface_area', label: 'Surface Area' }],
+    roughness: [{ value: 'surface_roughness', label: 'Ra (Average)' }, { value: 'rz_roughness', label: 'Rz (Max Peak)' }],
+    custom: [{ value: 'custom', label: 'Custom Measurement' }],
 };
 
 const INDICATOR_TYPE_OPTIONS = {
-    dimension:  [{ value: 'horizontal', label: 'Garis Horizontal' }, { value: 'vertical', label: 'Garis Vertikal' }],
-    diameter:   [{ value: 'radial', label: 'Pointer / Radial' }],
-    radius:     [{ value: 'radial', label: 'Pointer / Radial' }],
-    angle:      [{ value: 'arc', label: 'Arc (Busur)' }],
-    area:       [{ value: 'area_box', label: 'Area Box (Kotak)' }],
-    roughness:  [{ value: 'callout', label: 'Callout Symbol' }],
-    custom:     [{ value: 'callout', label: 'Callout Pointer' }, { value: 'horizontal', label: 'Garis Horizontal' }, { value: 'vertical', label: 'Garis Vertikal' }, { value: 'radial', label: 'Pointer Radial' }],
+    dimension: [{ value: 'horizontal', label: 'Garis Horizontal' }, { value: 'vertical', label: 'Garis Vertikal' }],
+    diameter: [{ value: 'radial', label: 'Pointer / Radial' }],
+    radius: [{ value: 'radial', label: 'Pointer / Radial' }],
+    angle: [{ value: 'arc', label: 'Arc (Busur)' }],
+    area: [{ value: 'area_box', label: 'Area Box (Kotak)' }],
+    roughness: [{ value: 'callout', label: 'Callout Symbol' }],
+    custom: [{ value: 'callout', label: 'Callout Pointer' }, { value: 'horizontal', label: 'Garis Horizontal' }, { value: 'vertical', label: 'Garis Vertikal' }, { value: 'radial', label: 'Pointer Radial' }],
 };
 
 // Dynamic QMS variable suggestions per category
 const QMS_VARIABLES_BY_CATEGORY = {
-    dimension:  ['Meas_Length', 'Meas_Height', 'Meas_Width', 'Meas_Depth', 'Meas_Thickness', 'Stroke_Length_Actual'],
-    diameter:   ['Meas_Diameter', 'Cylinder_Bore_Dia', 'Rod_Diameter_Spec', 'Outer_Dia', 'Inner_Dia'],
-    radius:     ['Meas_Radius', 'Corner_Radius', 'Fillet_Radius', 'Inner_Radius'],
-    angle:      ['Meas_Angle', 'Taper_Angle', 'Chamfer_Angle', 'Bevel_Angle', 'Inclination'],
-    area:       ['Meas_Area', 'Cross_Section_Area', 'Surface_Area', 'Contact_Area'],
-    roughness:  ['Meas_Ra', 'Meas_Rz', 'Surface_Roughness', 'Finish_Quality'],
-    custom:     ['Custom_Param_1', 'Custom_Param_2'],
+    dimension: ['Meas_Length', 'Meas_Height', 'Meas_Width', 'Meas_Depth', 'Meas_Thickness', 'Stroke_Length_Actual'],
+    diameter: ['Meas_Diameter', 'Cylinder_Bore_Dia', 'Rod_Diameter_Spec', 'Outer_Dia', 'Inner_Dia'],
+    radius: ['Meas_Radius', 'Corner_Radius', 'Fillet_Radius', 'Inner_Radius'],
+    angle: ['Meas_Angle', 'Taper_Angle', 'Chamfer_Angle', 'Bevel_Angle', 'Inclination'],
+    area: ['Meas_Area', 'Cross_Section_Area', 'Surface_Area', 'Contact_Area'],
+    roughness: ['Meas_Ra', 'Meas_Rz', 'Surface_Roughness', 'Finish_Quality'],
+    custom: ['Custom_Param_1', 'Custom_Param_2'],
 };
 
 // ─────────────────────────────────────────
@@ -187,10 +187,12 @@ const DEFAULT_DRAWINGS = [
         dimensions: [
             { id: 'dim_len', label: 'Overall Length (L)', spec: '120.0', tolMin: 119.5, tolMax: 120.5, variable: 'Meas_Length', unit: 'mm', category: 'dimension', measureType: 'linear_horizontal', indicatorType: 'horizontal', gdt_symbol: '', x1: 325, y1: 80, x2: 390, y2: 80, lx: 360, ly: 80, triggers: [] },
             { id: 'dim_dia', label: 'Flange Diameter (D)', spec: '80.0', tolMin: 79.8, tolMax: 80.2, variable: 'Meas_Diameter', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 30, y1: 100, x2: 30, y2: 260, lx: 30, ly: 180, triggers: [] },
-            { id: 'dim_bore', label: 'Center Bore (B)', spec: '25.0', tolMin: 24.9, tolMax: 25.1, variable: 'Meas_Bore', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 135, y1: 165, x2: 95, y2: 115, lx: 75, ly: 115, triggers: [
-                { id: 'trig_bore_1', type: 'STOP_MACHINE', condition: 'ON_FAIL', priority: 'critical', message: 'Center Bore di luar toleransi! Mesin harus dihentikan.', enabled: true },
-                { id: 'trig_bore_2', type: 'CREATE_NCR', condition: 'ON_FAIL', priority: 'high', message: 'NCR otomatis: Center Bore out-of-spec.', enabled: true },
-            ] },
+            {
+                id: 'dim_bore', label: 'Center Bore (B)', spec: '25.0', tolMin: 24.9, tolMax: 25.1, variable: 'Meas_Bore', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 135, y1: 165, x2: 95, y2: 115, lx: 75, ly: 115, triggers: [
+                    { id: 'trig_bore_1', type: 'STOP_MACHINE', condition: 'ON_FAIL', priority: 'critical', message: 'Center Bore di luar toleransi! Mesin harus dihentikan.', enabled: true },
+                    { id: 'trig_bore_2', type: 'CREATE_NCR', condition: 'ON_FAIL', priority: 'high', message: 'NCR otomatis: Center Bore out-of-spec.', enabled: true },
+                ]
+            },
             { id: 'dim_angle_1', label: 'Chamfer Angle', spec: '45.0', tolMin: 44.0, tolMax: 46.0, variable: 'Meas_Angle', unit: '°', category: 'angle', measureType: 'angle', indicatorType: 'arc', gdt_symbol: '∠', x1: 370, y1: 130, x2: 410, y2: 170, lx: 420, ly: 140, cx: 370, cy: 170, angleStart: -45, angleEnd: 0, triggers: [] },
             { id: 'dim_ra_1', label: 'Surface Finish Ra', spec: '1.6', tolMin: 0.0, tolMax: 3.2, variable: 'Meas_Ra', unit: 'μm', category: 'roughness', measureType: 'surface_roughness', indicatorType: 'callout', gdt_symbol: 'Ra', x1: 200, y1: 290, x2: 200, y2: 290, lx: 200, ly: 310, triggers: [] },
         ]
@@ -202,10 +204,12 @@ const DEFAULT_DRAWINGS = [
         fileType: 'PDF',
         uploadedAt: '2026-06-19T08:15:00Z',
         dimensions: [
-            { id: 'hc_bore', label: 'Cylinder Bore', spec: '80.0', tolMin: 79.95, tolMax: 80.05, variable: 'Cylinder_Bore_Dia', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 50, y1: 100, x2: 50, y2: 220, lx: 30, ly: 160, triggers: [
-                { id: 'trig_hcbore_1', type: 'NOTIFY_SUPERVISOR', condition: 'ON_FAIL', priority: 'high', message: 'Cylinder Bore di luar toleransi: nilai aktual melewati batas spec.', enabled: true },
-                { id: 'trig_hcbore_2', type: 'ESCALATE_QUALITY', condition: 'ON_FAIL', priority: 'high', message: 'Eskalasi: Cylinder Bore memerlukan review Quality Engineering.', enabled: true },
-            ] },
+            {
+                id: 'hc_bore', label: 'Cylinder Bore', spec: '80.0', tolMin: 79.95, tolMax: 80.05, variable: 'Cylinder_Bore_Dia', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 50, y1: 100, x2: 50, y2: 220, lx: 30, ly: 160, triggers: [
+                    { id: 'trig_hcbore_1', type: 'NOTIFY_SUPERVISOR', condition: 'ON_FAIL', priority: 'high', message: 'Cylinder Bore di luar toleransi: nilai aktual melewati batas spec.', enabled: true },
+                    { id: 'trig_hcbore_2', type: 'ESCALATE_QUALITY', condition: 'ON_FAIL', priority: 'high', message: 'Eskalasi: Cylinder Bore memerlukan review Quality Engineering.', enabled: true },
+                ]
+            },
             { id: 'hc_rod', label: 'Rod Diameter', spec: '56.0', tolMin: 55.98, tolMax: 56.02, variable: 'Rod_Diameter_Spec', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 390, y1: 130, x2: 390, y2: 190, lx: 390, ly: 160, triggers: [] },
             { id: 'hc_stroke', label: 'Stroke Length', spec: '500.0', tolMin: 499.5, tolMax: 500.5, variable: 'Stroke_Length_Actual', unit: 'mm', category: 'dimension', measureType: 'linear_horizontal', indicatorType: 'horizontal', gdt_symbol: '', x1: 60, y1: 240, x2: 280, y2: 240, lx: 170, ly: 240, triggers: [] },
             { id: 'hc_area', label: 'Piston Area', spec: '5026.5', tolMin: 5000.0, tolMax: 5050.0, variable: 'Meas_Area', unit: 'mm²', category: 'area', measureType: 'area', indicatorType: 'area_box', gdt_symbol: '', x1: 100, y1: 120, x2: 230, y2: 200, lx: 165, ly: 160, triggers: [] },
@@ -223,9 +227,11 @@ const DEFAULT_DRAWINGS = [
             { id: 'balloon_mark', label: 'Balloon Marker', spec: '10.0', tolMin: 9.5, tolMax: 10.5, variable: 'Balloon_Marker', unit: 'mm', category: 'diameter', measureType: 'diameter', indicatorType: 'radial', gdt_symbol: '⌀', x1: 200, y1: 200, lx: 250, ly: 200, triggers: [] },
             { id: 'cad_angle', label: '3D Included Angle', spec: '90.0', tolMin: 89.5, tolMax: 90.5, variable: 'CAD_Angle_Val', unit: '°', category: 'angle', measureType: 'angle', indicatorType: 'arc', gdt_symbol: '∠', x1: 350, y1: 250, x2: 450, y2: 350, lx: 470, ly: 280, triggers: [] },
             { id: 'qc_check', label: 'QC Check Status', spec: 'PASS', tolMin: 1, tolMax: 1, variable: 'QC_Check_Status', unit: '', category: 'custom', measureType: 'custom', indicatorType: 'callout', gdt_symbol: 'QC', x1: 100, y1: 100, lx: 150, ly: 100, triggers: [] },
-            { id: 'trigger_check', label: 'Trigger Check', spec: '1.0', tolMin: 1.0, tolMax: 1.0, variable: 'Trigger_Output', unit: '', category: 'custom', measureType: 'custom', indicatorType: 'callout', gdt_symbol: '⚡', x1: 300, y1: 150, lx: 350, ly: 150, triggers: [
-                { id: 'trig_p1', type: 'STOP_MACHINE', condition: 'ON_FAIL', priority: 'critical', message: 'Trigger failed! Stopping machine.', enabled: true }
-            ] },
+            {
+                id: 'trigger_check', label: 'Trigger Check', spec: '1.0', tolMin: 1.0, tolMax: 1.0, variable: 'Trigger_Output', unit: '', category: 'custom', measureType: 'custom', indicatorType: 'callout', gdt_symbol: '⚡', x1: 300, y1: 150, lx: 350, ly: 150, triggers: [
+                    { id: 'trig_p1', type: 'STOP_MACHINE', condition: 'ON_FAIL', priority: 'critical', message: 'Trigger failed! Stopping machine.', enabled: true }
+                ]
+            },
             { id: 'camera_check', label: 'Camera/Vision Check', spec: '24.0', tolMin: 23.5, tolMax: 24.5, variable: 'Vision_Camera_Val', unit: 'fps', category: 'roughness', measureType: 'surface_roughness', indicatorType: 'callout', gdt_symbol: 'Ra', x1: 150, y1: 250, lx: 200, ly: 270, triggers: [] }
         ]
     }
@@ -278,7 +284,7 @@ export default function DrawingManager() {
                     const templateDwg = DEFAULT_DRAWINGS.find(d => d.id === 'dwg_product_checking');
                     if (templateDwg) {
                         const updated = [...parsed, templateDwg];
-                        localStorage.setItem('mavi_drawings', JSON.stringify(updated));
+                        safeSaveDrawingsToLocalStorage(updated);
                         return updated;
                     }
                 }
@@ -296,7 +302,7 @@ export default function DrawingManager() {
                 if (dbDrawings && dbDrawings.length > 0) {
                     const migrated = migrateDrawings(dbDrawings);
                     setDrawings(migrated);
-                    
+
                     // Sync active selected ID with database drawings
                     const savedActive = localStorage.getItem('mavi_selected_dwg_id');
                     if (savedActive && migrated.some(d => d.id === savedActive)) {
@@ -323,6 +329,59 @@ export default function DrawingManager() {
     const [activeLayer, setActiveLayer] = useState('All Layers');
     const [isFullscreen, setIsFullscreen] = useState(false);
     const fullscreenRef = useRef(null);
+
+    const [showCqModal, setShowCqModal] = useState(false);
+    const [cqType, setCqType] = useState('rectangular');
+    const [cqWidth, setCqWidth] = useState(120);
+    const [cqHeight, setCqHeight] = useState(100);
+    const [cqThickness, setCqThickness] = useState(12);
+    const [cqHoleDia, setCqHoleDia] = useState(16);
+    const [cqHoleCount, setCqHoleCount] = useState(4);
+    const [isGeneratingCq, setIsGeneratingCq] = useState(false);
+
+    const handleGenerateCqModel = async () => {
+        setIsGeneratingCq(true);
+        try {
+            const response = await fetch('http://localhost:8000/blueprint/cadquery/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    width: cqWidth,
+                    height: cqHeight,
+                    thickness: cqThickness,
+                    hole_dia: cqHoleDia,
+                    hole_count: cqHoleCount,
+                    bracket_type: cqType
+                })
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const result = await response.json();
+            if (result.success) {
+                const newDwg = {
+                    name: `PARAMETRIC ${cqType.toUpperCase()} BRACKET`,
+                    fileName: result.filename,
+                    fileType: 'DXF',
+                    uploadedAt: new Date().toISOString(),
+                    dimensions: result.dimensions,
+                    dataUrl: result.dxf_data_url
+                };
+                const saved = await saveDrawing(newDwg);
+                setDrawings(prev => [saved, ...prev]);
+                setSelectedDwgId(saved.id);
+                localStorage.setItem('mavi_selected_dwg_id', saved.id);
+                toast.success(`Geometri parametrik CadQuery berhasil dibuat dan dimuat! Terbentuk ${result.entity_count} entitas.`);
+                setShowCqModal(false);
+            } else {
+                toast.error(`Gagal membuat model: ${result.error}`);
+            }
+        } catch (e) {
+            toast.error(`Koneksi server gagal: ${e.message}`);
+        } finally {
+            setIsGeneratingCq(false);
+        }
+    };
 
     const [activeDimId, setActiveDimId] = useState(() => {
         const savedActive = localStorage.getItem('mavi_selected_dwg_id');
@@ -705,17 +764,17 @@ export default function DrawingManager() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ pdf_data_url: dataUrlVal })
                 })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success && data.image_url) {
-                        setPdfBackdropUrl(data.image_url);
-                    } else {
-                        console.error("Failed to render PDF backdrop:", data.error);
-                    }
-                })
-                .catch(err => {
-                    console.error("Error fetching PDF backdrop image:", err);
-                });
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success && data.image_url) {
+                            setPdfBackdropUrl(data.image_url);
+                        } else {
+                            console.error("Failed to render PDF backdrop:", data.error);
+                        }
+                    })
+                    .catch(err => {
+                        console.error("Error fetching PDF backdrop image:", err);
+                    });
             }
         } else {
             setPdfBackdropUrl(null);
@@ -753,7 +812,7 @@ export default function DrawingManager() {
             return;
         }
         setIsSubmittingSim(true);
-        
+
         const measurementsMap = {};
         selectedDwg.dimensions.forEach(dim => {
             const val = simValues[dim.id] !== undefined ? simValues[dim.id] : parseFloat(dim.spec) || 0;
@@ -892,9 +951,8 @@ export default function DrawingManager() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeDimId, selectedDwgId]);
 
-    // Save drawings to localStorage
     useEffect(() => {
-        localStorage.setItem('mavi_drawings', JSON.stringify(drawings));
+        safeSaveDrawingsToLocalStorage(drawings);
     }, [drawings]);
 
     // Save selected blueprint selection to localStorage for cross-dashboard syncing
@@ -974,16 +1032,16 @@ export default function DrawingManager() {
                         label: editLabel, spec: editSpec, tolMin: parseFloat(editTolMin), tolMax: parseFloat(editTolMax),
                         variable: editVariable, unit: editUnit, category: editCategory, measureType: editMeasureType,
                         indicatorType: editIndicatorType, gdt_symbol: editGdtSymbol,
-                        x1: is3D ? parseFloat(editX1) : parseInt(editX1), 
-                        y1: is3D ? parseFloat(editY1) : parseInt(editY1), 
+                        x1: is3D ? parseFloat(editX1) : parseInt(editX1),
+                        y1: is3D ? parseFloat(editY1) : parseInt(editY1),
                         z1: parseFloat(editZ1 || 0),
-                        x2: is3D ? parseFloat(editX2) : parseInt(editX2), 
-                        y2: is3D ? parseFloat(editY2) : parseInt(editY2), 
+                        x2: is3D ? parseFloat(editX2) : parseInt(editX2),
+                        y2: is3D ? parseFloat(editY2) : parseInt(editY2),
                         z2: parseFloat(editZ2 || 0),
-                        lx: is3D ? parseFloat(editLx) : parseInt(editLx), 
-                        ly: is3D ? parseFloat(editLy) : parseInt(editLy), 
+                        lx: is3D ? parseFloat(editLx) : parseInt(editLx),
+                        ly: is3D ? parseFloat(editLy) : parseInt(editLy),
                         lz: parseFloat(editLz || 0),
-                        cx: is3D ? parseFloat(editCx) : parseInt(editCx), 
+                        cx: is3D ? parseFloat(editCx) : parseInt(editCx),
                         cy: is3D ? parseFloat(editCy) : parseInt(editCy),
                         angleStart: parseFloat(editAngleStart), angleEnd: parseFloat(editAngleEnd),
                         markerShape: editMarkerShape,
@@ -1067,12 +1125,12 @@ export default function DrawingManager() {
 
         const defaultSpecs = {
             dimension: { spec: '10.0', tolMin: 9.5, tolMax: 10.5 },
-            diameter:  { spec: '25.0', tolMin: 24.9, tolMax: 25.1 },
-            radius:    { spec: '12.5', tolMin: 12.3, tolMax: 12.7 },
-            angle:     { spec: '90.0', tolMin: 89.0, tolMax: 91.0 },
-            area:      { spec: '100.0', tolMin: 95.0, tolMax: 105.0 },
+            diameter: { spec: '25.0', tolMin: 24.9, tolMax: 25.1 },
+            radius: { spec: '12.5', tolMin: 12.3, tolMax: 12.7 },
+            angle: { spec: '90.0', tolMin: 89.0, tolMax: 91.0 },
+            area: { spec: '100.0', tolMin: 95.0, tolMax: 105.0 },
             roughness: { spec: '1.6', tolMin: 0.0, tolMax: 3.2 },
-            custom:    { spec: '0.0', tolMin: 0.0, tolMax: 0.0 },
+            custom: { spec: '0.0', tolMin: 0.0, tolMax: 0.0 },
         };
 
         const specs = defaultSpecs[categoryKey] || defaultSpecs.custom;
@@ -1302,13 +1360,13 @@ export default function DrawingManager() {
     const getLineLineIntersection = (l1, l2) => {
         const x1 = l1.x1, y1 = l1.y1, x2 = l1.x2, y2 = l1.y2;
         const x3 = l2.x1, y3 = l2.y1, x4 = l2.x2, y4 = l2.y2;
-        
+
         const denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
         if (denom === 0) return null; // parallel
-        
+
         const ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom;
         const ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denom;
-        
+
         // Check if intersection lies on both line segments
         if (ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1) {
             return {
@@ -1327,7 +1385,7 @@ export default function DrawingManager() {
                 const cx_cy = getShapeCenter(shape);
                 const cx = cx_cy.x;
                 const cy = cx_cy.y;
-                
+
                 if (shape.type === 'line') {
                     if (direction === 'horizontal') {
                         return { ...shape, x1: 2 * cx - shape.x1, x2: 2 * cx - shape.x2 };
@@ -1380,22 +1438,22 @@ export default function DrawingManager() {
     const handleTrimLine = (targetLine, clickX, clickY) => {
         if (!selectedDwg) return;
         const currentShapes = selectedDwg.shapes || [];
-        
+
         const dx = targetLine.x2 - targetLine.x1;
         const dy = targetLine.y2 - targetLine.y1;
         const lengthSq = dx * dx + dy * dy;
         if (lengthSq === 0) return;
-        
+
         // 1. Calculate click parameter t_click
         let tClick = ((clickX - targetLine.x1) * dx + (clickY - targetLine.y1) * dy) / lengthSq;
         tClick = Math.max(0, Math.min(1, tClick));
-        
+
         // 2. Find all intersections with other shapes
         const tIntersections = [0, 1]; // start and end points of target line
-        
+
         currentShapes.forEach(shape => {
             if (shape.id === targetLine.id) return;
-            
+
             if (shape.type === 'line') {
                 const pt = getLineLineIntersection(targetLine, shape);
                 if (pt) {
@@ -1449,7 +1507,7 @@ export default function DrawingManager() {
                 if (disc >= 0) {
                     const t1 = (-b - Math.sqrt(disc)) / (2 * lengthSq);
                     const t2 = (-b + Math.sqrt(disc)) / (2 * lengthSq);
-                    
+
                     const checkArcAngle = (t) => {
                         const px = targetLine.x1 + t * dx;
                         const py = targetLine.y1 + t * dy;
@@ -1471,9 +1529,9 @@ export default function DrawingManager() {
                 }
             }
         });
-        
+
         const uniqueT = Array.from(new Set(tIntersections)).sort((a, b) => a - b);
-        
+
         let clickedSegIdx = -1;
         for (let i = 0; i < uniqueT.length - 1; i++) {
             if (tClick >= uniqueT[i] && tClick <= uniqueT[i + 1]) {
@@ -1481,16 +1539,16 @@ export default function DrawingManager() {
                 break;
             }
         }
-        
+
         if (clickedSegIdx === -1) {
             toast.error('Gagal memotong segmen.');
             return;
         }
-        
+
         const remainingSegments = [];
         for (let i = 0; i < uniqueT.length - 1; i++) {
             if (i === clickedSegIdx) continue;
-            
+
             remainingSegments.push({
                 ...targetLine,
                 id: `shape_line_${Date.now()}_${Math.floor(Math.random() * 1000)}_${i}`,
@@ -1500,7 +1558,7 @@ export default function DrawingManager() {
                 y2: Math.round(targetLine.y1 + uniqueT[i + 1] * dy)
             });
         }
-        
+
         const filteredShapes = currentShapes.filter(s => s.id !== targetLine.id);
         updateShapes([...filteredShapes, ...remainingSegments]);
         toast.success('Segmen garis dipotong.');
@@ -1539,18 +1597,18 @@ export default function DrawingManager() {
     const getCanvasCoords = (e) => {
         if (!svgRef.current) return { x: 0, y: 0 };
         const rect = svgRef.current.getBoundingClientRect();
-        
+
         // Client click relative to SVG client dimensions
         const clickX = e.clientX - rect.left;
         const clickY = e.clientY - rect.top;
-        
+
         const cx = canvasSize.width / 2;
         const cy = canvasSize.height / 2;
-        
+
         // Reverse scale relative to the coordinate center (cx, cy) and panOffset:
         let x = cx + (clickX - cx - panOffset.x) / zoom;
         let y = cy + (clickY - cy - panOffset.y) / zoom;
-        
+
         if (gridSnap) {
             x = Math.round(x / 10) * 10;
             y = Math.round(y / 10) * 10;
@@ -1558,11 +1616,11 @@ export default function DrawingManager() {
             x = Math.round(x);
             y = Math.round(y);
         }
-        
+
         // Clamp bounds to prevent drawings from exceeding viewport limits
         x = Math.max(0, Math.min(canvasSize.width, x));
         y = Math.max(0, Math.min(canvasSize.height, y));
-        
+
         return { x, y };
     };
 
@@ -1571,7 +1629,7 @@ export default function DrawingManager() {
         const currentShapes = selectedDwg.shapes || [];
         setUndoStack(prev => [...prev, currentShapes]);
         setRedoStack([]);
-        
+
         const updatedDwg = {
             ...selectedDwg,
             shapes: newShapes
@@ -1585,7 +1643,7 @@ export default function DrawingManager() {
         const previousShapes = undoStack[undoStack.length - 1];
         setUndoStack(prev => prev.slice(0, -1));
         setRedoStack(prev => [...prev, selectedDwg.shapes || []]);
-        
+
         const updatedDwg = {
             ...selectedDwg,
             shapes: previousShapes
@@ -1599,7 +1657,7 @@ export default function DrawingManager() {
         const nextShapes = redoStack[redoStack.length - 1];
         setRedoStack(prev => prev.slice(0, -1));
         setUndoStack(prev => [...prev, selectedDwg.shapes || []]);
-        
+
         const updatedDwg = {
             ...selectedDwg,
             shapes: nextShapes
@@ -1798,24 +1856,24 @@ export default function DrawingManager() {
         if (cadTool === 'polyline' && polylineDraftPoints.length > 2) {
             e.stopPropagation();
             e.preventDefault();
-            
+
             const points = polylineDraftPoints.slice(0, -1);
             if (points.length >= 2) {
                 const currentShapes = selectedDwg.shapes || [];
                 const takeoffShapesList = currentShapes.filter(s => s.takeoffType);
-                
+
                 const newPolyline = {
                     id: `shape_poly_${Date.now()}`,
                     type: 'polyline',
                     points: points,
                     color: activeTakeoffCategory ? (
-                        activeTakeoffCategory === 'length_cable' ? '#10b981' : 
-                        activeTakeoffCategory === 'area_floor' ? '#f59e0b' : 
-                        activeTakeoffCategory === 'area_paint' ? '#3b82f6' : cadColor
+                        activeTakeoffCategory === 'length_cable' ? '#10b981' :
+                            activeTakeoffCategory === 'area_floor' ? '#f59e0b' :
+                                activeTakeoffCategory === 'area_paint' ? '#3b82f6' : cadColor
                     ) : cadColor,
                     strokeWidth: cadWidth
                 };
-                
+
                 if (activeTakeoffCategory) {
                     if (activeTakeoffCategory === 'length_cable') {
                         newPolyline.takeoffType = 'length';
@@ -1831,7 +1889,7 @@ export default function DrawingManager() {
                         newPolyline.takeoffName = `Luas Lantai #${takeoffShapesList.filter(s => s.takeoffSubtype === 'floor_area').length + 1}`;
                     }
                 }
-                
+
                 updateShapes([...currentShapes, newPolyline]);
                 toast.success(activeTakeoffCategory ? 'Item Takeoff berhasil ditambahkan.' : 'Polyline berhasil ditambahkan.');
             }
@@ -1850,14 +1908,14 @@ export default function DrawingManager() {
         }
 
         if (cadTool === 'select' || cadTool === 'move' || cadTool === 'rotate' || cadTool === 'mirror' || cadTool === 'trim') return;
-        
+
         if (!selectedDwg) {
             toast.error("Silakan pilih atau unggah blueprint terlebih dahulu.");
             return;
         }
-        
+
         const coords = getCanvasCoords(e);
-        
+
         if (cadTool === 'takeoff_count') {
             if (e.button !== 0) return; // left click only
             const currentShapes = selectedDwg.shapes || [];
@@ -1916,7 +1974,7 @@ export default function DrawingManager() {
             const parentRect = svgRef.current.parentElement.getBoundingClientRect();
             const top = e.clientY - parentRect.top;
             const left = e.clientX - parentRect.left;
-            
+
             setTextInputPos({
                 x: coords.x,
                 y: coords.y,
@@ -1956,8 +2014,8 @@ export default function DrawingManager() {
                 const y2 = dimDraftCoords.y2;
                 const lx = coords.x;
                 const ly = coords.y;
-                
-                const pxDist = Math.sqrt((x2 - x1)**2 + (y2 - y1)**2);
+
+                const pxDist = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
                 const currentScale = selectedDwg?.scaleFactor || 1.0;
                 const initialSpec = (pxDist * currentScale).toFixed(2);
 
@@ -2028,7 +2086,7 @@ export default function DrawingManager() {
                 const dx = coords.x - arcDraftCoords.cx;
                 const dy = coords.y - arcDraftCoords.cy;
                 const endAngle = Math.atan2(dy, dx) * (180 / Math.PI);
-                
+
                 const finalArc = {
                     id: `shape_arc_${Date.now()}`,
                     type: 'arc',
@@ -2071,11 +2129,11 @@ export default function DrawingManager() {
         if (dragShape) {
             const currentShapes = selectedDwg.shapes || [];
             const startShape = dragShape.startShape;
-            
+
             if (dragShape.type === 'move') {
                 const dx = coords.x - dragShape.startX;
                 const dy = coords.y - dragShape.startY;
-                
+
                 const updatedShapes = currentShapes.map(s => {
                     if (s.id === dragShape.id) {
                         if (s.type === 'line') {
@@ -2116,7 +2174,7 @@ export default function DrawingManager() {
                     }
                     return s;
                 });
-                
+
                 const updatedDwg = {
                     ...selectedDwg,
                     shapes: updatedShapes
@@ -2126,7 +2184,7 @@ export default function DrawingManager() {
                 const angleStart = Math.atan2(dragShape.startY - dragShape.center.y, dragShape.startX - dragShape.center.x);
                 const angleCurrent = Math.atan2(coords.y - dragShape.center.y, coords.x - dragShape.center.x);
                 const deltaRotation = (angleCurrent - angleStart) * (180 / Math.PI);
-                
+
                 const updatedShapes = currentShapes.map(s => {
                     if (s.id === dragShape.id) {
                         return {
@@ -2138,7 +2196,7 @@ export default function DrawingManager() {
                     }
                     return s;
                 });
-                
+
                 const updatedDwg = {
                     ...selectedDwg,
                     shapes: updatedShapes
@@ -2151,7 +2209,7 @@ export default function DrawingManager() {
         if (dragImageShape) {
             const dx = coords.x - dragImageShape.startX;
             const dy = coords.y - dragImageShape.startY;
-            
+
             const start = dragImageShape.startShape;
             const crop = start.crop || { x: 0, y: 0, w: start.naturalWidth || start.w, h: start.naturalHeight || start.h };
             const natW = start.naturalWidth || start.w;
@@ -2216,7 +2274,7 @@ export default function DrawingManager() {
         }
 
         setMousePos(coords);
-        
+
         if (cadTool === 'dimension' && dimDraftCoords) {
             if (dimDrawState === 'waiting_end') {
                 setDimDraftCoords(prev => ({ ...prev, x2: coords.x, y2: coords.y }));
@@ -2268,7 +2326,7 @@ export default function DrawingManager() {
         }
 
         if (!drawingShape) return;
-        
+
         if (drawingShape.type === 'line') {
             let targetX = coords.x;
             let targetY = coords.y;
@@ -2401,15 +2459,15 @@ export default function DrawingManager() {
 
     const handleCanvasClick = (e) => {
         if (cadTool !== 'select') return;
-        
+
         // Clear active selection on background click
         setSelectedShapeId(null);
-        
+
         if (!activeDim) return;
         const coords = getCanvasCoords(e);
         const x = coords.x;
         const y = coords.y;
-        
+
         setEditLx(x);
         setEditLy(y);
 
@@ -2483,7 +2541,7 @@ export default function DrawingManager() {
         const reader = new FileReader();
         reader.onload = (event) => {
             const dataUrl = event.target.result;
-            
+
             // Create a temp image to get natural dimensions
             const img = new window.Image();
             img.onload = () => {
@@ -2519,7 +2577,7 @@ export default function DrawingManager() {
             img.src = dataUrl;
         };
         reader.readAsDataURL(file);
-        
+
         // Reset input so same file can be re-selected
         e.target.value = '';
     };
@@ -2575,9 +2633,9 @@ export default function DrawingManager() {
             ];
         });
 
-        const csvContent = "data:text/csv;charset=utf-8," 
+        const csvContent = "data:text/csv;charset=utf-8,"
             + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
-        
+
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
@@ -2611,8 +2669,8 @@ export default function DrawingManager() {
             let len = 0;
             const pts = shape.points || [];
             for (let i = 0; i < pts.length - 1; i++) {
-                const dx = pts[i+1].x - pts[i].x;
-                const dy = pts[i+1].y - pts[i].y;
+                const dx = pts[i + 1].x - pts[i].x;
+                const dy = pts[i + 1].y - pts[i].y;
                 len += Math.sqrt(dx * dx + dy * dy);
             }
             return len;
@@ -2650,11 +2708,11 @@ export default function DrawingManager() {
             toast.error("Tidak ada data takeoff untuk diekspor.");
             return;
         }
-        
+
         const scale = selectedDwg?.scaleFactor || null;
         let csvContent = "data:text/csv;charset=utf-8,";
         csvContent += "No,Item Name,Category,Subtype,Raw Value (px/px2),Real Value,Unit\n";
-        
+
         takeoffShapes.forEach((shape, index) => {
             const num = index + 1;
             const name = shape.takeoffName || "Unnamed Item";
@@ -2663,7 +2721,7 @@ export default function DrawingManager() {
             let rawVal = 0;
             let realVal = 0;
             let unit = "";
-            
+
             if (category === 'length') {
                 rawVal = computeShapeLength(shape);
                 realVal = scale ? (rawVal * scale) / 1000 : rawVal;
@@ -2677,10 +2735,10 @@ export default function DrawingManager() {
                 realVal = 1;
                 unit = "pcs";
             }
-            
+
             csvContent += `${num},"${name.replace(/"/g, '""')}","${category}","${subtype}",${rawVal.toFixed(2)},${realVal.toFixed(2)},"${unit}"\n`;
         });
-        
+
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
@@ -2762,7 +2820,7 @@ export default function DrawingManager() {
         const name = window.prompt("Masukkan nama blueprint baru:", "Blueprint Kustom Baru");
         if (name === null) return;
         const cleanName = name.trim() || "Blueprint Kustom Baru";
-        
+
         const newDwg = {
             id: `dwg_custom_${Date.now()}`,
             name: cleanName,
@@ -2772,7 +2830,7 @@ export default function DrawingManager() {
             dimensions: [],
             shapes: []
         };
-        
+
         saveDrawing(newDwg).then(saved => {
             setDrawings(prev => [saved, ...prev]);
             setSelectedDwgId(saved.id);
@@ -2782,19 +2840,19 @@ export default function DrawingManager() {
             console.error(err);
             toast.error('Gagal menyimpan blueprint baru ke database.');
         });
-        
+
         setShowMgmtMenu(false);
     };
 
     const parsePromptParams = (promptText) => {
         const text = promptText.toLowerCase();
-        
+
         const extractParam = (keywords, defaultValue) => {
             for (const word of keywords) {
                 const regex1 = new RegExp(`${word}\\s*[:=\\-⌀\\s]*\\s*(\\d+(?:\\.\\d+)?)`, 'i');
                 const match1 = text.match(regex1);
                 if (match1) return parseFloat(match1[1]);
-                
+
                 const regex2 = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*(?:mm|°|μm|um|mm²)?\\s*${word}`, 'i');
                 const match2 = text.match(regex2);
                 if (match2) return parseFloat(match2[1]);
@@ -2808,7 +2866,7 @@ export default function DrawingManager() {
             let outer = extractParam(["diameter luar", "outer diameter", "diameter utama", "diameter", "od", "flens", "flange", "ring", "⌀", "d"], 160);
             let inner = extractParam(["lubang tengah", "diameter dalam", "lubang", "inner diameter", "bore", "id"], 50);
             let holes = extractParam(["lubang baut", "jumlah lubang", "lubang", "holes", "bolts", "baut"], 4);
-            
+
             if (outer === 160 && allNumbers.length >= 1) outer = allNumbers[0];
             if (inner === 50 && allNumbers.length >= 2) {
                 if (allNumbers[1] < outer) inner = allNumbers[1];
@@ -2828,7 +2886,7 @@ export default function DrawingManager() {
             }
 
             let boltD = extractParam(["diameter baut", "baut", "bolt diameter", "bolt size"], 12);
-            
+
             return {
                 type: 'flange',
                 outer,
@@ -2867,7 +2925,7 @@ export default function DrawingManager() {
             } else {
                 width = extractParam(["lebar", "width", "w", "panjang pelat", "panjang plat"], 150);
                 height = extractParam(["tinggi", "lebar pelat", "lebar plat", "height", "h"], 100);
-                
+
                 if (width === 150 && allNumbers.length >= 1) width = allNumbers[0];
                 if (height === 100 && allNumbers.length >= 2) height = allNumbers[1];
             }
@@ -2903,20 +2961,20 @@ export default function DrawingManager() {
         setTimeout(() => {
             setCopilotProgress(35);
             setCopilotLog('Menghitung geometri vector 2D...');
-            
+
             setTimeout(() => {
                 setCopilotProgress(70);
                 setCopilotLog('Memetakan parameter & hotspot toleransi dimensi...');
-                
+
                 setTimeout(() => {
                     setCopilotProgress(90);
                     setCopilotLog('Menyimpan blueprint CAD ke database...');
-                    
+
                     const params = parsePromptParams(copilotPrompt);
                     let generatedDwgName = "AI Blueprint - Model 2D";
                     let shapes = [];
                     let dimensions = [];
-                    
+
                     const cx = 250;
                     const cy = 180;
 
@@ -2926,7 +2984,7 @@ export default function DrawingManager() {
                         const pcdR = outerR * (params.pcd / params.outer);
                         const innerR = outerR * (params.inner / params.outer);
                         const scaleFlange = outerR / params.outer;
-                        
+
                         shapes.push({
                             id: `ai_shape_outer_${Date.now()}`,
                             type: 'circle',
@@ -2946,7 +3004,7 @@ export default function DrawingManager() {
                             cx, cy, r: innerR,
                             color: '#60a5fa', strokeWidth: 2
                         });
-                        
+
                         for (let i = 0; i < params.holes; i++) {
                             const angle = (i * 2 * Math.PI) / params.holes;
                             shapes.push({
@@ -2958,7 +3016,7 @@ export default function DrawingManager() {
                                 color: '#3b82f6', strokeWidth: 1
                             });
                         }
-                        
+
                         shapes.push({
                             id: `ai_shape_cl1_${Date.now()}`,
                             type: 'line',
@@ -2971,7 +3029,7 @@ export default function DrawingManager() {
                             x1: cx, y1: cy - outerR - 20, x2: cx, y2: cy + outerR + 20,
                             color: '#3b82f6', strokeWidth: 0.75, strokeDasharray: '10,4,2,4'
                         });
-                        
+
                         dimensions.push({
                             id: `dim_ai_outer_${Date.now()}`,
                             label: 'Flange Outer Diameter',
@@ -2985,10 +3043,10 @@ export default function DrawingManager() {
                             indicatorType: 'radial',
                             gdt_symbol: '⌀',
                             x1: cx, y1: cy,
-                            x2: cx + Math.round(outerR * Math.cos(-Math.PI/4)),
-                            y2: cy + Math.round(outerR * Math.sin(-Math.PI/4)),
-                            lx: cx + Math.round((outerR + 20) * Math.cos(-Math.PI/4)),
-                            ly: cy + Math.round((outerR + 20) * Math.sin(-Math.PI/4)),
+                            x2: cx + Math.round(outerR * Math.cos(-Math.PI / 4)),
+                            y2: cy + Math.round(outerR * Math.sin(-Math.PI / 4)),
+                            lx: cx + Math.round((outerR + 20) * Math.cos(-Math.PI / 4)),
+                            ly: cy + Math.round((outerR + 20) * Math.sin(-Math.PI / 4)),
                             markerShape: 'default',
                             markerSize: 60,
                             triggers: []
@@ -3006,10 +3064,10 @@ export default function DrawingManager() {
                             indicatorType: 'radial',
                             gdt_symbol: '⌀',
                             x1: cx, y1: cy,
-                            x2: cx + Math.round(innerR * Math.cos(Math.PI/4)),
-                            y2: cy + Math.round(innerR * Math.sin(Math.PI/4)),
-                            lx: cx + Math.round((innerR + 30) * Math.cos(Math.PI/4)),
-                            ly: cy + Math.round((innerR + 30) * Math.sin(Math.PI/4)),
+                            x2: cx + Math.round(innerR * Math.cos(Math.PI / 4)),
+                            y2: cy + Math.round(innerR * Math.sin(Math.PI / 4)),
+                            lx: cx + Math.round((innerR + 30) * Math.cos(Math.PI / 4)),
+                            ly: cy + Math.round((innerR + 30) * Math.sin(Math.PI / 4)),
                             markerShape: 'default',
                             markerSize: 60,
                             triggers: [
@@ -3063,16 +3121,16 @@ export default function DrawingManager() {
                         generatedDwgName = `Shaft Journal L${params.length}x⌀${params.bodyDia} [AI]`;
                         const sLen = Math.min(300, params.length * 1.1);
                         const sDia = Math.min(100, params.bodyDia * 1.5);
-                        
+
                         const scaleX = sLen / params.length;
                         const scaleY = sDia / params.bodyDia;
-                        
+
                         const jDia = params.journalDia * scaleY;
                         const jLen = params.journalLen * scaleX;
-                        
+
                         const xStart = cx - sLen / 2;
                         const yStart = cy - sDia / 2;
-                        
+
                         shapes.push({
                             id: `ai_shape_shaft_body_${Date.now()}`,
                             type: 'rect',
@@ -3106,7 +3164,7 @@ export default function DrawingManager() {
                             x1: xStart - 20, y1: cy, x2: xStart + sLen + 20, y2: cy,
                             color: '#3b82f6', strokeWidth: 0.75, strokeDasharray: '15,4,2,4'
                         });
-                        
+
                         dimensions.push({
                             id: `dim_ai_len_${Date.now()}`,
                             label: 'Total Shaft Length',
@@ -3192,7 +3250,7 @@ export default function DrawingManager() {
                         const scaleX = w / params.width;
                         const xStart = cx - w / 2;
                         const yStart = cy - h / 2;
-                        
+
                         shapes.push({
                             id: `ai_shape_plate_${Date.now()}`,
                             type: 'rect',
@@ -3202,10 +3260,10 @@ export default function DrawingManager() {
                             h: Math.round(h),
                             color: '#3b82f6', strokeWidth: 2
                         });
-                        
+
                         const offset = 20;
                         let holeCenters = [];
-                        
+
                         if (params.holes === 4) {
                             holeCenters = [
                                 { x: xStart + offset, y: yStart + offset },
@@ -3230,7 +3288,7 @@ export default function DrawingManager() {
                         } else if (params.holes > 0) {
                             holeCenters = [{ x: cx, y: cy }];
                         }
-                        
+
                         const r = Math.max(3, Math.round((params.holeD * scaleX) / 2));
                         holeCenters.forEach((hole, idx) => {
                             shapes.push({
@@ -3240,7 +3298,7 @@ export default function DrawingManager() {
                                 color: '#60a5fa', strokeWidth: 1.5
                             });
                         });
-                        
+
                         dimensions.push({
                             id: `dim_ai_w_${Date.now()}`,
                             label: 'Plate Overall Width',
@@ -3293,10 +3351,10 @@ export default function DrawingManager() {
                                 indicatorType: 'radial',
                                 gdt_symbol: '⌀',
                                 x1: Math.round(holeCenters[0].x), y1: Math.round(holeCenters[0].y),
-                                x2: Math.round(holeCenters[0].x + r * Math.cos(-Math.PI/4)),
-                                y2: Math.round(holeCenters[0].y + r * Math.sin(-Math.PI/4)),
-                                lx: Math.round(holeCenters[0].x + (r + 15) * Math.cos(-Math.PI/4)),
-                                ly: Math.round(holeCenters[0].y + (r + 15) * Math.sin(-Math.PI/4)),
+                                x2: Math.round(holeCenters[0].x + r * Math.cos(-Math.PI / 4)),
+                                y2: Math.round(holeCenters[0].y + r * Math.sin(-Math.PI / 4)),
+                                lx: Math.round(holeCenters[0].x + (r + 15) * Math.cos(-Math.PI / 4)),
+                                ly: Math.round(holeCenters[0].y + (r + 15) * Math.sin(-Math.PI / 4)),
                                 markerShape: 'triangle',
                                 markerSize: 45,
                                 triggers: [
@@ -3305,7 +3363,7 @@ export default function DrawingManager() {
                             });
                         }
                     }
- 
+
                     const newDwg = {
                         id: `dwg_ai_${Date.now()}`,
                         name: generatedDwgName,
@@ -3321,7 +3379,7 @@ export default function DrawingManager() {
                         setSelectedDwgId(saved.id);
                         if (saved.dimensions?.length > 0) setActiveDimId(saved.dimensions[0].id);
                         else setActiveDimId('');
-                        
+
                         setCopilotLoading(false);
                         setCopilotProgress(100);
                         setCopilotPrompt('');
@@ -3492,19 +3550,19 @@ export default function DrawingManager() {
                                 id: `dim_svg_w_${Date.now()}`, label: 'Overall Width', spec: w.toFixed(1),
                                 tolMin: parseFloat((w - 0.5).toFixed(2)), tolMax: parseFloat((w + 0.5).toFixed(2)),
                                 variable: 'Meas_Length', unit: 'mm', category: 'dimension', measureType: 'linear_horizontal', indicatorType: 'horizontal', gdt_symbol: '',
-                                x1: 120, y1: 260, x2: 120 + Math.round(w), y2: 260, lx: 120 + Math.round(w/2), ly: 280,
+                                x1: 120, y1: 260, x2: 120 + Math.round(w), y2: 260, lx: 120 + Math.round(w / 2), ly: 280,
                             });
                             extractedDims.push({
                                 id: `dim_svg_h_${Date.now()}`, label: 'Overall Height', spec: h.toFixed(1),
                                 tolMin: parseFloat((h - 0.5).toFixed(2)), tolMax: parseFloat((h + 0.5).toFixed(2)),
                                 variable: 'Meas_Height', unit: 'mm', category: 'dimension', measureType: 'linear_vertical', indicatorType: 'vertical', gdt_symbol: '',
-                                x1: 90, y1: 80, x2: 90, y2: 80 + Math.round(h), lx: 65, ly: 80 + Math.round(h/2),
+                                x1: 90, y1: 80, x2: 90, y2: 80 + Math.round(h), lx: 65, ly: 80 + Math.round(h / 2),
                             });
                             extractedDims.push({
                                 id: `dim_svg_area_${Date.now()}`, label: 'Cross-Section Area', spec: (w * h).toFixed(1),
                                 tolMin: parseFloat(((w - 0.5) * (h - 0.5)).toFixed(1)), tolMax: parseFloat(((w + 0.5) * (h + 0.5)).toFixed(1)),
                                 variable: 'Meas_Area', unit: 'mm²', category: 'area', measureType: 'area', indicatorType: 'area_box', gdt_symbol: '',
-                                x1: 120, y1: 80, x2: 120 + Math.round(w), y2: 80 + Math.round(h), lx: 120 + Math.round(w/2), ly: 80 + Math.round(h/2),
+                                x1: 120, y1: 80, x2: 120 + Math.round(w), y2: 80 + Math.round(h), lx: 120 + Math.round(w / 2), ly: 80 + Math.round(h / 2),
                             });
                         }
                     }
@@ -3515,19 +3573,19 @@ export default function DrawingManager() {
                     for (let i = 0; i < lines.length; i += 2) {
                         if (i + 1 >= lines.length) break;
                         const code = parseInt(lines[i].trim(), 10);
-                        const value = lines[i+1].trim();
+                        const value = lines[i + 1].trim();
                         groups.push({ code, value });
                     }
-                    
+
                     const parsedEntities = [];
                     const parsedLayers = new Set();
                     let inEntitiesSec = false;
                     let currentEnt = null;
-                    
+
                     for (let i = 0; i < groups.length; i++) {
                         const { code, value } = groups[i];
                         if (code === 0 && value === 'SECTION') {
-                            const next = groups[i+1];
+                            const next = groups[i + 1];
                             if (next && next.code === 2 && next.value === 'ENTITIES') {
                                 inEntitiesSec = true;
                                 i++;
@@ -3535,7 +3593,7 @@ export default function DrawingManager() {
                         } else if (code === 0 && value === 'ENDSEC') {
                             inEntitiesSec = false;
                         }
-                        
+
                         if (inEntitiesSec) {
                             if (code === 0) {
                                 if (currentEnt) parsedEntities.push(currentEnt);
@@ -3562,7 +3620,7 @@ export default function DrawingManager() {
                         }
                     }
                     if (currentEnt) parsedEntities.push(currentEnt);
-                    
+
                     // Create dimensions for circles
                     const circleEnts = parsedEntities.filter(e => e.type === 'CIRCLE');
                     circleEnts.slice(0, 3).forEach((c, idx) => {
@@ -3587,7 +3645,7 @@ export default function DrawingManager() {
                             layer: c.layer || "0"
                         });
                     });
-                    
+
                     newDwgEntities = parsedEntities;
                     newDwgLayers = Array.from(parsedLayers);
                 } else if (extension === 'dwg') {
@@ -3635,7 +3693,7 @@ export default function DrawingManager() {
                         else if (ent.type === 'CIRCLE' || ent.type === 'ARC') { allX.push(ent.cx - ent.radius, ent.cx + ent.radius); allY.push(ent.cy - ent.radius, ent.cy + ent.radius); }
                         else if (ent.type === 'TEXT') { allX.push(ent.cx); allY.push(ent.cy); }
                     });
-                    
+
                     if (allX.length > 0 && allY.length > 0) {
                         const minX = Math.min(...allX);
                         const maxX = Math.max(...allX);
@@ -3643,7 +3701,7 @@ export default function DrawingManager() {
                         const maxY = Math.max(...allY);
                         const spanX = (maxX !== minX) ? (maxX - minX) : 1.0;
                         const spanY = (maxY !== minY) ? (maxY - minY) : 1.0;
-                        
+
                         extractedDims.forEach(d => {
                             d.x1 = 50 + ((d.x1 - minX) / spanX) * 400;
                             d.x2 = 50 + ((d.x2 - minX) / spanX) * 400;
@@ -3652,7 +3710,7 @@ export default function DrawingManager() {
                             d.lx = (d.x1 + d.x2) / 2;
                             d.ly = (d.y1 + d.y2) / 2 - 15;
                         });
-                        
+
                         newDwgEntities.forEach(ent => {
                             if (ent.type === 'LINE') {
                                 ent.x1 = 50 + ((ent.x1 - minX) / spanX) * 400;
@@ -3713,9 +3771,9 @@ export default function DrawingManager() {
     };
 
     // ─── Shared Custom Label Badge Renderer ───
-    const renderLabelBadge = (dim, color, labelText, isActive) => {
+    const renderLabelBadge = (dim, color, labelText, isActive, balloonIndex) => {
         const size = dim.markerSize !== undefined ? dim.markerSize : 60;
-        const shape = dim.markerShape || 'default';
+        const shape = isBalloonMode ? 'circle' : (dim.markerShape || 'default');
         const catColor = getCategoryColor(dim.category || 'dimension');
         const lx = dim.lx ?? 250;
         const ly = dim.ly ?? 200;
@@ -3723,7 +3781,28 @@ export default function DrawingManager() {
         let shapeElement = null;
         let textYOffset = 3;
 
-        if (shape === 'circle') {
+        if (isBalloonMode) {
+            // Premium solid QC inspection balloon bubble
+            const balloonRadius = 11; // 22px diameter
+            const isActiveBalloon = isActive;
+            const fillColor = isActiveBalloon ? '#b91c1c' : '#ef4444'; // Red theme for QC balloons
+
+            shapeElement = (
+                <circle
+                    cx={lx}
+                    cy={ly}
+                    r={balloonRadius}
+                    fill={fillColor}
+                    stroke="#ffffff"
+                    strokeWidth={isActive ? 2 : 1}
+                    style={{
+                        transition: 'all 0.15s ease'
+                    }}
+                />
+            );
+            textYOffset = 2.5;
+            labelText = String(balloonIndex || 1);
+        } else if (shape === 'circle') {
             shapeElement = (
                 <circle
                     cx={lx}
@@ -3749,9 +3828,9 @@ export default function DrawingManager() {
         } else if (shape === 'triangle') {
             const h = size;
             const halfW = size / 2;
-            const p1 = `${lx},${ly - h/2}`;
-            const p2 = `${lx + halfW},${ly + h/2}`;
-            const p3 = `${lx - halfW},${ly + h/2}`;
+            const p1 = `${lx},${ly - h / 2}`;
+            const p2 = `${lx + halfW},${ly + h / 2}`;
+            const p3 = `${lx - halfW},${ly + h / 2}`;
             shapeElement = (
                 <polygon
                     points={`${p1} ${p2} ${p3}`}
@@ -3785,23 +3864,23 @@ export default function DrawingManager() {
             <g>
                 {shape === 'circle' ? (
                     <circle cx={lx} cy={ly} r={size / 2 + 8} fill="none" stroke={catColor} strokeWidth="1.5">
-                        <animate attributeName="r" values={`${size/2 + 2};${size/2 + 14};${size/2 + 2}`} dur="2s" repeatCount="indefinite" />
+                        <animate attributeName="r" values={`${size / 2 + 2};${size / 2 + 14};${size / 2 + 2}`} dur="2s" repeatCount="indefinite" />
                         <animate attributeName="opacity" values="0.8;0;0.8" dur="2s" repeatCount="indefinite" />
                     </circle>
                 ) : shape === 'square' ? (
-                    <rect x={lx - size/2 - 8} y={ly - size/2 - 8} width={size + 16} height={size + 16} rx="4" fill="none" stroke={catColor} strokeWidth="1.5">
+                    <rect x={lx - size / 2 - 8} y={ly - size / 2 - 8} width={size + 16} height={size + 16} rx="4" fill="none" stroke={catColor} strokeWidth="1.5">
                         <animate attributeName="width" values={`${size + 4};${size + 20};${size + 4}`} dur="2s" repeatCount="indefinite" />
                         <animate attributeName="height" values={`${size + 4};${size + 20};${size + 4}`} dur="2s" repeatCount="indefinite" />
-                        <animate attributeName="x" values={`${lx - size/2 - 2};${lx - size/2 - 10};${lx - size/2 - 2}`} dur="2s" repeatCount="indefinite" />
-                        <animate attributeName="y" values={`${ly - size/2 - 2};${ly - size/2 - 10};${ly - size/2 - 2}`} dur="2s" repeatCount="indefinite" />
+                        <animate attributeName="x" values={`${lx - size / 2 - 2};${lx - size / 2 - 10};${lx - size / 2 - 2}`} dur="2s" repeatCount="indefinite" />
+                        <animate attributeName="y" values={`${ly - size / 2 - 2};${ly - size / 2 - 10};${ly - size / 2 - 2}`} dur="2s" repeatCount="indefinite" />
                         <animate attributeName="opacity" values="0.8;0;0.8" dur="2s" repeatCount="indefinite" />
                     </rect>
                 ) : shape === 'triangle' ? (
-                    <polygon points={`${lx},${ly - size/2 - 8} ${lx + size/2 + 8},${ly + size/2 + 4} ${lx - size/2 - 8},${ly + size/2 + 4}`} fill="none" stroke={catColor} strokeWidth="1.5">
+                    <polygon points={`${lx},${ly - size / 2 - 8} ${lx + size / 2 + 8},${ly + size / 2 + 4} ${lx - size / 2 - 8},${ly + size / 2 + 4}`} fill="none" stroke={catColor} strokeWidth="1.5">
                         <animate attributeName="opacity" values="0.8;0;0.8" dur="2s" repeatCount="indefinite" />
                     </polygon>
                 ) : (
-                    <rect x={lx - Math.max(60, size * 1.3)/2 - 8} y={ly - Math.max(20, size * 0.4)/2 - 8} width={Math.max(60, size * 1.3) + 16} height={Math.max(20, size * 0.4) + 16} rx="6" fill="none" stroke={catColor} strokeWidth="1.5">
+                    <rect x={lx - Math.max(60, size * 1.3) / 2 - 8} y={ly - Math.max(20, size * 0.4) / 2 - 8} width={Math.max(60, size * 1.3) + 16} height={Math.max(20, size * 0.4) + 16} rx="6" fill="none" stroke={catColor} strokeWidth="1.5">
                         <animate attributeName="opacity" values="0.8;0;0.8" dur="2s" repeatCount="indefinite" />
                     </rect>
                 )}
@@ -3809,9 +3888,9 @@ export default function DrawingManager() {
         ) : null;
 
         // Category badge (small badge offset depending on shape)
-        let badgeX = lx + (shape === 'circle' ? size/2 - 5 : shape === 'square' ? size/2 - 2 : shape === 'triangle' ? size/2 - 5 : Math.max(60, size * 1.3)/2 + 2);
-        let badgeY = ly - (shape === 'circle' ? size/2 - 5 : shape === 'square' ? size/2 - 2 : shape === 'triangle' ? -size/2 + 10 : Math.max(20, size * 0.4)/2 - 2);
-        
+        let badgeX = lx + (shape === 'circle' ? size / 2 - 5 : shape === 'square' ? size / 2 - 2 : shape === 'triangle' ? size / 2 - 5 : Math.max(60, size * 1.3) / 2 + 2);
+        let badgeY = ly - (shape === 'circle' ? size / 2 - 5 : shape === 'square' ? size / 2 - 2 : shape === 'triangle' ? -size / 2 + 10 : Math.max(20, size * 0.4) / 2 - 2);
+
         const categoryBadge = (
             <g>
                 <rect x={badgeX} y={badgeY} width="16" height="12" rx="2" fill={catColor} fillOpacity="0.25" stroke={catColor} strokeWidth="0.5" />
@@ -3821,7 +3900,8 @@ export default function DrawingManager() {
             </g>
         );
 
-        const fontSizeValue = Math.max(7, Math.min(12, size * 0.15));
+        const fontSizeValue = isBalloonMode ? 9 : Math.max(7, Math.min(12, size * 0.15));
+        const fontColor = isBalloonMode ? '#ffffff' : color;
 
         // Trigger indicator ⚡ badge
         const hasTriggers = (dim.triggers || []).length > 0;
@@ -3840,11 +3920,11 @@ export default function DrawingManager() {
         return (
             <g>
                 {shapeElement}
-                <text x={lx} y={ly + textYOffset} textAnchor="middle" fill={color} fontSize={fontSizeValue} fontWeight="bold">
+                <text x={lx} y={ly + textYOffset} textAnchor="middle" fill={fontColor} fontSize={fontSizeValue} fontWeight="bold">
                     {labelText}
                 </text>
-                {categoryBadge}
-                {triggerBadge}
+                {!isBalloonMode && categoryBadge}
+                {!isBalloonMode && triggerBadge}
                 {activeRing}
             </g>
         );
@@ -3852,7 +3932,7 @@ export default function DrawingManager() {
 
     // ─── Canvas Indicator Renderers ───
     const renderDimensionIndicators = (dims) => {
-        return dims.map((dim) => {
+        return dims.map((dim, idx) => {
             const isActive = dim.id === activeDimId;
             const x1 = dim.x1 ?? 150, y1 = dim.y1 ?? 180;
             const x2 = dim.x2 ?? 350, y2 = dim.y2 ?? 180;
@@ -3878,7 +3958,7 @@ export default function DrawingManager() {
                         <line x1={x1 + arrowLen - 2} y1={ly - 5} x2={x2 - arrowLen + 2} y2={ly - 5} stroke={color} strokeWidth={strokeW} />
                         <polygon points={`${x1},${ly - 5} ${x1 + arrowLen},${ly - 5 - arrowWidth} ${x1 + arrowLen},${ly - 5 + arrowWidth}`} fill={color} />
                         <polygon points={`${x2},${ly - 5} ${x2 - arrowLen},${ly - 5 - arrowWidth} ${x2 - arrowLen},${ly - 5 + arrowWidth}`} fill={color} />
-                        {renderLabelBadge(dim, color, labelText, isActive)}
+                        {renderLabelBadge(dim, color, labelText, isActive, idx + 1)}
                     </g>
                 );
             } else if (indicatorType === 'vertical') {
@@ -3889,7 +3969,7 @@ export default function DrawingManager() {
                         <line x1={lx - 5} y1={y1 + arrowLen - 2} x2={lx - 5} y2={y2 - arrowLen + 2} stroke={color} strokeWidth={strokeW} />
                         <polygon points={`${lx - 5},${y1} ${lx - 5 - arrowWidth},${y1 + arrowLen} ${lx - 5 + arrowWidth},${y1 + arrowLen}`} fill={color} />
                         <polygon points={`${lx - 5},${y2} ${lx - 5 - arrowWidth},${y2 - arrowLen} ${lx - 5 + arrowWidth},${y2 - arrowLen}`} fill={color} />
-                        {renderLabelBadge(dim, color, labelText, isActive)}
+                        {renderLabelBadge(dim, color, labelText, isActive, idx + 1)}
                     </g>
                 );
             } else if (indicatorType === 'arc') {
@@ -3923,7 +4003,7 @@ export default function DrawingManager() {
                         {/* Arrow tips */}
                         <circle cx={sx} cy={sy} r={Math.max(2, baseWidth * 1.25)} fill={color} />
                         <circle cx={ex} cy={ey} r={Math.max(2, baseWidth * 1.25)} fill={color} />
-                        {renderLabelBadge(dim, color, `∠ ${dim.spec}°`, isActive)}
+                        {renderLabelBadge(dim, color, `∠ ${dim.spec}°`, isActive, idx + 1)}
                     </g>
                 );
             } else if (indicatorType === 'area_box') {
@@ -3938,7 +4018,7 @@ export default function DrawingManager() {
                         {/* Cross-hatch */}
                         <line x1={bx} y1={by} x2={bx + bw} y2={by + bh} stroke={color} strokeWidth="0.5" strokeOpacity="0.3" />
                         <line x1={bx + bw} y1={by} x2={bx} y2={by + bh} stroke={color} strokeWidth="0.5" strokeOpacity="0.3" />
-                        {renderLabelBadge(dim, color, `▢ ${dim.spec} ${dim.unit}`, isActive)}
+                        {renderLabelBadge(dim, color, `▢ ${dim.spec} ${dim.unit}`, isActive, idx + 1)}
                     </g>
                 );
             } else if (indicatorType === 'callout') {
@@ -3956,7 +4036,7 @@ export default function DrawingManager() {
                                 <line x1={lx - 12} y1={ly + 8} x2={lx + 12} y2={ly + 8} stroke={color} strokeWidth={strokeW} />
                             </g>
                         )}
-                        {renderLabelBadge(dim, color, `${symbolChar} ${dim.spec} ${dim.unit}`, isActive)}
+                        {renderLabelBadge(dim, color, `${symbolChar} ${dim.spec} ${dim.unit}`, isActive, idx + 1)}
                     </g>
                 );
             } else {
@@ -3965,14 +4045,14 @@ export default function DrawingManager() {
                     <g key={dim.id} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setActiveDimId(dim.id); }}>
                         <path d={`M ${x1},${y1} L ${x2},${y2} L ${lx},${ly}`} fill="none" stroke={color} strokeWidth={strokeW} />
                         {(() => {
-                             const angle = Math.atan2(y2 - y1, x2 - x1);
-                             const ax1 = x1 + arrowLen * Math.cos(angle - 0.25);
-                             const ay1 = y1 + arrowLen * Math.sin(angle - 0.25);
-                             const ax2 = x1 + arrowLen * Math.cos(angle + 0.25);
-                             const ay2 = y1 + arrowLen * Math.sin(angle + 0.25);
-                             return <polygon points={`${x1},${y1} ${ax1},${ay1} ${ax2},${ay2}`} fill={color} />;
+                            const angle = Math.atan2(y2 - y1, x2 - x1);
+                            const ax1 = x1 + arrowLen * Math.cos(angle - 0.25);
+                            const ay1 = y1 + arrowLen * Math.sin(angle - 0.25);
+                            const ax2 = x1 + arrowLen * Math.cos(angle + 0.25);
+                            const ay2 = y1 + arrowLen * Math.sin(angle + 0.25);
+                            return <polygon points={`${x1},${y1} ${ax1},${ay1} ${ax2},${ay2}`} fill={color} />;
                         })()}
-                        {renderLabelBadge(dim, color, labelText, isActive)}
+                        {renderLabelBadge(dim, color, labelText, isActive, idx + 1)}
                     </g>
                 );
             }
@@ -4040,7 +4120,7 @@ export default function DrawingManager() {
             flexDirection: 'column',
             backgroundColor: '#f1f5f9',
             fontFamily: "'Inter', sans-serif"
-        }}>            
+        }}>
             {/* Header */}
             <div style={{ padding: '12px 24px', backgroundColor: 'white', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                 <div>
@@ -4319,7 +4399,7 @@ export default function DrawingManager() {
 
             {/* Main Content */}
             <div style={{ flex: 1, padding: '0 24px 24px 24px', display: 'flex', flexDirection: 'column', gap: '20px', overflow: 'hidden', height: '100%' }}>
-                
+
                 {/* Top Row: BOC Table (Left) + CAD Canvas (Middle) + Sidebar (Right) */}
                 <div style={{
                     display: 'grid',
@@ -4329,7 +4409,7 @@ export default function DrawingManager() {
                     minHeight: 0,
                     overflow: 'hidden'
                 }}>
-                    
+
                     {/* Left Column: Segmented Tab Headers / BOC Table */}
                     {showBocTable && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '14px', minHeight: 0 }}>
@@ -4546,14 +4626,14 @@ export default function DrawingManager() {
 
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', border: '1px solid #e2e8f0', padding: '10px', borderRadius: '8px', backgroundColor: '#fafafb' }}>
                                         <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#475569' }}>Mulai Pengukuran Takeoff</span>
-                                        
+
                                         {activeTakeoffCategory ? (
                                             <div style={{ display: 'flex', alignItems: 'center', justifyItem: 'center', justifyContent: 'space-between', backgroundColor: '#eff6ff', padding: '6px 8px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
                                                 <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#1d4ed8' }}>
                                                     Mode Aktif: {
                                                         activeTakeoffCategory === 'length_cable' ? '📏 Kabel' :
-                                                        activeTakeoffCategory === 'area_paint' ? '🎨 Cat Dinding' :
-                                                        activeTakeoffCategory === 'area_floor' ? '🧱 Lantai' : '🔨 Baut'
+                                                            activeTakeoffCategory === 'area_paint' ? '🎨 Cat Dinding' :
+                                                                activeTakeoffCategory === 'area_floor' ? '🧱 Lantai' : '🔨 Baut'
                                                     }
                                                 </span>
                                                 <button
@@ -4745,7 +4825,7 @@ export default function DrawingManager() {
 
                     {/* CAD Canvas Panel */}
                     <div style={{ display: 'flex', flexDirection: 'column', backgroundColor: '#0b1d33', borderRadius: '16px', border: '1px solid #1e3a8a', overflow: 'hidden', position: 'relative', height: '100%', minHeight: 0 }}>
-                        
+
                         {/* AutoCAD Window Title Bar */}
                         <div style={{
                             display: 'flex',
@@ -4820,7 +4900,7 @@ export default function DrawingManager() {
                                     <span style={{ fontSize: '0.58rem', color: '#94a3b8', fontWeight: 800 }}>{cadWidth}px</span>
                                     <input type="range" min="1" max="8" value={cadWidth} onChange={(e) => setCadWidth(parseInt(e.target.value))} style={{ width: '35px', accentColor: '#2563eb', cursor: 'pointer', height: '3px', margin: 0 }} title="Line Thickness" />
                                 </div>
-                                
+
                                 <div style={{ width: '1px', height: '12px', backgroundColor: '#334155', margin: '0 4px' }} />
 
                                 {/* Utilities */}
@@ -4832,6 +4912,10 @@ export default function DrawingManager() {
                                 </button>
                                 <button title="Reset Template blueprint" onClick={handleResetToDefault} style={{ background: 'transparent', border: 'none', color: '#f87171', padding: '4px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <RefreshCw size={13} />
+                                </button>
+                                <button title="CadQuery Parametric Generator" onClick={() => setShowCqModal(true)} style={{ background: 'transparent', border: 'none', color: '#fbbf24', padding: '4px 6px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
+                                    <Sliders size={13} />
+                                    <span style={{ fontSize: '0.62rem', fontWeight: 'bold' }}>PARAMETRIC</span>
                                 </button>
                             </div>
 
@@ -4998,7 +5082,7 @@ export default function DrawingManager() {
 
                         {/* AutoCAD Workspace Area (contains Vertical Toolbar + Canvas) */}
                         <div style={{ flex: 1, display: 'flex', flexDirection: 'row', width: '100%', minHeight: 0, overflow: 'hidden' }}>
-                            
+
                             {/* Vertical Draw Toolbar / Palette */}
                             <div style={{
                                 width: '42px',
@@ -5034,10 +5118,10 @@ export default function DrawingManager() {
                                         <Square size={14} />
                                     </button>
                                     <button title="Arc Tool (arc)" onClick={() => setArcDrawState('idle') || setArcDraftCoords(null) || setCadTool('arc')} style={{ background: cadTool === 'arc' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '6px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M4 20 A 16 16 0 0 1 20 4"/></svg>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M4 20 A 16 16 0 0 1 20 4" /></svg>
                                     </button>
                                     <button title="Polyline Tool (polyline)" onClick={() => setPolylineDraftPoints([]) || setCadTool('polyline')} style={{ background: cadTool === 'polyline' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '6px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="4 20 10 8 16 16 20 4"/></svg>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="4 20 10 8 16 16 20 4" /></svg>
                                     </button>
                                     <button title="Text Tool (text)" onClick={() => setCadTool('text')} style={{ background: cadTool === 'text' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '6px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                         <Type size={14} />
@@ -5088,1651 +5172,1651 @@ export default function DrawingManager() {
 
                                 {/* Canvas SVG */}
                                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0px', position: 'relative', width: '100%', minHeight: 0 }}>
-                            {selectedDwg && ['STL', 'OBJ', 'GLTF', 'GLB'].includes(selectedDwg.fileType) ? (
-                                <CADViewer3DEditor
-                                    drawing={selectedDwg}
-                                    dimensions={selectedDwg.dimensions || []}
-                                    activeDimId={activeDimId}
-                                    onAddDimension={handleAdd3DDimension}
-                                    onSelectDimension={(id) => setActiveDimId(id)}
-                                />
-                            ) : (
-                                <svg
-                                    ref={svgRef}
-                                viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
-                                onMouseDown={handleSvgMouseDown}
-                                onMouseMove={handleSvgMouseMove}
-                                onMouseUp={handleSvgMouseUp}
-                                onDoubleClick={handleSvgDoubleClick}
-                                onClick={handleCanvasClick}
-                                onMouseEnter={() => setShowCrosshair(true)}
-                                onMouseLeave={() => setShowCrosshair(false)}
-                                style={{
-                                    width: '100%',
-                                    height: '100%',
-                                    cursor: isPanning
-                                        ? 'grabbing'
-                                        : (spacePressed || cadTool === 'pan'
-                                            ? 'grab'
-                                            : (showCrosshair
-                                                ? 'none'
-                                                : (dragImageShape
-                                                    ? 'grabbing'
-                                                    : (cadTool === 'select'
-                                                        ? (activeDim ? 'crosshair' : 'default')
-                                                        : (cadTool === 'erase' ? 'pointer' : 'crosshair')))))
-                                }}
-                            >
-                                <defs>
-                                    <pattern id="canvas_grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                                        <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1e3a8a" strokeWidth="0.5" strokeOpacity="0.25" />
-                                    </pattern>
-                                </defs>
-                                {activeSpace === 'model' ? (
-                                    <>
-                                        <rect width="100%" height="100%" fill="url(#canvas_grid)" />
-                                        <rect x="5" y="5" width={canvasSize.width - 10} height={canvasSize.height - 10} fill="none" stroke="#1e40af" strokeWidth="1" />
-                                        <rect x="8" y="8" width={canvasSize.width - 16} height={canvasSize.height - 16} fill="none" stroke="#1e3a8a" strokeWidth="0.5" strokeOpacity="0.5" />
-                                    </>
-                                ) : (() => {
-                                    const sheetWidth = canvasSize.width * 0.9;
-                                    const sheetHeight = canvasSize.height * 0.85;
-                                    const sheetX = canvasSize.width * 0.05;
-                                    const sheetY = canvasSize.height * 0.07;
-                                    
-                                    const titleBlockWidth = 140;
-                                    const titleBlockHeight = 45;
-                                    const titleBlockX = sheetX + sheetWidth - 15 - titleBlockWidth;
-                                    const titleBlockY = sheetY + sheetHeight - 15 - titleBlockHeight;
-                                    
-                                    return (
-                                        <>
-                                            {/* Dark background for layout workspace */}
-                                            <rect width="100%" height="100%" fill="#1e293b" />
-                                            
-                                            {/* Paper sheet shadow */}
-                                            <rect x={sheetX + 4} y={sheetY + 4} width={sheetWidth} height={sheetHeight} fill="#090d16" opacity="0.4" rx="2" />
-                                            
-                                            {/* Paper sheet body */}
-                                            <rect x={sheetX} y={sheetY} width={sheetWidth} height={sheetHeight} fill="#f8fafc" rx="2" />
-                                            
-                                            {/* Printable margin dashed border */}
-                                            <rect x={sheetX + 15} y={sheetY + 15} width={sheetWidth - 30} height={sheetHeight - 30} fill="none" stroke="#cbd5e1" strokeWidth="0.75" strokeDasharray="3,3" />
-                                            
-                                            {/* AutoCAD Title Block */}
-                                            <g style={{ userSelect: 'none' }}>
-                                                <rect x={titleBlockX} y={titleBlockY} width={titleBlockWidth} height={titleBlockHeight} fill="#f8fafc" stroke="#64748b" strokeWidth="1" />
-                                                <line x1={titleBlockX + 70} y1={titleBlockY} x2={titleBlockX + 70} y2={titleBlockY + titleBlockHeight} stroke="#64748b" strokeWidth="0.75" />
-                                                <line x1={titleBlockX} y1={titleBlockY + 15} x2={titleBlockX + titleBlockWidth} y2={titleBlockY + 15} stroke="#64748b" strokeWidth="0.75" />
-                                                <line x1={titleBlockX} y1={titleBlockY + 30} x2={titleBlockX + titleBlockWidth} y2={titleBlockY + 30} stroke="#64748b" strokeWidth="0.75" />
-                                                <text x={titleBlockX + 5} y={titleBlockY + 10} fill="#475569" fontSize="6.5" fontWeight="900" fontFamily="sans-serif">PROJECT: MAVI-MES QC</text>
-                                                <text x={titleBlockX + 5} y={titleBlockY + 23} fill="#64748b" fontSize="5" fontFamily="sans-serif">DWG: {selectedDwg ? selectedDwg.fileName : 'New Drawing.dwg'}</text>
-                                                <text x={titleBlockX + 75} y={titleBlockY + 23} fill="#2563eb" fontSize="5" fontWeight="800" fontFamily="sans-serif">SPACE: {activeSpace.toUpperCase()}</text>
-                                                <text x={titleBlockX + 5} y={titleBlockY + 38} fill="#64748b" fontSize="5" fontFamily="sans-serif">BY: QC INSPECTOR</text>
-                                                <text x={titleBlockX + 75} y={titleBlockY + 38} fill="#64748b" fontSize="5" fontFamily="sans-serif">SCALE: {selectedDwg?.scaleFactor ? 'CALIBRATED' : '1:1'}</text>
-                                            </g>
-                                        </>
-                                    );
-                                })()}
-
-                                <g transform={`translate(${canvasSize.width / 2 + panOffset.x}, ${canvasSize.height / 2 + panOffset.y}) scale(${zoom}) translate(${-canvasSize.width / 2}, ${-canvasSize.height / 2})`}>
-                                    {/* Blueprint backdrop */}
-                                    {selectedDwg && (selectedDwg.fileType === 'PDF' || selectedDwg.fileType === 'DWG') && (pdfBackdropUrl || selectedDwg.dataUrl || selectedDwg.data_url) && !(pdfBackdropUrl === null && (selectedDwg.dataUrl || selectedDwg.data_url)?.startsWith('data:application/pdf')) && (
-                                        <image
-                                            href={pdfBackdropUrl || selectedDwg.dataUrl || selectedDwg.data_url}
-                                            x="50"
-                                            y="40"
-                                            width={canvasSize.width - 100}
-                                            height={canvasSize.height - 80}
-                                            preserveAspectRatio="xMidYMid meet"
-                                            opacity="0.85"
-                                            style={{ pointerEvents: 'none' }}
+                                    {selectedDwg && ['STL', 'OBJ', 'GLTF', 'GLB'].includes(selectedDwg.fileType) ? (
+                                        <CADViewer3DEditor
+                                            drawing={selectedDwg}
+                                            dimensions={selectedDwg.dimensions || []}
+                                            activeDimId={activeDimId}
+                                            onAddDimension={handleAdd3DDimension}
+                                            onSelectDimension={(id) => setActiveDimId(id)}
                                         />
-                                    )}
+                                    ) : (
+                                        <svg
+                                            ref={svgRef}
+                                            viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
+                                            onMouseDown={handleSvgMouseDown}
+                                            onMouseMove={handleSvgMouseMove}
+                                            onMouseUp={handleSvgMouseUp}
+                                            onDoubleClick={handleSvgDoubleClick}
+                                            onClick={handleCanvasClick}
+                                            onMouseEnter={() => setShowCrosshair(true)}
+                                            onMouseLeave={() => setShowCrosshair(false)}
+                                            style={{
+                                                width: '100%',
+                                                height: '100%',
+                                                cursor: isPanning
+                                                    ? 'grabbing'
+                                                    : (spacePressed || cadTool === 'pan'
+                                                        ? 'grab'
+                                                        : (showCrosshair
+                                                            ? 'none'
+                                                            : (dragImageShape
+                                                                ? 'grabbing'
+                                                                : (cadTool === 'select'
+                                                                    ? (activeDim ? 'crosshair' : 'default')
+                                                                    : (cadTool === 'erase' ? 'pointer' : 'crosshair')))))
+                                            }}
+                                        >
+                                            <defs>
+                                                <pattern id="canvas_grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                                                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1e3a8a" strokeWidth="0.5" strokeOpacity="0.25" />
+                                                </pattern>
+                                            </defs>
+                                            {activeSpace === 'model' ? (
+                                                <>
+                                                    <rect width="100%" height="100%" fill="url(#canvas_grid)" />
+                                                    <rect x="5" y="5" width={canvasSize.width - 10} height={canvasSize.height - 10} fill="none" stroke="#1e40af" strokeWidth="1" />
+                                                    <rect x="8" y="8" width={canvasSize.width - 16} height={canvasSize.height - 16} fill="none" stroke="#1e3a8a" strokeWidth="0.5" strokeOpacity="0.5" />
+                                                </>
+                                            ) : (() => {
+                                                const sheetWidth = canvasSize.width * 0.9;
+                                                const sheetHeight = canvasSize.height * 0.85;
+                                                const sheetX = canvasSize.width * 0.05;
+                                                const sheetY = canvasSize.height * 0.07;
 
-                                    {selectedDwg && selectedDwg.fileType === 'PDF' && (selectedDwg.dataUrl || selectedDwg.data_url) && !pdfBackdropUrl && (selectedDwg.dataUrl || selectedDwg.data_url).startsWith('data:application/pdf') && (
-                                        <foreignObject x="50" y="80" width={canvasSize.width - 100} height={canvasSize.height - 160}>
-                                            <div style={{
-                                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                                                height: '100%', padding: '20px', textAlign: 'center', backgroundColor: 'rgba(15, 23, 42, 0.75)',
-                                                border: '1px dashed #ef4444', borderRadius: '8px', color: '#f8fafc',
-                                                fontFamily: 'sans-serif', fontSize: '0.8rem'
-                                            }}>
-                                                <span style={{ fontSize: '1.2rem', marginBottom: '8px' }}>⚠️</span>
-                                                <span style={{ fontWeight: 'bold', color: '#fca5a5', marginBottom: '4px' }}>Visual PDF Blueprint tidak aktif</span>
-                                                <span style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>
-                                                    Untuk merender gambar PDF secara visual, pastikan server Python lokal (yolo_server.py) berjalan di port 8000.
-                                                </span>
-                                            </div>
-                                        </foreignObject>
-                                    )}
+                                                const titleBlockWidth = 140;
+                                                const titleBlockHeight = 45;
+                                                const titleBlockX = sheetX + sheetWidth - 15 - titleBlockWidth;
+                                                const titleBlockY = sheetY + sheetHeight - 15 - titleBlockHeight;
 
-                                    {selectedDwg && selectedDwg.fileType === 'DWG' && !selectedDwg.dataUrl && !pdfBackdropUrl && (
-                                        <foreignObject x="50" y="80" width={canvasSize.width - 100} height={canvasSize.height - 160}>
-                                            <div style={{
-                                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                                                height: '100%', padding: '20px', textAlign: 'center', backgroundColor: 'rgba(15, 23, 42, 0.75)',
-                                                border: '1px dashed #3b82f6', borderRadius: '8px', color: '#f8fafc',
-                                                fontFamily: 'sans-serif', fontSize: '0.8rem'
-                                            }}>
-                                                <span style={{ fontSize: '1.2rem', marginBottom: '8px' }}>⚠️</span>
-                                                <span style={{ fontWeight: 'bold', color: '#93c5fd', marginBottom: '4px' }}>Visual DWG Blueprint tidak aktif</span>
-                                                <span style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>
-                                                    Untuk merender visualisasi DWG, pastikan server Python lokal (yolo_server.py) berjalan dengan library ezdwg terpasang.
-                                                </span>
-                                            </div>
-                                        </foreignObject>
-                                    )}
-                                    {selectedDwgId === 'dwg_flange_connector' ? (
-                                        <>
-                                            <g transform="translate(10, 0)">
-                                                <circle cx="140" cy="180" r="90" fill="none" stroke="#3b82f6" strokeWidth="1.5" />
-                                                <circle cx="140" cy="180" r="65" fill="none" stroke="#3b82f6" strokeWidth="1" strokeDasharray="5,5" />
-                                                <circle cx="140" cy="180" r="30" fill="none" stroke="#3b82f6" strokeWidth="1.5" />
-                                                <line x1="140" y1="75" x2="140" y2="285" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="15,4,2,4" />
-                                                <line x1="35" y1="180" x2="245" y2="180" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="15,4,2,4" />
-                                                {[0, 45, 90, 135, 180, 225, 270, 315].map((angle, idx) => {
-                                                    const rad = (angle * Math.PI) / 180;
-                                                    const bx = 140 + 65 * Math.cos(rad);
-                                                    const by = 180 + 65 * Math.sin(rad);
-                                                    return <circle key={idx} cx={bx} cy={by} r="8" fill="none" stroke="#3b82f6" strokeWidth="1" />;
-                                                })}
-                                            </g>
-                                            <g transform="translate(300, 0)">
-                                                <line x1="100" y1="65" x2="100" y2="295" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="15,4,2,4" />
-                                                <path d="M 40,110 L 100,110 L 100,140 L 90,140 L 90,220 L 100,220 L 100,250 L 40,250 L 40,220 L 15,220 L 15,140 L 40,140 Z" fill="none" stroke="#60a5fa" strokeWidth="1.5" />
-                                                <path d="M 40,120 L 50,110 M 40,140 L 70,110 M 40,160 L 90,110 M 40,180 L 100,120 M 40,200 L 100,140 M 45,210 L 100,155 M 65,210 L 100,175" fill="none" stroke="#1e3a8a" strokeWidth="0.5" strokeOpacity="0.4" />
-                                            </g>
-                                        </>
-                                    ) : selectedDwgId === 'dwg_hydraulic_cylinder' ? (
-                                        <g transform="translate(40, 20)">
-                                            <rect x="60" y="100" width="220" height="120" fill="none" stroke="#3b82f6" strokeWidth="2" />
-                                            <rect x="280" y="130" width="140" height="60" fill="none" stroke="#60a5fa" strokeWidth="2" />
-                                            <circle cx="435" cy="160" r="15" fill="none" stroke="#3b82f6" strokeWidth="2" />
-                                            <line x1="20" y1="160" x2="450" y2="160" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="15,4,2,4" />
-                                        </g>
-                                    ) : selectedDwgId === 'dwg_product_checking' ? (
-                                        <g>
-                                            {/* Technical background blueprint legend/texts */}
-                                            <text x="50" y="70" fill="#38bdf8" fontSize="7" fontFamily="monospace" opacity="0.6">UNSPECIFIED TOLERANCES ISO 2768-m</text>
-                                            <text x="50" y="80" fill="#38bdf8" fontSize="7" fontFamily="monospace" opacity="0.6">ALL DIMENSIONS IN MM</text>
-                                            
-                                            {/* Stepped plate outline */}
-                                            <path d="M 30,350 L 30,300 L 50,300 L 250,300 L 270,300 L 270,350 L 350,350 L 350,250 L 470,250 L 470,350 Z" fill="none" stroke="#3b82f6" strokeWidth="1.5" />
-                                            <line x1="30" y1="300" x2="270" y2="300" stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="10,4,2,4" />
-                                            
-                                            {/* Circle for balloon mark */}
-                                            <g>
-                                                <circle cx="200" cy="200" r="15" fill="none" stroke="#3b82f6" strokeWidth="1.5" />
-                                                <circle cx="200" cy="200" r="8" fill="none" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="3,3" />
-                                                <line x1="170" y1="200" x2="230" y2="200" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="10,2,2,2" />
-                                                <line x1="200" y1="170" x2="200" y2="230" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="10,2,2,2" />
-                                            </g>
-                                            
-                                            {/* Vertical cylinder/boss for pdf height */}
-                                            <g>
-                                                <rect x="385" y="100" width="30" height="100" fill="none" stroke="#60a5fa" strokeWidth="1.5" />
-                                                <line x1="400" y1="80" x2="400" y2="220" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="5,2,1,2" />
-                                            </g>
-                                            
-                                            {/* OpenCV Vision calibration target marker at (150, 250) */}
-                                            <g>
-                                                <circle cx="150" cy="250" r="10" fill="none" stroke="#3b82f6" strokeWidth="1" />
-                                                <line x1="135" y1="250" x2="165" y2="250" stroke="#3b82f6" strokeWidth="0.5" />
-                                                <line x1="150" y1="235" x2="150" y2="265" stroke="#3b82f6" strokeWidth="0.5" />
-                                                <path d="M 150,250 L 156,250 A 6,6 0 0,1 150,256 Z" fill="#3b82f6" />
-                                                <path d="M 150,250 L 144,250 A 6,6 0 0,1 150,244 Z" fill="#3b82f6" />
-                                            </g>
-                                            
-                                            {/* QC Check test square pad at (100, 100) */}
-                                            <g>
-                                                <rect x="90" y="90" width="20" height="20" fill="none" stroke="#60a5fa" strokeWidth="1" />
-                                                <line x1="90" y1="90" x2="110" y2="110" stroke="#60a5fa" strokeWidth="0.5" strokeDasharray="2,2" />
-                                                <line x1="110" y1="90" x2="90" y2="110" stroke="#60a5fa" strokeWidth="0.5" strokeDasharray="2,2" />
-                                            </g>
-                                            
-                                            {/* Trigger switch sensor at (300, 150) */}
-                                            <g>
-                                                <rect x="290" y="140" width="20" height="20" fill="none" stroke="#3b82f6" strokeWidth="1" rx="2" />
-                                                <path d="M 300,143 L 295,150 L 300,150 L 298,157 L 305,149 L 299,149 Z" fill="#f59e0b" stroke="none" />
-                                            </g>
-                                        </g>
-                                    ) : null}
+                                                return (
+                                                    <>
+                                                        {/* Dark background for layout workspace */}
+                                                        <rect width="100%" height="100%" fill="#1e293b" />
 
-                                    {/* AutoCAD Vector Entities Rendering (DXF) */}
-                                    {selectedDwg?.entities && selectedDwg.entities.length > 0 && (
-                                        <g id="autocad_vector_entities">
-                                            {selectedDwg.entities
-                                                .filter(ent => activeLayer === 'All Layers' || ent.layer === activeLayer)
-                                                .map((ent, idx) => {
-                                                    const strokeColor = '#3b82f6';
-                                                    const strokeWidth = 1.0;
-                                                    
-                                                    if (ent.type === 'LINE') {
+                                                        {/* Paper sheet shadow */}
+                                                        <rect x={sheetX + 4} y={sheetY + 4} width={sheetWidth} height={sheetHeight} fill="#090d16" opacity="0.4" rx="2" />
+
+                                                        {/* Paper sheet body */}
+                                                        <rect x={sheetX} y={sheetY} width={sheetWidth} height={sheetHeight} fill="#f8fafc" rx="2" />
+
+                                                        {/* Printable margin dashed border */}
+                                                        <rect x={sheetX + 15} y={sheetY + 15} width={sheetWidth - 30} height={sheetHeight - 30} fill="none" stroke="#cbd5e1" strokeWidth="0.75" strokeDasharray="3,3" />
+
+                                                        {/* AutoCAD Title Block */}
+                                                        <g style={{ userSelect: 'none' }}>
+                                                            <rect x={titleBlockX} y={titleBlockY} width={titleBlockWidth} height={titleBlockHeight} fill="#f8fafc" stroke="#64748b" strokeWidth="1" />
+                                                            <line x1={titleBlockX + 70} y1={titleBlockY} x2={titleBlockX + 70} y2={titleBlockY + titleBlockHeight} stroke="#64748b" strokeWidth="0.75" />
+                                                            <line x1={titleBlockX} y1={titleBlockY + 15} x2={titleBlockX + titleBlockWidth} y2={titleBlockY + 15} stroke="#64748b" strokeWidth="0.75" />
+                                                            <line x1={titleBlockX} y1={titleBlockY + 30} x2={titleBlockX + titleBlockWidth} y2={titleBlockY + 30} stroke="#64748b" strokeWidth="0.75" />
+                                                            <text x={titleBlockX + 5} y={titleBlockY + 10} fill="#475569" fontSize="6.5" fontWeight="900" fontFamily="sans-serif">PROJECT: MAVI-MES QC</text>
+                                                            <text x={titleBlockX + 5} y={titleBlockY + 23} fill="#64748b" fontSize="5" fontFamily="sans-serif">DWG: {selectedDwg ? selectedDwg.fileName : 'New Drawing.dwg'}</text>
+                                                            <text x={titleBlockX + 75} y={titleBlockY + 23} fill="#2563eb" fontSize="5" fontWeight="800" fontFamily="sans-serif">SPACE: {activeSpace.toUpperCase()}</text>
+                                                            <text x={titleBlockX + 5} y={titleBlockY + 38} fill="#64748b" fontSize="5" fontFamily="sans-serif">BY: QC INSPECTOR</text>
+                                                            <text x={titleBlockX + 75} y={titleBlockY + 38} fill="#64748b" fontSize="5" fontFamily="sans-serif">SCALE: {selectedDwg?.scaleFactor ? 'CALIBRATED' : '1:1'}</text>
+                                                        </g>
+                                                    </>
+                                                );
+                                            })()}
+
+                                            <g transform={`translate(${canvasSize.width / 2 + panOffset.x}, ${canvasSize.height / 2 + panOffset.y}) scale(${zoom}) translate(${-canvasSize.width / 2}, ${-canvasSize.height / 2})`}>
+                                                {/* Blueprint backdrop */}
+                                                {selectedDwg && (selectedDwg.fileType === 'PDF' || selectedDwg.fileType === 'DWG') && (pdfBackdropUrl || selectedDwg.dataUrl || selectedDwg.data_url) && !(pdfBackdropUrl === null && (selectedDwg.dataUrl || selectedDwg.data_url)?.startsWith('data:application/pdf')) && (
+                                                    <image
+                                                        href={pdfBackdropUrl || selectedDwg.dataUrl || selectedDwg.data_url}
+                                                        x="50"
+                                                        y="40"
+                                                        width={canvasSize.width - 100}
+                                                        height={canvasSize.height - 80}
+                                                        preserveAspectRatio="xMidYMid meet"
+                                                        opacity="0.85"
+                                                        style={{ pointerEvents: 'none' }}
+                                                    />
+                                                )}
+
+                                                {selectedDwg && selectedDwg.fileType === 'PDF' && (selectedDwg.dataUrl || selectedDwg.data_url) && !pdfBackdropUrl && (selectedDwg.dataUrl || selectedDwg.data_url).startsWith('data:application/pdf') && (
+                                                    <foreignObject x="50" y="80" width={canvasSize.width - 100} height={canvasSize.height - 160}>
+                                                        <div style={{
+                                                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                                            height: '100%', padding: '20px', textAlign: 'center', backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                                                            border: '1px dashed #ef4444', borderRadius: '8px', color: '#f8fafc',
+                                                            fontFamily: 'sans-serif', fontSize: '0.8rem'
+                                                        }}>
+                                                            <span style={{ fontSize: '1.2rem', marginBottom: '8px' }}>⚠️</span>
+                                                            <span style={{ fontWeight: 'bold', color: '#fca5a5', marginBottom: '4px' }}>Visual PDF Blueprint tidak aktif</span>
+                                                            <span style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>
+                                                                Untuk merender gambar PDF secara visual, pastikan server Python lokal (yolo_server.py) berjalan di port 8000.
+                                                            </span>
+                                                        </div>
+                                                    </foreignObject>
+                                                )}
+
+                                                {selectedDwg && selectedDwg.fileType === 'DWG' && !selectedDwg.dataUrl && !pdfBackdropUrl && (
+                                                    <foreignObject x="50" y="80" width={canvasSize.width - 100} height={canvasSize.height - 160}>
+                                                        <div style={{
+                                                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                                            height: '100%', padding: '20px', textAlign: 'center', backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                                                            border: '1px dashed #3b82f6', borderRadius: '8px', color: '#f8fafc',
+                                                            fontFamily: 'sans-serif', fontSize: '0.8rem'
+                                                        }}>
+                                                            <span style={{ fontSize: '1.2rem', marginBottom: '8px' }}>⚠️</span>
+                                                            <span style={{ fontWeight: 'bold', color: '#93c5fd', marginBottom: '4px' }}>Visual DWG Blueprint tidak aktif</span>
+                                                            <span style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>
+                                                                Untuk merender visualisasi DWG, pastikan server Python lokal (yolo_server.py) berjalan dengan library ezdwg terpasang.
+                                                            </span>
+                                                        </div>
+                                                    </foreignObject>
+                                                )}
+                                                {selectedDwgId === 'dwg_flange_connector' ? (
+                                                    <>
+                                                        <g transform="translate(10, 0)">
+                                                            <circle cx="140" cy="180" r="90" fill="none" stroke="#3b82f6" strokeWidth="1.5" />
+                                                            <circle cx="140" cy="180" r="65" fill="none" stroke="#3b82f6" strokeWidth="1" strokeDasharray="5,5" />
+                                                            <circle cx="140" cy="180" r="30" fill="none" stroke="#3b82f6" strokeWidth="1.5" />
+                                                            <line x1="140" y1="75" x2="140" y2="285" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="15,4,2,4" />
+                                                            <line x1="35" y1="180" x2="245" y2="180" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="15,4,2,4" />
+                                                            {[0, 45, 90, 135, 180, 225, 270, 315].map((angle, idx) => {
+                                                                const rad = (angle * Math.PI) / 180;
+                                                                const bx = 140 + 65 * Math.cos(rad);
+                                                                const by = 180 + 65 * Math.sin(rad);
+                                                                return <circle key={idx} cx={bx} cy={by} r="8" fill="none" stroke="#3b82f6" strokeWidth="1" />;
+                                                            })}
+                                                        </g>
+                                                        <g transform="translate(300, 0)">
+                                                            <line x1="100" y1="65" x2="100" y2="295" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="15,4,2,4" />
+                                                            <path d="M 40,110 L 100,110 L 100,140 L 90,140 L 90,220 L 100,220 L 100,250 L 40,250 L 40,220 L 15,220 L 15,140 L 40,140 Z" fill="none" stroke="#60a5fa" strokeWidth="1.5" />
+                                                            <path d="M 40,120 L 50,110 M 40,140 L 70,110 M 40,160 L 90,110 M 40,180 L 100,120 M 40,200 L 100,140 M 45,210 L 100,155 M 65,210 L 100,175" fill="none" stroke="#1e3a8a" strokeWidth="0.5" strokeOpacity="0.4" />
+                                                        </g>
+                                                    </>
+                                                ) : selectedDwgId === 'dwg_hydraulic_cylinder' ? (
+                                                    <g transform="translate(40, 20)">
+                                                        <rect x="60" y="100" width="220" height="120" fill="none" stroke="#3b82f6" strokeWidth="2" />
+                                                        <rect x="280" y="130" width="140" height="60" fill="none" stroke="#60a5fa" strokeWidth="2" />
+                                                        <circle cx="435" cy="160" r="15" fill="none" stroke="#3b82f6" strokeWidth="2" />
+                                                        <line x1="20" y1="160" x2="450" y2="160" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="15,4,2,4" />
+                                                    </g>
+                                                ) : selectedDwgId === 'dwg_product_checking' ? (
+                                                    <g>
+                                                        {/* Technical background blueprint legend/texts */}
+                                                        <text x="50" y="70" fill="#38bdf8" fontSize="7" fontFamily="monospace" opacity="0.6">UNSPECIFIED TOLERANCES ISO 2768-m</text>
+                                                        <text x="50" y="80" fill="#38bdf8" fontSize="7" fontFamily="monospace" opacity="0.6">ALL DIMENSIONS IN MM</text>
+
+                                                        {/* Stepped plate outline */}
+                                                        <path d="M 30,350 L 30,300 L 50,300 L 250,300 L 270,300 L 270,350 L 350,350 L 350,250 L 470,250 L 470,350 Z" fill="none" stroke="#3b82f6" strokeWidth="1.5" />
+                                                        <line x1="30" y1="300" x2="270" y2="300" stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="10,4,2,4" />
+
+                                                        {/* Circle for balloon mark */}
+                                                        <g>
+                                                            <circle cx="200" cy="200" r="15" fill="none" stroke="#3b82f6" strokeWidth="1.5" />
+                                                            <circle cx="200" cy="200" r="8" fill="none" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="3,3" />
+                                                            <line x1="170" y1="200" x2="230" y2="200" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="10,2,2,2" />
+                                                            <line x1="200" y1="170" x2="200" y2="230" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="10,2,2,2" />
+                                                        </g>
+
+                                                        {/* Vertical cylinder/boss for pdf height */}
+                                                        <g>
+                                                            <rect x="385" y="100" width="30" height="100" fill="none" stroke="#60a5fa" strokeWidth="1.5" />
+                                                            <line x1="400" y1="80" x2="400" y2="220" stroke="#3b82f6" strokeWidth="0.75" strokeDasharray="5,2,1,2" />
+                                                        </g>
+
+                                                        {/* OpenCV Vision calibration target marker at (150, 250) */}
+                                                        <g>
+                                                            <circle cx="150" cy="250" r="10" fill="none" stroke="#3b82f6" strokeWidth="1" />
+                                                            <line x1="135" y1="250" x2="165" y2="250" stroke="#3b82f6" strokeWidth="0.5" />
+                                                            <line x1="150" y1="235" x2="150" y2="265" stroke="#3b82f6" strokeWidth="0.5" />
+                                                            <path d="M 150,250 L 156,250 A 6,6 0 0,1 150,256 Z" fill="#3b82f6" />
+                                                            <path d="M 150,250 L 144,250 A 6,6 0 0,1 150,244 Z" fill="#3b82f6" />
+                                                        </g>
+
+                                                        {/* QC Check test square pad at (100, 100) */}
+                                                        <g>
+                                                            <rect x="90" y="90" width="20" height="20" fill="none" stroke="#60a5fa" strokeWidth="1" />
+                                                            <line x1="90" y1="90" x2="110" y2="110" stroke="#60a5fa" strokeWidth="0.5" strokeDasharray="2,2" />
+                                                            <line x1="110" y1="90" x2="90" y2="110" stroke="#60a5fa" strokeWidth="0.5" strokeDasharray="2,2" />
+                                                        </g>
+
+                                                        {/* Trigger switch sensor at (300, 150) */}
+                                                        <g>
+                                                            <rect x="290" y="140" width="20" height="20" fill="none" stroke="#3b82f6" strokeWidth="1" rx="2" />
+                                                            <path d="M 300,143 L 295,150 L 300,150 L 298,157 L 305,149 L 299,149 Z" fill="#f59e0b" stroke="none" />
+                                                        </g>
+                                                    </g>
+                                                ) : null}
+
+                                                {/* AutoCAD Vector Entities Rendering (DXF) */}
+                                                {selectedDwg?.entities && selectedDwg.entities.length > 0 && (
+                                                    <g id="autocad_vector_entities">
+                                                        {selectedDwg.entities
+                                                            .filter(ent => activeLayer === 'All Layers' || ent.layer === activeLayer)
+                                                            .map((ent, idx) => {
+                                                                const strokeColor = '#3b82f6';
+                                                                const strokeWidth = 1.0;
+
+                                                                if (ent.type === 'LINE') {
+                                                                    return (
+                                                                        <line
+                                                                            key={`line_${idx}`}
+                                                                            x1={ent.x1}
+                                                                            y1={ent.y1}
+                                                                            x2={ent.x2}
+                                                                            y2={ent.y2}
+                                                                            stroke={strokeColor}
+                                                                            strokeWidth={strokeWidth}
+                                                                        />
+                                                                    );
+                                                                }
+                                                                if (ent.type === 'CIRCLE') {
+                                                                    return (
+                                                                        <circle
+                                                                            key={`circle_${idx}`}
+                                                                            cx={ent.cx}
+                                                                            cy={ent.cy}
+                                                                            r={ent.radius}
+                                                                            fill="none"
+                                                                            stroke={strokeColor}
+                                                                            strokeWidth={strokeWidth}
+                                                                        />
+                                                                    );
+                                                                }
+                                                                if (ent.type === 'ARC') {
+                                                                    const radStart = (ent.startAngle * Math.PI) / 180;
+                                                                    const radEnd = (ent.endAngle * Math.PI) / 180;
+                                                                    const x1 = ent.cx + ent.radius * Math.cos(radStart);
+                                                                    const y1 = ent.cy - ent.radius * Math.sin(radStart);
+                                                                    const x2 = ent.cx + ent.radius * Math.cos(radEnd);
+                                                                    const y2 = ent.cy - ent.radius * Math.sin(radEnd);
+                                                                    const largeArcFlag = (ent.endAngle - ent.startAngle + 360) % 360 <= 180 ? 0 : 1;
+                                                                    const pathD = `M ${x1} ${y1} A ${ent.radius} ${ent.radius} 0 ${largeArcFlag} 0 ${x2} ${y2}`;
+                                                                    return (
+                                                                        <path
+                                                                            key={`arc_${idx}`}
+                                                                            d={pathD}
+                                                                            fill="none"
+                                                                            stroke={strokeColor}
+                                                                            strokeWidth={strokeWidth}
+                                                                        />
+                                                                    );
+                                                                }
+                                                                if (ent.type === 'TEXT') {
+                                                                    return (
+                                                                        <text
+                                                                            key={`text_${idx}`}
+                                                                            x={ent.cx}
+                                                                            y={ent.cy}
+                                                                            fill="#475569"
+                                                                            fontSize="8"
+                                                                            fontFamily="monospace"
+                                                                        >
+                                                                            {ent.text}
+                                                                        </text>
+                                                                    );
+                                                                }
+                                                                return null;
+                                                            })}
+                                                    </g>
+                                                )}
+
+                                                {/* Dynamic Indicators */}
+                                                {selectedDwg && renderDimensionIndicators(
+                                                    selectedDwg.dimensions.filter(dim =>
+                                                        activeLayer === 'All Layers' ||
+                                                        dim.layer === activeLayer ||
+                                                        !dim.id.startsWith('dim_dxf')
+                                                    )
+                                                )}
+
+                                                {/* Custom CAD Drawing Overlay */}
+                                                {selectedDwg && (selectedDwg.shapes || []).map((shape) => {
+                                                    const center = getShapeCenter(shape);
+                                                    const rotationStr = shape.rotation ? `rotate(${shape.rotation}, ${shape.cx ?? center.x}, ${shape.cy ?? center.y})` : '';
+
+                                                    const isBlinking =
+                                                        selectedShapeId === shape.id ||
+                                                        (hoveredShapeId === shape.id && ['move', 'rotate', 'mirror', 'trim'].includes(cadTool)) ||
+                                                        (dragShape && dragShape.id === shape.id && ['move', 'rotate'].includes(dragShape.type)) ||
+                                                        (mirrorMenu && mirrorMenu.shapeId === shape.id);
+                                                    const gClassName = isBlinking ? 'cad-blink' : '';
+
+                                                    const handleLocalClick = (e) => {
+                                                        e.stopPropagation();
+                                                        const coords = getCanvasCoords(e);
+
+                                                        if (cadTool === 'erase') {
+                                                            const currentShapes = selectedDwg.shapes || [];
+                                                            updateShapes(currentShapes.filter(s => s.id !== shape.id));
+                                                            toast.success('Bentuk terhapus', { id: 'erase-shape' });
+                                                        } else if (cadTool === 'mirror') {
+                                                            const parentRect = svgRef.current.parentElement.getBoundingClientRect();
+                                                            const top = e.clientY - parentRect.top;
+                                                            const left = e.clientX - parentRect.left;
+                                                            setMirrorMenu({
+                                                                shapeId: shape.id,
+                                                                x: left,
+                                                                y: top
+                                                            });
+                                                        } else if (cadTool === 'trim' && shape.type === 'line') {
+                                                            handleTrimLine(shape, coords.x, coords.y);
+                                                        } else if (cadTool === 'select') {
+                                                            setSelectedShapeId(shape.id);
+                                                        }
+                                                    };
+
+                                                    const handleLocalMouseDown = (e) => {
+                                                        if (e.button !== 0) return; // left click only
+                                                        if (cadTool === 'move') {
+                                                            e.stopPropagation();
+                                                            e.preventDefault();
+                                                            const coords = getCanvasCoords(e);
+                                                            setDragShape({
+                                                                id: shape.id,
+                                                                type: 'move',
+                                                                startX: coords.x,
+                                                                startY: coords.y,
+                                                                startShape: JSON.parse(JSON.stringify(shape))
+                                                            });
+                                                        } else if (cadTool === 'rotate') {
+                                                            e.stopPropagation();
+                                                            e.preventDefault();
+                                                            const coords = getCanvasCoords(e);
+                                                            const shapeCenter = getShapeCenter(shape);
+                                                            setDragShape({
+                                                                id: shape.id,
+                                                                type: 'rotate',
+                                                                startX: coords.x,
+                                                                startY: coords.y,
+                                                                center: shapeCenter,
+                                                                startShape: JSON.parse(JSON.stringify(shape))
+                                                            });
+                                                        }
+                                                    };
+
+                                                    const handleShapeMouseEnter = (e) => {
+                                                        setHoveredShapeId(shape.id);
+                                                        if (cadTool === 'erase') {
+                                                            const els = e.currentTarget.querySelectorAll('line, circle, rect, path, polyline');
+                                                            els.forEach(el => {
+                                                                if (el.getAttribute('stroke') !== 'transparent') {
+                                                                    el.style.stroke = '#ef4444';
+                                                                    el.style.strokeDasharray = '4,2';
+                                                                }
+                                                            });
+                                                            const textEl = e.currentTarget.querySelector('text');
+                                                            if (textEl) textEl.style.fill = '#ef4444';
+                                                        } else if (cadTool === 'trim' && shape.type === 'line') {
+                                                            const els = e.currentTarget.querySelectorAll('line');
+                                                            els.forEach(el => {
+                                                                if (el.getAttribute('stroke') !== 'transparent') {
+                                                                    el.style.stroke = '#ef4444';
+                                                                    el.style.strokeDasharray = '4,2';
+                                                                }
+                                                            });
+                                                        }
+                                                    };
+
+                                                    const handleShapeMouseLeave = (e) => {
+                                                        setHoveredShapeId(null);
+                                                        const els = e.currentTarget.querySelectorAll('line, circle, rect, path, polyline');
+                                                        els.forEach(el => {
+                                                            if (el.getAttribute('stroke') !== 'transparent') {
+                                                                el.style.stroke = shape.color;
+                                                                el.style.strokeDasharray = 'none';
+                                                            }
+                                                        });
+                                                        const textEl = e.currentTarget.querySelector('text');
+                                                        if (textEl) textEl.style.fill = shape.color;
+                                                    };
+
+                                                    const cursorStyle =
+                                                        cadTool === 'erase' ? 'pointer' :
+                                                            cadTool === 'select' ? 'pointer' :
+                                                                cadTool === 'move' ? 'move' :
+                                                                    cadTool === 'rotate' ? 'crosshair' :
+                                                                        cadTool === 'mirror' ? 'pointer' :
+                                                                            (cadTool === 'trim' && shape.type === 'line') ? 'pointer' :
+                                                                                'default';
+
+                                                    const pointerEvents = ['move', 'rotate', 'mirror', 'trim', 'erase', 'select'].includes(cadTool) ? 'all' : 'none';
+
+                                                    const commonProps = {
+                                                        stroke: shape.color,
+                                                        strokeWidth: shape.strokeWidth || 2,
+                                                        style: { transition: 'all 0.1s' }
+                                                    };
+
+                                                    if (shape.type === 'line') {
                                                         return (
-                                                            <line
-                                                                key={`line_${idx}`}
-                                                                x1={ent.x1}
-                                                                y1={ent.y1}
-                                                                x2={ent.x2}
-                                                                y2={ent.y2}
-                                                                stroke={strokeColor}
-                                                                strokeWidth={strokeWidth}
-                                                            />
-                                                        );
-                                                    }
-                                                    if (ent.type === 'CIRCLE') {
-                                                        return (
-                                                            <circle
-                                                                key={`circle_${idx}`}
-                                                                cx={ent.cx}
-                                                                cy={ent.cy}
-                                                                r={ent.radius}
-                                                                fill="none"
-                                                                stroke={strokeColor}
-                                                                strokeWidth={strokeWidth}
-                                                            />
-                                                        );
-                                                    }
-                                                    if (ent.type === 'ARC') {
-                                                        const radStart = (ent.startAngle * Math.PI) / 180;
-                                                        const radEnd = (ent.endAngle * Math.PI) / 180;
-                                                        const x1 = ent.cx + ent.radius * Math.cos(radStart);
-                                                        const y1 = ent.cy - ent.radius * Math.sin(radStart);
-                                                        const x2 = ent.cx + ent.radius * Math.cos(radEnd);
-                                                        const y2 = ent.cy - ent.radius * Math.sin(radEnd);
-                                                        const largeArcFlag = (ent.endAngle - ent.startAngle + 360) % 360 <= 180 ? 0 : 1;
-                                                        const pathD = `M ${x1} ${y1} A ${ent.radius} ${ent.radius} 0 ${largeArcFlag} 0 ${x2} ${y2}`;
-                                                        return (
-                                                            <path
-                                                                key={`arc_${idx}`}
-                                                                d={pathD}
-                                                                fill="none"
-                                                                stroke={strokeColor}
-                                                                strokeWidth={strokeWidth}
-                                                            />
-                                                        );
-                                                    }
-                                                    if (ent.type === 'TEXT') {
-                                                        return (
-                                                            <text
-                                                                key={`text_${idx}`}
-                                                                x={ent.cx}
-                                                                y={ent.cy}
-                                                                fill="#475569"
-                                                                fontSize="8"
-                                                                fontFamily="monospace"
+                                                            <g
+                                                                key={shape.id}
+                                                                className={gClassName}
+                                                                transform={rotationStr}
+                                                                onClick={handleLocalClick}
+                                                                onMouseDown={handleLocalMouseDown}
+                                                                onMouseEnter={handleShapeMouseEnter}
+                                                                onMouseLeave={handleShapeMouseLeave}
+                                                                style={{ cursor: cursorStyle }}
+                                                                pointerEvents={pointerEvents}
                                                             >
-                                                                {ent.text}
-                                                            </text>
+                                                                <line x1={shape.x1} y1={shape.y1} x2={shape.x2} y2={shape.y2} stroke="transparent" strokeWidth="15" fill="none" />
+                                                                <line x1={shape.x1} y1={shape.y1} x2={shape.x2} y2={shape.y2} {...commonProps} fill="none" />
+                                                            </g>
+                                                        );
+                                                    } else if (shape.type === 'circle') {
+                                                        return (
+                                                            <g
+                                                                key={shape.id}
+                                                                className={gClassName}
+                                                                transform={rotationStr}
+                                                                onClick={handleLocalClick}
+                                                                onMouseDown={handleLocalMouseDown}
+                                                                onMouseEnter={handleShapeMouseEnter}
+                                                                onMouseLeave={handleShapeMouseLeave}
+                                                                style={{ cursor: cursorStyle }}
+                                                                pointerEvents={pointerEvents}
+                                                            >
+                                                                <circle cx={shape.cx} cy={shape.cy} r={shape.r} stroke="transparent" strokeWidth="15" fill="none" />
+                                                                <circle cx={shape.cx} cy={shape.cy} r={shape.r} {...commonProps} fill="none" />
+                                                            </g>
+                                                        );
+                                                    } else if (shape.type === 'rect') {
+                                                        return (
+                                                            <g
+                                                                key={shape.id}
+                                                                className={gClassName}
+                                                                transform={rotationStr}
+                                                                onClick={handleLocalClick}
+                                                                onMouseDown={handleLocalMouseDown}
+                                                                onMouseEnter={handleShapeMouseEnter}
+                                                                onMouseLeave={handleShapeMouseLeave}
+                                                                style={{ cursor: cursorStyle }}
+                                                                pointerEvents={pointerEvents}
+                                                            >
+                                                                <rect x={shape.x} y={shape.y} width={shape.w} height={shape.h} stroke="transparent" strokeWidth="15" fill="none" />
+                                                                <rect x={shape.x} y={shape.y} width={shape.w} height={shape.h} {...commonProps} fill="none" />
+                                                            </g>
+                                                        );
+                                                    } else if (shape.type === 'arc') {
+                                                        const sa = shape.startAngle ?? 0;
+                                                        const ea = shape.endAngle ?? 90;
+                                                        const saRad = sa * (Math.PI / 180);
+                                                        const eaRad = ea * (Math.PI / 180);
+                                                        const sx = shape.cx + shape.r * Math.cos(saRad);
+                                                        const sy = shape.cy + shape.r * Math.sin(saRad);
+                                                        const ex = shape.cx + shape.r * Math.cos(eaRad);
+                                                        const ey = shape.cy + shape.r * Math.sin(eaRad);
+                                                        const largeArc = Math.abs(ea - sa) > 180 ? 1 : 0;
+                                                        const sweepFlag = ea > sa ? 1 : 0;
+                                                        const pathD = `M ${sx},${sy} A ${shape.r},${shape.r} 0 ${largeArc},${sweepFlag} ${ex},${ey}`;
+                                                        return (
+                                                            <g
+                                                                key={shape.id}
+                                                                className={gClassName}
+                                                                transform={rotationStr}
+                                                                onClick={handleLocalClick}
+                                                                onMouseDown={handleLocalMouseDown}
+                                                                onMouseEnter={handleShapeMouseEnter}
+                                                                onMouseLeave={handleShapeMouseLeave}
+                                                                style={{ cursor: cursorStyle }}
+                                                                pointerEvents={pointerEvents}
+                                                            >
+                                                                <path d={pathD} stroke="transparent" strokeWidth="15" fill="none" />
+                                                                <path d={pathD} {...commonProps} fill="none" />
+                                                            </g>
+                                                        );
+                                                    } else if (shape.type === 'polyline') {
+                                                        const pointsStr = (shape.points || []).map(p => `${p.x},${p.y}`).join(' ');
+                                                        return (
+                                                            <g
+                                                                key={shape.id}
+                                                                className={gClassName}
+                                                                transform={rotationStr}
+                                                                onClick={handleLocalClick}
+                                                                onMouseDown={handleLocalMouseDown}
+                                                                onMouseEnter={handleShapeMouseEnter}
+                                                                onMouseLeave={handleShapeMouseLeave}
+                                                                style={{ cursor: cursorStyle }}
+                                                                pointerEvents={pointerEvents}
+                                                            >
+                                                                <polyline points={pointsStr} stroke="transparent" strokeWidth="15" fill="none" />
+                                                                <polyline points={pointsStr} {...commonProps} fill="none" />
+                                                            </g>
+                                                        );
+                                                    } else if (shape.type === 'text') {
+                                                        return (
+                                                            <g
+                                                                key={shape.id}
+                                                                className={gClassName}
+                                                                transform={rotationStr}
+                                                                onClick={handleLocalClick}
+                                                                onMouseDown={handleLocalMouseDown}
+                                                                onMouseEnter={handleShapeMouseEnter}
+                                                                onMouseLeave={handleShapeMouseLeave}
+                                                                style={{ cursor: cursorStyle }}
+                                                                pointerEvents={pointerEvents}
+                                                            >
+                                                                {/* Extra wide invisible click background block for text */}
+                                                                <rect
+                                                                    x={shape.x - 30}
+                                                                    y={shape.y - 12}
+                                                                    width="60"
+                                                                    height="24"
+                                                                    fill="transparent"
+                                                                />
+                                                                <text
+                                                                    x={shape.x}
+                                                                    y={shape.y}
+                                                                    fill={shape.color}
+                                                                    fontSize={shape.fontSize || 14}
+                                                                    textAnchor="middle"
+                                                                    dominantBaseline="middle"
+                                                                    style={{
+                                                                        fontFamily: 'monospace',
+                                                                        fontWeight: 'bold',
+                                                                        userSelect: 'none'
+                                                                    }}
+                                                                >
+                                                                    {shape.text}
+                                                                </text>
+                                                            </g>
+                                                        );
+                                                    } else if (shape.type === 'image') {
+                                                        const isDraggingThis = dragImageShape && dragImageShape.id === shape.id;
+                                                        const displayX = isDraggingThis ? dragImageShape.currentX : shape.x;
+                                                        const displayY = isDraggingThis ? dragImageShape.currentY : shape.y;
+                                                        const displayW = isDraggingThis ? dragImageShape.currentW : shape.w;
+                                                        const displayH = isDraggingThis ? dragImageShape.currentH : shape.h;
+
+                                                        const defaultCrop = { x: 0, y: 0, w: shape.naturalWidth || shape.w, h: shape.naturalHeight || shape.h };
+                                                        const crop = isDraggingThis && dragImageShape.currentCrop ? dragImageShape.currentCrop : (shape.crop || defaultCrop);
+                                                        const natW = shape.naturalWidth || shape.w;
+                                                        const natH = shape.naturalHeight || shape.h;
+
+                                                        const isSelected = selectedShapeId === shape.id;
+
+                                                        const handleImageClick = (e) => {
+                                                            if (cadTool === 'erase' || cadTool === 'mirror') {
+                                                                handleLocalClick(e);
+                                                            } else if (cadTool === 'select') {
+                                                                e.stopPropagation();
+                                                                setSelectedShapeId(shape.id);
+                                                            }
+                                                        };
+
+                                                        const handleImageMouseDown = (e) => {
+                                                            if (cadTool === 'move' || cadTool === 'rotate') {
+                                                                handleLocalMouseDown(e);
+                                                            } else if (cadTool === 'select') {
+                                                                e.stopPropagation();
+                                                                e.preventDefault();
+                                                                const coords = getCanvasCoords(e);
+                                                                setSelectedShapeId(shape.id);
+                                                                setDragImageShape({
+                                                                    id: shape.id,
+                                                                    type: 'move',
+                                                                    startX: coords.x,
+                                                                    startY: coords.y,
+                                                                    offsetX: coords.x - shape.x,
+                                                                    offsetY: coords.y - shape.y,
+                                                                    startShape: shape,
+                                                                    currentX: shape.x,
+                                                                    currentY: shape.y,
+                                                                    currentW: shape.w,
+                                                                    currentH: shape.h,
+                                                                    currentCrop: crop
+                                                                });
+                                                            }
+                                                        };
+
+                                                        const handleImageMouseEnter = (e) => {
+                                                            setHoveredShapeId(shape.id);
+                                                            if (cadTool === 'erase') {
+                                                                const imgEl = e.currentTarget.querySelector('svg');
+                                                                if (imgEl) {
+                                                                    imgEl.style.opacity = '0.3';
+                                                                    imgEl.style.outline = '2px dashed #ef4444';
+                                                                }
+                                                            }
+                                                        };
+
+                                                        const handleImageMouseLeave = (e) => {
+                                                            setHoveredShapeId(null);
+                                                            const imgEl = e.currentTarget.querySelector('svg');
+                                                            if (imgEl) {
+                                                                imgEl.style.opacity = shape.opacity || 0.85;
+                                                                imgEl.style.outline = 'none';
+                                                            }
+                                                        };
+
+                                                        const imageCursorStyle = cadTool === 'erase' ? 'pointer' : (cadTool === 'select' ? (isDraggingThis ? 'grabbing' : 'grab') : cursorStyle);
+                                                        const imagePointerEvents = ['move', 'rotate', 'mirror', 'erase', 'select'].includes(cadTool) ? 'all' : 'none';
+
+                                                        return (
+                                                            <g
+                                                                key={shape.id}
+                                                                className={gClassName}
+                                                                transform={rotationStr}
+                                                                onClick={handleImageClick}
+                                                                onMouseDown={handleImageMouseDown}
+                                                                onMouseEnter={handleImageMouseEnter}
+                                                                onMouseLeave={handleImageMouseLeave}
+                                                                style={{ cursor: imageCursorStyle }}
+                                                                pointerEvents={imagePointerEvents}
+                                                            >
+                                                                {/* Cropped Image using nested <svg> viewport */}
+                                                                <svg
+                                                                    x={displayX}
+                                                                    y={displayY}
+                                                                    width={displayW}
+                                                                    height={displayH}
+                                                                    viewBox={`${crop.x} ${crop.y} ${crop.w} ${crop.h}`}
+                                                                    preserveAspectRatio="none"
+                                                                    opacity={shape.opacity || 0.85}
+                                                                    style={{
+                                                                        transition: isDraggingThis ? 'none' : 'opacity 0.2s',
+                                                                    }}
+                                                                >
+                                                                    <image
+                                                                        href={shape.src}
+                                                                        x="0"
+                                                                        y="0"
+                                                                        width={natW}
+                                                                        height={natH}
+                                                                    />
+                                                                </svg>
+
+                                                                {/* Image border indicator */}
+                                                                <rect
+                                                                    x={displayX}
+                                                                    y={displayY}
+                                                                    width={displayW}
+                                                                    height={displayH}
+                                                                    fill="none"
+                                                                    stroke={isSelected ? "#8b5cf6" : "#3b82f680"}
+                                                                    strokeWidth={isSelected ? "1.5" : "0.5"}
+                                                                    strokeDasharray={isSelected ? "none" : "4,2"}
+                                                                    pointerEvents="none"
+                                                                />
+
+                                                                {/* Selected overlay handles */}
+                                                                {isSelected && cadTool === 'select' && (
+                                                                    <>
+                                                                        {/* Corner Resize Handles */}
+                                                                        <rect
+                                                                            x={displayX - 4}
+                                                                            y={displayY - 4}
+                                                                            width="8"
+                                                                            height="8"
+                                                                            fill="white"
+                                                                            stroke="#8b5cf6"
+                                                                            strokeWidth="1.5"
+                                                                            style={{ cursor: 'nwse-resize' }}
+                                                                            onMouseDown={(e) => {
+                                                                                e.stopPropagation();
+                                                                                e.preventDefault();
+                                                                                const coords = getCanvasCoords(e);
+                                                                                setDragImageShape({
+                                                                                    id: shape.id,
+                                                                                    type: 'resize-tl',
+                                                                                    startX: coords.x,
+                                                                                    startY: coords.y,
+                                                                                    startShape: shape,
+                                                                                    currentX: shape.x,
+                                                                                    currentY: shape.y,
+                                                                                    currentW: shape.w,
+                                                                                    currentH: shape.h,
+                                                                                    currentCrop: crop
+                                                                                });
+                                                                            }}
+                                                                        />
+                                                                        <rect
+                                                                            x={displayX + displayW - 4}
+                                                                            y={displayY - 4}
+                                                                            width="8"
+                                                                            height="8"
+                                                                            fill="white"
+                                                                            stroke="#8b5cf6"
+                                                                            strokeWidth="1.5"
+                                                                            style={{ cursor: 'nesw-resize' }}
+                                                                            onMouseDown={(e) => {
+                                                                                e.stopPropagation();
+                                                                                e.preventDefault();
+                                                                                const coords = getCanvasCoords(e);
+                                                                                setDragImageShape({
+                                                                                    id: shape.id,
+                                                                                    type: 'resize-tr',
+                                                                                    startX: coords.x,
+                                                                                    startY: coords.y,
+                                                                                    startShape: shape,
+                                                                                    currentX: shape.x,
+                                                                                    currentY: shape.y,
+                                                                                    currentW: shape.w,
+                                                                                    currentH: shape.h,
+                                                                                    currentCrop: crop
+                                                                                });
+                                                                            }}
+                                                                        />
+                                                                        <rect
+                                                                            x={displayX - 4}
+                                                                            y={displayY + displayH - 4}
+                                                                            width="8"
+                                                                            height="8"
+                                                                            fill="white"
+                                                                            stroke="#8b5cf6"
+                                                                            strokeWidth="1.5"
+                                                                            style={{ cursor: 'nesw-resize' }}
+                                                                            onMouseDown={(e) => {
+                                                                                e.stopPropagation();
+                                                                                e.preventDefault();
+                                                                                const coords = getCanvasCoords(e);
+                                                                                setDragImageShape({
+                                                                                    id: shape.id,
+                                                                                    type: 'resize-bl',
+                                                                                    startX: coords.x,
+                                                                                    startY: coords.y,
+                                                                                    startShape: shape,
+                                                                                    currentX: shape.x,
+                                                                                    currentY: shape.y,
+                                                                                    currentW: shape.w,
+                                                                                    currentH: shape.h,
+                                                                                    currentCrop: crop
+                                                                                });
+                                                                            }}
+                                                                        />
+                                                                        <rect
+                                                                            x={displayX + displayW - 4}
+                                                                            y={displayY + displayH - 4}
+                                                                            width="8"
+                                                                            height="8"
+                                                                            fill="white"
+                                                                            stroke="#8b5cf6"
+                                                                            strokeWidth="1.5"
+                                                                            style={{ cursor: 'nwse-resize' }}
+                                                                            onMouseDown={(e) => {
+                                                                                e.stopPropagation();
+                                                                                e.preventDefault();
+                                                                                const coords = getCanvasCoords(e);
+                                                                                setDragImageShape({
+                                                                                    id: shape.id,
+                                                                                    type: 'resize-br',
+                                                                                    startX: coords.x,
+                                                                                    startY: coords.y,
+                                                                                    startShape: shape,
+                                                                                    currentX: shape.x,
+                                                                                    currentY: shape.y,
+                                                                                    currentW: shape.w,
+                                                                                    currentH: shape.h,
+                                                                                    currentCrop: crop
+                                                                                });
+                                                                            }}
+                                                                        />
+                                                                        {/* Edge Crop Handles */}
+                                                                        <rect
+                                                                            x={displayX + displayW / 2 - 8}
+                                                                            y={displayY - 3}
+                                                                            width="16"
+                                                                            height="4"
+                                                                            fill="#1e293b"
+                                                                            stroke="#8b5cf6"
+                                                                            strokeWidth="0.5"
+                                                                            style={{ cursor: 'ns-resize' }}
+                                                                            onMouseDown={(e) => {
+                                                                                e.stopPropagation();
+                                                                                e.preventDefault();
+                                                                                const coords = getCanvasCoords(e);
+                                                                                setDragImageShape({
+                                                                                    id: shape.id,
+                                                                                    type: 'crop-t',
+                                                                                    startX: coords.x,
+                                                                                    startY: coords.y,
+                                                                                    startShape: shape,
+                                                                                    currentX: shape.x,
+                                                                                    currentY: shape.y,
+                                                                                    currentW: shape.w,
+                                                                                    currentH: shape.h,
+                                                                                    currentCrop: crop
+                                                                                });
+                                                                            }}
+                                                                        />
+                                                                        <rect
+                                                                            x={displayX + displayW / 2 - 8}
+                                                                            y={displayY + displayH - 1}
+                                                                            width="16"
+                                                                            height="4"
+                                                                            fill="#1e293b"
+                                                                            stroke="#8b5cf6"
+                                                                            strokeWidth="0.5"
+                                                                            style={{ cursor: 'ns-resize' }}
+                                                                            onMouseDown={(e) => {
+                                                                                e.stopPropagation();
+                                                                                e.preventDefault();
+                                                                                const coords = getCanvasCoords(e);
+                                                                                setDragImageShape({
+                                                                                    id: shape.id,
+                                                                                    type: 'crop-b',
+                                                                                    startX: coords.x,
+                                                                                    startY: coords.y,
+                                                                                    startShape: shape,
+                                                                                    currentX: shape.x,
+                                                                                    currentY: shape.y,
+                                                                                    currentW: shape.w,
+                                                                                    currentH: shape.h,
+                                                                                    currentCrop: crop
+                                                                                });
+                                                                            }}
+                                                                        />
+                                                                        <rect
+                                                                            x={displayX - 3}
+                                                                            y={displayY + displayH / 2 - 8}
+                                                                            width="4"
+                                                                            height="16"
+                                                                            fill="#1e293b"
+                                                                            stroke="#8b5cf6"
+                                                                            strokeWidth="0.5"
+                                                                            style={{ cursor: 'ew-resize' }}
+                                                                            onMouseDown={(e) => {
+                                                                                e.stopPropagation();
+                                                                                e.preventDefault();
+                                                                                const coords = getCanvasCoords(e);
+                                                                                setDragImageShape({
+                                                                                    id: shape.id,
+                                                                                    type: 'crop-l',
+                                                                                    startX: coords.x,
+                                                                                    startY: coords.y,
+                                                                                    startShape: shape,
+                                                                                    currentX: shape.x,
+                                                                                    currentY: shape.y,
+                                                                                    currentW: shape.w,
+                                                                                    currentH: shape.h,
+                                                                                    currentCrop: crop
+                                                                                });
+                                                                            }}
+                                                                        />
+                                                                        <rect
+                                                                            x={displayX + displayW - 1}
+                                                                            y={displayY + displayH / 2 - 8}
+                                                                            width="4"
+                                                                            height="16"
+                                                                            fill="#1e293b"
+                                                                            stroke="#8b5cf6"
+                                                                            strokeWidth="0.5"
+                                                                            style={{ cursor: 'ew-resize' }}
+                                                                            onMouseDown={(e) => {
+                                                                                e.stopPropagation();
+                                                                                e.preventDefault();
+                                                                                const coords = getCanvasCoords(e);
+                                                                                setDragImageShape({
+                                                                                    id: shape.id,
+                                                                                    type: 'crop-r',
+                                                                                    startX: coords.x,
+                                                                                    startY: coords.y,
+                                                                                    startShape: shape,
+                                                                                    currentX: shape.x,
+                                                                                    currentY: shape.y,
+                                                                                    currentW: shape.w,
+                                                                                    currentH: shape.h,
+                                                                                    currentCrop: crop
+                                                                                });
+                                                                            }}
+                                                                        />
+                                                                        {/* Contextual Toolbar */}
+                                                                        <foreignObject
+                                                                            x={displayX}
+                                                                            y={displayY - 26 > 5 ? displayY - 26 : displayY + displayH + 5}
+                                                                            width="240"
+                                                                            height="24"
+                                                                        >
+                                                                            <div style={{
+                                                                                display: 'flex',
+                                                                                gap: '4px',
+                                                                                backgroundColor: '#0f172ae6',
+                                                                                border: '1px solid #8b5cf6',
+                                                                                borderRadius: '4px',
+                                                                                padding: '2px 4px',
+                                                                                alignItems: 'center',
+                                                                                width: 'max-content',
+                                                                                boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+                                                                                fontFamily: "'Inter', sans-serif"
+                                                                            }}>
+                                                                                <span style={{ fontSize: '0.55rem', color: '#a78bfa', fontWeight: 800, padding: '0 2px' }}>GAMBAR</span>
+                                                                                <button
+                                                                                    onClick={(ev) => {
+                                                                                        ev.stopPropagation();
+                                                                                        const currentShapes = selectedDwg.shapes || [];
+                                                                                        const updated = currentShapes.map(s => {
+                                                                                            if (s.id === shape.id) {
+                                                                                                return {
+                                                                                                    ...s,
+                                                                                                    crop: { x: 0, y: 0, w: s.naturalWidth || s.w, h: s.naturalHeight || s.h }
+                                                                                                };
+                                                                                            }
+                                                                                            return s;
+                                                                                        });
+                                                                                        updateShapes(updated);
+                                                                                        toast.success('Crop direset ke ukuran penuh.');
+                                                                                    }}
+                                                                                    style={{
+                                                                                        background: '#312e81', border: 'none', color: '#c084fc', cursor: 'pointer',
+                                                                                        padding: '1px 5px', fontSize: '0.55rem', fontWeight: 'bold', borderRadius: '3px',
+                                                                                        transition: 'background-color 0.1s'
+                                                                                    }}
+                                                                                    onMouseEnter={ev => ev.currentTarget.style.backgroundColor = '#3730a3'}
+                                                                                    onMouseLeave={ev => ev.currentTarget.style.backgroundColor = '#312e81'}
+                                                                                >
+                                                                                    Reset Crop
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={(ev) => {
+                                                                                        ev.stopPropagation();
+                                                                                        const currentShapes = selectedDwg.shapes || [];
+                                                                                        updateShapes(currentShapes.filter(s => s.id !== shape.id));
+                                                                                        setSelectedShapeId(null);
+                                                                                        toast.success('Gambar berhasil dihapus.');
+                                                                                    }}
+                                                                                    style={{
+                                                                                        background: '#7f1d1d', border: 'none', color: '#fca5a5', cursor: 'pointer',
+                                                                                        padding: '1px 5px', fontSize: '0.55rem', fontWeight: 'bold', borderRadius: '3px',
+                                                                                        transition: 'background-color 0.1s'
+                                                                                    }}
+                                                                                    onMouseEnter={ev => ev.currentTarget.style.backgroundColor = '#991b1b'}
+                                                                                    onMouseLeave={ev => ev.currentTarget.style.backgroundColor = '#7f1d1d'}
+                                                                                >
+                                                                                    Hapus
+                                                                                </button>
+                                                                            </div>
+                                                                        </foreignObject>
+                                                                    </>
+                                                                )}
+
+                                                                {/* Label badge (only show if not selected to reduce clutter) */}
+                                                                {!isSelected && (
+                                                                    <>
+                                                                        <rect
+                                                                            x={displayX}
+                                                                            y={displayY - 11}
+                                                                            width={Math.min(shape.fileName?.length * 4.5 + 12 || 50, displayW)}
+                                                                            height="11"
+                                                                            rx="2"
+                                                                            fill="#0f172aCC"
+                                                                            pointerEvents="none"
+                                                                        />
+                                                                        <text
+                                                                            x={displayX + 4}
+                                                                            y={displayY - 3}
+                                                                            fill="#94a3b8"
+                                                                            fontSize="6"
+                                                                            fontFamily="monospace"
+                                                                            pointerEvents="none"
+                                                                        >
+                                                                            🖼 {(shape.fileName || 'image').substring(0, Math.floor(displayW / 4.5))}
+                                                                        </text>
+                                                                    </>
+                                                                )}
+                                                            </g>
                                                         );
                                                     }
                                                     return null;
                                                 })}
-                                        </g>
-                                    )}
 
-                                    {/* Dynamic Indicators */}
-                                    {selectedDwg && renderDimensionIndicators(
-                                        selectedDwg.dimensions.filter(dim => 
-                                            activeLayer === 'All Layers' || 
-                                            dim.layer === activeLayer ||
-                                            !dim.id.startsWith('dim_dxf')
-                                        )
-                                    )}
+                                                {/* Temporary drawing shape during active drag */}
+                                                {drawingShape && (() => {
+                                                    const tempProps = {
+                                                        stroke: drawingShape.color,
+                                                        strokeWidth: drawingShape.strokeWidth,
+                                                        fill: 'none',
+                                                        style: { pointerEvents: 'none' }
+                                                    };
 
-                                    {/* Custom CAD Drawing Overlay */}
-                                    {selectedDwg && (selectedDwg.shapes || []).map((shape) => {
-                                        const center = getShapeCenter(shape);
-                                        const rotationStr = shape.rotation ? `rotate(${shape.rotation}, ${shape.cx ?? center.x}, ${shape.cy ?? center.y})` : '';
-                                         
-                                         const isBlinking = 
-                                             selectedShapeId === shape.id ||
-                                             (hoveredShapeId === shape.id && ['move', 'rotate', 'mirror', 'trim'].includes(cadTool)) ||
-                                             (dragShape && dragShape.id === shape.id && ['move', 'rotate'].includes(dragShape.type)) ||
-                                             (mirrorMenu && mirrorMenu.shapeId === shape.id);
-                                         const gClassName = isBlinking ? 'cad-blink' : '';
-                                        
-                                        const handleLocalClick = (e) => {
-                                            e.stopPropagation();
-                                            const coords = getCanvasCoords(e);
-                                            
-                                            if (cadTool === 'erase') {
-                                                const currentShapes = selectedDwg.shapes || [];
-                                                updateShapes(currentShapes.filter(s => s.id !== shape.id));
-                                                toast.success('Bentuk terhapus', { id: 'erase-shape' });
-                                            } else if (cadTool === 'mirror') {
-                                                const parentRect = svgRef.current.parentElement.getBoundingClientRect();
-                                                const top = e.clientY - parentRect.top;
-                                                const left = e.clientX - parentRect.left;
-                                                setMirrorMenu({
-                                                    shapeId: shape.id,
-                                                    x: left,
-                                                    y: top
-                                                });
-                                            } else if (cadTool === 'trim' && shape.type === 'line') {
-                                                handleTrimLine(shape, coords.x, coords.y);
-                                            } else if (cadTool === 'select') {
-                                                setSelectedShapeId(shape.id);
-                                            }
-                                        };
-
-                                        const handleLocalMouseDown = (e) => {
-                                            if (e.button !== 0) return; // left click only
-                                            if (cadTool === 'move') {
-                                                e.stopPropagation();
-                                                e.preventDefault();
-                                                const coords = getCanvasCoords(e);
-                                                setDragShape({
-                                                    id: shape.id,
-                                                    type: 'move',
-                                                    startX: coords.x,
-                                                    startY: coords.y,
-                                                    startShape: JSON.parse(JSON.stringify(shape))
-                                                });
-                                            } else if (cadTool === 'rotate') {
-                                                e.stopPropagation();
-                                                e.preventDefault();
-                                                const coords = getCanvasCoords(e);
-                                                const shapeCenter = getShapeCenter(shape);
-                                                setDragShape({
-                                                    id: shape.id,
-                                                    type: 'rotate',
-                                                    startX: coords.x,
-                                                    startY: coords.y,
-                                                    center: shapeCenter,
-                                                    startShape: JSON.parse(JSON.stringify(shape))
-                                                });
-                                            }
-                                        };
-
-                                        const handleShapeMouseEnter = (e) => {
-                                            setHoveredShapeId(shape.id);
-                                            if (cadTool === 'erase') {
-                                                const els = e.currentTarget.querySelectorAll('line, circle, rect, path, polyline');
-                                                els.forEach(el => {
-                                                    if (el.getAttribute('stroke') !== 'transparent') {
-                                                        el.style.stroke = '#ef4444';
-                                                        el.style.strokeDasharray = '4,2';
+                                                    if (drawingShape.type === 'line') {
+                                                        return (
+                                                            <line
+                                                                {...tempProps}
+                                                                x1={drawingShape.x1}
+                                                                y1={drawingShape.y1}
+                                                                x2={drawingShape.x2}
+                                                                y2={drawingShape.y2}
+                                                            />
+                                                        );
+                                                    } else if (drawingShape.type === 'circle') {
+                                                        return (
+                                                            <circle
+                                                                {...tempProps}
+                                                                cx={drawingShape.cx}
+                                                                cy={drawingShape.cy}
+                                                                r={drawingShape.r}
+                                                            />
+                                                        );
+                                                    } else if (drawingShape.type === 'rect') {
+                                                        return (
+                                                            <rect
+                                                                {...tempProps}
+                                                                x={drawingShape.x}
+                                                                y={drawingShape.y}
+                                                                width={drawingShape.w}
+                                                                height={drawingShape.h}
+                                                            />
+                                                        );
                                                     }
-                                                });
-                                                const textEl = e.currentTarget.querySelector('text');
-                                                if (textEl) textEl.style.fill = '#ef4444';
-                                            } else if (cadTool === 'trim' && shape.type === 'line') {
-                                                const els = e.currentTarget.querySelectorAll('line');
-                                                els.forEach(el => {
-                                                    if (el.getAttribute('stroke') !== 'transparent') {
-                                                        el.style.stroke = '#ef4444';
-                                                        el.style.strokeDasharray = '4,2';
-                                                    }
-                                                });
-                                            }
-                                        };
+                                                    return null;
+                                                })()}
 
-                                        const handleShapeMouseLeave = (e) => {
-                                             setHoveredShapeId(null);
-                                            const els = e.currentTarget.querySelectorAll('line, circle, rect, path, polyline');
-                                            els.forEach(el => {
-                                                if (el.getAttribute('stroke') !== 'transparent') {
-                                                    el.style.stroke = shape.color;
-                                                    el.style.strokeDasharray = 'none';
-                                                }
-                                            });
-                                            const textEl = e.currentTarget.querySelector('text');
-                                            if (textEl) textEl.style.fill = shape.color;
-                                        };
-
-                                        const cursorStyle = 
-                                            cadTool === 'erase' ? 'pointer' :
-                                            cadTool === 'select' ? 'pointer' :
-                                            cadTool === 'move' ? 'move' :
-                                            cadTool === 'rotate' ? 'crosshair' :
-                                            cadTool === 'mirror' ? 'pointer' :
-                                            (cadTool === 'trim' && shape.type === 'line') ? 'pointer' :
-                                            'default';
-
-                                        const pointerEvents = ['move', 'rotate', 'mirror', 'trim', 'erase', 'select'].includes(cadTool) ? 'all' : 'none';
-
-                                        const commonProps = {
-                                            stroke: shape.color,
-                                            strokeWidth: shape.strokeWidth || 2,
-                                            style: { transition: 'all 0.1s' }
-                                        };
-
-                                        if (shape.type === 'line') {
-                                            return (
-                                                <g
-                                                    key={shape.id}
-                                                    className={gClassName}
-                                                    transform={rotationStr}
-                                                    onClick={handleLocalClick}
-                                                    onMouseDown={handleLocalMouseDown}
-                                                    onMouseEnter={handleShapeMouseEnter}
-                                                    onMouseLeave={handleShapeMouseLeave}
-                                                    style={{ cursor: cursorStyle }}
-                                                    pointerEvents={pointerEvents}
-                                                >
-                                                    <line x1={shape.x1} y1={shape.y1} x2={shape.x2} y2={shape.y2} stroke="transparent" strokeWidth="15" fill="none" />
-                                                    <line x1={shape.x1} y1={shape.y1} x2={shape.x2} y2={shape.y2} {...commonProps} fill="none" />
-                                                </g>
-                                            );
-                                        } else if (shape.type === 'circle') {
-                                            return (
-                                                <g
-                                                    key={shape.id}
-                                                    className={gClassName}
-                                                    transform={rotationStr}
-                                                    onClick={handleLocalClick}
-                                                    onMouseDown={handleLocalMouseDown}
-                                                    onMouseEnter={handleShapeMouseEnter}
-                                                    onMouseLeave={handleShapeMouseLeave}
-                                                    style={{ cursor: cursorStyle }}
-                                                    pointerEvents={pointerEvents}
-                                                >
-                                                    <circle cx={shape.cx} cy={shape.cy} r={shape.r} stroke="transparent" strokeWidth="15" fill="none" />
-                                                    <circle cx={shape.cx} cy={shape.cy} r={shape.r} {...commonProps} fill="none" />
-                                                </g>
-                                            );
-                                        } else if (shape.type === 'rect') {
-                                            return (
-                                                <g
-                                                    key={shape.id}
-                                                    className={gClassName}
-                                                    transform={rotationStr}
-                                                    onClick={handleLocalClick}
-                                                    onMouseDown={handleLocalMouseDown}
-                                                    onMouseEnter={handleShapeMouseEnter}
-                                                    onMouseLeave={handleShapeMouseLeave}
-                                                    style={{ cursor: cursorStyle }}
-                                                    pointerEvents={pointerEvents}
-                                                >
-                                                    <rect x={shape.x} y={shape.y} width={shape.w} height={shape.h} stroke="transparent" strokeWidth="15" fill="none" />
-                                                    <rect x={shape.x} y={shape.y} width={shape.w} height={shape.h} {...commonProps} fill="none" />
-                                                </g>
-                                            );
-                                        } else if (shape.type === 'arc') {
-                                            const sa = shape.startAngle ?? 0;
-                                            const ea = shape.endAngle ?? 90;
-                                            const saRad = sa * (Math.PI / 180);
-                                            const eaRad = ea * (Math.PI / 180);
-                                            const sx = shape.cx + shape.r * Math.cos(saRad);
-                                            const sy = shape.cy + shape.r * Math.sin(saRad);
-                                            const ex = shape.cx + shape.r * Math.cos(eaRad);
-                                            const ey = shape.cy + shape.r * Math.sin(eaRad);
-                                            const largeArc = Math.abs(ea - sa) > 180 ? 1 : 0;
-                                            const sweepFlag = ea > sa ? 1 : 0;
-                                            const pathD = `M ${sx},${sy} A ${shape.r},${shape.r} 0 ${largeArc},${sweepFlag} ${ex},${ey}`;
-                                            return (
-                                                <g
-                                                    key={shape.id}
-                                                    className={gClassName}
-                                                    transform={rotationStr}
-                                                    onClick={handleLocalClick}
-                                                    onMouseDown={handleLocalMouseDown}
-                                                    onMouseEnter={handleShapeMouseEnter}
-                                                    onMouseLeave={handleShapeMouseLeave}
-                                                    style={{ cursor: cursorStyle }}
-                                                    pointerEvents={pointerEvents}
-                                                >
-                                                    <path d={pathD} stroke="transparent" strokeWidth="15" fill="none" />
-                                                    <path d={pathD} {...commonProps} fill="none" />
-                                                </g>
-                                            );
-                                        } else if (shape.type === 'polyline') {
-                                            const pointsStr = (shape.points || []).map(p => `${p.x},${p.y}`).join(' ');
-                                            return (
-                                                <g
-                                                    key={shape.id}
-                                                    className={gClassName}
-                                                    transform={rotationStr}
-                                                    onClick={handleLocalClick}
-                                                    onMouseDown={handleLocalMouseDown}
-                                                    onMouseEnter={handleShapeMouseEnter}
-                                                    onMouseLeave={handleShapeMouseLeave}
-                                                    style={{ cursor: cursorStyle }}
-                                                    pointerEvents={pointerEvents}
-                                                >
-                                                    <polyline points={pointsStr} stroke="transparent" strokeWidth="15" fill="none" />
-                                                    <polyline points={pointsStr} {...commonProps} fill="none" />
-                                                </g>
-                                            );
-                                        } else if (shape.type === 'text') {
-                                            return (
-                                                <g
-                                                    key={shape.id}
-                                                    className={gClassName}
-                                                    transform={rotationStr}
-                                                    onClick={handleLocalClick}
-                                                    onMouseDown={handleLocalMouseDown}
-                                                    onMouseEnter={handleShapeMouseEnter}
-                                                    onMouseLeave={handleShapeMouseLeave}
-                                                    style={{ cursor: cursorStyle }}
-                                                    pointerEvents={pointerEvents}
-                                                >
-                                                    {/* Extra wide invisible click background block for text */}
-                                                    <rect
-                                                        x={shape.x - 30}
-                                                        y={shape.y - 12}
-                                                        width="60"
-                                                        height="24"
-                                                        fill="transparent"
-                                                    />
-                                                    <text
-                                                        x={shape.x}
-                                                        y={shape.y}
-                                                        fill={shape.color}
-                                                        fontSize={shape.fontSize || 14}
-                                                        textAnchor="middle"
-                                                        dominantBaseline="middle"
-                                                        style={{
-                                                            fontFamily: 'monospace',
-                                                            fontWeight: 'bold',
-                                                            userSelect: 'none'
-                                                        }}
-                                                    >
-                                                        {shape.text}
-                                                    </text>
-                                                </g>
-                                            );
-                                        } else if (shape.type === 'image') {
-                                            const isDraggingThis = dragImageShape && dragImageShape.id === shape.id;
-                                            const displayX = isDraggingThis ? dragImageShape.currentX : shape.x;
-                                            const displayY = isDraggingThis ? dragImageShape.currentY : shape.y;
-                                            const displayW = isDraggingThis ? dragImageShape.currentW : shape.w;
-                                            const displayH = isDraggingThis ? dragImageShape.currentH : shape.h;
-                                            
-                                            const defaultCrop = { x: 0, y: 0, w: shape.naturalWidth || shape.w, h: shape.naturalHeight || shape.h };
-                                            const crop = isDraggingThis && dragImageShape.currentCrop ? dragImageShape.currentCrop : (shape.crop || defaultCrop);
-                                            const natW = shape.naturalWidth || shape.w;
-                                            const natH = shape.naturalHeight || shape.h;
-
-                                            const isSelected = selectedShapeId === shape.id;
-
-                                            const handleImageClick = (e) => {
-                                                if (cadTool === 'erase' || cadTool === 'mirror') {
-                                                    handleLocalClick(e);
-                                                } else if (cadTool === 'select') {
-                                                    e.stopPropagation();
-                                                    setSelectedShapeId(shape.id);
-                                                }
-                                            };
-
-                                            const handleImageMouseDown = (e) => {
-                                                if (cadTool === 'move' || cadTool === 'rotate') {
-                                                    handleLocalMouseDown(e);
-                                                } else if (cadTool === 'select') {
-                                                    e.stopPropagation();
-                                                    e.preventDefault();
-                                                    const coords = getCanvasCoords(e);
-                                                    setSelectedShapeId(shape.id);
-                                                    setDragImageShape({
-                                                        id: shape.id,
-                                                        type: 'move',
-                                                        startX: coords.x,
-                                                        startY: coords.y,
-                                                        offsetX: coords.x - shape.x,
-                                                        offsetY: coords.y - shape.y,
-                                                        startShape: shape,
-                                                        currentX: shape.x,
-                                                        currentY: shape.y,
-                                                        currentW: shape.w,
-                                                        currentH: shape.h,
-                                                        currentCrop: crop
-                                                    });
-                                                }
-                                            };
-
-                                            const handleImageMouseEnter = (e) => {
-                                                 setHoveredShapeId(shape.id);
-                                                if (cadTool === 'erase') {
-                                                    const imgEl = e.currentTarget.querySelector('svg');
-                                                    if (imgEl) {
-                                                        imgEl.style.opacity = '0.3';
-                                                        imgEl.style.outline = '2px dashed #ef4444';
-                                                    }
-                                                }
-                                            };
-
-                                            const handleImageMouseLeave = (e) => {
-                                                 setHoveredShapeId(null);
-                                                const imgEl = e.currentTarget.querySelector('svg');
-                                                if (imgEl) {
-                                                    imgEl.style.opacity = shape.opacity || 0.85;
-                                                    imgEl.style.outline = 'none';
-                                                }
-                                            };
-
-                                            const imageCursorStyle = cadTool === 'erase' ? 'pointer' : (cadTool === 'select' ? (isDraggingThis ? 'grabbing' : 'grab') : cursorStyle);
-                                            const imagePointerEvents = ['move', 'rotate', 'mirror', 'erase', 'select'].includes(cadTool) ? 'all' : 'none';
-
-                                            return (
-                                                <g
-                                                    key={shape.id}
-                                                    className={gClassName}
-                                                    transform={rotationStr}
-                                                    onClick={handleImageClick}
-                                                    onMouseDown={handleImageMouseDown}
-                                                    onMouseEnter={handleImageMouseEnter}
-                                                    onMouseLeave={handleImageMouseLeave}
-                                                    style={{ cursor: imageCursorStyle }}
-                                                    pointerEvents={imagePointerEvents}
-                                                >
-                                                    {/* Cropped Image using nested <svg> viewport */}
-                                                    <svg
-                                                        x={displayX}
-                                                        y={displayY}
-                                                        width={displayW}
-                                                        height={displayH}
-                                                        viewBox={`${crop.x} ${crop.y} ${crop.w} ${crop.h}`}
-                                                        preserveAspectRatio="none"
-                                                        opacity={shape.opacity || 0.85}
-                                                        style={{
-                                                            transition: isDraggingThis ? 'none' : 'opacity 0.2s',
-                                                        }}
-                                                    >
-                                                        <image
-                                                            href={shape.src}
-                                                            x="0"
-                                                            y="0"
-                                                            width={natW}
-                                                            height={natH}
-                                                        />
-                                                    </svg>
-                                                    
-                                                    {/* Image border indicator */}
-                                                    <rect
-                                                        x={displayX}
-                                                        y={displayY}
-                                                        width={displayW}
-                                                        height={displayH}
-                                                        fill="none"
-                                                        stroke={isSelected ? "#8b5cf6" : "#3b82f680"}
-                                                        strokeWidth={isSelected ? "1.5" : "0.5"}
-                                                        strokeDasharray={isSelected ? "none" : "4,2"}
-                                                        pointerEvents="none"
-                                                    />
-
-                                                    {/* Selected overlay handles */}
-                                                    {isSelected && cadTool === 'select' && (
-                                                        <>
-                                                            {/* Corner Resize Handles */}
-                                                            <rect
-                                                                x={displayX - 4}
-                                                                y={displayY - 4}
-                                                                width="8"
-                                                                height="8"
-                                                                fill="white"
-                                                                stroke="#8b5cf6"
-                                                                strokeWidth="1.5"
-                                                                style={{ cursor: 'nwse-resize' }}
-                                                                onMouseDown={(e) => {
-                                                                    e.stopPropagation();
-                                                                    e.preventDefault();
-                                                                    const coords = getCanvasCoords(e);
-                                                                    setDragImageShape({
-                                                                        id: shape.id,
-                                                                        type: 'resize-tl',
-                                                                        startX: coords.x,
-                                                                        startY: coords.y,
-                                                                        startShape: shape,
-                                                                        currentX: shape.x,
-                                                                        currentY: shape.y,
-                                                                        currentW: shape.w,
-                                                                        currentH: shape.h,
-                                                                        currentCrop: crop
-                                                                    });
-                                                                }}
-                                                            />
-                                                            <rect
-                                                                x={displayX + displayW - 4}
-                                                                y={displayY - 4}
-                                                                width="8"
-                                                                height="8"
-                                                                fill="white"
-                                                                stroke="#8b5cf6"
-                                                                strokeWidth="1.5"
-                                                                style={{ cursor: 'nesw-resize' }}
-                                                                onMouseDown={(e) => {
-                                                                    e.stopPropagation();
-                                                                    e.preventDefault();
-                                                                    const coords = getCanvasCoords(e);
-                                                                    setDragImageShape({
-                                                                        id: shape.id,
-                                                                        type: 'resize-tr',
-                                                                        startX: coords.x,
-                                                                        startY: coords.y,
-                                                                        startShape: shape,
-                                                                        currentX: shape.x,
-                                                                        currentY: shape.y,
-                                                                        currentW: shape.w,
-                                                                        currentH: shape.h,
-                                                                        currentCrop: crop
-                                                                    });
-                                                                }}
-                                                            />
-                                                            <rect
-                                                                x={displayX - 4}
-                                                                y={displayY + displayH - 4}
-                                                                width="8"
-                                                                height="8"
-                                                                fill="white"
-                                                                stroke="#8b5cf6"
-                                                                strokeWidth="1.5"
-                                                                style={{ cursor: 'nesw-resize' }}
-                                                                onMouseDown={(e) => {
-                                                                    e.stopPropagation();
-                                                                    e.preventDefault();
-                                                                    const coords = getCanvasCoords(e);
-                                                                    setDragImageShape({
-                                                                        id: shape.id,
-                                                                        type: 'resize-bl',
-                                                                        startX: coords.x,
-                                                                        startY: coords.y,
-                                                                        startShape: shape,
-                                                                        currentX: shape.x,
-                                                                        currentY: shape.y,
-                                                                        currentW: shape.w,
-                                                                        currentH: shape.h,
-                                                                        currentCrop: crop
-                                                                    });
-                                                                }}
-                                                            />
-                                                            <rect
-                                                                x={displayX + displayW - 4}
-                                                                y={displayY + displayH - 4}
-                                                                width="8"
-                                                                height="8"
-                                                                fill="white"
-                                                                stroke="#8b5cf6"
-                                                                strokeWidth="1.5"
-                                                                style={{ cursor: 'nwse-resize' }}
-                                                                onMouseDown={(e) => {
-                                                                    e.stopPropagation();
-                                                                    e.preventDefault();
-                                                                    const coords = getCanvasCoords(e);
-                                                                    setDragImageShape({
-                                                                        id: shape.id,
-                                                                        type: 'resize-br',
-                                                                        startX: coords.x,
-                                                                        startY: coords.y,
-                                                                        startShape: shape,
-                                                                        currentX: shape.x,
-                                                                        currentY: shape.y,
-                                                                        currentW: shape.w,
-                                                                        currentH: shape.h,
-                                                                        currentCrop: crop
-                                                                    });
-                                                                }}
-                                                            />
-                                                            {/* Edge Crop Handles */}
-                                                            <rect
-                                                                x={displayX + displayW / 2 - 8}
-                                                                y={displayY - 3}
-                                                                width="16"
-                                                                height="4"
-                                                                fill="#1e293b"
-                                                                stroke="#8b5cf6"
-                                                                strokeWidth="0.5"
-                                                                style={{ cursor: 'ns-resize' }}
-                                                                onMouseDown={(e) => {
-                                                                    e.stopPropagation();
-                                                                    e.preventDefault();
-                                                                    const coords = getCanvasCoords(e);
-                                                                    setDragImageShape({
-                                                                        id: shape.id,
-                                                                        type: 'crop-t',
-                                                                        startX: coords.x,
-                                                                        startY: coords.y,
-                                                                        startShape: shape,
-                                                                        currentX: shape.x,
-                                                                        currentY: shape.y,
-                                                                        currentW: shape.w,
-                                                                        currentH: shape.h,
-                                                                        currentCrop: crop
-                                                                    });
-                                                                }}
-                                                            />
-                                                            <rect
-                                                                x={displayX + displayW / 2 - 8}
-                                                                y={displayY + displayH - 1}
-                                                                width="16"
-                                                                height="4"
-                                                                fill="#1e293b"
-                                                                stroke="#8b5cf6"
-                                                                strokeWidth="0.5"
-                                                                style={{ cursor: 'ns-resize' }}
-                                                                onMouseDown={(e) => {
-                                                                    e.stopPropagation();
-                                                                    e.preventDefault();
-                                                                    const coords = getCanvasCoords(e);
-                                                                    setDragImageShape({
-                                                                        id: shape.id,
-                                                                        type: 'crop-b',
-                                                                        startX: coords.x,
-                                                                        startY: coords.y,
-                                                                        startShape: shape,
-                                                                        currentX: shape.x,
-                                                                        currentY: shape.y,
-                                                                        currentW: shape.w,
-                                                                        currentH: shape.h,
-                                                                        currentCrop: crop
-                                                                    });
-                                                                }}
-                                                            />
-                                                            <rect
-                                                                x={displayX - 3}
-                                                                y={displayY + displayH / 2 - 8}
-                                                                width="4"
-                                                                height="16"
-                                                                fill="#1e293b"
-                                                                stroke="#8b5cf6"
-                                                                strokeWidth="0.5"
-                                                                style={{ cursor: 'ew-resize' }}
-                                                                onMouseDown={(e) => {
-                                                                    e.stopPropagation();
-                                                                    e.preventDefault();
-                                                                    const coords = getCanvasCoords(e);
-                                                                    setDragImageShape({
-                                                                        id: shape.id,
-                                                                        type: 'crop-l',
-                                                                        startX: coords.x,
-                                                                        startY: coords.y,
-                                                                        startShape: shape,
-                                                                        currentX: shape.x,
-                                                                        currentY: shape.y,
-                                                                        currentW: shape.w,
-                                                                        currentH: shape.h,
-                                                                        currentCrop: crop
-                                                                    });
-                                                                }}
-                                                            />
-                                                            <rect
-                                                                x={displayX + displayW - 1}
-                                                                y={displayY + displayH / 2 - 8}
-                                                                width="4"
-                                                                height="16"
-                                                                fill="#1e293b"
-                                                                stroke="#8b5cf6"
-                                                                strokeWidth="0.5"
-                                                                style={{ cursor: 'ew-resize' }}
-                                                                onMouseDown={(e) => {
-                                                                    e.stopPropagation();
-                                                                    e.preventDefault();
-                                                                    const coords = getCanvasCoords(e);
-                                                                    setDragImageShape({
-                                                                        id: shape.id,
-                                                                        type: 'crop-r',
-                                                                        startX: coords.x,
-                                                                        startY: coords.y,
-                                                                        startShape: shape,
-                                                                        currentX: shape.x,
-                                                                        currentY: shape.y,
-                                                                        currentW: shape.w,
-                                                                        currentH: shape.h,
-                                                                        currentCrop: crop
-                                                                    });
-                                                                }}
-                                                            />
-                                                            {/* Contextual Toolbar */}
-                                                            <foreignObject
-                                                                x={displayX}
-                                                                y={displayY - 26 > 5 ? displayY - 26 : displayY + displayH + 5}
-                                                                width="240"
-                                                                height="24"
-                                                            >
-                                                                <div style={{
-                                                                    display: 'flex',
-                                                                    gap: '4px',
-                                                                    backgroundColor: '#0f172ae6',
-                                                                    border: '1px solid #8b5cf6',
-                                                                    borderRadius: '4px',
-                                                                    padding: '2px 4px',
-                                                                    alignItems: 'center',
-                                                                    width: 'max-content',
-                                                                    boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
-                                                                    fontFamily: "'Inter', sans-serif"
-                                                                }}>
-                                                                    <span style={{ fontSize: '0.55rem', color: '#a78bfa', fontWeight: 800, padding: '0 2px' }}>GAMBAR</span>
-                                                                    <button
-                                                                        onClick={(ev) => {
-                                                                            ev.stopPropagation();
-                                                                            const currentShapes = selectedDwg.shapes || [];
-                                                                            const updated = currentShapes.map(s => {
-                                                                                if (s.id === shape.id) {
-                                                                                    return {
-                                                                                        ...s,
-                                                                                        crop: { x: 0, y: 0, w: s.naturalWidth || s.w, h: s.naturalHeight || s.h }
-                                                                                    };
-                                                                                }
-                                                                                return s;
-                                                                            });
-                                                                            updateShapes(updated);
-                                                                            toast.success('Crop direset ke ukuran penuh.');
-                                                                        }}
-                                                                        style={{
-                                                                            background: '#312e81', border: 'none', color: '#c084fc', cursor: 'pointer',
-                                                                            padding: '1px 5px', fontSize: '0.55rem', fontWeight: 'bold', borderRadius: '3px',
-                                                                            transition: 'background-color 0.1s'
-                                                                        }}
-                                                                        onMouseEnter={ev => ev.currentTarget.style.backgroundColor = '#3730a3'}
-                                                                        onMouseLeave={ev => ev.currentTarget.style.backgroundColor = '#312e81'}
-                                                                    >
-                                                                        Reset Crop
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={(ev) => {
-                                                                            ev.stopPropagation();
-                                                                            const currentShapes = selectedDwg.shapes || [];
-                                                                            updateShapes(currentShapes.filter(s => s.id !== shape.id));
-                                                                            setSelectedShapeId(null);
-                                                                            toast.success('Gambar berhasil dihapus.');
-                                                                        }}
-                                                                        style={{
-                                                                            background: '#7f1d1d', border: 'none', color: '#fca5a5', cursor: 'pointer',
-                                                                            padding: '1px 5px', fontSize: '0.55rem', fontWeight: 'bold', borderRadius: '3px',
-                                                                            transition: 'background-color 0.1s'
-                                                                        }}
-                                                                        onMouseEnter={ev => ev.currentTarget.style.backgroundColor = '#991b1b'}
-                                                                        onMouseLeave={ev => ev.currentTarget.style.backgroundColor = '#7f1d1d'}
-                                                                    >
-                                                                        Hapus
-                                                                    </button>
-                                                                </div>
-                                                            </foreignObject>
-                                                        </>
-                                                    )}
-
-                                                    {/* Label badge (only show if not selected to reduce clutter) */}
-                                                    {!isSelected && (
-                                                        <>
-                                                            <rect
-                                                                x={displayX}
-                                                                y={displayY - 11}
-                                                                width={Math.min(shape.fileName?.length * 4.5 + 12 || 50, displayW)}
-                                                                height="11"
-                                                                rx="2"
-                                                                fill="#0f172aCC"
-                                                                pointerEvents="none"
-                                                            />
-                                                            <text
-                                                                x={displayX + 4}
-                                                                y={displayY - 3}
-                                                                fill="#94a3b8"
-                                                                fontSize="6"
-                                                                fontFamily="monospace"
-                                                                pointerEvents="none"
-                                                            >
-                                                                🖼 {(shape.fileName || 'image').substring(0, Math.floor(displayW / 4.5))}
-                                                            </text>
-                                                        </>
-                                                    )}
-                                                </g>
-                                            );
-                                        }
-                                        return null;
-                                    })}
-
-                                    {/* Temporary drawing shape during active drag */}
-                                    {drawingShape && (() => {
-                                        const tempProps = {
-                                            stroke: drawingShape.color,
-                                            strokeWidth: drawingShape.strokeWidth,
-                                            fill: 'none',
-                                            style: { pointerEvents: 'none' }
-                                        };
-                                        
-                                        if (drawingShape.type === 'line') {
-                                            return (
-                                                <line
-                                                    {...tempProps}
-                                                    x1={drawingShape.x1}
-                                                    y1={drawingShape.y1}
-                                                    x2={drawingShape.x2}
-                                                    y2={drawingShape.y2}
-                                                />
-                                            );
-                                        } else if (drawingShape.type === 'circle') {
-                                            return (
-                                                <circle
-                                                    {...tempProps}
-                                                    cx={drawingShape.cx}
-                                                    cy={drawingShape.cy}
-                                                    r={drawingShape.r}
-                                                />
-                                            );
-                                        } else if (drawingShape.type === 'rect') {
-                                            return (
-                                                <rect
-                                                    {...tempProps}
-                                                    x={drawingShape.x}
-                                                    y={drawingShape.y}
-                                                    width={drawingShape.w}
-                                                    height={drawingShape.h}
-                                                />
-                                            );
-                                        }
-                                        return null;
-                                    })()}
-
-                                    {/* Real-time measurement tooltips for active line/circle/rect drawing */}
-                                    {drawingShape && (() => {
-                                        if (drawingShape.type === 'line') {
-                                            const dx = drawingShape.x2 - drawingShape.x1;
-                                            const dy = drawingShape.y2 - drawingShape.y1;
-                                            const px = Math.sqrt(dx * dx + dy * dy);
-                                            const factor = selectedDwg?.scaleFactor || 1.0;
-                                            const text = selectedDwg?.scaleFactor ? `${(px * factor).toFixed(2)} mm` : `${px.toFixed(1)} px`;
-                                            return (
-                                                <g style={{ pointerEvents: 'none' }} transform={`translate(${mousePos.x + 15}, ${mousePos.y - 15})`}>
-                                                    <rect x="0" y="-8" width="85" height="18" rx="3" fill="#0f172ae6" stroke="#3b82f6" strokeWidth="1" />
-                                                    <text x="42.5" y="4" fill="#3b82f6" fontSize="8.5" fontWeight="bold" textAnchor="middle">{text}</text>
-                                                </g>
-                                            );
-                                        } else if (drawingShape.type === 'circle') {
-                                            const px = drawingShape.r;
-                                            const factor = selectedDwg?.scaleFactor || 1.0;
-                                            const text = selectedDwg?.scaleFactor ? `⌀ ${(px * 2 * factor).toFixed(2)} mm` : `⌀ ${(px * 2).toFixed(1)} px`;
-                                            return (
-                                                <g style={{ pointerEvents: 'none' }} transform={`translate(${mousePos.x + 15}, ${mousePos.y - 15})`}>
-                                                    <rect x="0" y="-8" width="85" height="18" rx="3" fill="#0f172ae6" stroke="#3b82f6" strokeWidth="1" />
-                                                    <text x="42.5" y="4" fill="#3b82f6" fontSize="8.5" fontWeight="bold" textAnchor="middle">{text}</text>
-                                                </g>
-                                            );
-                                        } else if (drawingShape.type === 'rect') {
-                                            const factor = selectedDwg?.scaleFactor || 1.0;
-                                            const w = drawingShape.w * factor;
-                                            const h = drawingShape.h * factor;
-                                            const unit = selectedDwg?.scaleFactor ? 'mm' : 'px';
-                                            return (
-                                                <g style={{ pointerEvents: 'none' }} transform={`translate(${mousePos.x + 15}, ${mousePos.y - 15})`}>
-                                                    <rect x="0" y="-8" width="95" height="18" rx="3" fill="#0f172ae6" stroke="#3b82f6" strokeWidth="1" />
-                                                    <text x="47.5" y="4" fill="#3b82f6" fontSize="8" fontWeight="bold" textAnchor="middle">{`${w.toFixed(1)}x${h.toFixed(1)} ${unit}`}</text>
-                                                </g>
-                                            );
-                                        }
-                                        return null;
-                                    })()}
-
-                                    {/* Scale Calibration Line Draft Preview */}
-                                    {cadTool === 'scale' && scaleDraftCoords && (
-                                        <g style={{ pointerEvents: 'none' }}>
-                                            <line x1={scaleDraftCoords.x1} y1={scaleDraftCoords.y1} x2={scaleDraftCoords.x2} y2={scaleDraftCoords.y2} stroke="#10b981" strokeWidth="2.5" />
-                                            <circle cx={scaleDraftCoords.x1} cy={scaleDraftCoords.y1} r="4" fill="#10b981" />
-                                            <circle cx={scaleDraftCoords.x2} cy={scaleDraftCoords.y2} r="4" fill="#10b981" />
-                                            {(() => {
-                                                const px = Math.sqrt((scaleDraftCoords.x2 - scaleDraftCoords.x1)**2 + (scaleDraftCoords.y2 - scaleDraftCoords.y1)**2);
-                                                return (
-                                                    <g transform={`translate(${(scaleDraftCoords.x1 + scaleDraftCoords.x2)/2}, ${(scaleDraftCoords.y1 + scaleDraftCoords.y2)/2 - 15})`}>
-                                                        <rect x="-40" y="-8" width="80" height="16" rx="2" fill="#0f172a" stroke="#10b981" strokeWidth="1" />
-                                                        <text x="0" y="4" fill="#10b981" fontSize="9" fontWeight="bold" textAnchor="middle">{px.toFixed(1)} px</text>
-                                                    </g>
-                                                );
-                                            })()}
-                                        </g>
-                                    )}
-
-                                    {/* Dimension Drafting Previews */}
-                                    {cadTool === 'dimension' && dimDraftCoords && (
-                                        <g style={{ pointerEvents: 'none' }}>
-                                            {dimDrawState === 'waiting_end' && (
-                                                <>
-                                                    <line x1={dimDraftCoords.x1} y1={dimDraftCoords.y1} x2={dimDraftCoords.x2} y2={dimDraftCoords.y2} stroke="#3b82f6" strokeWidth="1.5" strokeDasharray="3,3" />
-                                                    <circle cx={dimDraftCoords.x1} cy={dimDraftCoords.y1} r="4" fill="#3b82f6" />
-                                                    <circle cx={dimDraftCoords.x2} cy={dimDraftCoords.y2} r="4" fill="#3b82f6" />
-                                                    {(() => {
-                                                        const px = Math.sqrt((dimDraftCoords.x2 - dimDraftCoords.x1)**2 + (dimDraftCoords.y2 - dimDraftCoords.y1)**2);
+                                                {/* Real-time measurement tooltips for active line/circle/rect drawing */}
+                                                {drawingShape && (() => {
+                                                    if (drawingShape.type === 'line') {
+                                                        const dx = drawingShape.x2 - drawingShape.x1;
+                                                        const dy = drawingShape.y2 - drawingShape.y1;
+                                                        const px = Math.sqrt(dx * dx + dy * dy);
                                                         const factor = selectedDwg?.scaleFactor || 1.0;
                                                         const text = selectedDwg?.scaleFactor ? `${(px * factor).toFixed(2)} mm` : `${px.toFixed(1)} px`;
                                                         return (
-                                                            <g transform={`translate(${(dimDraftCoords.x1 + dimDraftCoords.x2)/2}, ${(dimDraftCoords.y1 + dimDraftCoords.y2)/2 - 15})`}>
-                                                                <rect x="-40" y="-8" width="80" height="16" rx="2" fill="#0f172a" stroke="#3b82f6" strokeWidth="1" />
-                                                                <text x="0" y="4" fill="#3b82f6" fontSize="9" fontWeight="bold" textAnchor="middle">{text}</text>
+                                                            <g style={{ pointerEvents: 'none' }} transform={`translate(${mousePos.x + 15}, ${mousePos.y - 15})`}>
+                                                                <rect x="0" y="-8" width="85" height="18" rx="3" fill="#0f172ae6" stroke="#3b82f6" strokeWidth="1" />
+                                                                <text x="42.5" y="4" fill="#3b82f6" fontSize="8.5" fontWeight="bold" textAnchor="middle">{text}</text>
                                                             </g>
                                                         );
-                                                    })()}
-                                                </>
-                                            )}
-                                            {dimDrawState === 'waiting_offset' && (
-                                                <>
-                                                    <line x1={dimDraftCoords.x1} y1={dimDraftCoords.y1} x2={dimDraftCoords.x1} y2={dimDraftCoords.ly} stroke="rgba(148,163,184,0.4)" strokeWidth="0.75" strokeDasharray="2,2" />
-                                                    <line x1={dimDraftCoords.x2} y1={dimDraftCoords.y2} x2={dimDraftCoords.x2} y2={dimDraftCoords.ly} stroke="rgba(148,163,184,0.4)" strokeWidth="0.75" strokeDasharray="2,2" />
-                                                    <line x1={dimDraftCoords.x1} y1={dimDraftCoords.ly} x2={dimDraftCoords.x2} y2={dimDraftCoords.ly} stroke="#3b82f6" strokeWidth="1.5" />
-                                                    <polygon points={`${dimDraftCoords.x1},${dimDraftCoords.ly} ${dimDraftCoords.x1+8},${dimDraftCoords.ly-3} ${dimDraftCoords.x1+8},${dimDraftCoords.ly+3}`} fill="#3b82f6" />
-                                                    <polygon points={`${dimDraftCoords.x2},${dimDraftCoords.ly} ${dimDraftCoords.x2-8},${dimDraftCoords.ly-3} ${dimDraftCoords.x2-8},${dimDraftCoords.ly+3}`} fill="#3b82f6" />
-                                                    
-                                                    <g transform={`translate(${dimDraftCoords.lx}, ${dimDraftCoords.ly - 10})`}>
-                                                        <rect x="-45" y="-8" width="90" height="16" rx="2" fill="#0f172a" stroke="#3b82f6" strokeWidth="1" />
-                                                        <text x="0" y="4" fill="#3b82f6" fontSize="9" fontWeight="bold" textAnchor="middle">
-                                                            {(() => {
-                                                                const px = Math.sqrt((dimDraftCoords.x2 - dimDraftCoords.x1)**2 + (dimDraftCoords.y2 - dimDraftCoords.y1)**2);
-                                                                const factor = selectedDwg?.scaleFactor || 1.0;
-                                                                return selectedDwg?.scaleFactor ? `${(px * factor).toFixed(2)} mm` : `${px.toFixed(1)} px`;
-                                                            })()}
-                                                        </text>
-                                                    </g>
-                                                </>
-                                            )}
-                                        </g>
-                                    )}
-
-                                    {/* Arc Drafting Previews */}
-                                    {cadTool === 'arc' && arcDraftCoords && (
-                                        <g style={{ pointerEvents: 'none' }}>
-                                            <circle cx={arcDraftCoords.cx} cy={arcDraftCoords.cy} r="3" fill="#60a5fa" />
-                                            {arcDrawState === 'waiting_radius' && (
-                                                <>
-                                                    <line x1={arcDraftCoords.cx} y1={arcDraftCoords.cy} x2={mousePos.x} y2={mousePos.y} stroke="#60a5fa" strokeDasharray="3,3" strokeWidth="1" />
-                                                    <circle cx={arcDraftCoords.cx} cy={arcDraftCoords.cy} r={arcDraftCoords.r} fill="none" stroke="#60a5fa" strokeDasharray="3,3" strokeWidth="1" />
-                                                    {(() => {
+                                                    } else if (drawingShape.type === 'circle') {
+                                                        const px = drawingShape.r;
                                                         const factor = selectedDwg?.scaleFactor || 1.0;
-                                                        const text = selectedDwg?.scaleFactor ? `R: ${(arcDraftCoords.r * factor).toFixed(2)} mm` : `R: ${arcDraftCoords.r.toFixed(1)} px`;
+                                                        const text = selectedDwg?.scaleFactor ? `⌀ ${(px * 2 * factor).toFixed(2)} mm` : `⌀ ${(px * 2).toFixed(1)} px`;
                                                         return (
-                                                            <g transform={`translate(${(arcDraftCoords.cx + mousePos.x)/2}, ${(arcDraftCoords.cy + mousePos.y)/2 - 10})`}>
-                                                                <rect x="-40" y="-8" width="80" height="16" rx="2" fill="#0f172a" stroke="#60a5fa" strokeWidth="1" />
-                                                                <text x="0" y="4" fill="#60a5fa" fontSize="8" fontWeight="bold" textAnchor="middle">{text}</text>
+                                                            <g style={{ pointerEvents: 'none' }} transform={`translate(${mousePos.x + 15}, ${mousePos.y - 15})`}>
+                                                                <rect x="0" y="-8" width="85" height="18" rx="3" fill="#0f172ae6" stroke="#3b82f6" strokeWidth="1" />
+                                                                <text x="42.5" y="4" fill="#3b82f6" fontSize="8.5" fontWeight="bold" textAnchor="middle">{text}</text>
                                                             </g>
                                                         );
-                                                    })()}
-                                                </>
-                                            )}
-                                            {arcDrawState === 'waiting_end' && (
-                                                <>
-                                                    <line x1={arcDraftCoords.cx} y1={arcDraftCoords.cy} x2={arcDraftCoords.x1} y2={arcDraftCoords.y1} stroke="#60a5fa" strokeWidth="1" strokeDasharray="3,3" />
-                                                    <line x1={arcDraftCoords.cx} y1={arcDraftCoords.cy} x2={mousePos.x} y2={mousePos.y} stroke="#60a5fa" strokeWidth="1" strokeDasharray="3,3" />
-                                                    {(() => {
-                                                        const cx = arcDraftCoords.cx;
-                                                        const cy = arcDraftCoords.cy;
-                                                        const r = arcDraftCoords.r;
-                                                        const sa = arcDraftCoords.startAngle;
-                                                        const eaRad = Math.atan2(mousePos.y - cy, mousePos.x - cx);
-                                                        const eaDeg = eaRad * (180 / Math.PI);
-                                                        const saRad = sa * (Math.PI / 180);
-                                                        const sx = cx + r * Math.cos(saRad);
-                                                        const sy = cy + r * Math.sin(saRad);
-                                                        const ex = cx + r * Math.cos(eaRad);
-                                                        const ey = cy + r * Math.sin(eaRad);
-                                                        const largeArc = Math.abs(eaDeg - sa) > 180 ? 1 : 0;
-                                                        const sweepFlag = eaDeg > sa ? 1 : 0;
+                                                    } else if (drawingShape.type === 'rect') {
+                                                        const factor = selectedDwg?.scaleFactor || 1.0;
+                                                        const w = drawingShape.w * factor;
+                                                        const h = drawingShape.h * factor;
+                                                        const unit = selectedDwg?.scaleFactor ? 'mm' : 'px';
                                                         return (
-                                                            <path
-                                                                d={`M ${sx},${sy} A ${r},${r} 0 ${largeArc},${sweepFlag} ${ex},${ey}`}
-                                                                fill="none"
-                                                                stroke={cadColor}
-                                                                strokeWidth={cadWidth}
-                                                            />
-                                                        );
-                                                    })()}
-                                                    {(() => {
-                                                        const cx = arcDraftCoords.cx;
-                                                        const cy = arcDraftCoords.cy;
-                                                        const sa = arcDraftCoords.startAngle;
-                                                        const eaDeg = Math.atan2(mousePos.y - cy, mousePos.x - cx) * (180 / Math.PI);
-                                                        let angleDiff = Math.abs(eaDeg - sa);
-                                                        if (angleDiff > 180) angleDiff = 360 - angleDiff;
-                                                        return (
-                                                            <g transform={`translate(${mousePos.x}, ${mousePos.y - 15})`}>
-                                                                <rect x="-30" y="-8" width="60" height="16" rx="2" fill="#0f172a" stroke="#60a5fa" strokeWidth="1" />
-                                                                <text x="0" y="4" fill="#60a5fa" fontSize="8" fontWeight="bold" textAnchor="middle">{angleDiff.toFixed(1)}°</text>
+                                                            <g style={{ pointerEvents: 'none' }} transform={`translate(${mousePos.x + 15}, ${mousePos.y - 15})`}>
+                                                                <rect x="0" y="-8" width="95" height="18" rx="3" fill="#0f172ae6" stroke="#3b82f6" strokeWidth="1" />
+                                                                <text x="47.5" y="4" fill="#3b82f6" fontSize="8" fontWeight="bold" textAnchor="middle">{`${w.toFixed(1)}x${h.toFixed(1)} ${unit}`}</text>
                                                             </g>
                                                         );
-                                                    })()}
-                                                </>
-                                            )}
-                                        </g>
-                                    )}
+                                                    }
+                                                    return null;
+                                                })()}
 
-                                    {/* Polyline Drafting Previews */}
-                                    {cadTool === 'polyline' && polylineDraftPoints.length > 0 && (
-                                        <g style={{ pointerEvents: 'none' }}>
-                                            <polyline
-                                                points={polylineDraftPoints.map(p => `${p.x},${p.y}`).join(' ')}
-                                                fill="none"
-                                                stroke={cadColor}
-                                                strokeWidth={cadWidth}
-                                                strokeDasharray="4,2"
-                                            />
-                                            {polylineDraftPoints.slice(0, -1).map((p, idx) => (
-                                                <circle key={idx} cx={p.x} cy={p.y} r="3" fill="#10b981" />
-                                            ))}
-                                            <circle cx={polylineDraftPoints[polylineDraftPoints.length - 1].x} cy={polylineDraftPoints[polylineDraftPoints.length - 1].y} r="3" fill="#ef4444" />
-                                            {polylineDraftPoints.length > 1 && (() => {
-                                                const p1 = polylineDraftPoints[polylineDraftPoints.length - 2];
-                                                const p2 = polylineDraftPoints[polylineDraftPoints.length - 1];
-                                                const px = Math.sqrt((p2.x - p1.x)**2 + (p2.y - p1.y)**2);
-                                                const factor = selectedDwg?.scaleFactor || 1.0;
-                                                const text = selectedDwg?.scaleFactor ? `${(px * factor).toFixed(2)} mm` : `${px.toFixed(1)} px`;
+                                                {/* Scale Calibration Line Draft Preview */}
+                                                {cadTool === 'scale' && scaleDraftCoords && (
+                                                    <g style={{ pointerEvents: 'none' }}>
+                                                        <line x1={scaleDraftCoords.x1} y1={scaleDraftCoords.y1} x2={scaleDraftCoords.x2} y2={scaleDraftCoords.y2} stroke="#10b981" strokeWidth="2.5" />
+                                                        <circle cx={scaleDraftCoords.x1} cy={scaleDraftCoords.y1} r="4" fill="#10b981" />
+                                                        <circle cx={scaleDraftCoords.x2} cy={scaleDraftCoords.y2} r="4" fill="#10b981" />
+                                                        {(() => {
+                                                            const px = Math.sqrt((scaleDraftCoords.x2 - scaleDraftCoords.x1) ** 2 + (scaleDraftCoords.y2 - scaleDraftCoords.y1) ** 2);
+                                                            return (
+                                                                <g transform={`translate(${(scaleDraftCoords.x1 + scaleDraftCoords.x2) / 2}, ${(scaleDraftCoords.y1 + scaleDraftCoords.y2) / 2 - 15})`}>
+                                                                    <rect x="-40" y="-8" width="80" height="16" rx="2" fill="#0f172a" stroke="#10b981" strokeWidth="1" />
+                                                                    <text x="0" y="4" fill="#10b981" fontSize="9" fontWeight="bold" textAnchor="middle">{px.toFixed(1)} px</text>
+                                                                </g>
+                                                            );
+                                                        })()}
+                                                    </g>
+                                                )}
+
+                                                {/* Dimension Drafting Previews */}
+                                                {cadTool === 'dimension' && dimDraftCoords && (
+                                                    <g style={{ pointerEvents: 'none' }}>
+                                                        {dimDrawState === 'waiting_end' && (
+                                                            <>
+                                                                <line x1={dimDraftCoords.x1} y1={dimDraftCoords.y1} x2={dimDraftCoords.x2} y2={dimDraftCoords.y2} stroke="#3b82f6" strokeWidth="1.5" strokeDasharray="3,3" />
+                                                                <circle cx={dimDraftCoords.x1} cy={dimDraftCoords.y1} r="4" fill="#3b82f6" />
+                                                                <circle cx={dimDraftCoords.x2} cy={dimDraftCoords.y2} r="4" fill="#3b82f6" />
+                                                                {(() => {
+                                                                    const px = Math.sqrt((dimDraftCoords.x2 - dimDraftCoords.x1) ** 2 + (dimDraftCoords.y2 - dimDraftCoords.y1) ** 2);
+                                                                    const factor = selectedDwg?.scaleFactor || 1.0;
+                                                                    const text = selectedDwg?.scaleFactor ? `${(px * factor).toFixed(2)} mm` : `${px.toFixed(1)} px`;
+                                                                    return (
+                                                                        <g transform={`translate(${(dimDraftCoords.x1 + dimDraftCoords.x2) / 2}, ${(dimDraftCoords.y1 + dimDraftCoords.y2) / 2 - 15})`}>
+                                                                            <rect x="-40" y="-8" width="80" height="16" rx="2" fill="#0f172a" stroke="#3b82f6" strokeWidth="1" />
+                                                                            <text x="0" y="4" fill="#3b82f6" fontSize="9" fontWeight="bold" textAnchor="middle">{text}</text>
+                                                                        </g>
+                                                                    );
+                                                                })()}
+                                                            </>
+                                                        )}
+                                                        {dimDrawState === 'waiting_offset' && (
+                                                            <>
+                                                                <line x1={dimDraftCoords.x1} y1={dimDraftCoords.y1} x2={dimDraftCoords.x1} y2={dimDraftCoords.ly} stroke="rgba(148,163,184,0.4)" strokeWidth="0.75" strokeDasharray="2,2" />
+                                                                <line x1={dimDraftCoords.x2} y1={dimDraftCoords.y2} x2={dimDraftCoords.x2} y2={dimDraftCoords.ly} stroke="rgba(148,163,184,0.4)" strokeWidth="0.75" strokeDasharray="2,2" />
+                                                                <line x1={dimDraftCoords.x1} y1={dimDraftCoords.ly} x2={dimDraftCoords.x2} y2={dimDraftCoords.ly} stroke="#3b82f6" strokeWidth="1.5" />
+                                                                <polygon points={`${dimDraftCoords.x1},${dimDraftCoords.ly} ${dimDraftCoords.x1 + 8},${dimDraftCoords.ly - 3} ${dimDraftCoords.x1 + 8},${dimDraftCoords.ly + 3}`} fill="#3b82f6" />
+                                                                <polygon points={`${dimDraftCoords.x2},${dimDraftCoords.ly} ${dimDraftCoords.x2 - 8},${dimDraftCoords.ly - 3} ${dimDraftCoords.x2 - 8},${dimDraftCoords.ly + 3}`} fill="#3b82f6" />
+
+                                                                <g transform={`translate(${dimDraftCoords.lx}, ${dimDraftCoords.ly - 10})`}>
+                                                                    <rect x="-45" y="-8" width="90" height="16" rx="2" fill="#0f172a" stroke="#3b82f6" strokeWidth="1" />
+                                                                    <text x="0" y="4" fill="#3b82f6" fontSize="9" fontWeight="bold" textAnchor="middle">
+                                                                        {(() => {
+                                                                            const px = Math.sqrt((dimDraftCoords.x2 - dimDraftCoords.x1) ** 2 + (dimDraftCoords.y2 - dimDraftCoords.y1) ** 2);
+                                                                            const factor = selectedDwg?.scaleFactor || 1.0;
+                                                                            return selectedDwg?.scaleFactor ? `${(px * factor).toFixed(2)} mm` : `${px.toFixed(1)} px`;
+                                                                        })()}
+                                                                    </text>
+                                                                </g>
+                                                            </>
+                                                        )}
+                                                    </g>
+                                                )}
+
+                                                {/* Arc Drafting Previews */}
+                                                {cadTool === 'arc' && arcDraftCoords && (
+                                                    <g style={{ pointerEvents: 'none' }}>
+                                                        <circle cx={arcDraftCoords.cx} cy={arcDraftCoords.cy} r="3" fill="#60a5fa" />
+                                                        {arcDrawState === 'waiting_radius' && (
+                                                            <>
+                                                                <line x1={arcDraftCoords.cx} y1={arcDraftCoords.cy} x2={mousePos.x} y2={mousePos.y} stroke="#60a5fa" strokeDasharray="3,3" strokeWidth="1" />
+                                                                <circle cx={arcDraftCoords.cx} cy={arcDraftCoords.cy} r={arcDraftCoords.r} fill="none" stroke="#60a5fa" strokeDasharray="3,3" strokeWidth="1" />
+                                                                {(() => {
+                                                                    const factor = selectedDwg?.scaleFactor || 1.0;
+                                                                    const text = selectedDwg?.scaleFactor ? `R: ${(arcDraftCoords.r * factor).toFixed(2)} mm` : `R: ${arcDraftCoords.r.toFixed(1)} px`;
+                                                                    return (
+                                                                        <g transform={`translate(${(arcDraftCoords.cx + mousePos.x) / 2}, ${(arcDraftCoords.cy + mousePos.y) / 2 - 10})`}>
+                                                                            <rect x="-40" y="-8" width="80" height="16" rx="2" fill="#0f172a" stroke="#60a5fa" strokeWidth="1" />
+                                                                            <text x="0" y="4" fill="#60a5fa" fontSize="8" fontWeight="bold" textAnchor="middle">{text}</text>
+                                                                        </g>
+                                                                    );
+                                                                })()}
+                                                            </>
+                                                        )}
+                                                        {arcDrawState === 'waiting_end' && (
+                                                            <>
+                                                                <line x1={arcDraftCoords.cx} y1={arcDraftCoords.cy} x2={arcDraftCoords.x1} y2={arcDraftCoords.y1} stroke="#60a5fa" strokeWidth="1" strokeDasharray="3,3" />
+                                                                <line x1={arcDraftCoords.cx} y1={arcDraftCoords.cy} x2={mousePos.x} y2={mousePos.y} stroke="#60a5fa" strokeWidth="1" strokeDasharray="3,3" />
+                                                                {(() => {
+                                                                    const cx = arcDraftCoords.cx;
+                                                                    const cy = arcDraftCoords.cy;
+                                                                    const r = arcDraftCoords.r;
+                                                                    const sa = arcDraftCoords.startAngle;
+                                                                    const eaRad = Math.atan2(mousePos.y - cy, mousePos.x - cx);
+                                                                    const eaDeg = eaRad * (180 / Math.PI);
+                                                                    const saRad = sa * (Math.PI / 180);
+                                                                    const sx = cx + r * Math.cos(saRad);
+                                                                    const sy = cy + r * Math.sin(saRad);
+                                                                    const ex = cx + r * Math.cos(eaRad);
+                                                                    const ey = cy + r * Math.sin(eaRad);
+                                                                    const largeArc = Math.abs(eaDeg - sa) > 180 ? 1 : 0;
+                                                                    const sweepFlag = eaDeg > sa ? 1 : 0;
+                                                                    return (
+                                                                        <path
+                                                                            d={`M ${sx},${sy} A ${r},${r} 0 ${largeArc},${sweepFlag} ${ex},${ey}`}
+                                                                            fill="none"
+                                                                            stroke={cadColor}
+                                                                            strokeWidth={cadWidth}
+                                                                        />
+                                                                    );
+                                                                })()}
+                                                                {(() => {
+                                                                    const cx = arcDraftCoords.cx;
+                                                                    const cy = arcDraftCoords.cy;
+                                                                    const sa = arcDraftCoords.startAngle;
+                                                                    const eaDeg = Math.atan2(mousePos.y - cy, mousePos.x - cx) * (180 / Math.PI);
+                                                                    let angleDiff = Math.abs(eaDeg - sa);
+                                                                    if (angleDiff > 180) angleDiff = 360 - angleDiff;
+                                                                    return (
+                                                                        <g transform={`translate(${mousePos.x}, ${mousePos.y - 15})`}>
+                                                                            <rect x="-30" y="-8" width="60" height="16" rx="2" fill="#0f172a" stroke="#60a5fa" strokeWidth="1" />
+                                                                            <text x="0" y="4" fill="#60a5fa" fontSize="8" fontWeight="bold" textAnchor="middle">{angleDiff.toFixed(1)}°</text>
+                                                                        </g>
+                                                                    );
+                                                                })()}
+                                                            </>
+                                                        )}
+                                                    </g>
+                                                )}
+
+                                                {/* Polyline Drafting Previews */}
+                                                {cadTool === 'polyline' && polylineDraftPoints.length > 0 && (
+                                                    <g style={{ pointerEvents: 'none' }}>
+                                                        <polyline
+                                                            points={polylineDraftPoints.map(p => `${p.x},${p.y}`).join(' ')}
+                                                            fill="none"
+                                                            stroke={cadColor}
+                                                            strokeWidth={cadWidth}
+                                                            strokeDasharray="4,2"
+                                                        />
+                                                        {polylineDraftPoints.slice(0, -1).map((p, idx) => (
+                                                            <circle key={idx} cx={p.x} cy={p.y} r="3" fill="#10b981" />
+                                                        ))}
+                                                        <circle cx={polylineDraftPoints[polylineDraftPoints.length - 1].x} cy={polylineDraftPoints[polylineDraftPoints.length - 1].y} r="3" fill="#ef4444" />
+                                                        {polylineDraftPoints.length > 1 && (() => {
+                                                            const p1 = polylineDraftPoints[polylineDraftPoints.length - 2];
+                                                            const p2 = polylineDraftPoints[polylineDraftPoints.length - 1];
+                                                            const px = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
+                                                            const factor = selectedDwg?.scaleFactor || 1.0;
+                                                            const text = selectedDwg?.scaleFactor ? `${(px * factor).toFixed(2)} mm` : `${px.toFixed(1)} px`;
+                                                            return (
+                                                                <g transform={`translate(${p2.x}, ${p2.y - 15})`}>
+                                                                    <rect x="-35" y="-8" width="70" height="16" rx="2" fill="#0f172a" stroke="#10b981" strokeWidth="1" />
+                                                                    <text x="0" y="4" fill="#10b981" fontSize="8" fontWeight="bold" textAnchor="middle">{text}</text>
+                                                                </g>
+                                                            );
+                                                        })()}
+                                                    </g>
+                                                )}
+                                            </g>
+
+                                            {/* UCS Coordinate Axis Indicator */}
+                                            <g transform={`translate(35, ${canvasSize.height - 35})`} style={{ pointerEvents: 'none' }}>
+                                                <line x1="0" y1="0" x2="20" y2="0" stroke="#ef4444" strokeWidth="1.5" />
+                                                <polygon points="20,-2 25,0 20,2" fill="#ef4444" />
+                                                <text x="28" y="3" fill="#ef4444" fontSize="7" fontWeight="bold" fontFamily="sans-serif">X</text>
+
+                                                <line x1="0" y1="0" x2="0" y2="-20" stroke="#10b981" strokeWidth="1.5" />
+                                                <polygon points="-2,-20 0,-25 2,-20" fill="#10b981" />
+                                                <text x="4" y="-22" fill="#10b981" fontSize="7" fontWeight="bold" fontFamily="sans-serif">Y</text>
+
+                                                <rect x="-3" y="-3" width="6" height="6" fill="none" stroke="#e2e8f0" strokeWidth="1" />
+                                                <circle cx="0" cy="0" r="1" fill="#e2e8f0" />
+                                            </g>
+
+
+
+                                            {/* Selection Crosshair cursor */}
+                                            {showCrosshair && (() => {
+                                                const cx = canvasSize.width / 2;
+                                                const cy = canvasSize.height / 2;
+                                                const screenX = cx + (crosshairPos.x - cx) * zoom + panOffset.x;
+                                                const screenY = cy + (crosshairPos.y - cy) * zoom + panOffset.y;
                                                 return (
-                                                    <g transform={`translate(${p2.x}, ${p2.y - 15})`}>
-                                                        <rect x="-35" y="-8" width="70" height="16" rx="2" fill="#0f172a" stroke="#10b981" strokeWidth="1" />
-                                                        <text x="0" y="4" fill="#10b981" fontSize="8" fontWeight="bold" textAnchor="middle">{text}</text>
+                                                    <g style={{ pointerEvents: 'none' }}>
+                                                        <line
+                                                            x1={screenX}
+                                                            y1={0}
+                                                            x2={screenX}
+                                                            y2={canvasSize.height}
+                                                            stroke="#94a3b8"
+                                                            strokeWidth="0.5"
+                                                            strokeDasharray="2,2"
+                                                            opacity="0.6"
+                                                        />
+                                                        <line
+                                                            x1={0}
+                                                            y1={screenY}
+                                                            x2={canvasSize.width}
+                                                            y2={screenY}
+                                                            stroke="#94a3b8"
+                                                            strokeWidth="0.5"
+                                                            strokeDasharray="2,2"
+                                                            opacity="0.6"
+                                                        />
+                                                        <rect
+                                                            x={screenX - 4}
+                                                            y={screenY - 4}
+                                                            width="8"
+                                                            height="8"
+                                                            fill="none"
+                                                            stroke="#2563eb"
+                                                            strokeWidth="1"
+                                                        />
                                                     </g>
                                                 );
                                             })()}
-                                        </g>
+                                        </svg>
                                     )}
-                                </g>
 
-                                {/* UCS Coordinate Axis Indicator */}
-                                <g transform={`translate(35, ${canvasSize.height - 35})`} style={{ pointerEvents: 'none' }}>
-                                    <line x1="0" y1="0" x2="20" y2="0" stroke="#ef4444" strokeWidth="1.5" />
-                                    <polygon points="20,-2 25,0 20,2" fill="#ef4444" />
-                                    <text x="28" y="3" fill="#ef4444" fontSize="7" fontWeight="bold" fontFamily="sans-serif">X</text>
+                                    {/* Custom Floating Horizontal Scrollbar */}
+                                    {zoom > 0.5 && (() => {
+                                        const maxPanX = (canvasSize.width * zoom) / 2;
+                                        if (maxPanX <= 0) return null;
+                                        const trackWidth = canvasSize.width - 40;
+                                        const thumbWidth = Math.max(30, trackWidth / Math.max(1, zoom));
+                                        const scrollableTrack = trackWidth - thumbWidth;
+                                        const ratio = (maxPanX - panOffset.x) / (maxPanX * 2);
+                                        const thumbLeft = Math.max(0, Math.min(scrollableTrack, ratio * scrollableTrack));
 
-                                    <line x1="0" y1="0" x2="0" y2="-20" stroke="#10b981" strokeWidth="1.5" />
-                                    <polygon points="-2,-20 0,-25 2,-20" fill="#10b981" />
-                                    <text x="4" y="-22" fill="#10b981" fontSize="7" fontWeight="bold" fontFamily="sans-serif">Y</text>
+                                        const handleHScrollMouseDown = (e) => {
+                                            e.stopPropagation();
+                                            e.preventDefault();
+                                            scrollStartRef.current = {
+                                                mouseX: e.clientX,
+                                                mouseY: e.clientY,
+                                                panX: panOffset.x,
+                                                panY: panOffset.y
+                                            };
+                                            setIsDraggingScroll('horizontal');
+                                        };
 
-                                    <rect x="-3" y="-3" width="6" height="6" fill="none" stroke="#e2e8f0" strokeWidth="1" />
-                                    <circle cx="0" cy="0" r="1" fill="#e2e8f0" />
-                                </g>
+                                        return (
+                                            <div
+                                                style={{
+                                                    position: 'absolute',
+                                                    bottom: '6px',
+                                                    left: '20px',
+                                                    width: `${trackWidth}px`,
+                                                    height: '8px',
+                                                    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                                                    borderRadius: '4px',
+                                                    border: '1px solid rgba(255, 255, 255, 0.05)',
+                                                    zIndex: 20,
+                                                    pointerEvents: 'auto'
+                                                }}
+                                            >
+                                                <div
+                                                    onMouseDown={handleHScrollMouseDown}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        left: `${thumbLeft}px`,
+                                                        width: `${thumbWidth}px`,
+                                                        height: '100%',
+                                                        backgroundColor: isDraggingScroll === 'horizontal' ? '#3b82f6' : 'rgba(255, 255, 255, 0.3)',
+                                                        borderRadius: '4px',
+                                                        cursor: 'ew-resize',
+                                                        transition: isDraggingScroll === 'horizontal' ? 'none' : 'background-color 0.2s, left 0.1s',
+                                                        boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
+                                                    }}
+                                                    onMouseEnter={e => { if (isDraggingScroll !== 'horizontal') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.5)'; }}
+                                                    onMouseLeave={e => { if (isDraggingScroll !== 'horizontal') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)'; }}
+                                                />
+                                            </div>
+                                        );
+                                    })()}
 
+                                    {/* Custom Floating Vertical Scrollbar */}
+                                    {zoom > 0.5 && (() => {
+                                        const maxPanY = (canvasSize.height * zoom) / 2;
+                                        if (maxPanY <= 0) return null;
+                                        const trackHeight = canvasSize.height - 40;
+                                        const thumbHeight = Math.max(30, trackHeight / Math.max(1, zoom));
+                                        const scrollableTrack = trackHeight - thumbHeight;
+                                        const ratio = (maxPanY - panOffset.y) / (maxPanY * 2);
+                                        const thumbTop = Math.max(0, Math.min(scrollableTrack, ratio * scrollableTrack));
 
+                                        const handleVScrollMouseDown = (e) => {
+                                            e.stopPropagation();
+                                            e.preventDefault();
+                                            scrollStartRef.current = {
+                                                mouseX: e.clientX,
+                                                mouseY: e.clientY,
+                                                panX: panOffset.x,
+                                                panY: panOffset.y
+                                            };
+                                            setIsDraggingScroll('vertical');
+                                        };
 
-                                {/* Selection Crosshair cursor */}
-                                {showCrosshair && (() => {
-                                    const cx = canvasSize.width / 2;
-                                    const cy = canvasSize.height / 2;
-                                    const screenX = cx + (crosshairPos.x - cx) * zoom + panOffset.x;
-                                    const screenY = cy + (crosshairPos.y - cy) * zoom + panOffset.y;
-                                    return (
-                                        <g style={{ pointerEvents: 'none' }}>
-                                            <line
-                                                x1={screenX}
-                                                y1={0}
-                                                x2={screenX}
-                                                y2={canvasSize.height}
-                                                stroke="#94a3b8"
-                                                strokeWidth="0.5"
-                                                strokeDasharray="2,2"
-                                                opacity="0.6"
-                                            />
-                                            <line
-                                                x1={0}
-                                                y1={screenY}
-                                                x2={canvasSize.width}
-                                                y2={screenY}
-                                                stroke="#94a3b8"
-                                                strokeWidth="0.5"
-                                                strokeDasharray="2,2"
-                                                opacity="0.6"
-                                            />
-                                            <rect
-                                                x={screenX - 4}
-                                                y={screenY - 4}
-                                                width="8"
-                                                height="8"
-                                                fill="none"
-                                                stroke="#2563eb"
-                                                strokeWidth="1"
-                                            />
-                                        </g>
-                                    );
-                                })()}
-                            </svg>
-                            )}
+                                        return (
+                                            <div
+                                                style={{
+                                                    position: 'absolute',
+                                                    right: '6px',
+                                                    top: '20px',
+                                                    width: '8px',
+                                                    height: `${trackHeight}px`,
+                                                    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                                                    borderRadius: '4px',
+                                                    border: '1px solid rgba(255, 255, 255, 0.05)',
+                                                    zIndex: 20,
+                                                    pointerEvents: 'auto'
+                                                }}
+                                            >
+                                                <div
+                                                    onMouseDown={handleVScrollMouseDown}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        top: `${thumbTop}px`,
+                                                        width: '100%',
+                                                        height: `${thumbHeight}px`,
+                                                        backgroundColor: isDraggingScroll === 'vertical' ? '#3b82f6' : 'rgba(255, 255, 255, 0.3)',
+                                                        borderRadius: '4px',
+                                                        cursor: 'ns-resize',
+                                                        transition: isDraggingScroll === 'vertical' ? 'none' : 'background-color 0.2s, top 0.1s',
+                                                        boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
+                                                    }}
+                                                    onMouseEnter={e => { if (isDraggingScroll !== 'vertical') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.5)'; }}
+                                                    onMouseLeave={e => { if (isDraggingScroll !== 'vertical') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)'; }}
+                                                />
+                                            </div>
+                                        );
+                                    })()}
 
-                            {/* Custom Floating Horizontal Scrollbar */}
-                            {zoom > 0.5 && (() => {
-                                const maxPanX = (canvasSize.width * zoom) / 2;
-                                if (maxPanX <= 0) return null;
-                                const trackWidth = canvasSize.width - 40;
-                                const thumbWidth = Math.max(30, trackWidth / Math.max(1, zoom));
-                                const scrollableTrack = trackWidth - thumbWidth;
-                                const ratio = (maxPanX - panOffset.x) / (maxPanX * 2);
-                                const thumbLeft = Math.max(0, Math.min(scrollableTrack, ratio * scrollableTrack));
-                                
-                                const handleHScrollMouseDown = (e) => {
-                                    e.stopPropagation();
-                                    e.preventDefault();
-                                    scrollStartRef.current = {
-                                        mouseX: e.clientX,
-                                        mouseY: e.clientY,
-                                        panX: panOffset.x,
-                                        panY: panOffset.y
-                                    };
-                                    setIsDraggingScroll('horizontal');
-                                };
-
-                                return (
-                                    <div
-                                        style={{
-                                            position: 'absolute',
-                                            bottom: '6px',
-                                            left: '20px',
-                                            width: `${trackWidth}px`,
-                                            height: '8px',
-                                            backgroundColor: 'rgba(15, 23, 42, 0.6)',
-                                            borderRadius: '4px',
-                                            border: '1px solid rgba(255, 255, 255, 0.05)',
-                                            zIndex: 20,
-                                            pointerEvents: 'auto'
-                                        }}
-                                    >
-                                        <div
-                                            onMouseDown={handleHScrollMouseDown}
+                                    {/* Absolutely positioned Text Input widget */}
+                                    {textInputPos && (
+                                        <input
+                                            type="text"
+                                            autoFocus
+                                            placeholder="Ketik teks & tekan Enter..."
+                                            value={textInputValue}
+                                            onChange={(e) => setTextInputValue(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    if (textInputValue.trim() && selectedDwg) {
+                                                        const currentShapes = selectedDwg.shapes || [];
+                                                        const newTextShape = {
+                                                            id: `shape_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+                                                            type: 'text',
+                                                            x: textInputPos.x,
+                                                            y: textInputPos.y,
+                                                            text: textInputValue,
+                                                            color: cadColor,
+                                                            fontSize: cadWidth * 3 + 12
+                                                        };
+                                                        updateShapes([...currentShapes, newTextShape]);
+                                                    }
+                                                    setTextInputPos(null);
+                                                } else if (e.key === 'Escape') {
+                                                    setTextInputPos(null);
+                                                }
+                                            }}
                                             style={{
                                                 position: 'absolute',
-                                                left: `${thumbLeft}px`,
-                                                width: `${thumbWidth}px`,
-                                                height: '100%',
-                                                backgroundColor: isDraggingScroll === 'horizontal' ? '#3b82f6' : 'rgba(255, 255, 255, 0.3)',
+                                                top: `${textInputPos.top}px`,
+                                                left: `${textInputPos.left}px`,
+                                                transform: 'translate(-50%, -50%)',
+                                                backgroundColor: '#0f172a',
+                                                color: cadColor,
+                                                border: `1px solid ${cadColor}`,
                                                 borderRadius: '4px',
-                                                cursor: 'ew-resize',
-                                                transition: isDraggingScroll === 'horizontal' ? 'none' : 'background-color 0.2s, left 0.1s',
-                                                boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
+                                                padding: '4px 8px',
+                                                fontSize: `${cadWidth * 2 + 10}px`,
+                                                outline: 'none',
+                                                zIndex: 1000,
+                                                fontFamily: 'monospace',
+                                                boxShadow: `0 0 10px ${cadColor}55`
                                             }}
-                                            onMouseEnter={e => { if (isDraggingScroll !== 'horizontal') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.5)'; }}
-                                            onMouseLeave={e => { if (isDraggingScroll !== 'horizontal') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)'; }}
                                         />
-                                    </div>
-                                );
-                            })()}
+                                    )}
 
-                            {/* Custom Floating Vertical Scrollbar */}
-                            {zoom > 0.5 && (() => {
-                                const maxPanY = (canvasSize.height * zoom) / 2;
-                                if (maxPanY <= 0) return null;
-                                const trackHeight = canvasSize.height - 40;
-                                const thumbHeight = Math.max(30, trackHeight / Math.max(1, zoom));
-                                const scrollableTrack = trackHeight - thumbHeight;
-                                const ratio = (maxPanY - panOffset.y) / (maxPanY * 2);
-                                const thumbTop = Math.max(0, Math.min(scrollableTrack, ratio * scrollableTrack));
-
-                                const handleVScrollMouseDown = (e) => {
-                                    e.stopPropagation();
-                                    e.preventDefault();
-                                    scrollStartRef.current = {
-                                        mouseX: e.clientX,
-                                        mouseY: e.clientY,
-                                        panX: panOffset.x,
-                                        panY: panOffset.y
-                                    };
-                                    setIsDraggingScroll('vertical');
-                                };
-
-                                return (
-                                    <div
-                                        style={{
+                                    {/* Absolutely positioned Mirror Tool Menu */}
+                                    {mirrorMenu && (
+                                        <div style={{
                                             position: 'absolute',
-                                            right: '6px',
-                                            top: '20px',
-                                            width: '8px',
-                                            height: `${trackHeight}px`,
-                                            backgroundColor: 'rgba(15, 23, 42, 0.6)',
-                                            borderRadius: '4px',
-                                            border: '1px solid rgba(255, 255, 255, 0.05)',
-                                            zIndex: 20,
-                                            pointerEvents: 'auto'
-                                        }}
-                                    >
-                                        <div
-                                            onMouseDown={handleVScrollMouseDown}
-                                            style={{
-                                                position: 'absolute',
-                                                top: `${thumbTop}px`,
-                                                width: '100%',
-                                                height: `${thumbHeight}px`,
-                                                backgroundColor: isDraggingScroll === 'vertical' ? '#3b82f6' : 'rgba(255, 255, 255, 0.3)',
-                                                borderRadius: '4px',
-                                                cursor: 'ns-resize',
-                                                transition: isDraggingScroll === 'vertical' ? 'none' : 'background-color 0.2s, top 0.1s',
-                                                boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
-                                            }}
-                                            onMouseEnter={e => { if (isDraggingScroll !== 'vertical') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.5)'; }}
-                                            onMouseLeave={e => { if (isDraggingScroll !== 'vertical') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)'; }}
-                                        />
-                                    </div>
-                                );
-                            })()}
+                                            top: `${mirrorMenu.y}px`,
+                                            left: `${mirrorMenu.x}px`,
+                                            transform: 'translate(-50%, -100%) translateY(-10px)',
+                                            backgroundColor: '#0f172ae6',
+                                            border: '1px solid #3b82f6',
+                                            borderRadius: '8px',
+                                            padding: '6px 10px',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: '6px',
+                                            zIndex: 1000,
+                                            boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+                                            fontFamily: "'Inter', sans-serif"
+                                        }}>
+                                            <div style={{ fontSize: '0.6rem', color: '#93c5fd', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                                Cermin Bentuk (Mirror)
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '4px' }}>
+                                                <button
+                                                    onClick={() => handleMirrorShape(mirrorMenu.shapeId, 'horizontal')}
+                                                    style={{
+                                                        padding: '4px 8px', backgroundColor: '#2563eb', color: 'white',
+                                                        border: 'none', borderRadius: '4px', fontSize: '0.65rem',
+                                                        fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px'
+                                                    }}
+                                                >
+                                                    Horizontal
+                                                </button>
+                                                <button
+                                                    onClick={() => handleMirrorShape(mirrorMenu.shapeId, 'vertical')}
+                                                    style={{
+                                                        padding: '4px 8px', backgroundColor: '#2563eb', color: 'white',
+                                                        border: 'none', borderRadius: '4px', fontSize: '0.65rem',
+                                                        fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px'
+                                                    }}
+                                                >
+                                                    Vertical
+                                                </button>
+                                            </div>
+                                            <button
+                                                onClick={() => setMirrorMenu(null)}
+                                                style={{
+                                                    background: 'transparent', border: 'none', color: '#94a3b8',
+                                                    fontSize: '0.6rem', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center',
+                                                    padding: '2px 0'
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.color = 'white'}
+                                                onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                                            >
+                                                Batal
+                                            </button>
+                                        </div>
+                                    )}
 
-                            {/* Absolutely positioned Text Input widget */}
-                            {textInputPos && (
-                                <input
-                                    type="text"
-                                    autoFocus
-                                    placeholder="Ketik teks & tekan Enter..."
-                                    value={textInputValue}
-                                    onChange={(e) => setTextInputValue(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            if (textInputValue.trim() && selectedDwg) {
-                                                const currentShapes = selectedDwg.shapes || [];
-                                                const newTextShape = {
-                                                    id: `shape_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-                                                    type: 'text',
-                                                    x: textInputPos.x,
-                                                    y: textInputPos.y,
-                                                    text: textInputValue,
-                                                    color: cadColor,
-                                                    fontSize: cadWidth * 3 + 12
-                                                };
-                                                updateShapes([...currentShapes, newTextShape]);
-                                            }
-                                            setTextInputPos(null);
-                                        } else if (e.key === 'Escape') {
-                                            setTextInputPos(null);
-                                        }
-                                    }}
-                                    style={{
-                                        position: 'absolute',
-                                        top: `${textInputPos.top}px`,
-                                        left: `${textInputPos.left}px`,
-                                        transform: 'translate(-50%, -50%)',
-                                        backgroundColor: '#0f172a',
-                                        color: cadColor,
-                                        border: `1px solid ${cadColor}`,
-                                        borderRadius: '4px',
-                                        padding: '4px 8px',
-                                        fontSize: `${cadWidth * 2 + 10}px`,
-                                        outline: 'none',
-                                        zIndex: 1000,
-                                        fontFamily: 'monospace',
-                                        boxShadow: `0 0 10px ${cadColor}55`
-                                    }}
-                                />
-                            )}
 
-                            {/* Absolutely positioned Mirror Tool Menu */}
-                            {mirrorMenu && (
+
+                                </div>
+
+                                {/* AutoCAD Status Bar */}
                                 <div style={{
-                                    position: 'absolute',
-                                    top: `${mirrorMenu.y}px`,
-                                    left: `${mirrorMenu.x}px`,
-                                    transform: 'translate(-50%, -100%) translateY(-10px)',
-                                    backgroundColor: '#0f172ae6',
-                                    border: '1px solid #3b82f6',
-                                    borderRadius: '8px',
-                                    padding: '6px 10px',
                                     display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: '6px',
-                                    zIndex: 1000,
-                                    boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
-                                    fontFamily: "'Inter', sans-serif"
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    backgroundColor: '#0f172a',
+                                    borderTop: '1px solid #1e293b',
+                                    padding: '4px 12px',
+                                    color: '#94a3b8',
+                                    fontSize: '0.65rem',
+                                    fontFamily: "'Inter', sans-serif",
+                                    userSelect: 'none',
+                                    zIndex: 11
                                 }}>
-                                    <div style={{ fontSize: '0.6rem', color: '#93c5fd', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                        Cermin Bentuk (Mirror)
+                                    {/* Left Side: Model / Layout Tabs */}
+                                    <div style={{ display: 'flex', alignItems: 'stretch', gap: '1px', backgroundColor: '#090d16', padding: '2px', borderRadius: '4px' }}>
+                                        {[
+                                            { id: 'model', label: 'Model' },
+                                            { id: 'layout1', label: 'Layout 1' },
+                                            { id: 'layout2', label: 'Layout 2' }
+                                        ].map(tab => {
+                                            const isActive = activeSpace === tab.id;
+                                            return (
+                                                <button
+                                                    key={tab.id}
+                                                    onClick={() => setActiveSpace(tab.id)}
+                                                    style={{
+                                                        backgroundColor: isActive ? '#2563eb' : 'transparent',
+                                                        color: isActive ? '#ffffff' : '#64748b',
+                                                        border: 'none',
+                                                        borderRadius: '3px',
+                                                        padding: '2px 8px',
+                                                        fontSize: '0.58rem',
+                                                        fontWeight: 800,
+                                                        cursor: 'pointer',
+                                                        transition: 'all 0.15s'
+                                                    }}
+                                                >
+                                                    {tab.label}
+                                                </button>
+                                            );
+                                        })}
                                     </div>
-                                    <div style={{ display: 'flex', gap: '4px' }}>
-                                        <button
-                                            onClick={() => handleMirrorShape(mirrorMenu.shapeId, 'horizontal')}
-                                            style={{
-                                                padding: '4px 8px', backgroundColor: '#2563eb', color: 'white',
-                                                border: 'none', borderRadius: '4px', fontSize: '0.65rem',
-                                                fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px'
-                                            }}
-                                        >
-                                            Horizontal
-                                        </button>
-                                        <button
-                                            onClick={() => handleMirrorShape(mirrorMenu.shapeId, 'vertical')}
-                                            style={{
-                                                padding: '4px 8px', backgroundColor: '#2563eb', color: 'white',
-                                                border: 'none', borderRadius: '4px', fontSize: '0.65rem',
-                                                fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px'
-                                            }}
-                                        >
-                                            Vertical
-                                        </button>
+
+                                    {/* Right Side: Coordinates, snap, ortho, scale */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <div style={{
+                                            fontFamily: 'monospace',
+                                            backgroundColor: '#090d16',
+                                            padding: '2px 6px',
+                                            borderRadius: '4px',
+                                            color: '#38bdf8',
+                                            fontSize: '0.58rem',
+                                            border: '1px solid #1e293b'
+                                        }}>
+                                            {crosshairPos.x.toFixed(1)}, {crosshairPos.y.toFixed(1)}, 0.0
+                                        </div>
+
+                                        <div style={{ width: '1px', height: '12px', backgroundColor: '#334155' }}></div>
+
+                                        <div style={{ display: 'flex', gap: '4px' }}>
+                                            <button
+                                                onClick={() => setGridSnap(g => !g)}
+                                                title="Grid Snap (GRID)"
+                                                style={{
+                                                    backgroundColor: gridSnap ? '#2563eb20' : 'transparent',
+                                                    border: '1px solid ' + (gridSnap ? '#2563eb' : '#334155'),
+                                                    color: gridSnap ? '#60a5fa' : '#64748b',
+                                                    borderRadius: '4px',
+                                                    padding: '2px 6px',
+                                                    fontSize: '0.55rem',
+                                                    fontWeight: 'bold',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '2px'
+                                                }}
+                                            >
+                                                <Magnet size={9} /> SNAP
+                                            </button>
+
+                                            <button
+                                                onClick={() => setOrthoMode(o => !o)}
+                                                title="Ortho Mode Lock (ORTHO)"
+                                                style={{
+                                                    backgroundColor: orthoMode ? '#2563eb20' : 'transparent',
+                                                    border: '1px solid ' + (orthoMode ? '#2563eb' : '#334155'),
+                                                    color: orthoMode ? '#60a5fa' : '#64748b',
+                                                    borderRadius: '4px',
+                                                    padding: '2px 6px',
+                                                    fontSize: '0.55rem',
+                                                    fontWeight: 'bold',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '2px'
+                                                }}
+                                            >
+                                                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M4 20 L20 20 M4 20 L4 4" /></svg> ORTHO
+                                            </button>
+                                        </div>
+
+                                        <div style={{ width: '1px', height: '12px', backgroundColor: '#334155' }}></div>
+
+                                        <div style={{ fontSize: '0.58rem', fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span>SCALE: {selectedDwg?.scaleFactor ? `1:${(1 / selectedDwg.scaleFactor).toFixed(1)}` : '1:1'} ({Math.round(zoom * 100)}%)</span>
+                                            <button
+                                                onClick={() => {
+                                                    setZoom(1.0);
+                                                    setPanOffset({ x: 0, y: 0 });
+                                                    toast.success('Tampilan kanvas direset.', { id: 'reset-view' });
+                                                }}
+                                                style={{
+                                                    background: 'rgba(255, 255, 255, 0.05)',
+                                                    border: '1px solid #334155',
+                                                    color: '#94a3b8',
+                                                    padding: '1px 6px',
+                                                    borderRadius: '3px',
+                                                    fontSize: '0.52rem',
+                                                    fontWeight: 800,
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.15s'
+                                                }}
+                                                onMouseEnter={e => {
+                                                    e.currentTarget.style.color = '#fff';
+                                                    e.currentTarget.style.backgroundColor = '#2563eb';
+                                                    e.currentTarget.style.borderColor = '#2563eb';
+                                                }}
+                                                onMouseLeave={e => {
+                                                    e.currentTarget.style.color = '#94a3b8';
+                                                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                                                    e.currentTarget.style.borderColor = '#334155';
+                                                }}
+                                            >
+                                                RESET VIEW
+                                            </button>
+                                        </div>
                                     </div>
-                                    <button
-                                        onClick={() => setMirrorMenu(null)}
-                                        style={{
-                                            background: 'transparent', border: 'none', color: '#94a3b8',
-                                            fontSize: '0.6rem', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center',
-                                            padding: '2px 0'
-                                        }}
-                                        onMouseEnter={e => e.currentTarget.style.color = 'white'}
-                                        onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
-                                    >
-                                        Batal
-                                    </button>
                                 </div>
-                            )}
-
-
-
-                        </div>
-
-                        {/* AutoCAD Status Bar */}
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            backgroundColor: '#0f172a',
-                            borderTop: '1px solid #1e293b',
-                            padding: '4px 12px',
-                            color: '#94a3b8',
-                            fontSize: '0.65rem',
-                            fontFamily: "'Inter', sans-serif",
-                            userSelect: 'none',
-                            zIndex: 11
-                        }}>
-                            {/* Left Side: Model / Layout Tabs */}
-                            <div style={{ display: 'flex', alignItems: 'stretch', gap: '1px', backgroundColor: '#090d16', padding: '2px', borderRadius: '4px' }}>
-                                {[
-                                    { id: 'model', label: 'Model' },
-                                    { id: 'layout1', label: 'Layout 1' },
-                                    { id: 'layout2', label: 'Layout 2' }
-                                ].map(tab => {
-                                    const isActive = activeSpace === tab.id;
-                                    return (
-                                        <button
-                                            key={tab.id}
-                                            onClick={() => setActiveSpace(tab.id)}
-                                            style={{
-                                                backgroundColor: isActive ? '#2563eb' : 'transparent',
-                                                color: isActive ? '#ffffff' : '#64748b',
-                                                border: 'none',
-                                                borderRadius: '3px',
-                                                padding: '2px 8px',
-                                                fontSize: '0.58rem',
-                                                fontWeight: 800,
-                                                cursor: 'pointer',
-                                                transition: 'all 0.15s'
-                                            }}
-                                        >
-                                            {tab.label}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Right Side: Coordinates, snap, ortho, scale */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div style={{
-                                    fontFamily: 'monospace',
-                                    backgroundColor: '#090d16',
-                                    padding: '2px 6px',
-                                    borderRadius: '4px',
-                                    color: '#38bdf8',
-                                    fontSize: '0.58rem',
-                                    border: '1px solid #1e293b'
-                                }}>
-                                    {crosshairPos.x.toFixed(1)}, {crosshairPos.y.toFixed(1)}, 0.0
-                                </div>
-
-                                <div style={{ width: '1px', height: '12px', backgroundColor: '#334155' }}></div>
-
-                                <div style={{ display: 'flex', gap: '4px' }}>
-                                    <button
-                                        onClick={() => setGridSnap(g => !g)}
-                                        title="Grid Snap (GRID)"
-                                        style={{
-                                            backgroundColor: gridSnap ? '#2563eb20' : 'transparent',
-                                            border: '1px solid ' + (gridSnap ? '#2563eb' : '#334155'),
-                                            color: gridSnap ? '#60a5fa' : '#64748b',
-                                            borderRadius: '4px',
-                                            padding: '2px 6px',
-                                            fontSize: '0.55rem',
-                                            fontWeight: 'bold',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '2px'
-                                        }}
-                                    >
-                                        <Magnet size={9} /> SNAP
-                                    </button>
-                                    
-                                    <button
-                                        onClick={() => setOrthoMode(o => !o)}
-                                        title="Ortho Mode Lock (ORTHO)"
-                                        style={{
-                                            backgroundColor: orthoMode ? '#2563eb20' : 'transparent',
-                                            border: '1px solid ' + (orthoMode ? '#2563eb' : '#334155'),
-                                            color: orthoMode ? '#60a5fa' : '#64748b',
-                                            borderRadius: '4px',
-                                            padding: '2px 6px',
-                                            fontSize: '0.55rem',
-                                            fontWeight: 'bold',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '2px'
-                                        }}
-                                    >
-                                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M4 20 L20 20 M4 20 L4 4" /></svg> ORTHO
-                                    </button>
-                                </div>
-
-                                <div style={{ width: '1px', height: '12px', backgroundColor: '#334155' }}></div>
-
-                                <div style={{ fontSize: '0.58rem', fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <span>SCALE: {selectedDwg?.scaleFactor ? `1:${(1 / selectedDwg.scaleFactor).toFixed(1)}` : '1:1'} ({Math.round(zoom * 100)}%)</span>
-                                    <button
-                                        onClick={() => {
-                                            setZoom(1.0);
-                                            setPanOffset({ x: 0, y: 0 });
-                                            toast.success('Tampilan kanvas direset.', { id: 'reset-view' });
-                                        }}
-                                        style={{
-                                            background: 'rgba(255, 255, 255, 0.05)',
-                                            border: '1px solid #334155',
-                                            color: '#94a3b8',
-                                            padding: '1px 6px',
-                                            borderRadius: '3px',
-                                            fontSize: '0.52rem',
-                                            fontWeight: 800,
-                                            cursor: 'pointer',
-                                            transition: 'all 0.15s'
-                                        }}
-                                        onMouseEnter={e => {
-                                            e.currentTarget.style.color = '#fff';
-                                            e.currentTarget.style.backgroundColor = '#2563eb';
-                                            e.currentTarget.style.borderColor = '#2563eb';
-                                        }}
-                                        onMouseLeave={e => {
-                                            e.currentTarget.style.color = '#94a3b8';
-                                            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                                            e.currentTarget.style.borderColor = '#334155';
-                                        }}
-                                    >
-                                        RESET VIEW
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
                             </div>
                         </div>
                     </div>
@@ -7332,7 +7416,7 @@ export default function DrawingManager() {
 
                                                     {/* Interactive Joystick & Fine-Tune layout */}
                                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', gap: '10px', marginTop: '4px' }}>
-                                                        
+
                                                         {/* Joystick Pad */}
                                                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
                                                             <div
@@ -7358,7 +7442,7 @@ export default function DrawingManager() {
                                                                 {/* Crosshairs inside joystick pad */}
                                                                 <div style={{ position: 'absolute', width: '80%', height: '1px', backgroundColor: '#e2e8f0' }} />
                                                                 <div style={{ position: 'absolute', height: '80%', width: '1px', backgroundColor: '#e2e8f0' }} />
-                                                                
+
                                                                 {/* Joystick Knob */}
                                                                 <div
                                                                     style={{
@@ -7486,7 +7570,7 @@ export default function DrawingManager() {
                                             QC Simulator
                                         </h3>
                                     </div>
-                                    
+
                                     {/* Overall Judgment Status Badge */}
                                     {selectedDwg?.dimensions?.length > 0 && (
                                         <span style={{
@@ -7527,7 +7611,7 @@ export default function DrawingManager() {
                                                 }} onClick={() => setActiveDimId(dim.id)}>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.68rem', fontWeight: 800, marginBottom: '4px' }}>
                                                         <span style={{ color: '#1e293b', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
-                                                            <span style={{ fontSize: '0.58rem', backgroundColor: '#e2e8f0', padding: '1px 4px', borderRadius: '4px' }}>#{idx+1}</span>
+                                                            <span style={{ fontSize: '0.58rem', backgroundColor: '#e2e8f0', padding: '1px 4px', borderRadius: '4px' }}>#{idx + 1}</span>
                                                             <span style={{ color: catDef.color, fontSize: '0.75rem' }}>{catDef.icon}</span>
                                                             {dim.label}
                                                             <span style={{ color: '#64748b', fontWeight: 600 }}>[{dim.tolMin}ΓÇô{dim.tolMax} {dim.unit}]</span>
@@ -7597,7 +7681,7 @@ export default function DrawingManager() {
                                                 >
                                                     <Database size={13} /> {isSubmittingSim ? 'Mengirim...' : 'Kirim Log'}
                                                 </button>
-                                                
+
                                                 <button
                                                     onClick={handleResetSimValues}
                                                     style={{
@@ -7623,7 +7707,7 @@ export default function DrawingManager() {
                                                     <RefreshCw size={13} /> Reset
                                                 </button>
                                             </div>
-                                            
+
                                             <a
                                                 href="#/terminal"
                                                 style={{
@@ -7684,7 +7768,7 @@ export default function DrawingManager() {
                                 <X size={18} />
                             </button>
                         </div>
-                        
+
                         <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748b', lineHeight: '1.5' }}>
                             Garis referensi sepanjang <b>{scaleModalPx.toFixed(1)} piksel</b> telah ditarik. Masukkan jarak nyata dalam satuan milimeter (mm) untuk mengkalibrasi kanvas.
                         </p>
@@ -7908,6 +7992,177 @@ export default function DrawingManager() {
                                 style={{ flex: 1, padding: '10px', background: 'linear-gradient(135deg, #2563eb, #7c3aed)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.78rem' }}
                             >
                                 Simpan Dimensi
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* CadQuery Parametric CAD Modal */}
+            {showCqModal && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+                    backdropFilter: 'blur(6px)',
+                    zIndex: 9999,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '20px',
+                    boxSizing: 'border-box'
+                }}>
+                    <div style={{
+                        backgroundColor: 'white',
+                        borderRadius: '16px',
+                        width: '500px',
+                        maxWidth: '100%',
+                        padding: '24px',
+                        boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '16px',
+                        border: '1px solid #e2e8f0',
+                        position: 'relative'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '1.5rem' }}>📐</span>
+                                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                                    CadQuery Parametric Generator
+                                </h3>
+                            </div>
+                            <button
+                                onClick={() => setShowCqModal(false)}
+                                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', outline: 'none' }}
+                                disabled={isGeneratingCq}
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                            Tentukan parameter dimensi di bawah ini untuk membuat gambar CAD secara otomatis menggunakan pustaka CadQuery / ezdxf.
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '0.8rem' }}>
+                            {/* Model Type */}
+                            <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <label style={{ fontWeight: 700, color: '#475569' }}>Tipe Braket</label>
+                                <select
+                                    value={cqType}
+                                    onChange={(e) => setCqType(e.target.value)}
+                                    style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', outline: 'none' }}
+                                >
+                                    <option value="rectangular">Plat Rectangular (Persegi)</option>
+                                    <option value="circular">Flange Circular (Bulat)</option>
+                                </select>
+                            </div>
+
+                            {/* Width / Diameter */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <label style={{ fontWeight: 700, color: '#475569' }}>
+                                    {cqType === 'circular' ? 'Diameter Luar (mm)' : 'Lebar Plat (mm)'}
+                                </label>
+                                <input
+                                    type="number"
+                                    value={cqWidth}
+                                    onChange={(e) => setCqWidth(Number(e.target.value))}
+                                    style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', outline: 'none' }}
+                                />
+                            </div>
+
+                            {/* Height */}
+                            {cqType === 'rectangular' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    <label style={{ fontWeight: 700, color: '#475569' }}>Tinggi Plat (mm)</label>
+                                    <input
+                                        type="number"
+                                        value={cqHeight}
+                                        onChange={(e) => setCqHeight(Number(e.target.value))}
+                                        style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', outline: 'none' }}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Thickness */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <label style={{ fontWeight: 700, color: '#475569' }}>Ketebalan (mm)</label>
+                                <input
+                                    type="number"
+                                    value={cqThickness}
+                                    onChange={(e) => setCqThickness(Number(e.target.value))}
+                                    style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', outline: 'none' }}
+                                />
+                            </div>
+
+                            {/* Hole Diameter */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <label style={{ fontWeight: 700, color: '#475569' }}>Diameter Lubang (mm)</label>
+                                <input
+                                    type="number"
+                                    value={cqHoleDia}
+                                    onChange={(e) => setCqHoleDia(Number(e.target.value))}
+                                    style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', outline: 'none' }}
+                                />
+                            </div>
+
+                            {/* Hole Count */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <label style={{ fontWeight: 700, color: '#475569' }}>
+                                    {cqType === 'circular' ? 'Jumlah Lubang Polar' : 'Pola Lubang'}
+                                </label>
+                                <select
+                                    value={cqHoleCount}
+                                    onChange={(e) => setCqHoleCount(Number(e.target.value))}
+                                    style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', outline: 'none' }}
+                                >
+                                    {cqType === 'circular' ? (
+                                        <>
+                                            <option value={4}>4 Lubang</option>
+                                            <option value={6}>6 Lubang</option>
+                                            <option value={8}>8 Lubang</option>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <option value={4}>4 Corner Holes (Pojok)</option>
+                                            <option value={1}>1 Center Hole (Tengah)</option>
+                                        </>
+                                    )}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                            <button
+                                onClick={() => setShowCqModal(false)}
+                                style={{
+                                    flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1',
+                                    backgroundColor: 'white', color: '#475569', fontWeight: 700, cursor: 'pointer', outline: 'none'
+                                }}
+                                disabled={isGeneratingCq}
+                            >
+                                Batal
+                            </button>
+                            <button
+                                onClick={handleGenerateCqModel}
+                                style={{
+                                    flex: 2, padding: '10px', borderRadius: '8px', border: 'none',
+                                    backgroundColor: '#f59e0b', color: 'white', fontWeight: 800,
+                                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                                    outline: 'none', boxShadow: '0 4px 6px -1px rgba(245, 158, 11, 0.2)'
+                                }}
+                                disabled={isGeneratingCq}
+                            >
+                                {isGeneratingCq ? (
+                                    <>
+                                        <RefreshCw size={14} style={{ animation: 'spin 1.5s linear infinite' }} /> Memproses CAD...
+                                    </>
+                                ) : (
+                                    <>Generasikan Model CAD</>
+                                )}
                             </button>
                         </div>
                     </div>

@@ -1790,6 +1790,301 @@ async def convert_pdf_to_image(req: PDFConvertRequest):
         return {"success": False, "error": str(e)}
 
 
+@app.post("/blueprint/pdf_to_dxf")
+async def convert_pdf_to_dxf_endpoint(req: PDFConvertRequest):
+    try:
+        import base64
+        import fitz  # PyMuPDF
+        import ezdxf
+        import io
+
+        if "," in req.pdf_data_url:
+            base64_data = req.pdf_data_url.split(",")[1]
+        else:
+            base64_data = req.pdf_data_url
+            
+        pdf_bytes = base64.b64decode(base64_data)
+        
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        if len(doc) == 0:
+            return {"success": False, "error": "The PDF file is empty or invalid."}
+            
+        page_num = min(max(0, req.page_num), len(doc) - 1)
+        page = doc[page_num]
+        
+        # Get vector drawings (paths) from PyMuPDF
+        drawings = page.get_drawings()
+        
+        # Create a new DXF document
+        dxf_doc = ezdxf.new('R2010')
+        msp = dxf_doc.modelspace()
+        
+        page_height = page.rect.height
+        
+        entity_count = 0
+        for path in drawings:
+            for item in path.get("items", []):
+                item_type = item[0]
+                if item_type == "l":  # Line: ("l", p1, p2)
+                    p1, p2 = item[1], item[2]
+                    x1, y1 = p1.x, page_height - p1.y
+                    x2, y2 = p2.x, page_height - p2.y
+                    msp.add_line((x1, y1), (x2, y2))
+                    entity_count += 1
+                elif item_type == "re":  # Rectangle: ("re", rect)
+                    r = item[1]
+                    x1, y1 = r.x0, page_height - r.y0
+                    x2, y2 = r.x1, page_height - r.y1
+                    msp.add_line((x1, y1), (x2, y1))
+                    msp.add_line((x2, y1), (x2, y2))
+                    msp.add_line((x2, y2), (x1, y2))
+                    msp.add_line((x1, y2), (x1, y1))
+                    entity_count += 4
+                elif item_type == "c":  # Bezier Curve: ("c", p1, p2, p3, p4)
+                    p1, p2, p3, p4 = item[1], item[2], item[3], item[4]
+                    points = [
+                        (p1.x, page_height - p1.y),
+                        (p2.x, page_height - p2.y),
+                        (p3.x, page_height - p3.y),
+                        (p4.x, page_height - p4.y)
+                    ]
+                    msp.add_spline(points)
+                    entity_count += 1
+                    
+        # Write DXF to string
+        dxf_stream = io.StringIO()
+        dxf_doc.write(dxf_stream)
+        dxf_content = dxf_stream.getvalue()
+        
+        # Encode DXF to base64
+        base64_dxf = base64.b64encode(dxf_content.encode("utf-8")).decode("utf-8")
+        dxf_data_url = f"data:image/x-dxf;base64,{base64_dxf}"
+        
+        return {
+            "success": True,
+            "dxf_data_url": dxf_data_url,
+            "entity_count": entity_count,
+            "filename": f"vector_converted_page_{page_num + 1}.dxf"
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Error converting PDF to DXF: {str(e)}"}
+
+
+@app.post("/blueprint/cadquery/generate")
+async def generate_cadquery_model(req: dict):
+    try:
+        import base64
+        import io
+        import ezdxf
+        import time
+        
+        width = float(req.get("width", 100))
+        height = float(req.get("height", 80))
+        thickness = float(req.get("thickness", 10))
+        hole_dia = float(req.get("hole_dia", 20))
+        hole_count = int(req.get("hole_count", 4))
+        bracket_type = req.get("bracket_type", "rectangular")
+        
+        cadquery_available = False
+        try:
+            import cadquery as cq
+            cadquery_available = True
+        except ImportError:
+            pass
+            
+        dxf_content = ""
+        entity_count = 0
+        
+        if cadquery_available:
+            try:
+                import cadquery as cq
+                if bracket_type == "circular":
+                    result = cq.Workplane("XY").circle(width / 2).extrude(thickness)
+                    if hole_dia > 0:
+                        result = result.faces(">Z").workplane().polarArray(width * 0.35, 0, 360, hole_count).hole(hole_dia)
+                else:
+                    result = cq.Workplane("XY").box(width, height, thickness)
+                    if hole_dia > 0:
+                        result = result.faces(">Z").workplane().rect(width - hole_dia * 2, height - hole_dia * 2, forConstruction=True).vertices().hole(hole_dia)
+                
+                doc = ezdxf.new('R2010')
+                msp = doc.modelspace()
+                if bracket_type == "circular":
+                    msp.add_circle((0, 0), width / 2)
+                    entity_count += 1
+                    import math
+                    for i in range(hole_count):
+                        angle = i * (2 * math.pi / hole_count)
+                        hx = (width * 0.35) * math.cos(angle)
+                        hy = (width * 0.35) * math.sin(angle)
+                        msp.add_circle((hx, hy), hole_dia / 2)
+                        entity_count += 1
+                else:
+                    w2, h2 = width / 2, height / 2
+                    msp.add_line((-w2, -h2), (w2, -h2))
+                    msp.add_line((w2, -h2), (w2, h2))
+                    msp.add_line((w2, h2), (-w2, h2))
+                    msp.add_line((-w2, h2), (-w2, -h2))
+                    entity_count += 4
+                    dx = width / 2 - hole_dia
+                    dy = height / 2 - hole_dia
+                    msp.add_circle((-dx, -dy), hole_dia / 2)
+                    msp.add_circle((dx, -dy), hole_dia / 2)
+                    msp.add_circle((dx, dy), hole_dia / 2)
+                    msp.add_circle((-dx, dy), hole_dia / 2)
+                    entity_count += 4
+                
+                dxf_temp = io.StringIO()
+                doc.write(dxf_temp)
+                dxf_content = dxf_temp.getvalue()
+            except Exception as e:
+                cadquery_available = False
+                
+        if not cadquery_available:
+            doc = ezdxf.new('R2010')
+            msp = doc.modelspace()
+            
+            if bracket_type == "circular":
+                msp.add_circle((250, 180), width)
+                entity_count += 1
+                
+                import math
+                for i in range(hole_count):
+                    angle = i * (2 * math.pi / hole_count)
+                    r_ring = width * 0.7
+                    hx = 250 + r_ring * math.cos(angle)
+                    hy = 180 + r_ring * math.sin(angle)
+                    msp.add_circle((hx, hy), hole_dia / 2)
+                    entity_count += 1
+            else:
+                cx, cy = 250, 180
+                w2, h2 = width, height
+                x1, y1 = cx - w2, cy - h2
+                x2, y2 = cx + w2, cy + h2
+                
+                msp.add_line((x1, y1), (x2, y1))
+                msp.add_line((x2, y1), (x2, y2))
+                msp.add_line((x2, y2), (x1, y2))
+                msp.add_line((x1, y2), (x1, y1))
+                entity_count += 4
+                
+                if hole_count == 1:
+                    msp.add_circle((cx, cy), hole_dia / 2)
+                    entity_count += 1
+                else:
+                    offset_x = w2 * 0.7
+                    offset_y = h2 * 0.7
+                    msp.add_circle((cx - offset_x, cy - offset_y), hole_dia / 2)
+                    msp.add_circle((cx + offset_x, cy - offset_y), hole_dia / 2)
+                    msp.add_circle((cx + offset_x, cy + offset_y), hole_dia / 2)
+                    msp.add_circle((cx - offset_x, cy + offset_y), hole_dia / 2)
+                    entity_count += 4
+            
+            dxf_temp = io.StringIO()
+            doc.write(dxf_temp)
+            dxf_content = dxf_temp.getvalue()
+            
+        base64_dxf = base64.b64encode(dxf_content.encode("utf-8")).decode("utf-8")
+        dxf_data_url = f"data:image/x-dxf;base64,{base64_dxf}"
+        
+        dimensions = []
+        if bracket_type == "circular":
+            dimensions.append({
+                "id": f"cq_dim_outer_{int(time.time() * 1000)}",
+                "label": "Flange Outer Dia (D)",
+                "spec": str(width * 2),
+                "tolMin": -0.2,
+                "tolMax": 0.2,
+                "variable": "Meas_Diameter",
+                "unit": "mm",
+                "category": "diameter",
+                "measureType": "diameter",
+                "indicatorType": "radial",
+                "gdt_symbol": "⌀",
+                "x1": 250 - width, "y1": 180,
+                "x2": 250 + width, "y2": 180,
+                "lx": 250, "ly": 180
+            })
+            if hole_dia > 0:
+                dimensions.append({
+                    "id": f"cq_dim_hole_{int(time.time() * 1000)}",
+                    "label": "Hole Diameter (d)",
+                    "spec": str(hole_dia),
+                    "tolMin": -0.05,
+                    "tolMax": 0.05,
+                    "variable": "Meas_Bore",
+                    "unit": "mm",
+                    "category": "diameter",
+                    "measureType": "diameter",
+                    "indicatorType": "radial",
+                    "gdt_symbol": "⌀",
+                    "x1": 250, "y1": 180 - width * 0.7,
+                    "x2": 250, "y2": 180 - width * 0.7,
+                    "lx": 250, "ly": 180 - width * 0.7
+                })
+        else:
+            dimensions.append({
+                "id": f"cq_dim_w_{int(time.time() * 1000)}",
+                "label": "Plate Width (W)",
+                "spec": str(width * 2),
+                "tolMin": -0.5,
+                "tolMax": 0.5,
+                "variable": "Meas_Length",
+                "unit": "mm",
+                "category": "dimension",
+                "measureType": "linear_horizontal",
+                "indicatorType": "horizontal",
+                "gdt_symbol": "",
+                "x1": 250 - width, "y1": 180 - height - 20,
+                "x2": 250 + width, "y2": 180 - height - 20,
+                "lx": 250, "ly": 180 - height - 35
+            })
+            dimensions.append({
+                "id": f"cq_dim_h_{int(time.time() * 1000)}",
+                "label": "Plate Height (H)",
+                "spec": str(height * 2),
+                "tolMin": -0.5,
+                "tolMax": 0.5,
+                "variable": "Meas_Height",
+                "unit": "mm",
+                "category": "dimension",
+                "measureType": "linear_vertical",
+                "indicatorType": "vertical",
+                "gdt_symbol": "",
+                "x1": 250 - width - 20, "y1": 180 - height,
+                "x2": 250 - width - 20, "y2": 180 + height,
+                "lx": 250 - width - 35, "ly": 180
+            })
+            if hole_dia > 0:
+                dimensions.append({
+                    "id": f"cq_dim_hole_{int(time.time() * 1000)}",
+                    "label": "Bore Diameter",
+                    "spec": str(hole_dia),
+                    "tolMin": -0.1,
+                    "tolMax": 0.1,
+                    "variable": "Meas_Bore",
+                    "unit": "mm",
+                    "category": "diameter",
+                    "measureType": "diameter",
+                    "indicatorType": "radial",
+                    "gdt_symbol": "⌀",
+                    "x1": 250, "y1": 180,
+                    "x2": 250, "y2": 180,
+                    "lx": 270, "ly": 190
+                })
+        
+        return {
+            "success": True,
+            "dxf_data_url": dxf_data_url,
+            "entity_count": entity_count,
+            "cadquery_used": cadquery_available,
+            "dimensions": dimensions,
+            "filename": f"parametric_{bracket_type}_{int(time.time())}.dxf"
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Parametric generation failed: {str(e)}"}
+
+
 
 # ─── OBD2 MANAGER & ENDPOINTS ──────────────────────────────────────────────────
 class OBD2Manager:

@@ -481,6 +481,31 @@ export async function saveLiveMeasurement(data) {
 
 // ── Drawings ──────────────────────────────────────────
 
+export function safeSaveDrawingsToLocalStorage(drawingsList) {
+    if (typeof window === 'undefined') return;
+    try {
+        localStorage.setItem('mavi_drawings', JSON.stringify(drawingsList));
+    } catch (e) {
+        console.warn('[Storage Quota] Failed to save full drawings, attempting to save without large images:', e);
+        try {
+            const minimizedList = drawingsList.map(dwg => {
+                if (dwg.dataUrl && dwg.dataUrl.length > 80000) {
+                    return { ...dwg, dataUrl: null, hasOmittedDataUrl: true };
+                }
+                if (dwg.data_url && dwg.data_url.length > 80000) {
+                    return { ...dwg, data_url: null, hasOmittedDataUrl: true };
+                }
+                return dwg;
+            });
+            localStorage.setItem('mavi_drawings', JSON.stringify(minimizedList));
+            console.log('[Storage Quota] Saved minimized drawings to localStorage successfully.');
+        } catch (innerErr) {
+            console.error('[Storage Quota] Completely failed to save drawings to localStorage:', innerErr);
+        }
+    }
+}
+
+
 export async function getAllDrawings() {
     try {
         const supabase = getSupabaseClient();
@@ -498,9 +523,7 @@ export async function getAllDrawings() {
         }));
         
         // Sync local storage cache for offline/fallback use
-        if (typeof window !== 'undefined') {
-            localStorage.setItem('mavi_drawings', JSON.stringify(mappedData));
-        }
+        safeSaveDrawingsToLocalStorage(mappedData);
         return mappedData;
     } catch (err) {
         console.warn('[Supabase Fallback] Failed to fetch drawings from database, loading from localStorage:', err);
@@ -558,7 +581,7 @@ export async function saveDrawing(drawing) {
                 } else {
                     list.push(mappedData);
                 }
-                localStorage.setItem('mavi_drawings', JSON.stringify(list));
+                safeSaveDrawingsToLocalStorage(list);
             } catch (e) {
                 console.error('[Supabase Fallback] Failed to update local cache on save:', e);
             }
@@ -601,7 +624,7 @@ export async function saveDrawing(drawing) {
                     list.push(savedItem);
                 }
                 
-                localStorage.setItem('mavi_drawings', JSON.stringify(list));
+                safeSaveDrawingsToLocalStorage(list);
                 return savedItem;
             } catch (e) {
                 console.error('[Supabase Fallback] Failed to save drawing locally:', e);
@@ -626,7 +649,7 @@ export async function deleteDrawing(id) {
             const cachedRaw = localStorage.getItem('mavi_drawings') || '[]';
             const list = JSON.parse(cachedRaw);
             const newList = list.filter(d => d.id !== id);
-            localStorage.setItem('mavi_drawings', JSON.stringify(newList));
+            safeSaveDrawingsToLocalStorage(newList);
         }
         return true;
     } catch (err) {
@@ -636,7 +659,7 @@ export async function deleteDrawing(id) {
                 const cachedRaw = localStorage.getItem('mavi_drawings') || '[]';
                 const list = JSON.parse(cachedRaw);
                 const newList = list.filter(d => d.id !== id);
-                localStorage.setItem('mavi_drawings', JSON.stringify(newList));
+                safeSaveDrawingsToLocalStorage(newList);
                 return true;
             } catch (e) {
                 console.error('[Supabase Fallback] Failed to delete drawing locally:', e);
