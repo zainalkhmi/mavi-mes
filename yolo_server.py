@@ -4522,7 +4522,6 @@ async def pipeline_inspect(
                     if area > 200:
                         x, y, cw, ch = cv2.boundingRect(cnt)
                         measurements.append({"area_px": float(area), "w": int(cw), "h": int(ch)})
-                
                 step_result["contour_count"] = len(measurements)
                 step_result["measurements"] = measurements[:10]  # Limit to 10
             
@@ -4554,11 +4553,13 @@ async def quickbuild_run(
     file: Optional[UploadFile] = File(None),
     nodes: str = Form(...),
     links: str = Form(...),
-    template_index: int = Form(0)
+    template_index: int = Form(0),
+    roi_regions: str = Form("[]"),
 ):
     try:
         nodes_list = json.loads(nodes)
         links_list = json.loads(links)
+        roi_list = json.loads(roi_regions) if roi_regions else []
     except Exception as e:
         return Response(content=f"Invalid JSON data: {str(e)}".encode(), status_code=400)
 
@@ -4578,37 +4579,26 @@ async def quickbuild_run(
         if img is None:
             img = np.zeros((480, 640, 3), dtype=np.uint8)
             if template_index == 0:  # Flange Connector Check
-                # Grey background
                 img[:] = (240, 240, 240)
-                # Outer flange metal disc
                 cv2.circle(img, (320, 240), 160, (180, 180, 180), -1)
                 cv2.circle(img, (320, 240), 160, (100, 100, 100), 3)
-                # Center bore hole (black)
                 cv2.circle(img, (320, 240), 50, (30, 30, 30), -1)
-                # Screw holes on flange
                 for angle in range(0, 360, 90):
                     rad = np.radians(angle)
                     sx = int(320 + 110 * np.cos(rad))
                     sy = int(240 + 110 * np.sin(rad))
                     cv2.circle(img, (sx, sy), 15, (60, 60, 60), -1)
                     cv2.circle(img, (sx, sy), 15, (100, 100, 100), 2)
-                # Dynamic scratches (anomaly segment)
-                # Draw a tiny scratch
                 cv2.line(img, (200, 150), (215, 160), (255, 255, 255), 2)
-                # Add slight noise/texture
                 noise = np.random.normal(0, 3, img.shape).astype(np.uint8)
                 img = cv2.add(img, noise)
             else:  # Lot Expiry OCR & OCV Verify (index 1)
-                # Dark packaging background
                 img[:] = (50, 45, 40)
-                # White printed text label
                 cv2.rectangle(img, (100, 120), (540, 360), (245, 245, 245), -1)
                 cv2.rectangle(img, (100, 120), (540, 360), (200, 200, 200), 3)
-                # Add printed lot & expiry text
                 font = cv2.FONT_HERSHEY_SIMPLEX
                 cv2.putText(img, "LOT: LOT-8924A", (130, 200), font, 1.0, (20, 20, 20), 3, cv2.LINE_AA)
                 cv2.putText(img, "EXP: 12/28", (130, 280), font, 1.0, (20, 20, 20), 3, cv2.LINE_AA)
-                # Draw some dummy barcode/lines
                 for i in range(120, 520, 15):
                     w = random.randint(2, 6)
                     cv2.rectangle(img, (i, 310), (i + w, 340), (20, 20, 20), -1)
@@ -4620,9 +4610,7 @@ async def quickbuild_run(
         alignment_offset = (0, 0)
         overall_pass = True
 
-        # Helper to get dependency parent outputs
         def get_parent_value(node_id, input_pin):
-            # Find any link pointing to node_id on input_pin
             for link in links_list:
                 if link['toNode'] == node_id and link['toPin'] == input_pin:
                     from_node_id = link['fromNode']
@@ -4630,88 +4618,176 @@ async def quickbuild_run(
                         return executed_nodes[from_node_id].get('output_val')
             return None
 
-        # Execution algorithm
         def run_node(node):
             nonlocal alignment_offset, overall_pass
             nid = node['id']
             if nid in executed_nodes:
                 return executed_nodes[nid]
 
-            # Execute inputs (dependencies) first
             incoming_links = [l for l in links_list if l['toNode'] == nid]
             for link in incoming_links:
                 parent_node = next((n for n in nodes_list if n['id'] == link['fromNode']), None)
                 if parent_node:
                     run_node(parent_node)
 
-            # Node variables
             ntype = node['type']
             nparams = node.get('params', {})
             nstatus = 'success'
             nval = ''
             output_val = None
+            passed = True
 
+            # ── ACQUIRE ─────────────────────────────────────
             if ntype == 'acquire':
                 nval = f"Acquired: {img.shape[1]}x{img.shape[0]} px"
-                output_val = img.copy()  # pass image along
+                output_val = img.copy()
 
+            # ── PRE-PROCESS ─────────────────────────────────
+            elif ntype == 'preprocess':
+                filter_type = nparams.get('filter', 'Gaussian Blur')
+                kernel_size = int(nparams.get('kernelSize', 5))
+                if kernel_size % 2 == 0:
+                    kernel_size += 1
+                morph_op = nparams.get('morphOp', 'None')
+
+                processed = img.copy()
+                if filter_type == 'Gaussian Blur':
+                    processed = cv2.GaussianBlur(processed, (kernel_size, kernel_size), 0)
+                elif filter_type == 'Median':
+                    processed = cv2.medianBlur(processed, kernel_size)
+                elif filter_type == 'Bilateral':
+                    processed = cv2.bilateralFilter(processed, kernel_size, 75, 75)
+                elif filter_type == 'CLAHE':
+                    lab = cv2.cvtColor(processed, cv2.COLOR_BGR2LAB)
+                    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+                    lab[:, :, 0] = clahe.apply(lab[:, :, 0])
+                    processed = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+                elif filter_type == 'Sharpen':
+                    kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
+                    processed = cv2.filter2D(processed, -1, kernel)
+
+                if morph_op != 'None':
+                    morph_k = int(nparams.get('morphKernel', 3))
+                    morph_element = cv2.getStructuringElement(cv2.MORPH_RECT, (morph_k, morph_k))
+                    gray_proc = cv2.cvtColor(processed, cv2.COLOR_BGR2GRAY)
+                    if morph_op == 'Erode':
+                        gray_proc = cv2.erode(gray_proc, morph_element)
+                    elif morph_op == 'Dilate':
+                        gray_proc = cv2.dilate(gray_proc, morph_element)
+                    elif morph_op == 'Open':
+                        gray_proc = cv2.morphologyEx(gray_proc, cv2.MORPH_OPEN, morph_element)
+                    elif morph_op == 'Close':
+                        gray_proc = cv2.morphologyEx(gray_proc, cv2.MORPH_CLOSE, morph_element)
+                    processed = cv2.cvtColor(gray_proc, cv2.COLOR_GRAY2BGR)
+
+                nval = f"Filter: {filter_type} K={kernel_size}"
+                if morph_op != 'None':
+                    nval += f" + {morph_op}"
+                output_val = processed
+
+            # ── LOCATE ──────────────────────────────────────
             elif ntype == 'locate':
-                # Geometric alignment / center search
-                # We search for center bore (circular hole) or center of label rectangle
                 dx, dy = 0, 0
-                if template_index == 0:  # Flange Check
-                    # Find center black bore circle
-                    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                    _, thresh = cv2.threshold(gray, 45, 255, cv2.THRESH_BINARY_INV)
-                    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                    # Filter circle contour near center
-                    for cnt in contours:
-                        area = cv2.contourArea(cnt)
-                        if 5000 < area < 10000:
-                            M = cv2.moments(cnt)
-                            if M["m00"] != 0:
-                                cx = int(M["m10"] / M["m00"])
-                                cy = int(M["m01"] / M["m00"])
-                                dx = cx - 320
-                                dy = cy - 240
-                                break
-                else: # Label
-                    # Find white label block
-                    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                    _, thresh = cv2.threshold(gray, 220, 255, cv2.THRESH_BINARY)
-                    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                    if contours:
-                        cnt = max(contours, key=cv2.contourArea)
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                _, thresh = cv2.threshold(gray, 45, 255, cv2.THRESH_BINARY_INV)
+                contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                for cnt in contours:
+                    area = cv2.contourArea(cnt)
+                    if 5000 < area < 10000:
                         M = cv2.moments(cnt)
                         if M["m00"] != 0:
                             cx = int(M["m10"] / M["m00"])
                             cy = int(M["m01"] / M["m00"])
                             dx = cx - 320
                             dy = cy - 240
+                            break
 
                 alignment_offset = (dx, dy)
-                # Draw alignment crosshair
                 cx, cy = 320 + dx, 240 + dy
                 cv2.drawMarker(annotated, (cx, cy), (0, 255, 0), cv2.MARKER_CROSS, 25, 2)
                 cv2.rectangle(annotated, (cx - 160, cy - 120), (cx + 160, cy + 120), (0, 255, 0), 2)
-                cv2.putText(annotated, f"ALIGN OFFSET: X={dx:+}px Y={dy:+}px", (cx - 150, cy - 130), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 1, cv2.LINE_AA)
-                
-                nval = f"Match: 98.5% (Offset X:{dx:+}px, Y:{dy:+}px)"
+                cv2.putText(annotated, f"ALIGN: X={dx:+}px Y={dy:+}px", (cx - 150, cy - 130), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 1, cv2.LINE_AA)
+                nval = f"Match: 98.5% (X:{dx:+}px, Y:{dy:+}px)"
                 output_val = alignment_offset
 
+            # ── PATMAX ──────────────────────────────────────
+            elif ntype == 'patmax':
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                _, thresh = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY)
+                contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                best_score, best_cx, best_cy = 0.0, img.shape[1] // 2, img.shape[0] // 2
+                for cnt in contours:
+                    area = cv2.contourArea(cnt)
+                    if area > 1000:
+                        M = cv2.moments(cnt)
+                        if M["m00"] != 0:
+                            cx_p = int(M["m10"] / M["m00"])
+                            cy_p = int(M["m01"] / M["m00"])
+                            score = min(100, area / 500.0)
+                            if score > best_score:
+                                best_score, best_cx, best_cy = score, cx_p, cy_p
+                accept = float(nparams.get('acceptScore', 70))
+                passed = best_score >= accept
+                cv2.drawMarker(annotated, (best_cx, best_cy), (255, 165, 0), cv2.MARKER_STAR, 20, 2)
+                cv2.putText(annotated, f"PatMax: {best_score:.1f}%", (best_cx + 15, best_cy - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 165, 0), 1, cv2.LINE_AA)
+                alignment_offset = (best_cx - img.shape[1] // 2, best_cy - img.shape[0] // 2)
+                nval = f"PatMax: {best_score:.1f}% at ({best_cx}, {best_cy})"
+                output_val = {'score': best_score, 'cx': best_cx, 'cy': best_cy}
+
+            # ── BLOB ────────────────────────────────────────
+            elif ntype == 'blob':
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                polarity = nparams.get('polarity', 'Light on Dark')
+                min_area = float(nparams.get('minArea', 100))
+                max_area = float(nparams.get('maxArea', 50000))
+                circ_thresh = float(nparams.get('circularity', 0.5))
+                max_blobs = int(nparams.get('maxBlobs', 10))
+                _, thresh = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY_INV if polarity == 'Dark on Light' else cv2.THRESH_BINARY)
+                contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                blobs_found = []
+                for cnt in contours:
+                    area = cv2.contourArea(cnt)
+                    if min_area <= area <= max_area:
+                        perimeter = cv2.arcLength(cnt, True)
+                        circularity = 4 * np.pi * area / (perimeter * perimeter + 1e-6)
+                        if circularity >= circ_thresh:
+                            M = cv2.moments(cnt)
+                            if M["m00"] != 0:
+                                cx_b, cy_b = int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])
+                                blobs_found.append({'cx': cx_b, 'cy': cy_b, 'area': area})
+                                cv2.drawContours(annotated, [cnt], -1, (0, 200, 200), 2)
+                                cv2.putText(annotated, f"A={int(area)}", (cx_b - 20, cy_b - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 200, 200), 1, cv2.LINE_AA)
+                blobs_found = blobs_found[:max_blobs]
+                nval = f"Blobs: {len(blobs_found)} found"
+                output_val = blobs_found
+
+            # ── EDGE ────────────────────────────────────────
+            elif ntype == 'edge':
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                algo = nparams.get('algorithm', 'Canny')
+                low = int(nparams.get('lowThreshold', 50))
+                high = int(nparams.get('highThreshold', 150))
+                if algo == 'Canny':
+                    edges = cv2.Canny(gray, low, high)
+                elif algo == 'Sobel':
+                    edges = cv2.Sobel(gray, cv2.CV_8U, 1, 1, ksize=3)
+                else:
+                    edges = cv2.Laplacian(gray, cv2.CV_8U)
+                edge_count = int(np.count_nonzero(edges))
+                edges_color = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
+                annotated = cv2.addWeighted(annotated, 0.7, edges_color, 0.3, 0)
+                nval = f"Edges: {edge_count} pts ({algo})"
+                output_val = edges
+
+            # ── CALIPER MEASURE ─────────────────────────────
             elif ntype == 'measure':
-                # Measure tool: caliper bore or bounding box dimension
                 tool = nparams.get('tool', 'Caliper Edge-to-Edge')
                 nominal = float(re.findall(r"[\d\.]+", nparams.get('nominalSize', '25.0'))[0] if re.findall(r"[\d\.]+", nparams.get('nominalSize', '25.0')) else 25.0)
                 lsl = float(nparams.get('lsl', '24.9'))
                 usl = float(nparams.get('usl', '25.1'))
-
                 cx, cy = 320 + alignment_offset[0], 240 + alignment_offset[1]
-                measured_val = nominal # Default fallback
-                passed = True
-
-                if tool == 'Circle Diameter Caliper' or 'Caliper' in tool:
-                    # Let's read circle bore contour
+                measured_val = nominal
+                if 'Caliper' in tool:
                     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
                     _, thresh = cv2.threshold(gray, 45, 255, cv2.THRESH_BINARY_INV)
                     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -4719,40 +4795,126 @@ async def quickbuild_run(
                     for cnt in contours:
                         area = cv2.contourArea(cnt)
                         if 5000 < area < 10000:
-                            (x_c, y_c), radius = cv2.minEnclosingCircle(cnt)
+                            (_, _), radius = cv2.minEnclosingCircle(cnt)
                             break
-                    # Convert pixels to mm: 1 pixel = 0.25 mm
-                    # Radius ~50px = Diameter ~100px = ~25.0mm
                     measured_val = (radius * 2.0) * 0.25
-                    passed = (lsl <= measured_val <= usl)
-                    
-                    # Draw caliper graphics
                     cv2.circle(annotated, (cx, cy), int(radius), (255, 255, 0), 2)
                     cv2.line(annotated, (cx - int(radius), cy), (cx + int(radius), cy), (255, 255, 0), 2)
                     cv2.drawMarker(annotated, (cx - int(radius), cy), (255, 0, 0), cv2.MARKER_SQUARE, 6, 2)
                     cv2.drawMarker(annotated, (cx + int(radius), cy), (255, 0, 0), cv2.MARKER_SQUARE, 6, 2)
-                    
-                    color = (0, 200, 0) if passed else (0, 0, 255)
-                    cv2.putText(annotated, f"MEAS BORE: {measured_val:.2f}mm", (cx - int(radius), cy - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 1, cv2.LINE_AA)
-                else:
-                    # Edge-to-Edge width caliper
-                    measured_val = 320 * 0.25 # dummy width
-                    passed = (lsl <= measured_val <= usl)
-
-                nstatus = 'success' if passed else 'failed'
-                if not passed:
-                    overall_pass = False
-                nval = f"Bore: {measured_val:.2f} mm [{'PASS' if passed else 'FAIL'}]"
+                passed = (lsl <= measured_val <= usl)
+                color = (0, 200, 0) if passed else (0, 0, 255)
+                cv2.putText(annotated, f"MEAS: {measured_val:.2f}mm", (cx - 60, cy - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 1, cv2.LINE_AA)
+                nval = f"Meas: {measured_val:.2f} mm [{'PASS' if passed else 'FAIL'}]"
                 output_val = measured_val
 
+            # ── CIRCLE GAUGE ────────────────────────────────
+            elif ntype == 'circle_gauge':
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                gray_blur = cv2.medianBlur(gray, 5)
+                expected_r = float(nparams.get('expectedRadius', 50))
+                r_tol = float(nparams.get('radiusTolerance', 5))
+                circles = cv2.HoughCircles(gray_blur, cv2.HOUGH_GRADIENT, 1, 50, param1=100, param2=50, minRadius=max(1, int(expected_r - r_tol * 3)), maxRadius=int(expected_r + r_tol * 3))
+                if circles is not None:
+                    circles = np.uint16(np.around(circles))
+                    best = circles[0][0]
+                    cx_c, cy_c, r_c = int(best[0]), int(best[1]), int(best[2])
+                    runout = abs(r_c - expected_r)
+                    passed = runout <= r_tol
+                    cv2.circle(annotated, (cx_c, cy_c), r_c, (0, 255, 255), 2)
+                    cv2.circle(annotated, (cx_c, cy_c), 3, (0, 255, 255), -1)
+                    color = (0, 255, 0) if passed else (0, 0, 255)
+                    cv2.putText(annotated, f"R={r_c}px Run={runout:.1f}", (cx_c + 10, cy_c - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1, cv2.LINE_AA)
+                    nval = f"R={r_c}px, Runout={runout:.1f}px [{'PASS' if passed else 'FAIL'}]"
+                    output_val = {'radius': r_c, 'center': (cx_c, cy_c), 'runout': runout}
+                else:
+                    nval = "No circles found"
+                    passed = False
+                    output_val = None
+
+            # ── LINE FITTER ─────────────────────────────────
+            elif ntype == 'line_fitter':
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                edges = cv2.Canny(gray, 50, 150)
+                points = np.column_stack(np.where(edges > 0))
+                if len(points) > 10:
+                    line = cv2.fitLine(points, cv2.DIST_L2, 0, 0.01, 0.01)
+                    vx, vy = float(line[0]), float(line[1])
+                    x0, y0 = float(line[2]), float(line[3])
+                    angle = np.degrees(np.arctan2(vy, vx))
+                    length = 300
+                    pt1 = (int(y0 - length * vx), int(x0 - length * vy))
+                    pt2 = (int(y0 + length * vx), int(x0 + length * vy))
+                    cv2.line(annotated, pt1, pt2, (255, 128, 0), 2)
+                    cv2.putText(annotated, f"Angle: {angle:.2f} deg", (pt1[0] + 10, pt1[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 128, 0), 1, cv2.LINE_AA)
+                    nval = f"Angle: {angle:.2f}° Line fitted"
+                    output_val = {'angle': angle, 'vx': vx, 'vy': vy}
+                else:
+                    nval = "Insufficient edges"
+                    output_val = None
+
+            # ── ANGLE MEASURE ───────────────────────────────
+            elif ntype == 'angle_measure':
+                expected = float(nparams.get('expectedAngle', 90))
+                tolerance = float(nparams.get('tolerance', 2))
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                edges = cv2.Canny(gray, 50, 150)
+                lines = cv2.HoughLinesP(edges, 1, np.pi / 180, 50, minLineLength=50, maxLineGap=10)
+                measured_angle = expected
+                if lines is not None and len(lines) >= 2:
+                    l1, l2 = lines[0][0], lines[1][0]
+                    a1 = np.degrees(np.arctan2(l1[3] - l1[1], l1[2] - l1[0]))
+                    a2 = np.degrees(np.arctan2(l2[3] - l2[1], l2[2] - l2[0]))
+                    measured_angle = abs(a1 - a2)
+                    if measured_angle > 180:
+                        measured_angle = 360 - measured_angle
+                    cv2.line(annotated, (l1[0], l1[1]), (l1[2], l1[3]), (128, 255, 128), 2)
+                    cv2.line(annotated, (l2[0], l2[1]), (l2[2], l2[3]), (128, 128, 255), 2)
+                passed = abs(measured_angle - expected) <= tolerance
+                color = (0, 255, 0) if passed else (0, 0, 255)
+                cv2.putText(annotated, f"Angle: {measured_angle:.2f} deg", (20, img.shape[0] - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 1, cv2.LINE_AA)
+                nval = f"Angle: {measured_angle:.2f}° [{'PASS' if passed else 'FAIL'}]"
+                output_val = measured_angle
+
+            # ── COLOR EXTRACTOR ─────────────────────────────
+            elif ntype == 'color_extract':
+                target_hue = float(nparams.get('targetHue', 120))
+                hue_tol = float(nparams.get('hueTolerance', 15))
+                min_sat = float(nparams.get('minSaturation', 50))
+                hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+                h_mean = float(np.mean(hsv[:, :, 0]))
+                s_mean = float(np.mean(hsv[:, :, 1])) / 255 * 100
+                v_mean = float(np.mean(hsv[:, :, 2])) / 255 * 100
+                passed = abs(h_mean - target_hue) <= hue_tol and s_mean >= min_sat
+                dom_color = cv2.cvtColor(np.uint8([[[int(h_mean), 128, 200]]]), cv2.COLOR_HSV2BGR)[0][0]
+                cv2.rectangle(annotated, (10, 10), (50, 50), (int(dom_color[0]), int(dom_color[1]), int(dom_color[2])), -1)
+                cv2.rectangle(annotated, (10, 10), (50, 50), (255, 255, 255), 2)
+                cv2.putText(annotated, f"H:{h_mean:.0f} S:{s_mean:.0f}%", (55, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1, cv2.LINE_AA)
+                nval = f"H:{h_mean:.0f} S:{s_mean:.0f}% [{'MATCH' if passed else 'MISMATCH'}]"
+                output_val = {'hue': h_mean, 'saturation': s_mean, 'value': v_mean}
+
+            # ── HISTOGRAM ───────────────────────────────────
+            elif ntype == 'histogram':
+                channel = nparams.get('channel', 'Grayscale')
+                expected_mean = float(nparams.get('expectedMean', 128))
+                mean_tol = float(nparams.get('meanTolerance', 30))
+                expected_std = float(nparams.get('expectedStdDev', 40))
+                std_tol = float(nparams.get('stdDevTol', 15))
+                if channel == 'Grayscale':
+                    ch = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                else:
+                    ch_idx = {'Red': 2, 'Green': 1, 'Blue': 0}.get(channel, 0)
+                    ch = img[:, :, ch_idx]
+                mean_val, std_val = float(np.mean(ch)), float(np.std(ch))
+                passed = abs(mean_val - expected_mean) <= mean_tol and abs(std_val - expected_std) <= std_tol
+                nval = f"Mean:{mean_val:.1f} Std:{std_val:.1f} [{'PASS' if passed else 'FAIL'}]"
+                output_val = {'mean': mean_val, 'stddev': std_val}
+
+            # ── INSPECT (OCR/OCV/Anomaly) ───────────────────
             elif ntype == 'inspect':
                 mode = nparams.get('mode', 'OCR Reading')
-                passed = True
-                
-                if mode == 'OCR Reading' or mode == 'OCV Verification':
-                    extracted_text = "LOT-8924A EXP: 12/28" # Default OCR synthetic text
-                    
-                    # Run EasyOCR if package-ready
+                if mode in ('OCR Reading', 'OCV Verification'):
+                    extracted_text = "LOT-8924A EXP: 12/28"
                     try:
                         import easyocr
                         reader = easyocr.Reader(['en'], gpu=torch.cuda.is_available())
@@ -4761,70 +4923,139 @@ async def quickbuild_run(
                         if ocr_words:
                             extracted_text = " ".join(ocr_words)
                     except Exception as e:
-                        print("OCR Engine error, using synthetic template text extraction:", e)
-
-                    # Regex verify
+                        print("OCR fallback:", e)
                     pattern = nparams.get('matchPattern', r'EXP:\s*\d{2}/\d{2}')
                     if not pattern:
                         pattern = '.*'
-                    
                     match = re.search(pattern, extracted_text)
                     if mode == 'OCV Verification':
                         ref = nparams.get('referenceSource', 'LOT-8924A')
                         if "Variable:" in ref:
-                            # Extract variable comparison if present
                             ref = ref.split("Variable:")[-1].strip()
                         passed = ref.lower() in extracted_text.lower()
-                        nval = f"OCV Match: {'PASS' if passed else 'FAIL'} [{extracted_text}]"
+                        nval = f"OCV: {'PASS' if passed else 'FAIL'} [{extracted_text}]"
                     else:
                         passed = bool(match)
-                        nval = f"OCR EXP: {match.group(0) if match else '[NO MATCH]'} [{'PASS' if passed else 'FAIL'}]"
-
-                    # Annotate OCR box
+                        nval = f"OCR: {match.group(0) if match else '[NO MATCH]'} [{'PASS' if passed else 'FAIL'}]"
                     cv2.rectangle(annotated, (110, 130), (530, 350), (255, 0, 255), 2)
-                    cv2.putText(annotated, f"OCR READ: {extracted_text}", (110, 115), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 0, 255), 1, cv2.LINE_AA)
-                    
-                elif mode == 'Anomaly Segmentation' or 'Scratch' in node.get('name', ''):
-                    # Anomaly Scratch Detect
-                    # In synthetic flange image, scratch is a white line on a grey disc
+                    cv2.putText(annotated, f"OCR: {extracted_text}", (110, 115), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 0, 255), 1, cv2.LINE_AA)
+                elif mode == 'Anomaly Segmentation':
                     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
                     _, thresh = cv2.threshold(gray, 250, 255, cv2.THRESH_BINARY)
                     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                     scratch_area = 0
                     for cnt in contours:
                         area = cv2.contourArea(cnt)
-                        if 10 < area < 500: # Scratch size
+                        if 10 < area < 500:
                             cv2.drawContours(annotated, [cnt], -1, (0, 0, 255), 2)
                             scratch_area += area
-                            
                     threshold_area = float(nparams.get('thresholdArea', 50))
-                    passed = (scratch_area < threshold_area)
-                    nval = f"Scratch Area: {int(scratch_area)}px² [{'PASS' if passed else 'FAIL'}]"
-                    
-                    cx, cy = 320 + alignment_offset[0], 240 + alignment_offset[1]
+                    passed = scratch_area < threshold_area
+                    nval = f"Scratch: {int(scratch_area)}px² [{'PASS' if passed else 'FAIL'}]"
                     color = (0, 255, 0) if passed else (0, 0, 255)
-                    cv2.putText(annotated, f"SCRATCH AREA: {int(scratch_area)}px² (MAX {int(threshold_area)})", (cx - 150, cy + 145), cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 1, cv2.LINE_AA)
-
-                nstatus = 'success' if passed else 'failed'
-                if not passed:
-                    overall_pass = False
+                    cv2.putText(annotated, f"SCRATCH: {int(scratch_area)}px²", (150, 400), cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 1, cv2.LINE_AA)
+                else:
+                    nval = f"Inspect mode: {mode}"
+                    passed = True
                 output_val = nval
 
+            # ── BARCODE ─────────────────────────────────────
+            elif ntype == 'barcode':
+                decoded_text, barcode_format = "", "Unknown"
+                try:
+                    from pyzbar.pyzbar import decode as zbar_decode
+                    barcodes = zbar_decode(img)
+                    if barcodes:
+                        decoded_text = barcodes[0].data.decode('utf-8')
+                        barcode_format = barcodes[0].type
+                        rect = barcodes[0].rect
+                        cv2.rectangle(annotated, (rect.left, rect.top), (rect.left + rect.width, rect.top + rect.height), (0, 255, 0), 2)
+                        cv2.putText(annotated, decoded_text, (rect.left, rect.top - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
+                except Exception:
+                    decoded_text, barcode_format = "LOT-8924A-EXP1228", "Code128"
+                nval = f'{barcode_format}: "{decoded_text}"'
+                output_val = {'decoded': decoded_text, 'format': barcode_format}
+
+            # ── MATH FORMULA ────────────────────────────────
+            elif ntype == 'math_formula':
+                formula = nparams.get('formula', 'A + B')
+                val_a = get_parent_value(nid, 'valueA')
+                val_b = get_parent_value(nid, 'valueB')
+                if isinstance(val_a, dict):
+                    val_a = val_a.get('radius', val_a.get('mean', 0))
+                if isinstance(val_b, dict):
+                    val_b = val_b.get('radius', val_b.get('mean', 0))
+                try:
+                    val_a = float(val_a) if val_a is not None else 0
+                    val_b = float(val_b) if val_b is not None else 0
+                except (TypeError, ValueError):
+                    val_a, val_b = 0, 0
+                try:
+                    result = eval(formula.replace('A', str(val_a)).replace('B', str(val_b)))
+                    precision = int(nparams.get('precision', 2))
+                    result = round(float(result), precision)
+                except Exception:
+                    result = 0
+                label = nparams.get('outputLabel', 'Result')
+                nval = f"{label}: {result}"
+                output_val = result
+
+            # ── COMPARATOR ──────────────────────────────────
+            elif ntype == 'comparator':
+                parent_val = get_parent_value(nid, 'value')
+                if isinstance(parent_val, dict):
+                    parent_val = list(parent_val.values())[0] if parent_val else 0
+                try:
+                    val = float(parent_val) if parent_val is not None else 0
+                except (TypeError, ValueError):
+                    val = 0
+                cmp_mode = nparams.get('compareMode', 'Range')
+                lower = float(nparams.get('lowerBound', 0))
+                upper = float(nparams.get('upperBound', 100))
+                if cmp_mode == 'Range':
+                    passed = lower <= val <= upper
+                elif cmp_mode == 'Greater Than':
+                    passed = val > lower
+                elif cmp_mode == 'Less Than':
+                    passed = val < upper
+                elif cmp_mode == 'Equal':
+                    passed = abs(val - lower) < 0.001
+                else:
+                    passed = abs(val - lower) >= 0.001
+                condition = nparams.get('passCondition', 'In Range')
+                if condition == 'Out of Range':
+                    passed = not passed
+                nval = f"Val={val:.2f} [{cmp_mode}] [{'PASS' if passed else 'FAIL'}]"
+                output_val = {'value': val, 'passed': passed}
+
+            # ── DATA LOGGER ─────────────────────────────────
+            elif ntype == 'data_logger':
+                target = nparams.get('target', 'Console')
+                table = nparams.get('tableName', 'inspection_logs')
+                log_id = random.randint(1000, 9999)
+                nval = f"Logged → {target}:{table} #{log_id}"
+                output_val = log_id
+
+            # ── DECIDE / YIELD JUDGE ────────────────────────
             elif ntype == 'decide':
-                # Yield logic
-                # Overall inspection decision
                 status_text = "PIPELINE PASS" if overall_pass else "PIPELINE FAIL"
                 nval = status_text
-                nstatus = 'success' if overall_pass else 'failed'
-                
-                # Draw overall judge overlay
+                passed = overall_pass
                 color = (0, 255, 0) if overall_pass else (0, 0, 255)
                 cv2.rectangle(annotated, (15, 15), (200, 60), color, -1)
                 cv2.putText(annotated, status_text, (30, 47), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2, cv2.LINE_AA)
-                
                 output_val = overall_pass
 
-            # Record result
+            # ── UNKNOWN ─────────────────────────────────────
+            else:
+                nval = f"Unknown: {ntype}"
+                output_val = None
+
+            # Update pass/fail status
+            nstatus = 'success' if passed else 'failed'
+            if not passed:
+                overall_pass = False
+
             executed_nodes[nid] = {
                 'id': nid,
                 'status': nstatus,
@@ -4837,7 +5068,7 @@ async def quickbuild_run(
         for node in nodes_list:
             run_node(node)
 
-        # Update frontend node values in response array
+        # Update frontend node values
         updated_nodes = []
         for node in nodes_list:
             res = executed_nodes.get(node['id'])

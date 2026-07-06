@@ -2737,7 +2737,9 @@ const VisionManager = () => {
 
             {/* TAB CONTENT: QUICKBUILD PIPELINE BUILDER */}
             {activeTab === 'pipeline_builder' && (
-                <QuickBuildPipeline appVariables={appVariables} />
+                <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                    <QuickBuildPipeline appVariables={appVariables} />
+                </div>
             )}
 
             {showPaintModal && paintImage && (
