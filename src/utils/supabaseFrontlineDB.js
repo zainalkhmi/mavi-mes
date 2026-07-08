@@ -1,5 +1,6 @@
 import { getSupabaseClient } from './supabaseManualDB.js';
 import { deleteTable } from './supabaseTablesDB.js';
+import n8nWebhook from './n8nWebhookService.js';
 
 export async function getStations() {
     const supabase = getSupabaseClient();
@@ -163,6 +164,17 @@ export async function publishApp(appId) {
         .single();
 
     if (result.error) throw result.error;
+
+    // ── n8n Webhook: app published ─────────────────────────────────────────
+    if (n8nWebhook.isActive()) {
+        n8nWebhook.fire('app.published', {
+            app_id: appId,
+            app_name: result.data.name,
+            version: result.data.version,
+            category: result.data.category
+        }).catch(err => console.warn('[PublishApp→n8n] Webhook error:', err));
+    }
+
     return result.data;
 }
 
@@ -313,6 +325,19 @@ export async function createProductionJob(job) {
         .select()
         .single();
     if (error) throw error;
+
+    // ── n8n Webhook: production job created ─────────────────────────────
+    if (n8nWebhook.isActive()) {
+        n8nWebhook.fire('production.job_created', {
+            job_id: data.id,
+            work_order: data.work_order,
+            app_id: data.app_id,
+            target_qty: data.target_qty,
+            priority: data.priority,
+            status: data.status
+        }).catch(err => console.warn('[ProductionJob→n8n] Webhook error:', err));
+    }
+
     return data;
 }
 
@@ -325,6 +350,25 @@ export async function updateJobStatus(id, status) {
         .select()
         .single();
     if (error) throw error;
+
+    // ── n8n Webhook: work order status change ───────────────────────────
+    if (n8nWebhook.isActive()) {
+        const upperStatus = String(status).toUpperCase();
+        let eventType = null;
+        if (upperStatus === 'IN_PROGRESS' || upperStatus === 'RUNNING') eventType = 'work_order.started';
+        else if (upperStatus === 'COMPLETED' || upperStatus === 'DONE') eventType = 'work_order.completed';
+
+        if (eventType) {
+            n8nWebhook.fire(eventType, {
+                job_id: data.id,
+                work_order: data.work_order,
+                app_id: data.app_id,
+                status: upperStatus,
+                target_qty: data.target_qty
+            }).catch(err => console.warn('[JobStatus→n8n] Webhook error:', err));
+        }
+    }
+
     return data;
 }
 

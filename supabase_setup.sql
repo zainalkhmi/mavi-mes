@@ -773,4 +773,163 @@ DROP POLICY IF EXISTS "Allow all drawings" ON public.drawings;
 CREATE POLICY "Allow all drawings" ON public.drawings FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
 
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- n8n WEBHOOK INTEGRATION (OPTIONAL)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- These triggers use the Supabase pg_net extension to send HTTP POST requests
+-- directly from the database to an n8n webhook URL.
+--
+-- PREREQUISITES:
+--   1. Enable pg_net extension in Supabase Dashboard → Database → Extensions
+--   2. Set webhook URL in app_variables table:
+--      INSERT INTO app_variables (name, default_value)
+--      VALUES ('N8N_WEBHOOK_URL', 'https://your-n8n-instance.com/webhook/xxxx')
+--      ON CONFLICT (name) DO UPDATE SET default_value = EXCLUDED.default_value;
+--
+-- NOTE: If pg_net is not enabled, these triggers will silently fail.
+--       The frontend webhook service (n8nWebhookService.js) works independently
+--       and does NOT require these database triggers.
+-- ═══════════════════════════════════════════════════════════════════════════════
 
+-- Helper function: get n8n webhook URL from app_variables
+CREATE OR REPLACE FUNCTION public.get_n8n_webhook_url()
+RETURNS TEXT
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    webhook_url TEXT;
+BEGIN
+    SELECT default_value INTO webhook_url
+    FROM public.app_variables
+    WHERE name = 'N8N_WEBHOOK_URL'
+    LIMIT 1;
+    RETURN webhook_url;
+END;
+$$;
+
+-- Trigger function: fire webhook on production_queue changes
+CREATE OR REPLACE FUNCTION public.notify_n8n_production_queue()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    webhook_url TEXT;
+    event_type TEXT;
+    payload JSONB;
+BEGIN
+    webhook_url := public.get_n8n_webhook_url();
+    IF webhook_url IS NULL OR webhook_url = '' THEN
+        RETURN COALESCE(NEW, OLD);
+    END IF;
+
+    -- Determine event type
+    IF TG_OP = 'INSERT' THEN
+        event_type := 'production.job_created';
+    ELSIF TG_OP = 'UPDATE' THEN
+        IF NEW.status IN ('IN_PROGRESS', 'RUNNING') THEN
+            event_type := 'work_order.started';
+        ELSIF NEW.status IN ('COMPLETED', 'DONE') THEN
+            event_type := 'work_order.completed';
+        ELSE
+            event_type := 'work_order.status_changed';
+        END IF;
+    ELSE
+        RETURN COALESCE(NEW, OLD);
+    END IF;
+
+    payload := jsonb_build_object(
+        'event', event_type,
+        'timestamp', NOW()::TEXT,
+        'source', 'mavi-mes-db',
+        'version', '1.0',
+        'data', jsonb_build_object(
+            'job_id', COALESCE(NEW.id, OLD.id),
+            'work_order', COALESCE(NEW.work_order, OLD.work_order),
+            'app_id', COALESCE(NEW.app_id, OLD.app_id),
+            'status', COALESCE(NEW.status, OLD.status),
+            'target_qty', COALESCE(NEW.target_qty, OLD.target_qty),
+            'priority', COALESCE(NEW.priority, OLD.priority)
+        )
+    );
+
+    -- Fire webhook via pg_net (non-blocking)
+    PERFORM net.http_post(
+        url := webhook_url,
+        body := payload::TEXT,
+        headers := jsonb_build_object(
+            'Content-Type', 'application/json',
+            'X-Mavi-Event', event_type,
+            'X-Mavi-Source', 'mavi-mes-db'
+        )
+    );
+
+    RETURN COALESCE(NEW, OLD);
+EXCEPTION WHEN OTHERS THEN
+    -- Silently fail if pg_net is not available
+    RAISE WARNING '[Mavi n8n] Webhook trigger failed: %', SQLERRM;
+    RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+-- Trigger function: fire webhook on completions insert
+CREATE OR REPLACE FUNCTION public.notify_n8n_completion()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    webhook_url TEXT;
+    payload JSONB;
+BEGIN
+    webhook_url := public.get_n8n_webhook_url();
+    IF webhook_url IS NULL OR webhook_url = '' THEN
+        RETURN NEW;
+    END IF;
+
+    payload := jsonb_build_object(
+        'event', 'cycle.completed',
+        'timestamp', NOW()::TEXT,
+        'source', 'mavi-mes-db',
+        'version', '1.0',
+        'data', jsonb_build_object(
+            'completion_id', NEW.id,
+            'app_id', NEW.app_id,
+            'app_name', NEW.app_name,
+            'station', NEW.station_name,
+            'duration_ms', NEW.duration_ms,
+            'status', NEW.status,
+            'user_id', NEW.user_id
+        )
+    );
+
+    PERFORM net.http_post(
+        url := webhook_url,
+        body := payload::TEXT,
+        headers := jsonb_build_object(
+            'Content-Type', 'application/json',
+            'X-Mavi-Event', 'cycle.completed',
+            'X-Mavi-Source', 'mavi-mes-db'
+        )
+    );
+
+    RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING '[Mavi n8n] Completion webhook failed: %', SQLERRM;
+    RETURN NEW;
+END;
+$$;
+
+-- Apply triggers (safe to re-run)
+DROP TRIGGER IF EXISTS trg_n8n_production_queue ON public.production_queue;
+CREATE TRIGGER trg_n8n_production_queue
+    AFTER INSERT OR UPDATE ON public.production_queue
+    FOR EACH ROW
+    EXECUTE FUNCTION public.notify_n8n_production_queue();
+
+DROP TRIGGER IF EXISTS trg_n8n_completion ON public.completions;
+CREATE TRIGGER trg_n8n_completion
+    AFTER INSERT ON public.completions
+    FOR EACH ROW
+    EXECUTE FUNCTION public.notify_n8n_completion();

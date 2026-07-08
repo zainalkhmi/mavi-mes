@@ -6,6 +6,7 @@
  * =====================================================
  */
 import { getSupabaseClient } from './supabaseManualDB.js';
+import n8nWebhook from './n8nWebhookService.js';
 
 /**
  * Log a critical event to the database.
@@ -43,6 +44,24 @@ export async function logEvent({ type, user, workstation, workOrder, details }) 
         }
     } catch (err) {
         console.error('[AuditLog] Critical error:', err);
+    }
+
+    // ── n8n Webhook: auto-fire for important events ────────────────────────
+    try {
+        const n8nEventType = n8nWebhook.mapAuditEvent(type, details);
+        if (n8nEventType && n8nWebhook.isActive()) {
+            // Fire async — don't block the audit log flow
+            n8nWebhook.fire(n8nEventType, {
+                audit_event_type: type,
+                ...details,
+                work_order: workOrder || 'N/A'
+            }, {
+                station: workstation || 'N/A',
+                operator: user || 'anonymous'
+            }).catch(err => console.warn('[AuditLog→n8n] Webhook fire error:', err));
+        }
+    } catch (webhookErr) {
+        console.warn('[AuditLog→n8n] Failed to fire webhook:', webhookErr);
     }
     
     // Dispatch custom browser event for real-time frontend updates (e.g., Supervisor Dashboard)

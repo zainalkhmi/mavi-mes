@@ -1,4 +1,5 @@
 import { getSupabaseClient } from './supabaseManualDB';
+import n8nWebhook from './n8nWebhookService.js';
 
 
 /**
@@ -37,6 +38,24 @@ export const saveCompletion = async (completionData) => {
             .select();
 
         if (error) throw error;
+
+        // ── n8n Webhook: cycle completed ───────────────────────────────────
+        if (n8nWebhook.isActive()) {
+            n8nWebhook.fire('cycle.completed', {
+                completion_id: data[0]?.id,
+                app_id: completionData.appId,
+                app_name: completionData.appName,
+                app_version: completionData.appVersion,
+                station: completionData.stationName,
+                duration_ms: completionData.durationMs,
+                status: completionData.status
+            }, {
+                station: completionData.stationName || 'N/A',
+                operator: completionData.userId || completionData.userEmail || 'anonymous',
+                app_id: completionData.appId
+            }).catch(err => console.warn('[Completion→n8n] Webhook error:', err));
+        }
+
         return data[0];
     } catch (error) {
         console.error('[Supabase] Failed to save completion:', error);

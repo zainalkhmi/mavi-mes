@@ -31,7 +31,8 @@ import {
   Search,
   Volume2,
   Ruler,
-  FileCode
+  FileCode,
+  Webhook
 } from 'lucide-react';
 import { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { Link, Route, Routes, useLocation, Navigate, useNavigate } from 'react-router-dom';
@@ -71,6 +72,7 @@ const DashboardManager = lazy(() => import('./components/DashboardManager'));
 const AiSettings = lazy(() => import('./components/AiSettings'));
 const SupabaseSettings = lazy(() => import('./components/SupabaseSettings'));
 const AdminSettings = lazy(() => import('./components/AdminSettings'));
+const N8nWebhookSettings = lazy(() => import('./components/N8nWebhookSettings'));
 const AppManagement = lazy(() => import('./components/AppManagement'));
 const FileExplorer = lazy(() => import('./components/FileExplorer'));
 const BuildManager = lazy(() => import('./components/BuildManager'));
@@ -413,6 +415,11 @@ const App = () => {
     // Administrator / ADMIN: All assets + User Access, but NO technical settings
     if (role === 'ADMINISTRATOR' || role === 'ADMIN') {
       return !['/supabase-settings'].includes(path);
+    }
+
+    // n8n webhook settings accessible by ACCOUNT_OWNER and ADMIN
+    if (path === '/n8n-settings') {
+      return role === 'ACCOUNT_OWNER' || role === 'ADMINISTRATOR' || role === 'ADMIN';
     }
     
     // Connector Supervisor: Build apps, manage connectors/functions, logic, analytics, console
@@ -796,18 +803,18 @@ const App = () => {
           )}
 
           {/* SYSTEM */}
-          {['/users', '/ai-settings', '/supabase-settings', '/build-center', '/admin-settings'].some(hasAccess) && (
+          {['/users', '/ai-settings', '/supabase-settings', '/n8n-settings', '/build-center', '/admin-settings'].some(hasAccess) && (
             <div style={{ position: 'relative' }} ref={systemMenuRef}>
               <button
                 onClick={() => setSystemMenuOpen(!systemMenuOpen)}
                 style={{
                   ...navLinkStyle('/system'),
-                  backgroundColor: ['/users', '/ai-settings', '/supabase-settings', '/build-center', '/admin-settings'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
-                  color: ['/users', '/ai-settings', '/supabase-settings', '/build-center', '/admin-settings'].includes(location.pathname) ? '#2563eb' : '#475569',
+                  backgroundColor: ['/users', '/ai-settings', '/supabase-settings', '/n8n-settings', '/build-center', '/admin-settings'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
+                  color: ['/users', '/ai-settings', '/supabase-settings', '/n8n-settings', '/build-center', '/admin-settings'].includes(location.pathname) ? '#2563eb' : '#475569',
                   fontSize: '0.9rem', padding: '6px 12px', fontWeight: 600
                 }}
-                onMouseEnter={(e) => { if (!['/users', '/ai-settings', '/supabase-settings', '/build-center', '/admin-settings'].includes(location.pathname)) { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
-                onMouseLeave={(e) => { if (!['/users', '/ai-settings', '/supabase-settings', '/build-center', '/admin-settings'].includes(location.pathname)) { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
+                onMouseEnter={(e) => { if (!['/users', '/ai-settings', '/supabase-settings', '/n8n-settings', '/build-center', '/admin-settings'].includes(location.pathname)) { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
+                onMouseLeave={(e) => { if (!['/users', '/ai-settings', '/supabase-settings', '/n8n-settings', '/build-center', '/admin-settings'].includes(location.pathname)) { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
               >
                 System <ChevronDown size={14} style={{ transform: systemMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', marginLeft: '4px' }} />
               </button>
@@ -818,6 +825,8 @@ const App = () => {
                   {hasAccess('/ai-settings') && <Link to="/ai-settings" onClick={() => setSystemMenuOpen(false)} style={dropdownItemStyle('/ai-settings')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/ai-settings' ? '#f0f7ff' : 'transparent'}><BrainCircuit size={16} /> AI Settings</Link>}
                   <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '4px 0' }}></div>
                   {hasAccess('/supabase-settings') && <Link to="/supabase-settings" onClick={() => setSystemMenuOpen(false)} style={dropdownItemStyle('/supabase-settings')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/supabase-settings' ? '#f0f7ff' : 'transparent'}><Database size={16} /> Database Settings</Link>}
+                  <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '4px 0' }}></div>
+                  {hasAccess('/n8n-settings') && <Link to="/n8n-settings" onClick={() => setSystemMenuOpen(false)} style={dropdownItemStyle('/n8n-settings')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/n8n-settings' ? '#f0f7ff' : 'transparent'}><Webhook size={16} /> n8n Webhooks</Link>}
                   <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '4px 0' }}></div>
                   {hasAccess('/admin-settings') && <Link to="/admin-settings" onClick={() => setSystemMenuOpen(false)} style={dropdownItemStyle('/admin-settings')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/admin-settings' ? '#f0f7ff' : 'transparent'}><SlidersHorizontal size={16} /> Admin Settings</Link>}
                   <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '4px 0' }}></div>
@@ -1133,6 +1142,7 @@ const App = () => {
                 <Route path="/player" element={hasAccess('/player') ? <AppPlayer /> : <Navigate to="/" replace />} />
                 <Route path="/ai-settings" element={hasAccess('/ai-settings') ? <AiSettings /> : <Navigate to="/" replace />} />
                 <Route path="/supabase-settings" element={hasAccess('/supabase-settings') ? <SupabaseSettings /> : <Navigate to="/" replace />} />
+                <Route path="/n8n-settings" element={hasAccess('/n8n-settings') ? <N8nWebhookSettings /> : <Navigate to="/" replace />} />
                 <Route path="/admin-settings" element={hasAccess('/admin-settings') ? <AdminSettings /> : <Navigate to="/" replace />} />
                 <Route path="/build-center" element={hasAccess('/build-center') ? <BuildManager /> : <Navigate to="/" replace />} />
                 <Route path="/help" element={<GlobalHelpAssistant />} />
