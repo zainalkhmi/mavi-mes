@@ -25,6 +25,21 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getAllDrawings, saveDrawing, deleteDrawing, safeSaveDrawingsToLocalStorage } from '../utils/supabaseUtilityDB';
+import './DrawingFileManager.css';
+
+// Helper: Read file as DataURL
+const getFileDataUrl = (file) => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = reject;
+        if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+            reader.readAsDataURL(file);
+        } else {
+            reader.readAsDataURL(file);
+        }
+    });
+};
 
 // Default Drawing Templates (matches DrawingManager.jsx)
 const DEFAULT_DRAWINGS = [
@@ -111,9 +126,12 @@ export default function DrawingFileManager() {
         return DEFAULT_DRAWINGS;
     });
 
+    const [isLoading, setIsLoading] = useState(true);
+
     // Load drawings from database on mount
     useEffect(() => {
         const loadDwgFromDb = async () => {
+            setIsLoading(true);
             try {
                 const dbDrawings = await getAllDrawings();
                 if (dbDrawings && dbDrawings.length > 0) {
@@ -121,6 +139,8 @@ export default function DrawingFileManager() {
                 }
             } catch (err) {
                 console.error('Failed to load drawings from database:', err);
+            } finally {
+                setIsLoading(false);
             }
         };
         loadDwgFromDb();
@@ -570,7 +590,7 @@ export default function DrawingFileManager() {
             return;
         }
 
-        const dataUrl = await getFileDataUrl();
+        const dataUrl = await getFileDataUrl(file);
 
         if (ext === 'pdf') {
             setPendingPdfFile(file);
@@ -686,32 +706,44 @@ export default function DrawingFileManager() {
                 });
             }, 1800);
         }
-        
-        if (ext === 'pdf') {
-            reader.readAsDataURL(file);
-        } else {
-            reader.readAsText(file);
-        }
     };
 
+    // Render skeleton loading cards
+    const renderSkeletons = () => (
+        <>
+            {[1, 2, 3].map(i => (
+                <div key={`sk-${i}`} className="dfm-skeleton-card" style={{ animationDelay: `${i * 0.1}s` }}>
+                    <div className="dfm-skeleton-header" />
+                    <div className="dfm-skeleton-body">
+                        <div className="dfm-skeleton-line dfm-sk-title" />
+                        <div className="dfm-skeleton-line dfm-sk-sub" />
+                        <div className="dfm-skeleton-line dfm-sk-date" />
+                        <div className="dfm-skeleton-line dfm-sk-badge" />
+                        <div className="dfm-skeleton-line dfm-sk-btn" />
+                    </div>
+                </div>
+            ))}
+        </>
+    );
+
     return (
-        <div ref={fullscreenRef} style={{ flex: 1, overflowY: 'auto', backgroundColor: '#f8fafc', padding: '24px', fontFamily: "'Inter', sans-serif" }}>
+        <div ref={fullscreenRef} className="dfm-page">
             
             {/* Header Title */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
                 <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <div style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', padding: '8px', borderRadius: '10px', color: 'white', display: 'flex', alignItems: 'center' }}>
                             <FileCode size={24} />
                         </div>
-                        <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 900, color: '#0f172a' }}>Management File Drawing</h1>
+                        <h1 className="dfm-header-title" style={{ margin: 0, fontSize: '1.6rem', fontWeight: 900, color: '#0f172a' }}>Management File Drawing</h1>
                     </div>
                     <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '0.88rem' }}>
                         Unggah model blueprint CAD (.DXF, .SVG, .PDF) dan kelola daftar file gambar integrasi QMS Anda.
                     </p>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div className="dfm-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     {/* Fullscreen Toggle Button */}
                     <button
                         onClick={toggleFullscreen}
@@ -846,44 +878,44 @@ export default function DrawingFileManager() {
             </div>
 
             {/* Statistics Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '24px' }}>
-                <div style={statCardStyle}>
+            <div className="dfm-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '24px' }}>
+                <div className="dfm-stat-card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={statLabelStyle}>Total Blueprint</span>
-                        <div style={{ ...statIconBg, backgroundColor: '#eff6ff', color: '#2563eb' }}>
+                        <div style={{ padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#eff6ff', color: '#2563eb' }}>
                             <FileCode size={18} />
                         </div>
                     </div>
-                    <div style={statValueStyle}>{stats.totalFiles}</div>
-                    <div style={statDescStyle}>Model CAD Terdaftar</div>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#0f172a', lineHeight: '1.2' }}>{stats.totalFiles}</div>
+                    <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>Model CAD Terdaftar</div>
                 </div>
                 
-                <div style={statCardStyle}>
+                <div className="dfm-stat-card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={statLabelStyle}>Mapped Parameters</span>
-                        <div style={{ ...statIconBg, backgroundColor: '#f5f3ff', color: '#7c3aed' }}>
+                        <div style={{ padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f5f3ff', color: '#7c3aed' }}>
                             <Sliders size={18} />
                         </div>
                     </div>
-                    <div style={statValueStyle}>{stats.totalParams}</div>
-                    <div style={statDescStyle}>Dimensi / Batas Toleransi</div>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#0f172a', lineHeight: '1.2' }}>{stats.totalParams}</div>
+                    <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>Dimensi / Batas Toleransi</div>
                 </div>
 
-                <div style={statCardStyle}>
+                <div className="dfm-stat-card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={statLabelStyle}>Active QMS Variables</span>
-                        <div style={{ ...statIconBg, backgroundColor: '#ecfdf5', color: '#059669' }}>
+                        <div style={{ padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ecfdf5', color: '#059669' }}>
                             <Database size={18} />
                         </div>
                     </div>
-                    <div style={statValueStyle}>{stats.uniqueVars}</div>
-                    <div style={statDescStyle}>Koneksi Tag Database</div>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#0f172a', lineHeight: '1.2' }}>{stats.uniqueVars}</div>
+                    <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>Koneksi Tag Database</div>
                 </div>
 
-                <div style={statCardStyle}>
+                <div className="dfm-stat-card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={statLabelStyle}>Format Distribusi</span>
-                        <div style={{ ...statIconBg, backgroundColor: '#fffbeb', color: '#d97706' }}>
+                        <div style={{ padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fffbeb', color: '#d97706' }}>
                             <Zap size={18} />
                         </div>
                     </div>
@@ -893,12 +925,12 @@ export default function DrawingFileManager() {
                         <div><b style={{ color: '#10b981' }}>SVG:</b> {stats.types.SVG || 0}</div>
                         <div><b style={{ color: '#3b82f6' }}>PDF:</b> {stats.types.PDF || 0}</div>
                     </div>
-                    <div style={{ ...statDescStyle, marginTop: '4px' }}>Tipe geometri file</div>
+                    <div style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '4px' }}>Tipe geometri file</div>
                 </div>
             </div>
 
             {/* Upload Zone & Filter Input Section */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px', alignItems: 'start', marginBottom: '24px' }}>
+            <div className="dfm-upload-search-row" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px', alignItems: 'start', marginBottom: '24px' }}>
                 
                 {/* Search & Filter Bar */}
                 <div style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
@@ -913,12 +945,7 @@ export default function DrawingFileManager() {
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             placeholder="Cari berdasarkan nama model, tipe file, atau nama file..."
-                            style={{
-                                width: '100%', padding: '10px 12px 10px 38px',
-                                borderRadius: '8px', border: '1px solid #cbd5e1',
-                                fontSize: '0.82rem', outline: 'none', fontFamily: "'Inter', sans-serif",
-                                transition: 'border-color 0.2s'
-                            }}
+                            className="dfm-search-input"
                         />
                     </div>
                 </div>
@@ -929,17 +956,12 @@ export default function DrawingFileManager() {
                     onDragLeave={() => setIsDragOver(false)}
                     onDrop={handleFileDrop}
                     onClick={() => fileInputRef.current.click()}
-                    style={{
-                        backgroundColor: isDragOver ? '#f0f7ff' : 'white',
-                        border: `2px dashed ${isDragOver ? '#3b82f6' : '#cbd5e1'}`,
-                        borderRadius: '12px', padding: '16px', cursor: 'pointer',
-                        textAlign: 'center', transition: 'all 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
-                    }}
+                    className={`dfm-upload-zone${isDragOver ? ' dfm-drag-over' : ''}`}
                 >
                     <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept=".dxf,.svg,.pdf,.dwg" onChange={handleFileSelect} />
-                    <Upload size={24} color={isDragOver ? '#3b82f6' : '#94a3b8'} style={{ margin: '0 auto 6px' }} />
-                    <div style={{ fontWeight: 800, fontSize: '0.8rem', color: '#1e293b', marginBottom: '2px' }}>Unggah Blueprint Gambar</div>
-                    <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Klik atau drop file <b>.DXF, .DWG, .SVG, .PDF</b> di sini.</div>
+                    <Upload size={28} color={isDragOver ? '#3b82f6' : '#94a3b8'} className="dfm-upload-icon" style={{ margin: '0 auto 8px', display: 'block' }} />
+                    <div style={{ fontWeight: 800, fontSize: '0.85rem', color: '#1e293b', marginBottom: '3px' }}>Unggah Blueprint Gambar</div>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Klik atau seret file <b>.DXF, .DWG, .SVG, .PDF</b> ke area ini.</div>
                 </div>
             </div>
 
@@ -952,16 +974,17 @@ export default function DrawingFileManager() {
                         </span>
                         <span>{parseProgress}%</span>
                     </div>
-                    <div style={{ width: '100%', height: '6px', backgroundColor: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                        <div style={{ width: `${parseProgress}%`, height: '100%', background: 'linear-gradient(90deg, #3b82f6, #8b5cf6)', transition: 'width 0.4s ease' }}></div>
+                    <div className="dfm-progress-bar">
+                        <div className="dfm-progress-fill" style={{ width: `${parseProgress}%` }}></div>
                     </div>
                     <div style={{ fontSize: '0.7rem', color: '#64748b', fontStyle: 'italic' }}>{parseStatusText}</div>
                     <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
+                    {/* spin keyframe is used by the RefreshCw icon above */}
                 </div>
             )}
 
             {/* Library Grid View */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))', gap: '20px' }}>
+            <div className="dfm-cards-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))', gap: '20px' }}>
                 {filteredDrawings.map((dwg) => {
                     // Count dimension categories
                     const counts = {};
@@ -973,10 +996,10 @@ export default function DrawingFileManager() {
                     const uploadDate = dwg.uploadedAt ? new Date(dwg.uploadedAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) : 'Tidak Diketahui';
 
                     return (
-                        <div key={dwg.id} style={cardStyle} className="dwg-file-card">
+                        <div key={dwg.id} className="dfm-file-card">
                             
                             {/* Card visual header */}
-                            <div style={{ height: '120px', backgroundColor: '#0b1d33', borderBottom: '1px solid #1e3a8a', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                            <div className="dfm-card-header">
                                 {/* Decorative geometric lines to feel like blueprint vector */}
                                 <svg viewBox="0 0 100 40" style={{ position: 'absolute', width: '100%', height: '100%', opacity: 0.25 }}>
                                     <line x1="0" y1="20" x2="100" y2="20" stroke="#3b82f6" strokeWidth="0.3" strokeDasharray="3,3" />
@@ -1014,10 +1037,8 @@ export default function DrawingFileManager() {
                                 <div style={{ position: 'absolute', top: '10px', right: '10px' }}>
                                     <button
                                         onClick={(e) => handleDeleteDwg(dwg.id, dwg.name, e)}
-                                        style={cardActionBtnStyle}
+                                        className="dfm-card-delete-btn"
                                         title="Hapus Model"
-                                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#ef4444'; e.currentTarget.style.color = 'white'; }}
-                                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(15, 23, 42, 0.6)'; e.currentTarget.style.color = '#ef4444'; }}
                                     >
                                         <Trash2 size={13} />
                                     </button>
@@ -1043,12 +1064,10 @@ export default function DrawingFileManager() {
                                         return (
                                             <span
                                                 key={cat}
+                                                className="dfm-badge"
                                                 style={{
-                                                    fontSize: '0.65rem', fontWeight: 700,
                                                     color: def.color, backgroundColor: `${def.color}12`,
-                                                    padding: '2px 6px', borderRadius: '4px',
-                                                    border: `1px solid ${def.color}25`,
-                                                    display: 'flex', alignItems: 'center', gap: '3px'
+                                                    border: `1px solid ${def.color}25`
                                                 }}
                                             >
                                                 <span>{def.icon}</span>
@@ -1066,28 +1085,14 @@ export default function DrawingFileManager() {
                                 <div style={{ display: 'flex', gap: '8px', marginTop: 'auto', paddingTop: '8px', borderTop: '1px solid #f1f5f9' }}>
                                     <button
                                         onClick={() => handleViewInCanvas(dwg.id)}
-                                        style={{
-                                            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                                            padding: '8px 12px', border: 'none', borderRadius: '6px',
-                                            background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: 'white',
-                                            fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', transition: 'opacity 0.2s'
-                                        }}
-                                        onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-                                        onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                                        className="dfm-btn-view"
                                     >
                                         <Eye size={13} /> View & Map QC
                                     </button>
                                     <button
                                         onClick={(e) => handleExportDwgSchema(dwg, e)}
-                                        style={{
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: '6px',
-                                            backgroundColor: '#f8fafc', color: '#475569',
-                                            cursor: 'pointer', transition: 'all 0.2s'
-                                        }}
+                                        className="dfm-btn-export"
                                         title="Ekspor Skema JSON Gambar Ini"
-                                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
-                                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
                                     >
                                         <Download size={13} />
                                     </button>
@@ -1097,17 +1102,40 @@ export default function DrawingFileManager() {
                     );
                 })}
 
-                {filteredDrawings.length === 0 && (
-                    <div style={{ gridColumn: '1 / -1', padding: '40px', backgroundColor: 'white', borderRadius: '16px', border: '1px dashed #cbd5e1', textAlign: 'center', color: '#64748b' }}>
-                        <FileText size={40} color="#cbd5e1" style={{ margin: '0 auto 12px' }} />
-                        <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#1e293b', marginBottom: '4px' }}>Tidak Ada Blueprint Ditemukan</h4>
-                        <p style={{ margin: 0, fontSize: '0.8rem' }}>Ubah kata kunci pencarian atau unggah file blueprint gambar baru di atas.</p>
+                {/* Skeleton Loading */}
+                {isLoading && filteredDrawings.length === 0 && renderSkeletons()}
+
+                {/* Empty State */}
+                {!isLoading && filteredDrawings.length === 0 && (
+                    <div className="dfm-empty-state">
+                        <svg width="80" height="80" viewBox="0 0 80 80" fill="none" style={{ margin: '0 auto 16px', display: 'block' }}>
+                            <rect x="10" y="15" width="60" height="50" rx="4" stroke="#cbd5e1" strokeWidth="2" strokeDasharray="4 3" fill="none" />
+                            <line x1="25" y1="30" x2="55" y2="30" stroke="#e2e8f0" strokeWidth="2" />
+                            <line x1="25" y1="38" x2="48" y2="38" stroke="#e2e8f0" strokeWidth="2" />
+                            <line x1="25" y1="46" x2="40" y2="46" stroke="#e2e8f0" strokeWidth="2" />
+                            <circle cx="58" cy="52" r="12" stroke="#93c5fd" strokeWidth="2" fill="#eff6ff" />
+                            <line x1="54" y1="52" x2="62" y2="52" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" />
+                            <line x1="58" y1="48" x2="58" y2="56" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                        <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#1e293b', marginBottom: '6px' }}>Tidak Ada Blueprint Ditemukan</h4>
+                        <p style={{ margin: '0 0 16px 0', fontSize: '0.82rem', lineHeight: '1.5' }}>
+                            {searchTerm ? `Tidak ada hasil untuk "${searchTerm}". Coba kata kunci lain.` : 'Belum ada file blueprint gambar. Mulai dengan mengunggah file baru.'}
+                        </p>
+                        {!searchTerm && (
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                className="dfm-btn-view"
+                                style={{ display: 'inline-flex', padding: '10px 20px', fontSize: '0.82rem' }}
+                            >
+                                <Upload size={14} /> Unggah File Blueprint
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
 
             {/* Bottom info section */}
-            <div style={{ marginTop: '24px', backgroundColor: '#eff6ff', borderRadius: '12px', border: '1px solid #bfdbfe', padding: '12px 16px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <div className="dfm-info-banner">
                 <Info size={16} color="#3b82f6" style={{ flexShrink: 0 }} />
                 <span style={{ fontSize: '0.75rem', color: '#1e40af' }}>
                     <b>Integrasi QMS:</b> Semua perubahan file drawing, parameter toleransi, dan tag variabel disinkronkan secara realtime dengan modul QMS, ERP Bridge, dan Supabase Database.
@@ -1419,62 +1447,13 @@ export default function DrawingFileManager() {
     );
 }
 
-// Styling Constants
-const statCardStyle = {
-    backgroundColor: 'white',
-    borderRadius: '12px',
-    border: '1px solid #e2e8f0',
-    padding: '16px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '4px',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
-};
+// Styling Constants (only globalItemStyle remains — others moved to CSS)
 const statLabelStyle = {
     fontSize: '0.7rem',
     color: '#64748b',
     fontWeight: 700,
     textTransform: 'uppercase',
     letterSpacing: '0.05em'
-};
-const statValueStyle = {
-    fontSize: '1.6rem',
-    fontWeight: 900,
-    color: '#0f172a',
-    lineHeight: '1.2'
-};
-const statDescStyle = {
-    fontSize: '0.68rem',
-    color: '#94a3b8'
-};
-const statIconBg = {
-    padding: '6px',
-    borderRadius: '8px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center'
-};
-const cardStyle = {
-    backgroundColor: 'white',
-    borderRadius: '16px',
-    border: '1px solid #e2e8f0',
-    overflow: 'hidden',
-    boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
-    display: 'flex',
-    flexDirection: 'column',
-    transition: 'all 0.2s',
-};
-const cardActionBtnStyle = {
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
-    border: 'none',
-    color: '#ef4444',
-    padding: '6px',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transition: 'all 0.2s'
 };
 const globalItemStyle = {
     display: 'flex',

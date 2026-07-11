@@ -703,18 +703,19 @@ const App = () => {
                   onClick={() => setVisionMenuOpen(!visionMenuOpen)}
                   style={{
                     ...navLinkStyle('/vision'),
-                    backgroundColor: ['/vision', '/vision/calibration'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
-                    color: ['/vision', '/vision/calibration'].includes(location.pathname) ? '#2563eb' : '#475569',
+                    backgroundColor: ['/vision', '/vision/calibration', '/vision/quickbuild'].includes(location.pathname) ? '#f0f7ff' : 'transparent',
+                    color: ['/vision', '/vision/calibration', '/vision/quickbuild'].includes(location.pathname) ? '#2563eb' : '#475569',
                     fontSize: '0.9rem', padding: '6px 12px', fontWeight: 600
                   }}
-                  onMouseEnter={(e) => { if (!['/vision', '/vision/calibration'].includes(location.pathname)) { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
-                  onMouseLeave={(e) => { if (!['/vision', '/vision/calibration'].includes(location.pathname)) { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
+                  onMouseEnter={(e) => { if (!['/vision', '/vision/calibration', '/vision/quickbuild'].includes(location.pathname)) { e.target.style.backgroundColor = '#f8fafc'; e.target.style.color = '#0f172a'; } }}
+                  onMouseLeave={(e) => { if (!['/vision', '/vision/calibration', '/vision/quickbuild'].includes(location.pathname)) { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#475569'; } }}
                 >
                   Vision <ChevronDown size={14} style={{ transform: visionMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', marginLeft: '4px' }} />
                 </button>
                 {visionMenuOpen && (
                   <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, backgroundColor: 'white', minWidth: '220px', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)', padding: '8px 0', display: 'flex', flexDirection: 'column', zIndex: 1001, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
                     <Link to="/vision" onClick={() => setVisionMenuOpen(false)} style={dropdownItemStyle('/vision')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/vision' ? '#f0f7ff' : 'transparent'}><Eye size={16} /> Vision</Link>
+                    <Link to="/vision/quickbuild" onClick={() => setVisionMenuOpen(false)} style={dropdownItemStyle('/vision/quickbuild')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/vision/quickbuild' ? '#f0f7ff' : 'transparent'}><Zap size={16} style={{ color: '#fb923c' }} /> QuickBuild Pipeline</Link>
                     <Link to="/vision/calibration" onClick={() => setVisionMenuOpen(false)} style={dropdownItemStyle('/vision/calibration')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/vision/calibration' ? '#f0f7ff' : 'transparent'}><Camera size={16} /> Camera Calibration</Link>
                   </div>
                 )}
@@ -1112,7 +1113,8 @@ const App = () => {
                 <Route path="/display-devices" element={hasAccess('/display-devices') ? <InterfaceManager /> : <Navigate to="/" replace />} />
                 <Route path="/machines" element={hasAccess('/machines') ? <MachineManager /> : <Navigate to="/" replace />} />
                 <Route path="/edge-devices" element={hasAccess('/edge-devices') ? <EdgeDeviceManager /> : <Navigate to="/" replace />} />
-                <Route path="/vision" element={hasAccess('/vision') ? <VisionManager /> : <Navigate to="/" replace />} />
+                <Route path="/vision" element={hasAccess('/vision') ? <VisionManager initialTab="cameras" /> : <Navigate to="/" replace />} />
+                <Route path="/vision/quickbuild" element={hasAccess('/vision') ? <VisionManager initialTab="pipeline_builder" /> : <Navigate to="/" replace />} />
                 <Route path="/vision/calibration" element={hasAccess('/vision') ? <CameraCalibration /> : <Navigate to="/" replace />} />
                 <Route path="/iot-hub" element={hasAccess('/iot-hub') ? <IoTHubManager /> : <Navigate to="/" replace />} />
                 <Route path="/plc-settings" element={hasAccess('/plc-settings') ? <PlcSettings /> : <Navigate to="/" replace />} />

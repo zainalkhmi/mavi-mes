@@ -9,6 +9,8 @@ import {
     Hand,
     FileCode,
     Settings,
+    Camera,
+    Cpu,
     CheckCircle,
     XCircle,
     Info,
@@ -404,6 +406,13 @@ export default function DrawingManager() {
     const [editMeasureType, setEditMeasureType] = useState('linear_horizontal');
     const [editIndicatorType, setEditIndicatorType] = useState('horizontal');
     const [editGdtSymbol, setEditGdtSymbol] = useState('');
+    const [editGdtFrameEnabled, setEditGdtFrameEnabled] = useState(false);
+    const [editGdtTolerance, setEditGdtTolerance] = useState('');
+    const [editGdtHasDiameter, setEditGdtHasDiameter] = useState(false);
+    const [editGdtModifier, setEditGdtModifier] = useState('');
+    const [editGdtDatum1, setEditGdtDatum1] = useState('');
+    const [editGdtDatum2, setEditGdtDatum2] = useState('');
+    const [editGdtDatum3, setEditGdtDatum3] = useState('');
     const [editX1, setEditX1] = useState(150);
     const [editY1, setEditY1] = useState(180);
     const [editZ1, setEditZ1] = useState(0);
@@ -543,6 +552,15 @@ export default function DrawingManager() {
     const [isBalloonMode, setIsBalloonMode] = useState(false);
     const [editSeverity, setEditSeverity] = useState('Minor'); // Minor, Major, Critical
     const [editInspectionMethod, setEditInspectionMethod] = useState('Caliper'); // Caliper, Micrometer, Vision, CMM, SCADA, Custom
+    
+    // AI Vision (YOLO) and Hardware Binding states
+    const [editVisionEnabled, setEditVisionEnabled] = useState(false);
+    const [editYoloModel, setEditYoloModel] = useState('yolov8n.pt');
+    const [editYoloClass, setEditYoloClass] = useState('');
+    const [editDeviceLockEnabled, setEditDeviceLockEnabled] = useState(false);
+    const [editDeviceProfile, setEditDeviceProfile] = useState('Mitutoyo Caliper (BLE)');
+    const [aiScanningId, setAiScanningId] = useState(null);
+
     const [isBocCollapsed, setIsBocCollapsed] = useState(false);
     const [showBocTable, setShowBocTable] = useState(true);
     const [showQCInspector, setShowQCInspector] = useState(true);
@@ -940,6 +958,14 @@ export default function DrawingManager() {
             setEditMeasureType(activeDim.measureType || 'linear_horizontal');
             setEditIndicatorType(activeDim.indicatorType || 'horizontal');
             setEditGdtSymbol(activeDim.gdt_symbol || '');
+            const gdt = activeDim.gdt_frame || {};
+            setEditGdtFrameEnabled(gdt.enabled || false);
+            setEditGdtTolerance(gdt.tolerance || '');
+            setEditGdtHasDiameter(gdt.hasDiameter || false);
+            setEditGdtModifier(gdt.modifier || '');
+            setEditGdtDatum1(gdt.datum1 || '');
+            setEditGdtDatum2(gdt.datum2 || '');
+            setEditGdtDatum3(gdt.datum3 || '');
             setEditX1(activeDim.x1 !== undefined ? activeDim.x1 : 150);
             setEditY1(activeDim.y1 !== undefined ? activeDim.y1 : 180);
             setEditZ1(activeDim.z1 !== undefined ? activeDim.z1 : 0);
@@ -958,6 +984,14 @@ export default function DrawingManager() {
             setEditLineWidth(activeDim.lineWidth !== undefined ? activeDim.lineWidth : 2);
             setEditSeverity(activeDim.severity || 'Minor');
             setEditInspectionMethod(activeDim.inspection_method || 'Caliper');
+            
+            // Sync AI Vision and Hardware Binding states
+            setEditVisionEnabled(activeDim.visionEnabled || false);
+            setEditYoloModel(activeDim.yoloModel || 'yolov8n.pt');
+            setEditYoloClass(activeDim.yoloClass || '');
+            setEditDeviceLockEnabled(activeDim.deviceLockEnabled || false);
+            setEditDeviceProfile(activeDim.deviceProfile || 'Mitutoyo Caliper (BLE)');
+
             setCustomVarMode(false);
 
             // Check if current variable is in the suggested list
@@ -997,11 +1031,16 @@ export default function DrawingManager() {
             label: setEditLabel, spec: setEditSpec, tolMin: setEditTolMin, tolMax: setEditTolMax,
             variable: setEditVariable, unit: setEditUnit, category: setEditCategory,
             measureType: setEditMeasureType, indicatorType: setEditIndicatorType, gdt_symbol: setEditGdtSymbol,
+            gdtFrameEnabled: setEditGdtFrameEnabled, gdtTolerance: setEditGdtTolerance,
+            gdtHasDiameter: setEditGdtHasDiameter, gdtModifier: setEditGdtModifier,
+            gdtDatum1: setEditGdtDatum1, gdtDatum2: setEditGdtDatum2, gdtDatum3: setEditGdtDatum3,
             x1: setEditX1, y1: setEditY1, z1: setEditZ1, x2: setEditX2, y2: setEditY2, z2: setEditZ2,
             lx: setEditLx, ly: setEditLy, lz: setEditLz, cx: setEditCx, cy: setEditCy,
             angleStart: setEditAngleStart, angleEnd: setEditAngleEnd,
             markerShape: setEditMarkerShape, markerSize: setEditMarkerSize, lineWidth: setEditLineWidth,
             severity: setEditSeverity, inspection_method: setEditInspectionMethod,
+            visionEnabled: setEditVisionEnabled, yoloModel: setEditYoloModel, yoloClass: setEditYoloClass,
+            deviceLockEnabled: setEditDeviceLockEnabled, deviceProfile: setEditDeviceProfile,
         };
         if (setters[field]) setters[field](value);
 
@@ -1068,6 +1107,21 @@ export default function DrawingManager() {
                         lineWidth: parseInt(editLineWidth) || 2,
                         severity: editSeverity,
                         inspection_method: editInspectionMethod,
+                        visionEnabled: editVisionEnabled,
+                        yoloModel: editYoloModel,
+                        yoloClass: editYoloClass,
+                        deviceLockEnabled: editDeviceLockEnabled,
+                        deviceProfile: editDeviceProfile,
+                        gdt_frame: {
+                            enabled: editGdtFrameEnabled,
+                            symbol: editGdtSymbol,
+                            tolerance: editGdtTolerance,
+                            hasDiameter: editGdtHasDiameter,
+                            modifier: editGdtModifier,
+                            datum1: editGdtDatum1,
+                            datum2: editGdtDatum2,
+                            datum3: editGdtDatum3
+                        },
                     };
                 }
                 return dim;
@@ -2336,6 +2390,21 @@ export default function DrawingManager() {
             angleEnd: parseFloat(formData.angleEnd) || 90,
             markerShape: formData.markerShape || 'default',
             markerSize: parseInt(formData.markerSize) || 60,
+            visionEnabled: formData.visionEnabled || false,
+            yoloModel: formData.yoloModel || 'yolov8n.pt',
+            yoloClass: formData.yoloClass || '',
+            deviceLockEnabled: formData.deviceLockEnabled || false,
+            deviceProfile: formData.deviceProfile || 'Mitutoyo Caliper (BLE)',
+            gdt_frame: formData.gdt_frame || {
+                enabled: formData.gdtFrameEnabled || false,
+                symbol: formData.gdt_symbol || 'POSITION',
+                tolerance: formData.gdtTolerance || '',
+                hasDiameter: formData.gdtHasDiameter || false,
+                modifier: formData.gdtModifier || '',
+                datum1: formData.gdtDatum1 || '',
+                datum2: formData.gdtDatum2 || '',
+                datum3: formData.gdtDatum3 || ''
+            },
             triggers: []
         };
 
@@ -2566,7 +2635,19 @@ export default function DrawingManager() {
                         angleStart: 0,
                         angleEnd: 90,
                         markerShape: 'default',
-                        markerSize: 60
+                        markerSize: 60,
+                        visionEnabled: false,
+                        yoloModel: 'yolov8n.pt',
+                        yoloClass: '',
+                        deviceLockEnabled: false,
+                        deviceProfile: 'Mitutoyo Caliper (BLE)',
+                        gdtFrameEnabled: false,
+                        gdtTolerance: '',
+                        gdtHasDiameter: false,
+                        gdtModifier: '',
+                        gdtDatum1: '',
+                        gdtDatum2: '',
+                        gdtDatum3: ''
                     });
                     setIsDimModalOpen(true);
                     setDimDrawState('idle');
@@ -2611,7 +2692,19 @@ export default function DrawingManager() {
                         angleStart,
                         angleEnd,
                         markerShape: 'default',
-                        markerSize: 60
+                        markerSize: 60,
+                        visionEnabled: false,
+                        yoloModel: 'yolov8n.pt',
+                        yoloClass: '',
+                        deviceLockEnabled: false,
+                        deviceProfile: 'Mitutoyo Caliper (BLE)',
+                        gdtFrameEnabled: false,
+                        gdtTolerance: '',
+                        gdtHasDiameter: false,
+                        gdtModifier: '',
+                        gdtDatum1: '',
+                        gdtDatum2: '',
+                        gdtDatum3: ''
                     });
                     setIsDimModalOpen(true);
                     setDimDrawState('idle');
@@ -4570,6 +4663,97 @@ export default function DrawingManager() {
             </g>
         ) : null;
 
+        // YOLO AI Vision Badge
+        const hasVision = !!dim.visionEnabled;
+        const visionBadgeX = triggerBadge ? triggerBadgeX + 18 : badgeX + 18;
+        const visionBadge = hasVision ? (
+            <g>
+                <rect x={visionBadgeX} y={badgeY} width="16" height="12" rx="2" fill="#7c3aed" fillOpacity="0.25" stroke="#7c3aed" strokeWidth="0.5" />
+                <text x={visionBadgeX + 8} y={badgeY + 9} textAnchor="middle" fill="#7c3aed" fontSize="7" fontWeight="bold">AI</text>
+            </g>
+        ) : null;
+
+        // Hardware Lock Badge
+        const hasHardwareLock = !!dim.deviceLockEnabled;
+        const hwBadgeX = hasVision ? visionBadgeX + 18 : (triggerBadge ? triggerBadgeX + 18 : badgeX + 18);
+        const hwBadge = hasHardwareLock ? (
+            <g>
+                <rect x={hwBadgeX} y={badgeY} width="16" height="12" rx="2" fill="#059669" fillOpacity="0.25" stroke="#059669" strokeWidth="0.5" />
+                <text x={hwBadgeX + 8} y={badgeY + 9} textAnchor="middle" fill="#059669" fontSize="7" fontWeight="bold">HW</text>
+            </g>
+        ) : null;
+
+        // ASME Y14.5 Feature Control Frame Renderer
+        const renderGdtFrameSvg = (gdt) => {
+            if (!gdt || !gdt.enabled) return null;
+            
+            const symbolMap = {
+                POSITION: '⌖',
+                FLATNESS: '▱',
+                STRAIGHTNESS: '⏤',
+                CIRCULARITY: '◯',
+                CYLINDRICITY: '⌭',
+                PERPENDICULARITY: '⊥',
+                PARALLELISM: '∥',
+                ANGULARITY: '∠',
+                PROFILE_SURFACE: '⌢',
+                CONCENTRICITY: '◎',
+                CIRCULAR_RUNOUT: '↗'
+            };
+            
+            const sym = symbolMap[gdt.symbol] || gdt.symbol || '⌖';
+            const tolerance = gdt.tolerance || '';
+            const modifier = gdt.modifier === 'M' ? 'Ⓜ' : gdt.modifier === 'L' ? 'Ⓛ' : '';
+            const datum1 = gdt.datum1 || '';
+            const datum2 = gdt.datum2 || '';
+            const datum3 = gdt.datum3 || '';
+            
+            const segments = [];
+            segments.push({ text: sym, w: 16 });
+            if (tolerance) {
+                segments.push({ text: `${gdt.hasDiameter ? '⌀' : ''}${tolerance}${modifier}`, w: 38 });
+            }
+            if (datum1) segments.push({ text: datum1, w: 14 });
+            if (datum2) segments.push({ text: datum2, w: 14 });
+            if (datum3) segments.push({ text: datum3, w: 14 });
+            
+            const totalW = segments.reduce((sum, s) => sum + s.w, 0);
+            const startX = lx - totalW / 2;
+            const h = 14;
+            const frameY = ly - 23; // shift above the label text
+            
+            let currentX = startX;
+            
+            return (
+                <g>
+                    {/* Outer Box */}
+                    <rect x={startX} y={frameY} width={totalW} height={h} fill="#0f172a" stroke="#10b981" strokeWidth="1.25" rx="1" />
+                    {segments.map((seg, i) => {
+                        const cellX = currentX;
+                        currentX += seg.w;
+                        return (
+                            <g key={i}>
+                                {/* Divider Line (skip for first) */}
+                                {i > 0 && <line x1={cellX} y1={frameY} x2={cellX} y2={frameY + h} stroke="#10b981" strokeWidth="0.75" />}
+                                {/* Text */}
+                                <text
+                                    x={cellX + seg.w / 2}
+                                    y={frameY + 10}
+                                    textAnchor="middle"
+                                    fill="#34d399"
+                                    fontSize="8"
+                                    fontWeight="bold"
+                                    fontFamily="monospace"
+                                >
+                                    {seg.text}
+                                </text>
+                            </g>
+                        );
+                    })}
+                </g>
+            );
+        };
+
         return (
             <g>
                 {shapeElement}
@@ -4578,6 +4762,9 @@ export default function DrawingManager() {
                 </text>
                 {!isBalloonMode && categoryBadge}
                 {!isBalloonMode && triggerBadge}
+                {!isBalloonMode && visionBadge}
+                {!isBalloonMode && hwBadge}
+                {!isBalloonMode && renderGdtFrameSvg(dim.gdt_frame)}
                 {activeRing}
             </g>
         );
@@ -4699,6 +4886,68 @@ export default function DrawingManager() {
             const arrowLen = Math.max(8, baseWidth * 4.5);
             const arrowWidth = Math.max(4, baseWidth * 2.2);
 
+            // Laser Scanner overlay helper for AI Vision (YOLO) nodes
+            const renderLaserScanner = () => {
+                if (!isActive || !dim.visionEnabled) return null;
+                
+                const minX = Math.min(x1, x2) - 15;
+                const maxX = Math.max(x1, x2) + 15;
+                const minY = Math.min(y1, y2, ly) - 15;
+                const maxY = Math.max(y1, y2, ly) + 15;
+                const width = maxX - minX;
+                const height = maxY - minY;
+                
+                return (
+                    <g pointerEvents="none">
+                        {/* Futuristic Bounding Scan Box */}
+                        <rect
+                            x={minX}
+                            y={minY}
+                            width={width}
+                            height={height}
+                            fill="rgba(124, 58, 237, 0.03)"
+                            stroke="#7c3aed"
+                            strokeWidth="1"
+                            strokeDasharray="4,4"
+                            rx="4"
+                        >
+                            <animate attributeName="stroke-opacity" values="1;0.4;1" dur="1.2s" repeatCount="indefinite" />
+                        </rect>
+                        
+                        {/* Target Reticle Corners */}
+                        <path d={`M ${minX - 5} ${minY + 5} L ${minX - 5} ${minY - 5} L ${minX + 5} ${minY - 5}`} fill="none" stroke="#7c3aed" strokeWidth="2" />
+                        <path d={`M ${maxX + 5} ${minY + 5} L ${maxX + 5} ${minY - 5} L ${maxX - 5} ${minY - 5}`} fill="none" stroke="#7c3aed" strokeWidth="2" />
+                        <path d={`M ${minX - 5} ${maxY - 5} L ${minX - 5} ${maxY + 5} L ${minX + 5} ${maxY + 5}`} fill="none" stroke="#7c3aed" strokeWidth="2" />
+                        <path d={`M ${maxX + 5} ${maxY - 5} L ${maxX + 5} ${maxY + 5} L ${maxX - 5} ${maxY + 5}`} fill="none" stroke="#7c3aed" strokeWidth="2" />
+                        
+                        {/* Sweeping Laser Line with Neon Glow */}
+                        <line
+                            x1={minX - 5}
+                            y1={minY}
+                            x2={maxX + 5}
+                            y2={minY}
+                            stroke="#00f2fe"
+                            strokeWidth="2.5"
+                            strokeOpacity="0.85"
+                            style={{ filter: 'drop-shadow(0px 0px 4px #00f2fe)' }}
+                        >
+                            <animate
+                                attributeName="y1"
+                                values={`${minY};${maxY};${minY}`}
+                                dur="2.5s"
+                                repeatCount="indefinite"
+                            />
+                            <animate
+                                attributeName="y2"
+                                values={`${minY};${maxY};${minY}`}
+                                dur="2.5s"
+                                repeatCount="indefinite"
+                            />
+                        </line>
+                    </g>
+                );
+            };
+
             if (indicatorType === 'horizontal') {
                 return (
                     <g key={dim.id} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setActiveDimId(dim.id); }} onContextMenu={(e) => handleDimensionContextMenu(e, dim.id)}>
@@ -4709,6 +4958,7 @@ export default function DrawingManager() {
                         <polygon points={`${x2},${ly - 5} ${x2 - arrowLen},${ly - 5 - arrowWidth} ${x2 - arrowLen},${ly - 5 + arrowWidth}`} fill={color} />
                         {renderLabelBadge(dim, color, labelText, isActive, idx + 1)}
                         {renderDragHandles(dim, isActive)}
+                        {renderLaserScanner()}
                     </g>
                 );
             } else if (indicatorType === 'vertical') {
@@ -4721,6 +4971,7 @@ export default function DrawingManager() {
                         <polygon points={`${lx - 5},${y2} ${lx - 5 - arrowWidth},${y2 - arrowLen} ${lx - 5 + arrowWidth},${y2 - arrowLen}`} fill={color} />
                         {renderLabelBadge(dim, color, labelText, isActive, idx + 1)}
                         {renderDragHandles(dim, isActive)}
+                        {renderLaserScanner()}
                     </g>
                 );
             } else if (indicatorType === 'arc') {
@@ -4756,6 +5007,7 @@ export default function DrawingManager() {
                         <circle cx={ex} cy={ey} r={Math.max(2, baseWidth * 1.25)} fill={color} />
                         {renderLabelBadge(dim, color, `∠ ${dim.spec}°`, isActive, idx + 1)}
                         {renderDragHandles(dim, isActive)}
+                        {renderLaserScanner()}
                     </g>
                 );
             } else if (indicatorType === 'area_box') {
@@ -4772,6 +5024,7 @@ export default function DrawingManager() {
                         <line x1={bx + bw} y1={by} x2={bx} y2={by + bh} stroke={color} strokeWidth="0.5" strokeOpacity="0.3" />
                         {renderLabelBadge(dim, color, `▢ ${dim.spec} ${dim.unit}`, isActive, idx + 1)}
                         {renderDragHandles(dim, isActive)}
+                        {renderLaserScanner()}
                     </g>
                 );
             } else if (indicatorType === 'callout') {
@@ -4791,6 +5044,7 @@ export default function DrawingManager() {
                         )}
                         {renderLabelBadge(dim, color, `${symbolChar} ${dim.spec} ${dim.unit}`, isActive, idx + 1)}
                         {renderDragHandles(dim, isActive)}
+                        {renderLaserScanner()}
                     </g>
                 );
             } else {
@@ -4808,6 +5062,7 @@ export default function DrawingManager() {
                         })()}
                         {renderLabelBadge(dim, color, labelText, isActive, idx + 1)}
                         {renderDragHandles(dim, isActive)}
+                        {renderLaserScanner()}
                     </g>
                 );
             }
@@ -5250,6 +5505,18 @@ export default function DrawingManager() {
                                     </div>
 
                                     <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '8px', minHeight: 0 }}>
+                                        <style>{`
+                                            @keyframes pulse-yellow-glow {
+                                                0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.45); }
+                                                70% { box-shadow: 0 0 0 5px rgba(245, 158, 11, 0); }
+                                                100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+                                            }
+                                            @keyframes pulse-red-glow {
+                                                0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55); }
+                                                70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+                                                100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+                                            }
+                                        `}</style>
                                         <div style={{ overflow: 'auto', flex: 1, border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#f8fafc', marginTop: '10px' }}>
                                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem', textAlign: 'left' }}>
                                                 <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f1f5f9', borderBottom: '2px solid #cbd5e1', zIndex: 5, color: '#475569', fontWeight: 'bold' }}>
@@ -5302,29 +5569,71 @@ export default function DrawingManager() {
                                                                 </td>
                                                                 <td style={{ padding: '6px 10px', verticalAlign: 'middle', fontWeight: 600, color: '#1e293b' }}>{dim.label}</td>
                                                                 <td style={{ padding: '6px 10px', verticalAlign: 'middle' }}>{dim.gdt_symbol} {dim.spec} {dim.unit}</td>
-                                                                <td style={{ padding: '6px 10px', verticalAlign: 'middle' }}>{dim.tolMin} ~ {dim.tolMax} {dim.unit}</td>
+                                                                <td style={{ padding: '6px 10px', verticalAlign: 'middle' }}>
+                                                                    {(() => {
+                                                                        const range = Math.max(0.001, (dim.tolMax - dim.tolMin));
+                                                                        const rawPct = ((simVal - dim.tolMin) / range) * 100;
+                                                                        const pct = Math.max(0, Math.min(100, rawPct));
+                                                                        const isWarning = valStatus === 'PASS' && (pct < 10 || pct > 90);
+                                                                        const trackColor = valStatus === 'FAIL' ? '#ef4444' : isWarning ? '#f59e0b' : '#10b981';
+                                                                        return (
+                                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                                                <span style={{ fontWeight: 500, color: '#475569' }}>
+                                                                                    {dim.tolMin} ~ {dim.tolMax} {dim.unit}
+                                                                                </span>
+                                                                                <div style={{ position: 'relative', width: '80px', height: '5px', backgroundColor: '#e2e8f0', borderRadius: '3px', marginTop: '1px' }} title={`Deviasi aktual: ${pct.toFixed(0)}%`}>
+                                                                                    {/* Center line (Nominal) */}
+                                                                                    <div style={{ position: 'absolute', left: '50%', top: '-2.5px', width: '1px', height: '10px', backgroundColor: '#cbd5e1' }} />
+                                                                                    {/* Value dot */}
+                                                                                    <div style={{
+                                                                                        position: 'absolute',
+                                                                                        left: `calc(${pct}% - 3px)`,
+                                                                                        top: '-1.5px',
+                                                                                        width: '8px',
+                                                                                        height: '8px',
+                                                                                        borderRadius: '50%',
+                                                                                        backgroundColor: trackColor,
+                                                                                        boxShadow: `0 0 4px ${trackColor}`,
+                                                                                        transition: 'left 0.2s ease'
+                                                                                    }} />
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    })()}
+                                                                </td>
                                                                 <td style={{ padding: '6px 10px', verticalAlign: 'middle' }}>
                                                                     <span style={{
-                                                                        padding: '1px 5px',
+                                                                        padding: '2px 6px',
                                                                         borderRadius: '4px',
                                                                         fontSize: '0.58rem',
-                                                                        fontWeight: 'bold',
+                                                                        fontWeight: 800,
+                                                                        textTransform: 'uppercase',
+                                                                        letterSpacing: '0.02em',
                                                                         backgroundColor: sevStyle.bg,
                                                                         color: sevStyle.text,
-                                                                        border: `1px solid ${sevStyle.border}`
+                                                                        border: `1px solid ${sevStyle.border}`,
+                                                                        boxShadow: dim.severity === 'Critical' ? '0 0 4px rgba(239, 68, 68, 0.2)' : dim.severity === 'Major' ? '0 0 3px rgba(245, 158, 11, 0.15)' : 'none',
+                                                                        animation: dim.severity === 'Critical' ? 'pulse-red-glow 1.2s infinite' : dim.severity === 'Major' ? 'pulse-yellow-glow 2s infinite' : 'none',
+                                                                        display: 'inline-block'
                                                                     }}>
                                                                         {dim.severity || 'Minor'}
                                                                     </span>
                                                                 </td>
-                                                                <td style={{ padding: '6px 10px', verticalAlign: 'middle' }}>{dim.inspection_method || 'Caliper'}</td>
+                                                                <td style={{ padding: '6px 10px', verticalAlign: 'middle', fontWeight: 500, color: '#334155' }}>
+                                                                    {(() => {
+                                                                        const m = dim.inspection_method || 'Caliper';
+                                                                        const icon = m === 'Caliper' ? '📐' : m === 'Micrometer' ? '🔍' : m === 'Vision' ? '🤖' : m === 'CMM' ? '⚙️' : m === 'SCADA' ? '🔌' : '📋';
+                                                                        return `${icon} ${m}`;
+                                                                    })()}
+                                                                </td>
                                                                 <td style={{ padding: '6px 10px', verticalAlign: 'middle', fontFamily: 'monospace', color: '#64748b' }}>{dim.variable || '-'}</td>
                                                                 <td style={{ padding: '6px 10px', verticalAlign: 'middle', fontWeight: 'bold', color: '#0f172a' }}>{simVal} {dim.unit}</td>
                                                                 <td style={{ padding: '6px 10px', verticalAlign: 'middle' }}>
                                                                     <span style={{
-                                                                        padding: '1px 5px',
+                                                                        padding: '2px 6px',
                                                                         borderRadius: '4px',
                                                                         fontSize: '0.58rem',
-                                                                        fontWeight: 'bold',
+                                                                        fontWeight: 800,
                                                                         backgroundColor: statStyle.bg,
                                                                         color: statStyle.text
                                                                     }}>
@@ -5625,57 +5934,80 @@ export default function DrawingManager() {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            padding: '4px 10px',
-                            backgroundColor: '#0f172a',
-                            borderBottom: '1px solid #1e3a8a',
-                            gap: '6px',
+                            padding: '6px 12px',
+                            backgroundColor: '#090d16',
+                            borderBottom: '1px solid #1e293b',
+                            gap: '8px',
                             zIndex: 10,
                             userSelect: 'none',
                             fontFamily: "'Inter', sans-serif",
-                            minHeight: '32px'
+                            minHeight: '38px'
                         }}>
                             {/* Properties group */}
-                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                <span style={{ fontSize: '0.62rem', color: '#94a3b8', fontWeight: 'bold' }}>PROPERTIES:</span>
-                                <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                <span style={{ fontSize: '0.62rem', color: '#64748b', fontWeight: 800, letterSpacing: '0.05em' }}>PROPERTIES:</span>
+                                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                                     {['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#ffffff'].map(color => (
                                         <button
                                             key={color}
                                             onClick={() => setCadColor(color)}
                                             style={{
-                                                width: '10px', height: '10px', borderRadius: '50%', backgroundColor: color,
-                                                border: cadColor === color ? '1.5px solid white' : '1px solid rgba(255,255,255,0.2)',
-                                                cursor: 'pointer', padding: 0
+                                                width: '12px', height: '12px', borderRadius: '50%', backgroundColor: color,
+                                                border: cadColor === color ? '2px solid white' : '1px solid rgba(255,255,255,0.15)',
+                                                cursor: 'pointer', padding: 0,
+                                                boxShadow: cadColor === color ? `0 0 6px ${color}` : 'none',
+                                                transition: 'transform 0.15s ease'
                                             }}
+                                            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.25)'}
+                                            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
                                             title={`Active Color: ${color}`}
                                         />
                                     ))}
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginLeft: '2px' }}>
-                                    <span style={{ fontSize: '0.58rem', color: '#94a3b8', fontWeight: 800 }}>{cadWidth}px</span>
-                                    <input type="range" min="1" max="8" value={cadWidth} onChange={(e) => setCadWidth(parseInt(e.target.value))} style={{ width: '35px', accentColor: '#2563eb', cursor: 'pointer', height: '3px', margin: 0 }} title="Line Thickness" />
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginLeft: '4px' }}>
+                                    <span style={{ fontSize: '0.58rem', color: '#64748b', fontWeight: 800 }}>{cadWidth}px</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', height: '12px' }}>
+                                        <input
+                                            type="range"
+                                            min="1"
+                                            max="8"
+                                            value={cadWidth}
+                                            onChange={(e) => setCadWidth(parseInt(e.target.value))}
+                                            style={{
+                                                width: '45px',
+                                                accentColor: '#3b82f6',
+                                                cursor: 'pointer',
+                                                height: '3px',
+                                                margin: 0,
+                                                backgroundColor: '#1e293b',
+                                                borderRadius: '2px',
+                                                outline: 'none'
+                                            }}
+                                            title="Line Thickness"
+                                        />
+                                    </div>
                                 </div>
 
-                                <div style={{ width: '1px', height: '12px', backgroundColor: '#334155', margin: '0 4px' }} />
+                                <div style={{ width: '1px', height: '14px', backgroundColor: '#1e293b', margin: '0 6px' }} />
 
                                 {/* Utilities */}
-                                <button title="Export Drawing Schema" onClick={handleExportSchema} style={{ background: 'transparent', border: 'none', color: '#60a5fa', padding: '4px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <button title="Export Drawing Schema" onClick={handleExportSchema} style={{ background: 'transparent', border: 'none', color: '#60a5fa', padding: '5px', borderRadius: '5px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background-color 0.15s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#1e293b'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
                                     <Download size={13} />
                                 </button>
-                                <button title="Import Drawing Schema" onClick={() => { if (fileSchemaRef.current) fileSchemaRef.current.click(); }} style={{ background: 'transparent', border: 'none', color: '#34d399', padding: '4px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <button title="Import Drawing Schema" onClick={() => { if (fileSchemaRef.current) fileSchemaRef.current.click(); }} style={{ background: 'transparent', border: 'none', color: '#34d399', padding: '5px', borderRadius: '5px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background-color 0.15s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#1e293b'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
                                     <Upload size={13} />
                                 </button>
-                                <button title="Reset Template blueprint" onClick={handleResetToDefault} style={{ background: 'transparent', border: 'none', color: '#f87171', padding: '4px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <button title="Reset Template blueprint" onClick={handleResetToDefault} style={{ background: 'transparent', border: 'none', color: '#f87171', padding: '5px', borderRadius: '5px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background-color 0.15s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#1e293b'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
                                     <RefreshCw size={13} />
                                 </button>
-                                <button title="CadQuery Parametric Generator" onClick={() => setShowCqModal(true)} style={{ background: 'transparent', border: 'none', color: '#fbbf24', padding: '4px 6px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
-                                    <Sliders size={13} />
-                                    <span style={{ fontSize: '0.62rem', fontWeight: 'bold' }}>PARAMETRIC</span>
+                                <button title="CadQuery Parametric Generator" onClick={() => setShowCqModal(true)} style={{ background: 'rgba(251, 191, 36, 0.08)', border: '1px solid rgba(251, 191, 36, 0.25)', color: '#fbbf24', padding: '3px 8px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', transition: 'all 0.15s' }} onMouseEnter={e => { e.currentTarget.style.background = 'rgba(251, 191, 36, 0.15)'; e.currentTarget.style.borderColor = 'rgba(251, 191, 36, 0.4)'; }} onMouseLeave={e => { e.currentTarget.style.background = 'rgba(251, 191, 36, 0.08)'; e.currentTarget.style.borderColor = 'rgba(251, 191, 36, 0.25)'; }}>
+                                    <Sliders size={12} />
+                                    <span style={{ fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.02em' }}>PARAMETRIC</span>
                                 </button>
                             </div>
 
                             {/* View toggles */}
-                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                 <button
                                     title="DISCUS Mode (Ballooning)"
                                     onClick={() => {
@@ -5683,21 +6015,23 @@ export default function DrawingManager() {
                                         toast.success(!isBalloonMode ? 'Tampilan Balon Angka (DISCUS Mode) aktif.' : 'Tampilan nominal CAD aktif.');
                                     }}
                                     style={{
-                                        background: isBalloonMode ? '#ef4444' : 'transparent',
-                                        border: '1px solid #ef4444',
-                                        color: isBalloonMode ? 'white' : '#ef4444',
-                                        width: '28px',
-                                        height: '28px',
+                                        background: isBalloonMode ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
+                                        border: isBalloonMode ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid #1e293b',
+                                        color: isBalloonMode ? '#f87171' : '#64748b',
+                                        width: '26px',
+                                        height: '26px',
                                         borderRadius: '6px',
                                         cursor: 'pointer',
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        transition: 'all 0.2s',
+                                        transition: 'all 0.15s',
                                         outline: 'none'
                                     }}
+                                    onMouseEnter={e => { if(!isBalloonMode) e.currentTarget.style.backgroundColor = '#1e293b'; }}
+                                    onMouseLeave={e => { if(!isBalloonMode) e.currentTarget.style.backgroundColor = 'transparent'; }}
                                 >
-                                    <Circle size={14} strokeWidth={isBalloonMode ? 3 : 2} fill={isBalloonMode ? 'white' : 'transparent'} />
+                                    <Circle size={12} strokeWidth={isBalloonMode ? 3 : 2} fill={isBalloonMode ? '#f87171' : 'transparent'} />
                                 </button>
 
                                 <button
@@ -5707,21 +6041,23 @@ export default function DrawingManager() {
                                         toast.success(!showQCInspector ? 'QC Inspector Panel aktif.' : 'QC Inspector Panel disembunyikan.');
                                     }}
                                     style={{
-                                        background: showQCInspector ? '#2563eb' : 'transparent',
-                                        border: '1px solid #2563eb',
-                                        color: showQCInspector ? 'white' : '#60a5fa',
-                                        width: '28px',
-                                        height: '28px',
+                                        background: showQCInspector ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                                        border: showQCInspector ? '1px solid rgba(59, 130, 246, 0.35)' : '1px solid #1e293b',
+                                        color: showQCInspector ? '#60a5fa' : '#64748b',
+                                        width: '26px',
+                                        height: '26px',
                                         borderRadius: '6px',
                                         cursor: 'pointer',
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        transition: 'all 0.2s',
+                                        transition: 'all 0.15s',
                                         outline: 'none'
                                     }}
+                                    onMouseEnter={e => { if(!showQCInspector) e.currentTarget.style.backgroundColor = '#1e293b'; }}
+                                    onMouseLeave={e => { if(!showQCInspector) e.currentTarget.style.backgroundColor = 'transparent'; }}
                                 >
-                                    <Sliders size={14} />
+                                    <Sliders size={12} />
                                 </button>
 
                                 <button
@@ -5731,21 +6067,23 @@ export default function DrawingManager() {
                                         toast.success(!showBocTable ? 'Tabel Karakteristik aktif.' : 'Tabel Karakteristik disembunyikan.');
                                     }}
                                     style={{
-                                        background: showBocTable ? '#10b981' : 'transparent',
-                                        border: '1px solid #10b981',
-                                        color: showBocTable ? 'white' : '#34d399',
-                                        width: '28px',
-                                        height: '28px',
+                                        background: showBocTable ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
+                                        border: showBocTable ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid #1e293b',
+                                        color: showBocTable ? '#34d399' : '#64748b',
+                                        width: '26px',
+                                        height: '26px',
                                         borderRadius: '6px',
                                         cursor: 'pointer',
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        transition: 'all 0.2s',
+                                        transition: 'all 0.15s',
                                         outline: 'none'
                                     }}
+                                    onMouseEnter={e => { if(!showBocTable) e.currentTarget.style.backgroundColor = '#1e293b'; }}
+                                    onMouseLeave={e => { if(!showBocTable) e.currentTarget.style.backgroundColor = 'transparent'; }}
                                 >
-                                    <ClipboardList size={14} />
+                                    <ClipboardList size={12} />
                                 </button>
                             </div>
                         </div>
@@ -5754,10 +6092,10 @@ export default function DrawingManager() {
                         <div style={{
                             display: 'flex',
                             alignItems: 'center',
-                            backgroundColor: '#090d16',
-                            borderBottom: '1px solid #1e3a8a',
-                            padding: '3px 8px 0 8px',
-                            gap: '2px',
+                            backgroundColor: '#05070a',
+                            borderBottom: '1px solid #1e293b',
+                            padding: '4px 10px 0 10px',
+                            gap: '4px',
                             userSelect: 'none',
                             fontFamily: "'Inter', sans-serif"
                         }}>
@@ -5774,27 +6112,29 @@ export default function DrawingManager() {
                                             display: 'flex',
                                             alignItems: 'center',
                                             gap: '6px',
-                                            backgroundColor: isSelected ? '#1e293b' : '#0f172a60',
-                                            border: '1px solid #1e3a8a',
-                                            borderBottom: 'none',
-                                            padding: '4px 8px',
-                                            borderRadius: '4px 4px 0 0',
+                                            backgroundColor: isSelected ? '#0f172a' : 'transparent',
+                                            border: '1px solid #1e293b',
+                                            borderBottom: isSelected ? '1px solid #0f172a' : '1px solid #1e293b',
+                                            marginBottom: '-1px',
+                                            padding: '4px 10px',
+                                            borderRadius: '6px 6px 0 0',
                                             cursor: 'pointer',
-                                            transition: 'background-color 0.2s',
+                                            zIndex: isSelected ? 2 : 1,
+                                            transition: 'all 0.15s ease',
                                         }}
                                     >
-                                        <span style={{ fontSize: '0.58rem', color: isSelected ? '#60a5fa' : '#64748b', fontWeight: 800 }}>📁</span>
-                                        <span style={{ fontSize: '0.58rem', color: isSelected ? '#f8fafc' : '#94a3b8', fontWeight: 700 }}>
+                                        <span style={{ fontSize: '0.65rem' }}>📄</span>
+                                        <span style={{ fontSize: '0.65rem', color: isSelected ? '#f8fafc' : '#64748b', fontWeight: isSelected ? 700 : 500 }}>
                                             {dwg.fileName || dwg.name}
                                         </span>
                                         {drawings.length > 1 && (
                                             <button
                                                 onClick={(e) => handleDeleteDwg(dwg.id, e)}
                                                 style={{
-                                                    background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '0.55rem', padding: '0 2px'
+                                                    background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '0.55rem', padding: '0 2px', display: 'flex', alignItems: 'center', justifyContent: 'center'
                                                 }}
                                                 onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-                                                onMouseLeave={e => e.currentTarget.style.color = '#64748b'}
+                                                onMouseLeave={e => e.currentTarget.style.color = '#475569'}
                                             >
                                                 ✕
                                             </button>
@@ -5806,21 +6146,24 @@ export default function DrawingManager() {
                                 title="Create Blank Blueprint Design"
                                 onClick={handleCreateBlankDrawing}
                                 style={{
-                                    background: 'none',
-                                    border: '1px dashed #475569',
-                                    color: '#64748b',
-                                    padding: '2px 6px',
-                                    borderRadius: '3px',
+                                    background: 'transparent',
+                                    border: '1px dashed #334155',
+                                    color: '#475569',
+                                    width: '18px',
+                                    height: '18px',
+                                    borderRadius: '4px',
                                     cursor: 'pointer',
-                                    fontSize: '0.58rem',
-                                    fontWeight: 'bold',
-                                    marginLeft: '4px',
+                                    fontSize: '0.75rem',
+                                    lineHeight: 1,
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
+                                    marginBottom: '4px',
+                                    marginLeft: '4px',
+                                    transition: 'all 0.15s'
                                 }}
-                                onMouseEnter={e => e.currentTarget.style.color = 'white'}
-                                onMouseLeave={e => e.currentTarget.style.color = '#64748b'}
+                                onMouseEnter={e => { e.currentTarget.style.borderColor = '#64748b'; e.currentTarget.style.color = 'white'; }}
+                                onMouseLeave={e => { e.currentTarget.style.borderColor = '#334155'; e.currentTarget.style.color = '#475569'; }}
                             >
                                 +
                             </button>
@@ -5840,14 +6183,14 @@ export default function DrawingManager() {
 
                             {/* Vertical Draw Toolbar / Palette */}
                             <div style={{
-                                width: '42px',
-                                backgroundColor: '#0f172a',
-                                borderRight: '1px solid #1e3a8a',
+                                width: '44px',
+                                backgroundColor: '#090d16',
+                                borderRight: '1px solid #1e293b',
                                 display: 'flex',
                                 flexDirection: 'column',
                                 alignItems: 'center',
-                                padding: '8px 0',
-                                gap: '8px',
+                                padding: '10px 0',
+                                gap: '10px',
                                 flexShrink: 0,
                                 overflowY: 'auto',
                                 scrollbarWidth: 'none',
@@ -5855,68 +6198,337 @@ export default function DrawingManager() {
                                 userSelect: 'none'
                             }}>
                                 {/* DRAW SECTION */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%', alignItems: 'center' }}>
-                                    <span style={{ fontSize: '0.45rem', color: '#64748b', fontWeight: 'bold' }}>DRAW</span>
-                                    <button title="Select Tool" onClick={() => setCadTool('select')} style={{ background: cadTool === 'select' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '6px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', alignItems: 'center' }}>
+                                    <button
+                                        title="Select Tool"
+                                        onClick={() => setCadTool('select')}
+                                        style={{
+                                            background: cadTool === 'select' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+                                            border: cadTool === 'select' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
+                                            color: cadTool === 'select' ? '#60a5fa' : '#64748b',
+                                            padding: '7px',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 0.15s ease'
+                                        }}
+                                        onMouseEnter={e => { if (cadTool !== 'select') e.currentTarget.style.color = '#e2e8f0'; }}
+                                        onMouseLeave={e => { if (cadTool !== 'select') e.currentTarget.style.color = '#64748b'; }}
+                                    >
                                         <MousePointer size={14} />
                                     </button>
-                                    <button title="Pan View Tool (pan)" onClick={() => setCadTool('pan')} style={{ background: cadTool === 'pan' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '6px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <button
+                                        title="Pan View Tool (pan)"
+                                        onClick={() => setCadTool('pan')}
+                                        style={{
+                                            background: cadTool === 'pan' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+                                            border: cadTool === 'pan' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
+                                            color: cadTool === 'pan' ? '#60a5fa' : '#64748b',
+                                            padding: '7px',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 0.15s ease'
+                                        }}
+                                        onMouseEnter={e => { if (cadTool !== 'pan') e.currentTarget.style.color = '#e2e8f0'; }}
+                                        onMouseLeave={e => { if (cadTool !== 'pan') e.currentTarget.style.color = '#64748b'; }}
+                                    >
                                         <Hand size={14} />
                                     </button>
-                                    <button title="Line Tool (line)" onClick={() => setCadTool('line')} style={{ background: cadTool === 'line' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '6px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <Slash size={14} />
+                                    <button
+                                        title="Line Tool (line)"
+                                        onClick={() => setCadTool('line')}
+                                        style={{
+                                            background: cadTool === 'line' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+                                            border: cadTool === 'line' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
+                                            color: cadTool === 'line' ? '#60a5fa' : '#64748b',
+                                            padding: '7px',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 0.15s ease'
+                                        }}
+                                        onMouseEnter={e => { if (cadTool !== 'line') e.currentTarget.style.color = '#e2e8f0'; }}
+                                        onMouseLeave={e => { if (cadTool !== 'line') e.currentTarget.style.color = '#64748b'; }}
+                                    >
+                                        <Slash size={14} style={{ transform: 'rotate(-45deg)' }} />
                                     </button>
-                                    <button title="Circle Tool (circle)" onClick={() => setCadTool('circle')} style={{ background: cadTool === 'circle' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '6px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <button
+                                        title="Circle Tool (circle)"
+                                        onClick={() => setCadTool('circle')}
+                                        style={{
+                                            background: cadTool === 'circle' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+                                            border: cadTool === 'circle' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
+                                            color: cadTool === 'circle' ? '#60a5fa' : '#64748b',
+                                            padding: '7px',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 0.15s ease'
+                                        }}
+                                        onMouseEnter={e => { if (cadTool !== 'circle') e.currentTarget.style.color = '#e2e8f0'; }}
+                                        onMouseLeave={e => { if (cadTool !== 'circle') e.currentTarget.style.color = '#64748b'; }}
+                                    >
                                         <Circle size={14} />
                                     </button>
-                                    <button title="Rectangle Tool (rect)" onClick={() => setCadTool('rect')} style={{ background: cadTool === 'rect' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '6px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <button
+                                        title="Rectangle Tool (rect)"
+                                        onClick={() => setCadTool('rect')}
+                                        style={{
+                                            background: cadTool === 'rect' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+                                            border: cadTool === 'rect' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
+                                            color: cadTool === 'rect' ? '#60a5fa' : '#64748b',
+                                            padding: '7px',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 0.15s ease'
+                                        }}
+                                        onMouseEnter={e => { if (cadTool !== 'rect') e.currentTarget.style.color = '#e2e8f0'; }}
+                                        onMouseLeave={e => { if (cadTool !== 'rect') e.currentTarget.style.color = '#64748b'; }}
+                                    >
                                         <Square size={14} />
                                     </button>
-                                    <button title="Arc Tool (arc)" onClick={() => setArcDrawState('idle') || setArcDraftCoords(null) || setCadTool('arc')} style={{ background: cadTool === 'arc' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '6px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <button
+                                        title="Arc Tool (arc)"
+                                        onClick={() => setArcDrawState('idle') || setArcDraftCoords(null) || setCadTool('arc')}
+                                        style={{
+                                            background: cadTool === 'arc' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+                                            border: cadTool === 'arc' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
+                                            color: cadTool === 'arc' ? '#60a5fa' : '#64748b',
+                                            padding: '7px',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 0.15s ease'
+                                        }}
+                                        onMouseEnter={e => { if (cadTool !== 'arc') e.currentTarget.style.color = '#e2e8f0'; }}
+                                        onMouseLeave={e => { if (cadTool !== 'arc') e.currentTarget.style.color = '#64748b'; }}
+                                    >
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M4 20 A 16 16 0 0 1 20 4" /></svg>
                                     </button>
-                                    <button title="Polyline Tool (polyline)" onClick={() => setPolylineDraftPoints([]) || setCadTool('polyline')} style={{ background: cadTool === 'polyline' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '6px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <button
+                                        title="Polyline Tool (polyline)"
+                                        onClick={() => setPolylineDraftPoints([]) || setCadTool('polyline')}
+                                        style={{
+                                            background: cadTool === 'polyline' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+                                            border: cadTool === 'polyline' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
+                                            color: cadTool === 'polyline' ? '#60a5fa' : '#64748b',
+                                            padding: '7px',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 0.15s ease'
+                                        }}
+                                        onMouseEnter={e => { if (cadTool !== 'polyline') e.currentTarget.style.color = '#e2e8f0'; }}
+                                        onMouseLeave={e => { if (cadTool !== 'polyline') e.currentTarget.style.color = '#64748b'; }}
+                                    >
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="4 20 10 8 16 16 20 4" /></svg>
                                     </button>
-                                    <button title="Text Tool (text)" onClick={() => setCadTool('text')} style={{ background: cadTool === 'text' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '6px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <button
+                                        title="Text Tool (text)"
+                                        onClick={() => setCadTool('text')}
+                                        style={{
+                                            background: cadTool === 'text' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+                                            border: cadTool === 'text' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
+                                            color: cadTool === 'text' ? '#60a5fa' : '#64748b',
+                                            padding: '7px',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 0.15s ease'
+                                        }}
+                                        onMouseEnter={e => { if (cadTool !== 'text') e.currentTarget.style.color = '#e2e8f0'; }}
+                                        onMouseLeave={e => { if (cadTool !== 'text') e.currentTarget.style.color = '#64748b'; }}
+                                    >
                                         <Type size={14} />
                                     </button>
-                                    <button title="Insert Image (image)" onClick={() => { setCadTool('image'); if (imageInsertRef.current) imageInsertRef.current.click(); }} style={{ background: cadTool === 'image' ? '#10b981' : 'transparent', border: 'none', color: 'white', padding: '6px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <button
+                                        title="Insert Image (image)"
+                                        onClick={() => { setCadTool('image'); if (imageInsertRef.current) imageInsertRef.current.click(); }}
+                                        style={{
+                                            background: cadTool === 'image' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                                            border: cadTool === 'image' ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid transparent',
+                                            color: cadTool === 'image' ? '#34d399' : '#64748b',
+                                            padding: '7px',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 0.15s ease'
+                                        }}
+                                        onMouseEnter={e => { if (cadTool !== 'image') e.currentTarget.style.color = '#e2e8f0'; }}
+                                        onMouseLeave={e => { if (cadTool !== 'image') e.currentTarget.style.color = '#64748b'; }}
+                                    >
                                         <ImagePlus size={14} />
                                     </button>
                                 </div>
 
-                                <div style={{ width: '20px', height: '1px', backgroundColor: '#1e3a8a', margin: '4px 0' }} />
+                                <div style={{ width: '20px', height: '1px', backgroundColor: '#1e293b', margin: '4px 0' }} />
 
                                 {/* MODIFY SECTION */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%', alignItems: 'center' }}>
-                                    <span style={{ fontSize: '0.45rem', color: '#64748b', fontWeight: 'bold' }}>MODIFY</span>
-                                    <button title="Move Tool (move)" onClick={() => setCadTool('move')} style={{ background: cadTool === 'move' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '6px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', alignItems: 'center' }}>
+                                    <button
+                                        title="Move Tool (move)"
+                                        onClick={() => setCadTool('move')}
+                                        style={{
+                                            background: cadTool === 'move' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+                                            border: cadTool === 'move' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
+                                            color: cadTool === 'move' ? '#60a5fa' : '#64748b',
+                                            padding: '7px',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 0.15s ease'
+                                        }}
+                                        onMouseEnter={e => { if (cadTool !== 'move') e.currentTarget.style.color = '#e2e8f0'; }}
+                                        onMouseLeave={e => { if (cadTool !== 'move') e.currentTarget.style.color = '#64748b'; }}
+                                    >
                                         <Move size={14} />
                                     </button>
-                                    <button title="Rotate Tool (rotate)" onClick={() => setCadTool('rotate')} style={{ background: cadTool === 'rotate' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '6px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <button
+                                        title="Rotate Tool (rotate)"
+                                        onClick={() => setCadTool('rotate')}
+                                        style={{
+                                            background: cadTool === 'rotate' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+                                            border: cadTool === 'rotate' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
+                                            color: cadTool === 'rotate' ? '#60a5fa' : '#64748b',
+                                            padding: '7px',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 0.15s ease'
+                                        }}
+                                        onMouseEnter={e => { if (cadTool !== 'rotate') e.currentTarget.style.color = '#e2e8f0'; }}
+                                        onMouseLeave={e => { if (cadTool !== 'rotate') e.currentTarget.style.color = '#64748b'; }}
+                                    >
                                         <RotateCw size={14} />
                                     </button>
-                                    <button title="Mirror Tool (mirror)" onClick={() => setCadTool('mirror')} style={{ background: cadTool === 'mirror' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '6px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <button
+                                        title="Mirror Tool (mirror)"
+                                        onClick={() => setCadTool('mirror')}
+                                        style={{
+                                            background: cadTool === 'mirror' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+                                            border: cadTool === 'mirror' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
+                                            color: cadTool === 'mirror' ? '#60a5fa' : '#64748b',
+                                            padding: '7px',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 0.15s ease'
+                                        }}
+                                        onMouseEnter={e => { if (cadTool !== 'mirror') e.currentTarget.style.color = '#e2e8f0'; }}
+                                        onMouseLeave={e => { if (cadTool !== 'mirror') e.currentTarget.style.color = '#64748b'; }}
+                                    >
                                         <FlipHorizontal size={14} />
                                     </button>
-                                    <button title="Trim Tool (trim)" onClick={() => setCadTool('trim')} style={{ background: cadTool === 'trim' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '6px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <button
+                                        title="Trim Tool (trim)"
+                                        onClick={() => setCadTool('trim')}
+                                        style={{
+                                            background: cadTool === 'trim' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+                                            border: cadTool === 'trim' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
+                                            color: cadTool === 'trim' ? '#60a5fa' : '#64748b',
+                                            padding: '7px',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 0.15s ease'
+                                        }}
+                                        onMouseEnter={e => { if (cadTool !== 'trim') e.currentTarget.style.color = '#e2e8f0'; }}
+                                        onMouseLeave={e => { if (cadTool !== 'trim') e.currentTarget.style.color = '#64748b'; }}
+                                    >
                                         <Scissors size={14} />
                                     </button>
-                                    <button title="Erase Tool (erase)" onClick={() => setCadTool('erase')} style={{ background: cadTool === 'erase' ? '#ef4444' : 'transparent', border: 'none', color: 'white', padding: '6px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <button
+                                        title="Erase Tool (erase)"
+                                        onClick={() => setCadTool('erase')}
+                                        style={{
+                                            background: cadTool === 'erase' ? 'rgba(239, 68, 68, 0.15)' : 'transparent',
+                                            border: cadTool === 'erase' ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid transparent',
+                                            color: cadTool === 'erase' ? '#ef4444' : '#64748b',
+                                            padding: '7px',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 0.15s ease'
+                                        }}
+                                        onMouseEnter={e => { if (cadTool !== 'erase') e.currentTarget.style.color = '#fca5a5'; }}
+                                        onMouseLeave={e => { if (cadTool !== 'erase') e.currentTarget.style.color = '#64748b'; }}
+                                    >
                                         <Eraser size={14} />
                                     </button>
                                 </div>
 
-                                <div style={{ width: '20px', height: '1px', backgroundColor: '#1e3a8a', margin: '4px 0' }} />
+                                <div style={{ width: '20px', height: '1px', backgroundColor: '#1e293b', margin: '4px 0' }} />
 
                                 {/* ANNOTATE SECTION */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%', alignItems: 'center' }}>
-                                    <span style={{ fontSize: '0.45rem', color: '#64748b', fontWeight: 'bold' }}>ANNOT</span>
-                                    <button title="Interactive Dimension Tool (dimension)" onClick={() => setDimDrawState('idle') || setDimDraftCoords(null) || setDrawingCategory('dimension') || setCadTool('dimension')} style={{ background: cadTool === 'dimension' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '6px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', alignItems: 'center' }}>
+                                    <button
+                                        title="Interactive Dimension Tool (dimension)"
+                                        onClick={() => setDimDrawState('idle') || setDimDraftCoords(null) || setDrawingCategory('dimension') || setCadTool('dimension')}
+                                        style={{
+                                            background: cadTool === 'dimension' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+                                            border: cadTool === 'dimension' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
+                                            color: cadTool === 'dimension' ? '#60a5fa' : '#64748b',
+                                            padding: '7px',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 0.15s ease'
+                                        }}
+                                        onMouseEnter={e => { if (cadTool !== 'dimension') e.currentTarget.style.color = '#e2e8f0'; }}
+                                        onMouseLeave={e => { if (cadTool !== 'dimension') e.currentTarget.style.color = '#64748b'; }}
+                                    >
                                         <Ruler size={14} />
                                     </button>
-                                    <button title="Scale Calibration Tool (scale)" onClick={() => setScaleDrawState('idle') || setScaleDraftCoords(null) || setCadTool('scale')} style={{ background: cadTool === 'scale' ? '#2563eb' : 'transparent', border: 'none', color: 'white', padding: '6px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <button
+                                        title="Scale Calibration Tool (scale)"
+                                        onClick={() => setScaleDrawState('idle') || setScaleDraftCoords(null) || setCadTool('scale')}
+                                        style={{
+                                            background: cadTool === 'scale' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+                                            border: cadTool === 'scale' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
+                                            color: cadTool === 'scale' ? '#60a5fa' : '#64748b',
+                                            padding: '7px',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 0.15s ease'
+                                        }}
+                                        onMouseEnter={e => { if (cadTool !== 'scale') e.currentTarget.style.color = '#e2e8f0'; }}
+                                        onMouseLeave={e => { if (cadTool !== 'scale') e.currentTarget.style.color = '#64748b'; }}
+                                    >
                                         <Scale size={14} />
                                     </button>
                                 </div>
@@ -8577,6 +9189,138 @@ export default function DrawingManager() {
                                                 </select>
                                             </div>
 
+                                            {/* AI Vision & Hardware Lock Options */}
+                                            <div style={{ backgroundColor: '#f5f3ff', padding: '10px', borderRadius: '8px', border: '1px solid #ddd6fe', display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        id="editVisionEnabled"
+                                                        checked={editVisionEnabled}
+                                                        onChange={(e) => updateActiveDimProp('visionEnabled', e.target.checked)}
+                                                        style={{ width: '15px', height: '15px', accentColor: '#7c3aed' }}
+                                                    />
+                                                    <label htmlFor="editVisionEnabled" style={{ fontSize: '0.78rem', fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
+                                                        Gunakan AI Vision (YOLOv8)
+                                                    </label>
+                                                </div>
+
+                                                {editVisionEnabled && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingLeft: '22px' }}>
+                                                        <div>
+                                                            <label style={{ ...labelStyle, marginBottom: '2px' }}>Model YOLO</label>
+                                                            <select value={editYoloModel} onChange={(e) => updateActiveDimProp('yoloModel', e.target.value)} style={selectStyle}>
+                                                                <option value="yolov8n.pt">yolov8n.pt (Nano)</option>
+                                                                <option value="yolov8_surface_defect.pt">yolov8_surface_defect.pt</option>
+                                                                <option value="yolov8_dimensions.pt">yolov8_dimensions.pt</option>
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label style={{ ...labelStyle, marginBottom: '2px' }}>Target Class</label>
+                                                            <input type="text" value={editYoloClass} onChange={(e) => updateActiveDimProp('yoloClass', e.target.value)} placeholder="Misal: bore, scratch" style={inputStyle} />
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        id="editDeviceLockEnabled"
+                                                        checked={editDeviceLockEnabled}
+                                                        onChange={(e) => updateActiveDimProp('deviceLockEnabled', e.target.checked)}
+                                                        style={{ width: '15px', height: '15px', accentColor: '#7c3aed' }}
+                                                    />
+                                                    <label htmlFor="editDeviceLockEnabled" style={{ fontSize: '0.78rem', fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
+                                                        Kunci ke Hardware Device (BLE)
+                                                    </label>
+                                                </div>
+
+                                                {editDeviceLockEnabled && (
+                                                    <div style={{ paddingLeft: '22px' }}>
+                                                        <label style={{ ...labelStyle, marginBottom: '2px' }}>Device Profile</label>
+                                                        <select value={editDeviceProfile} onChange={(e) => updateActiveDimProp('deviceProfile', e.target.value)} style={selectStyle}>
+                                                            <option value="Mitutoyo Caliper (BLE)">Mitutoyo Caliper (BLE)</option>
+                                                            <option value="Sylvac Micrometer (BLE)">Sylvac Micrometer (BLE)</option>
+                                                            <option value="Smart Weight Scale (BLE)">Smart Weight Scale (BLE)</option>
+                                                        </select>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* ASME Y14.5 GD&T Control Frame Builder */}
+                                            <div style={{ backgroundColor: '#e6f4ea', padding: '10px', borderRadius: '8px', border: '1px solid #34a853', display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        id="editGdtFrameEnabled"
+                                                        checked={editGdtFrameEnabled}
+                                                        onChange={(e) => updateActiveDimProp('gdtFrameEnabled', e.target.checked)}
+                                                        style={{ width: '15px', height: '15px', accentColor: '#34a853' }}
+                                                    />
+                                                    <label htmlFor="editGdtFrameEnabled" style={{ fontSize: '0.78rem', fontWeight: 600, color: '#137333', cursor: 'pointer' }}>
+                                                        Build ASME Y14.5 Control Frame
+                                                    </label>
+                                                </div>
+
+                                                {editGdtFrameEnabled && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingLeft: '22px' }}>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '8px' }}>
+                                                            <div>
+                                                                <label style={{ ...labelStyle, marginBottom: '2px' }}>Karakteristik</label>
+                                                                <select value={editGdtSymbol} onChange={(e) => updateActiveDimProp('gdt_symbol', e.target.value)} style={selectStyle}>
+                                                                    <option value="POSITION">⌖ Position</option>
+                                                                    <option value="FLATNESS">▱ Flatness</option>
+                                                                    <option value="STRAIGHTNESS">⏤ Straightness</option>
+                                                                    <option value="CIRCULARITY">◯ Circularity</option>
+                                                                    <option value="CYLINDRICITY">⌭ Cylindricity</option>
+                                                                    <option value="PERPENDICULARITY">⊥ Perpendicularity</option>
+                                                                    <option value="PARALLELISM">∥ Parallelism</option>
+                                                                    <option value="ANGULARITY">∠ Angularity</option>
+                                                                    <option value="PROFILE_SURFACE">⌢ Profile</option>
+                                                                    <option value="CONCENTRICITY">◎ Concentricity</option>
+                                                                    <option value="CIRCULAR_RUNOUT">↗ Runout</option>
+                                                                </select>
+                                                            </div>
+                                                            <div>
+                                                                <label style={{ ...labelStyle, marginBottom: '2px' }}>Toleransi</label>
+                                                                <input type="text" value={editGdtTolerance} onChange={(e) => updateActiveDimProp('gdtTolerance', e.target.value)} placeholder="0.05" style={inputStyle} />
+                                                            </div>
+                                                        </div>
+
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', height: '100%' }}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    id="editGdtHasDiameter"
+                                                                    checked={editGdtHasDiameter}
+                                                                    onChange={(e) => updateActiveDimProp('gdtHasDiameter', e.target.checked)}
+                                                                    style={{ width: '13px', height: '13px', accentColor: '#34a853' }}
+                                                                />
+                                                                <label htmlFor="editGdtHasDiameter" style={{ fontSize: '0.7rem', fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
+                                                                    Gunakan ⌀
+                                                                </label>
+                                                            </div>
+                                                            <div>
+                                                                <label style={{ ...labelStyle, marginBottom: '2px' }}>Modifier</label>
+                                                                <select value={editGdtModifier} onChange={(e) => updateActiveDimProp('gdtModifier', e.target.value)} style={selectStyle}>
+                                                                    <option value="">None</option>
+                                                                    <option value="M">Ⓜ (MMC)</option>
+                                                                    <option value="L">Ⓛ (LMC)</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+
+                                                        <div>
+                                                            <label style={{ ...labelStyle, marginBottom: '2px' }}>Datums (A / B / C)</label>
+                                                            <div style={{ display: 'flex', gap: '6px' }}>
+                                                                <input type="text" maxLength="2" placeholder="Pri" value={editGdtDatum1} onChange={(e) => updateActiveDimProp('gdtDatum1', e.target.value.toUpperCase())} style={{ ...inputStyle, textAlign: 'center', padding: '6px' }} />
+                                                                <input type="text" maxLength="2" placeholder="Sec" value={editGdtDatum2} onChange={(e) => updateActiveDimProp('gdtDatum2', e.target.value.toUpperCase())} style={{ ...inputStyle, textAlign: 'center', padding: '6px' }} />
+                                                                <input type="text" maxLength="2" placeholder="Ter" value={editGdtDatum3} onChange={(e) => updateActiveDimProp('gdtDatum3', e.target.value.toUpperCase())} style={{ ...inputStyle, textAlign: 'center', padding: '6px' }} />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
                                             {/* Angle-specific fields */}
                                             {editCategory === 'angle' && (
                                                 <div style={{ backgroundColor: '#fffbeb', padding: '10px', borderRadius: '8px', border: '1px solid #fde68a', display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -9123,21 +9867,166 @@ export default function DrawingManager() {
                                                             <span style={{ color: status === 'PASS' ? '#10b981' : status === 'FAIL' ? '#ef4444' : '#94a3b8', fontWeight: 900, fontSize: '0.7rem' }}>{status}</span>
                                                         </div>
                                                     </div>
-                                                    <input
-                                                        type="number"
-                                                        step="0.1"
-                                                        value={simVal}
-                                                        onChange={(e) => {
-                                                            const newVal = parseFloat(e.target.value) || 0;
-                                                            const oldStatus = prevStatuses[dim.id] || 'PENDING';
-                                                            const newStatus = getValidationStatus(newVal, dim.tolMin, dim.tolMax);
-                                                            setSimValues(prev => ({ ...prev, [dim.id]: newVal }));
-                                                            setPrevStatuses(prev => ({ ...prev, [dim.id]: newStatus }));
-                                                            executeTriggers(dim, newVal, oldStatus, newStatus);
-                                                        }}
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        style={{ ...inputStyle, fontSize: '0.75rem', padding: '6px 8px', backgroundColor: 'rgba(255,255,255,0.7)' }}
-                                                    />
+                                                    {dim.visionEnabled ? (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }} onClick={(e) => e.stopPropagation()}>
+                                                            {/* AI Active Badge */}
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.6rem', color: '#7c3aed', fontWeight: 700, backgroundColor: '#f5f3ff', padding: '4px 8px', borderRadius: '6px', border: '1px solid #ddd6fe' }}>
+                                                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                                    <Cpu size={11} /> YOLOv8 AI Vision Active
+                                                                </span>
+                                                                <span>{dim.yoloModel || 'yolov8n.pt'} ({dim.yoloClass || 'detect'})</span>
+                                                            </div>
+                                                            
+                                                            <div style={{ display: 'flex', gap: '6px' }}>
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        const isScanActive = aiScanningId === dim.id;
+                                                                        if (isScanActive) return;
+                                                                        setAiScanningId(dim.id);
+                                                                        const loadingToast = toast.loading(`[YOLOv8] Memulai analisis citra untuk "${dim.label}"...`, { id: `yolo-scan-${dim.id}` });
+                                                                        
+                                                                        // Simulating YOLO Inference Latency
+                                                                        await new Promise(resolve => setTimeout(resolve, 1500));
+                                                                        
+                                                                        // Simulate random measurement value near nominal spec
+                                                                        const specNum = parseFloat(dim.spec) || 50.0;
+                                                                        const range = Math.max(0.1, (dim.tolMax - dim.tolMin));
+                                                                        // 92% PASS chance, 8% FAIL chance
+                                                                        const pass = Math.random() > 0.08;
+                                                                        let simulatedVal;
+                                                                        if (pass) {
+                                                                            simulatedVal = parseFloat((dim.tolMin + Math.random() * range).toFixed(2));
+                                                                        } else {
+                                                                            // Generate values outside bounds
+                                                                            simulatedVal = Math.random() > 0.5 
+                                                                                ? parseFloat((dim.tolMax + 0.02 + Math.random() * 0.15).toFixed(2))
+                                                                                : parseFloat((dim.tolMin - 0.02 - Math.random() * 0.15).toFixed(2));
+                                                                        }
+                                                                        
+                                                                        const oldStatus = prevStatuses[dim.id] || 'PENDING';
+                                                                        const newStatus = getValidationStatus(simulatedVal, dim.tolMin, dim.tolMax);
+                                                                        
+                                                                        setSimValues(prev => ({ ...prev, [dim.id]: simulatedVal }));
+                                                                        setPrevStatuses(prev => ({ ...prev, [dim.id]: newStatus }));
+                                                                        executeTriggers(dim, simulatedVal, oldStatus, newStatus);
+                                                                        
+                                                                        setAiScanningId(null);
+                                                                        toast.dismiss(loadingToast);
+                                                                        if (newStatus === 'PASS') {
+                                                                            toast.success(`[YOLOv8] Analisis Selesai! Nilai terdeteksi: ${simulatedVal} ${dim.unit || 'mm'} (PASS)`, { id: `yolo-scan-${dim.id}` });
+                                                                        } else {
+                                                                            toast.error(`[YOLOv8] Analisis Selesai! Nilai terdeteksi: ${simulatedVal} ${dim.unit || 'mm'} (FAIL)`, { id: `yolo-scan-${dim.id}` });
+                                                                        }
+                                                                    }}
+                                                                    disabled={aiScanningId === dim.id}
+                                                                    style={{
+                                                                        flex: 1,
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        justifyContent: 'center',
+                                                                        gap: '6px',
+                                                                        padding: '6px 12px',
+                                                                        background: aiScanningId === dim.id ? '#cbd5e1' : 'linear-gradient(135deg, #7c3aed, #6d28d9)',
+                                                                        color: 'white',
+                                                                        border: 'none',
+                                                                        borderRadius: '6px',
+                                                                        fontSize: '0.72rem',
+                                                                        fontWeight: 800,
+                                                                        cursor: aiScanningId === dim.id ? 'not-allowed' : 'pointer',
+                                                                        boxShadow: '0 2px 4px rgba(124, 58, 237, 0.2)',
+                                                                        outline: 'none'
+                                                                    }}
+                                                                >
+                                                                    <Camera size={12} style={{ animation: aiScanningId === dim.id ? 'pulse 1s infinite' : 'none' }} />
+                                                                    {aiScanningId === dim.id ? 'Memindai...' : 'Pindai Kamera (AI)'}
+                                                                </button>
+                                                                
+                                                                <input
+                                                                    type="number"
+                                                                    step="0.01"
+                                                                    value={simVal}
+                                                                    onChange={(e) => {
+                                                                        const newVal = parseFloat(e.target.value) || 0;
+                                                                        const oldStatus = prevStatuses[dim.id] || 'PENDING';
+                                                                        const newStatus = getValidationStatus(newVal, dim.tolMin, dim.tolMax);
+                                                                        setSimValues(prev => ({ ...prev, [dim.id]: newVal }));
+                                                                        setPrevStatuses(prev => ({ ...prev, [dim.id]: newStatus }));
+                                                                        executeTriggers(dim, newVal, oldStatus, newStatus);
+                                                                    }}
+                                                                    style={{ ...inputStyle, width: '80px', fontSize: '0.72rem', padding: '4px 6px', textAlign: 'center', backgroundColor: '#f8fafc', marginTop: '0px' }}
+                                                                    placeholder="Manual"
+                                                                    title="Ganti nilai secara manual jika perlu"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    ) : dim.deviceLockEnabled ? (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }} onClick={(e) => e.stopPropagation()}>
+                                                            {/* BLE Hardware Active Badge */}
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.6rem', color: '#059669', fontWeight: 700, backgroundColor: '#ecfdf5', padding: '4px 8px', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
+                                                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                                    <Sliders size={11} /> Bluetooth BLE Caliper Active
+                                                                </span>
+                                                                <span>{dim.deviceProfile || 'Mitutoyo Caliper'}</span>
+                                                            </div>
+                                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                                <input
+                                                                    type="number"
+                                                                    step="0.01"
+                                                                    value={simVal}
+                                                                    disabled={true}
+                                                                    style={{ ...inputStyle, flex: 2, fontSize: '0.75rem', padding: '6px 8px', backgroundColor: '#f1f5f9', cursor: 'not-allowed', color: '#64748b', marginTop: '0px' }}
+                                                                    placeholder="Menunggu Data BLE..."
+                                                                />
+                                                                <button
+                                                                    onClick={() => {
+                                                                        // Simulate receiving data from Caliper via Bluetooth
+                                                                        const nominal = parseFloat(dim.spec) || 50.0;
+                                                                        const range = Math.max(0.1, (dim.tolMax - dim.tolMin));
+                                                                        const simulatedVal = parseFloat((dim.tolMin + Math.random() * range).toFixed(2));
+                                                                        
+                                                                        const oldStatus = prevStatuses[dim.id] || 'PENDING';
+                                                                        const newStatus = getValidationStatus(simulatedVal, dim.tolMin, dim.tolMax);
+                                                                        
+                                                                        setSimValues(prev => ({ ...prev, [dim.id]: simulatedVal }));
+                                                                        setPrevStatuses(prev => ({ ...prev, [dim.id]: newStatus }));
+                                                                        executeTriggers(dim, simulatedVal, oldStatus, newStatus);
+                                                                        
+                                                                        toast.success(`[BLE Caliper] Data Diterima: ${simulatedVal} mm`);
+                                                                    }}
+                                                                    style={{
+                                                                        flex: 1,
+                                                                        padding: '8px 10px',
+                                                                        backgroundColor: '#059669',
+                                                                        color: 'white',
+                                                                        border: 'none',
+                                                                        borderRadius: '6px',
+                                                                        fontSize: '0.65rem',
+                                                                        fontWeight: 700,
+                                                                        cursor: 'pointer',
+                                                                        outline: 'none'
+                                                                    }}
+                                                                >
+                                                                    Kirim Data BLE
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <input
+                                                            type="number"
+                                                            step="0.1"
+                                                            value={simVal}
+                                                            onChange={(e) => {
+                                                                const newVal = parseFloat(e.target.value) || 0;
+                                                                const oldStatus = prevStatuses[dim.id] || 'PENDING';
+                                                                const newStatus = getValidationStatus(newVal, dim.tolMin, dim.tolMax);
+                                                                setSimValues(prev => ({ ...prev, [dim.id]: newVal }));
+                                                                setPrevStatuses(prev => ({ ...prev, [dim.id]: newStatus }));
+                                                                executeTriggers(dim, newVal, oldStatus, newStatus);
+                                                            }}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            style={{ ...inputStyle, fontSize: '0.75rem', padding: '6px 8px', backgroundColor: 'rgba(255,255,255,0.7)', marginTop: '4px' }}
+                                                        />
+                                                    )}
                                                 </div>
                                             );
                                         })}
@@ -9590,6 +10479,187 @@ export default function DrawingManager() {
                                     <option value="triangle">▲ Segitiga (Triangle)</option>
                                 </select>
                             </div>
+                        </div>
+
+                        {/* AI Vision & Hardware Lock Options */}
+                        <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '10px', marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <input
+                                    type="checkbox"
+                                    id="modalVisionEnabled"
+                                    checked={dimModalData.visionEnabled || false}
+                                    onChange={(e) => setDimModalData(prev => ({ ...prev, visionEnabled: e.target.checked }))}
+                                    style={{ width: '15px', height: '15px', accentColor: '#7c3aed' }}
+                                />
+                                <label htmlFor="modalVisionEnabled" style={{ fontSize: '0.78rem', fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
+                                    Gunakan AI Vision (YOLOv8)
+                                </label>
+                            </div>
+
+                            {dimModalData.visionEnabled && (
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', paddingLeft: '22px' }}>
+                                    <div>
+                                        <label style={labelStyle}>Model YOLO</label>
+                                        <select
+                                            value={dimModalData.yoloModel || 'yolov8n.pt'}
+                                            onChange={(e) => setDimModalData(prev => ({ ...prev, yoloModel: e.target.value }))}
+                                            style={selectStyle}
+                                        >
+                                            <option value="yolov8n.pt">yolov8n.pt (Nano)</option>
+                                            <option value="yolov8_surface_defect.pt">yolov8_surface_defect.pt</option>
+                                            <option value="yolov8_dimensions.pt">yolov8_dimensions.pt</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style={labelStyle}>Target Class</label>
+                                        <input
+                                            type="text"
+                                            value={dimModalData.yoloClass || ''}
+                                            onChange={(e) => setDimModalData(prev => ({ ...prev, yoloClass: e.target.value }))}
+                                            placeholder="Misal: bore, scratch"
+                                            style={inputStyle}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <input
+                                    type="checkbox"
+                                    id="modalDeviceLockEnabled"
+                                    checked={dimModalData.deviceLockEnabled || false}
+                                    onChange={(e) => setDimModalData(prev => ({ ...prev, deviceLockEnabled: e.target.checked }))}
+                                    style={{ width: '15px', height: '15px', accentColor: '#7c3aed' }}
+                                />
+                                <label htmlFor="modalDeviceLockEnabled" style={{ fontSize: '0.78rem', fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
+                                    Kunci ke Hardware Device (BLE)
+                                </label>
+                            </div>
+
+                            {dimModalData.deviceLockEnabled && (
+                                <div style={{ paddingLeft: '22px' }}>
+                                    <label style={labelStyle}>Device Profile</label>
+                                    <select
+                                        value={dimModalData.deviceProfile || 'Mitutoyo Caliper (BLE)'}
+                                        onChange={(e) => setDimModalData(prev => ({ ...prev, deviceProfile: e.target.value }))}
+                                        style={selectStyle}
+                                    >
+                                        <option value="Mitutoyo Caliper (BLE)">Mitutoyo Caliper (BLE)</option>
+                                        <option value="Sylvac Micrometer (BLE)">Sylvac Micrometer (BLE)</option>
+                                        <option value="Smart Weight Scale (BLE)">Smart Weight Scale (BLE)</option>
+                                    </select>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* ASME Y14.5 GD&T Control Frame Builder */}
+                        <div style={{ backgroundColor: '#f0fdf4', padding: '10px', borderRadius: '8px', border: '1px solid #bbf7d0', display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <input
+                                    type="checkbox"
+                                    id="modalGdtFrameEnabled"
+                                    checked={dimModalData.gdtFrameEnabled || false}
+                                    onChange={(e) => setDimModalData(prev => ({ ...prev, gdtFrameEnabled: e.target.checked }))}
+                                    style={{ width: '15px', height: '15px', accentColor: '#16a34a' }}
+                                />
+                                <label htmlFor="modalGdtFrameEnabled" style={{ fontSize: '0.78rem', fontWeight: 600, color: '#14532d', cursor: 'pointer' }}>
+                                    Build ASME Y14.5 Control Frame
+                                </label>
+                            </div>
+
+                            {dimModalData.gdtFrameEnabled && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingLeft: '22px' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '8px' }}>
+                                        <div>
+                                            <label style={labelStyle}>Karakteristik</label>
+                                            <select
+                                                value={dimModalData.gdt_symbol || 'POSITION'}
+                                                onChange={(e) => setDimModalData(prev => ({ ...prev, gdt_symbol: e.target.value }))}
+                                                style={selectStyle}
+                                            >
+                                                <option value="POSITION">⌖ Position</option>
+                                                <option value="FLATNESS">▱ Flatness</option>
+                                                <option value="STRAIGHTNESS">⏤ Straightness</option>
+                                                <option value="CIRCULARITY">◯ Circularity</option>
+                                                <option value="CYLINDRICITY">⌭ Cylindricity</option>
+                                                <option value="PERPENDICULARITY">⊥ Perpendicularity</option>
+                                                <option value="PARALLELISM">∥ Parallelism</option>
+                                                <option value="ANGULARITY">∠ Angularity</option>
+                                                <option value="PROFILE_SURFACE">⌢ Profile</option>
+                                                <option value="CONCENTRICITY">◎ Concentricity</option>
+                                                <option value="CIRCULAR_RUNOUT">↗ Runout</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label style={labelStyle}>Toleransi</label>
+                                            <input
+                                                type="text"
+                                                value={dimModalData.gdtTolerance || ''}
+                                                onChange={(e) => setDimModalData(prev => ({ ...prev, gdtTolerance: e.target.value }))}
+                                                placeholder="Misal: 0.05"
+                                                style={inputStyle}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', height: '100%' }}>
+                                            <input
+                                                type="checkbox"
+                                                id="modalGdtHasDiameter"
+                                                checked={dimModalData.gdtHasDiameter || false}
+                                                onChange={(e) => setDimModalData(prev => ({ ...prev, gdtHasDiameter: e.target.checked }))}
+                                                style={{ width: '13px', height: '13px', accentColor: '#16a34a' }}
+                                            />
+                                            <label htmlFor="modalGdtHasDiameter" style={{ fontSize: '0.7rem', fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
+                                                Gunakan ⌀
+                                            </label>
+                                        </div>
+                                        <div>
+                                            <label style={labelStyle}>Modifier</label>
+                                            <select
+                                                value={dimModalData.gdtModifier || ''}
+                                                onChange={(e) => setDimModalData(prev => ({ ...prev, gdtModifier: e.target.value }))}
+                                                style={selectStyle}
+                                            >
+                                                <option value="">None</option>
+                                                <option value="M">Ⓜ (MMC)</option>
+                                                <option value="L">Ⓛ (LMC)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label style={labelStyle}>Datums (A / B / C)</label>
+                                        <div style={{ display: 'flex', gap: '6px' }}>
+                                            <input
+                                                type="text"
+                                                maxLength="2"
+                                                placeholder="Pri"
+                                                value={dimModalData.gdtDatum1 || ''}
+                                                onChange={(e) => setDimModalData(prev => ({ ...prev, gdtDatum1: e.target.value.toUpperCase() }))}
+                                                style={{ ...inputStyle, textAlign: 'center', padding: '6px' }}
+                                            />
+                                            <input
+                                                type="text"
+                                                maxLength="2"
+                                                placeholder="Sec"
+                                                value={dimModalData.gdtDatum2 || ''}
+                                                onChange={(e) => setDimModalData(prev => ({ ...prev, gdtDatum2: e.target.value.toUpperCase() }))}
+                                                style={{ ...inputStyle, textAlign: 'center', padding: '6px' }}
+                                            />
+                                            <input
+                                                type="text"
+                                                maxLength="2"
+                                                placeholder="Ter"
+                                                value={dimModalData.gdtDatum3 || ''}
+                                                onChange={(e) => setDimModalData(prev => ({ ...prev, gdtDatum3: e.target.value.toUpperCase() }))}
+                                                style={{ ...inputStyle, textAlign: 'center', padding: '6px' }}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>

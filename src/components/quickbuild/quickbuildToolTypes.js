@@ -118,6 +118,30 @@ export const NODE_TYPES = {
             return `Angle: ${val}° [PASS]`;
         },
     },
+    caliper_array: {
+        color: '#14b8a6', icon: '📏', label: 'Caliper Array', category: 'measure',
+        desc: 'Detects parallel/linear multiple edge points & fits line (RANSAC)',
+        defaultParams: { expectedDistance: 120, edgePolarity: 'Dark to Light', numCalipers: 10, caliperWidth: 20, caliperLength: 60, fixtureSource: '' },
+        inputs: ['image', 'offset'],
+        outputs: ['distance', 'points', 'angle'],
+        simValue: (params) => {
+            const exp = parseFloat(params?.expectedDistance) || 120;
+            const val = (exp + (Math.random() * 1.5 - 0.75)).toFixed(2);
+            return `Dist: ${val}px, Points: ${params?.numCalipers || 10}/${params?.numCalipers || 10} [PASS]`;
+        },
+    },
+    radial_caliper: {
+        color: '#0d9488', icon: '🌀', label: 'Radial Caliper', category: 'measure',
+        desc: 'Detects circular edges radially inside circle sector / annulus',
+        defaultParams: { expectedRadius: 80, radiusTolerance: 5, numCalipers: 16, startAngle: 0, endAngle: 360, edgePolarity: 'Any', fixtureSource: '' },
+        inputs: ['image', 'offset'],
+        outputs: ['radius', 'center', 'dev'],
+        simValue: (params) => {
+            const r = parseFloat(params?.expectedRadius) || 80;
+            const val = (r + (Math.random() * 0.8 - 0.4)).toFixed(2);
+            return `R: ${val}px, Center: (320, 240) [PASS]`;
+        },
+    },
 
     // ── Inspect ──
     color_extract: {
@@ -158,6 +182,20 @@ export const NODE_TYPES = {
         outputs: ['decoded', 'format'],
         simValue: () => `Code128: "LOT-8924A-EXP1228" [VERIFIED]`,
     },
+    bead_inspection: {
+        color: '#f43f5e', icon: '〰️', label: 'Bead Inspector', category: 'inspect',
+        desc: 'Inspect width, continuity, and position of adhesive/sealant beads',
+        defaultParams: { beadColor: 'Dark', expectedWidth: 8, widthTolerance: 3, maxGapLength: 5 },
+        inputs: ['image'],
+        outputs: ['status', 'minWidth', 'maxWidth'],
+        simValue: (params) => {
+            const w = parseFloat(params?.expectedWidth) || 8;
+            const tol = parseFloat(params?.widthTolerance) || 3;
+            const meas = (w + (Math.random() * 2 - 1)).toFixed(1);
+            const pass = Math.abs(meas - w) <= tol;
+            return `Width: ${meas}px, Gaps: 0 [${pass ? 'PASS' : 'FAIL'}]`;
+        },
+    },
 
     // ── Logic ──
     math_formula: {
@@ -193,6 +231,88 @@ export const NODE_TYPES = {
         inputs: ['dimension', 'defects'],
         outputs: ['status'],
         simValue: () => 'PIPELINE PASS',
+    },
+    geom_construction: {
+        color: '#14b8a6', icon: '📐', label: 'Geometry Construct', category: 'measure',
+        desc: 'Constructs geometric relations (Line-Line intersection, Point-Line distance)',
+        defaultParams: { geomMode: 'Line-Line Intersection', ref1: '', ref2: '', nominalVal: '0.0', tolerance: '0.5' },
+        inputs: ['ref1', 'ref2'],
+        outputs: ['resultX', 'resultY', 'distance'],
+        simValue: (params) => {
+            const mode = params?.geomMode || 'Line-Line Intersection';
+            if (mode === 'Line-Line Intersection') return `Intersection: (${(Math.random()*100+250).toFixed(1)}, ${(Math.random()*100+180).toFixed(1)})`;
+            if (mode === 'Point-Line Distance') return `Dist: ${(Math.random()*2+5).toFixed(2)}px`;
+            return `Dist: ${(Math.random()*3+15).toFixed(2)}px`;
+        },
+    },
+    grid_calibration: {
+        color: '#8b5cf6', icon: '🏁', label: 'Grid Calibration', category: 'filter',
+        desc: 'N-Point/Checkerboard calibration to real world coordinates (mm)',
+        defaultParams: { calibMode: 'Checkerboard Grid', pxPerMm: 4.25, originX: 0, originY: 0, showGrid: true },
+        inputs: ['image'],
+        outputs: ['calibratedImage', 'scaleMatrix'],
+        simValue: (params) => {
+            return `Grid Calibrated: 1px = ${(1 / (params?.pxPerMm || 4.25)).toFixed(3)} mm`;
+        },
+    },
+    spatial_flaw: {
+        color: '#ec4899', icon: '🕸️', label: 'Spatial Flaw Detector', category: 'inspect',
+        desc: 'Fourier FFT / Local Adaptive Scratch and pit finder in textures',
+        defaultParams: { sensitivity: 80, minArea: 5, filterSize: 15, maxDefects: 5 },
+        inputs: ['image'],
+        outputs: ['defectsCount', 'defectRegions'],
+        simValue: (params) => {
+            const cnt = Math.random() > 0.7 ? 1 : 0;
+            return cnt > 0 ? `NG: 1 scratch detected (Area: ${(Math.random()*15+5).toFixed(1)}px²)` : 'PASS: No flaws detected';
+        },
+    },
+    dpm_enhancer: {
+        color: '#8b5cf6', icon: '🔲', label: 'Barcode DPM Enhancer', category: 'filter',
+        desc: 'Advanced Otsu local contrast & morphology binarization for laser-marked barcodes',
+        defaultParams: { localRadius: 15, morphCloseSize: 3, contrastGain: 1.5 },
+        inputs: ['image'],
+        outputs: ['enhancedImage'],
+        simValue: () => 'DPM Contrast Repaired',
+    },
+    polar_unwrap: {
+        color: '#8b5cf6', icon: '🍩', label: 'Polar Unwrapper', category: 'filter',
+        desc: 'Unrolls circular/arc regions to linear rectangle strip for standard OCR/Barcode readers',
+        defaultParams: { cx: 320, cy: 240, innerRadius: 50, outerRadius: 150, direction: 'Clockwise' },
+        inputs: ['image', 'offset'],
+        outputs: ['unwrappedImage'],
+        simValue: () => 'Circular Arc unwrapped to 800x120px strip',
+    },
+    searchmax: {
+        color: '#06b6d4', icon: '🎨', label: 'SearchMax Color', category: 'locate',
+        desc: 'Geometric color pattern matching invariant to rotation, scale, and lighting',
+        defaultParams: { template: 'Color_Part_Ref', acceptScore: 75, matchHue: true, maxResults: 1 },
+        inputs: ['image'],
+        outputs: ['offset', 'score', 'colorDiff'],
+        simValue: (params) => {
+            const accept = params?.acceptScore || 75;
+            const score = (92.4 + Math.random()*4).toFixed(1);
+            return `ColorMatch: ${score}% [PASS] (Hue Diff: ${(Math.random()*1.5).toFixed(2)}°)`;
+        },
+    },
+    golden_template: {
+        color: '#ec4899', icon: '🔍', label: 'Golden Comparator', category: 'inspect',
+        desc: 'Pixel-by-pixel comparisons vs Golden Image reference or DXF CAD file',
+        defaultParams: { tolerancePixels: 2.0, rejectOnMissing: true, cadFile: 'industrial-flange-rev2.dxf' },
+        inputs: ['image', 'offset'],
+        outputs: ['deviationArea', 'defects'],
+        simValue: () => `CAD Dev: 0.12px, Missing Features: 0 [PASS]`,
+    },
+    vidi_ai: {
+        color: '#ec4899', icon: '🧠', label: 'ViDi AI Segmenter', category: 'inspect',
+        desc: 'Deep learning classification & textured defect segmentation (Red-Analyze & Green-Classify)',
+        defaultParams: { modelMode: 'Red-Analyze (Anomaly)', minConfidence: 85, modelWeights: 'vidi-flange-anomaly.weights' },
+        inputs: ['image'],
+        outputs: ['classLabel', 'confidence', 'defectMask'],
+        simValue: (params) => {
+            const mode = params?.modelMode || 'Red-Analyze (Anomaly)';
+            if (mode === 'Green-Classify (Class)') return 'Classify: Flange_Type_A [Conf: 99.4%]';
+            return 'DL Anomaly Score: 12.5% [PASS]';
+        },
     },
 };
 

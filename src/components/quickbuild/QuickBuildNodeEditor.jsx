@@ -12,6 +12,8 @@ export default function QuickBuildNodeEditor({
     onDeleteNode,
     drawingsList = [],
     appVariables = [],
+    onTrainOcrFont = () => { },
+    cameraConfigs = [],
 }) {
     if (!selectedNode) {
         return (
@@ -29,6 +31,10 @@ export default function QuickBuildNodeEditor({
     }
 
     const typeInfo = NODE_TYPES[selectedNode.type] || {};
+
+    const cameraNames = cameraConfigs && cameraConfigs.length > 0
+        ? cameraConfigs.map(c => c.name)
+        : ['Default IP Camera', 'Main Inspection Camera', 'Packaging Line Camera', 'Calibration Webcam'];
 
     const updateParam = (key, value) => {
         setNodes(prev => prev.map(n => {
@@ -73,16 +79,36 @@ export default function QuickBuildNodeEditor({
                     <input type="text" value={selectedNode.name} onChange={e => updateName(e.target.value)} style={inputStyle} />
                 </Field>
 
+                {/* Coordinate Fixturing Reference */}
+                {['measure', 'circle_gauge', 'line_fitter', 'caliper_array', 'radial_caliper', 'inspect', 'barcode', 'bead_inspection'].includes(selectedNode.type) && (
+                    <Field label="Coordinate Fixturing Reference">
+                        <select
+                            value={selectedNode.params.fixtureSource || ''}
+                            onChange={e => updateParam('fixtureSource', e.target.value)}
+                            style={selectStyle}
+                        >
+                            <option value="">None (Absolute Space)</option>
+                            {nodes
+                                .filter(n => ['locate', 'patmax'].includes(n.type) && n.id !== selectedNode.id)
+                                .map(n => (
+                                    <option key={n.id} value={n.id}>
+                                        {n.name} ({n.type.toUpperCase()})
+                                    </option>
+                                ))
+                            }
+                        </select>
+                    </Field>
+                )}
+
                 {/* ═══ Type-specific parameter panels ═══ */}
 
                 {/* ── ACQUIRE ──────────────────────────── */}
                 {selectedNode.type === 'acquire' && (<>
                     <Field label="Camera Source">
                         <select value={selectedNode.params.camera || ''} onChange={e => updateParam('camera', e.target.value)} style={selectStyle}>
-                            <option value="Default IP Camera">Default IP Camera</option>
-                            <option value="Main Inspection Camera">Main Inspection Camera</option>
-                            <option value="Packaging Line Camera">Packaging Line Camera</option>
-                            <option value="Calibration Webcam">Calibration Webcam</option>
+                            {cameraNames.map(name => (
+                                <option key={name} value={name}>{name}</option>
+                            ))}
                         </select>
                     </Field>
                     <Field label="Trigger Mode">
@@ -227,6 +253,29 @@ export default function QuickBuildNodeEditor({
                     </Row>
                 </>)}
 
+                {/* ── CALIPER ARRAY ────────────────────── */}
+                {selectedNode.type === 'caliper_array' && (<>
+                    <Field label="Expected Distance (px)"><input type="number" value={selectedNode.params.expectedDistance || 120} onChange={e => updateParam('expectedDistance', Number(e.target.value))} style={inputStyle} /></Field>
+                    <Field label="Edge Polarity">
+                        <select value={selectedNode.params.edgePolarity || 'Dark to Light'} onChange={e => updateParam('edgePolarity', e.target.value)} style={selectStyle}>
+                            <option>Dark to Light</option><option>Light to Dark</option><option>Either</option>
+                        </select>
+                    </Field>
+                    <Row>
+                        <Field label="Caliper Count"><input type="number" value={selectedNode.params.numCalipers || 10} onChange={e => updateParam('numCalipers', Number(e.target.value))} style={inputStyle} /></Field>
+                        <Field label="Caliper Width"><input type="number" value={selectedNode.params.caliperWidth || 20} onChange={e => updateParam('caliperWidth', Number(e.target.value))} style={inputStyle} /></Field>
+                    </Row>
+                </>)}
+
+                {/* ── RADIAL CALIPER ───────────────────── */}
+                {selectedNode.type === 'radial_caliper' && (<>
+                    <Row>
+                        <Field label="Expected Radius"><input type="number" value={selectedNode.params.expectedRadius || 80} onChange={e => updateParam('expectedRadius', Number(e.target.value))} style={inputStyle} /></Field>
+                        <Field label="Tolerance (±)"><input type="number" value={selectedNode.params.radiusTolerance || 5} onChange={e => updateParam('radiusTolerance', Number(e.target.value))} style={inputStyle} /></Field>
+                    </Row>
+                    <Field label="Caliper Count"><input type="number" value={selectedNode.params.numCalipers || 16} onChange={e => updateParam('numCalipers', Number(e.target.value))} style={inputStyle} /></Field>
+                </>)}
+
                 {/* ── COLOR EXTRACTOR ──────────────────── */}
                 {selectedNode.type === 'color_extract' && (<>
                     <Field label="Color Space">
@@ -278,7 +327,20 @@ export default function QuickBuildNodeEditor({
                     ) : selectedNode.params.mode === 'Anomaly Segmentation' ? (
                         <Field label="Max Defect Area (px²)"><input type="number" value={selectedNode.params.thresholdArea || 50} onChange={e => updateParam('thresholdArea', Number(e.target.value))} style={inputStyle} /></Field>
                     ) : (
-                        <Field label="Match Pattern (Regex)"><input type="text" value={selectedNode.params.matchPattern || ''} onChange={e => updateParam('matchPattern', e.target.value)} style={inputStyle} /></Field>
+                        <>
+                            <Field label="Match Pattern (Regex)"><input type="text" value={selectedNode.params.matchPattern || ''} onChange={e => updateParam('matchPattern', e.target.value)} style={inputStyle} /></Field>
+                            <button
+                                onClick={onTrainOcrFont}
+                                style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                    padding: '8px 12px', borderRadius: '8px', border: '1px solid #7c3aed',
+                                    backgroundColor: '#f5f3ff', color: '#7c3aed', fontWeight: 700, fontSize: '0.72rem',
+                                    cursor: 'pointer', marginTop: '6px', width: '100%'
+                                }}
+                            >
+                                🔠 Train OCR Font Characters
+                            </button>
+                        </>
                     )}
                 </>)}
 
@@ -293,6 +355,21 @@ export default function QuickBuildNodeEditor({
                     <Field label="Verify Checksum">
                         <ToggleSwitch checked={selectedNode.params.verifyChecksum !== false} onChange={v => updateParam('verifyChecksum', v)} />
                     </Field>
+                </>)}
+
+                {/* ── BEAD INSPECTION ──────────────────── */}
+                {selectedNode.type === 'bead_inspection' && (<>
+                    <Field label="Bead Color">
+                        <select value={selectedNode.params.beadColor || 'Dark'} onChange={e => updateParam('beadColor', e.target.value)} style={selectStyle}>
+                            <option value="Dark">Dark on Light</option>
+                            <option value="Light">Light on Dark</option>
+                        </select>
+                    </Field>
+                    <Row>
+                        <Field label="Expected Width (px)"><input type="number" value={selectedNode.params.expectedWidth || 8} onChange={e => updateParam('expectedWidth', Number(e.target.value))} style={inputStyle} /></Field>
+                        <Field label="Tolerance ± (px)"><input type="number" value={selectedNode.params.widthTolerance || 3} onChange={e => updateParam('widthTolerance', Number(e.target.value))} style={inputStyle} /></Field>
+                    </Row>
+                    <Field label="Max Allowable Gap (px)"><input type="number" value={selectedNode.params.maxGapLength || 5} onChange={e => updateParam('maxGapLength', Number(e.target.value))} style={inputStyle} /></Field>
                 </>)}
 
                 {/* ── MATH/FORMULA ─────────────────────── */}
@@ -362,6 +439,135 @@ export default function QuickBuildNodeEditor({
                     {selectedNode.params.writeToPlc && (
                         <Field label="PLC Address"><input type="text" value={selectedNode.params.plcAddress || ''} onChange={e => updateParam('plcAddress', e.target.value)} style={inputStyle} placeholder="e.g. DB1.DBX0.0" /></Field>
                     )}
+                </>)}
+
+                {/* ── GEOMETRY CONSTRUCTION ────────────── */}
+                {selectedNode.type === 'geom_construction' && (<>
+                    <Field label="Geometry Relation Mode">
+                        <select value={selectedNode.params.geomMode || 'Line-Line Intersection'} onChange={e => updateParam('geomMode', e.target.value)} style={selectStyle}>
+                            <option>Line-Line Intersection</option>
+                            <option>Point-Line Distance</option>
+                            <option>Point-Point Distance</option>
+                        </select>
+                    </Field>
+                    <Row>
+                        <Field label="Geometry Ref 1">
+                            <select value={selectedNode.params.ref1 || ''} onChange={e => updateParam('ref1', e.target.value)} style={selectStyle}>
+                                <option value="">Select node...</option>
+                                {nodes.filter(n => n.id !== selectedNode.id).map(n => (
+                                    <option key={n.id} value={n.id}>{n.name} ({n.type.toUpperCase()})</option>
+                                ))}
+                            </select>
+                        </Field>
+                        <Field label="Geometry Ref 2">
+                            <select value={selectedNode.params.ref2 || ''} onChange={e => updateParam('ref2', e.target.value)} style={selectStyle}>
+                                <option value="">Select node...</option>
+                                {nodes.filter(n => n.id !== selectedNode.id).map(n => (
+                                    <option key={n.id} value={n.id}>{n.name} ({n.type.toUpperCase()})</option>
+                                ))}
+                            </select>
+                        </Field>
+                    </Row>
+                    <Row>
+                        <Field label="Nominal Size (mm/px)"><input type="text" value={selectedNode.params.nominalVal || '0.0'} onChange={e => updateParam('nominalVal', e.target.value)} style={inputStyle} /></Field>
+                        <Field label="Tolerance ±"><input type="text" value={selectedNode.params.tolerance || '0.5'} onChange={e => updateParam('tolerance', e.target.value)} style={inputStyle} /></Field>
+                    </Row>
+                </>)}
+
+                {/* ── GRID CALIBRATION ─────────────────── */}
+                {selectedNode.type === 'grid_calibration' && (<>
+                    <Field label="Calibration Mode">
+                        <select value={selectedNode.params.calibMode || 'Checkerboard Grid'} onChange={e => updateParam('calibMode', e.target.value)} style={selectStyle}>
+                            <option>Checkerboard Grid</option>
+                            <option>Manual Scale</option>
+                            <option>N-Point Homography</option>
+                        </select>
+                    </Field>
+                    <Field label="Resolution (pixels/mm)"><input type="number" step="0.01" value={selectedNode.params.pxPerMm || 4.25} onChange={e => updateParam('pxPerMm', Number(e.target.value))} style={inputStyle} /></Field>
+                    <Row>
+                        <Field label="Origin X offset"><input type="number" value={selectedNode.params.originX || 0} onChange={e => updateParam('originX', Number(e.target.value))} style={inputStyle} /></Field>
+                        <Field label="Origin Y offset"><input type="number" value={selectedNode.params.originY || 0} onChange={e => updateParam('originY', Number(e.target.value))} style={inputStyle} /></Field>
+                    </Row>
+                    <Field label="Overlay Alignment Grid">
+                        <ToggleSwitch checked={selectedNode.params.showGrid !== false} onChange={v => updateParam('showGrid', v)} />
+                    </Field>
+                </>)}
+
+                {/* ── SPATIAL FLAW DETECTOR ────────────── */}
+                {selectedNode.type === 'spatial_flaw' && (<>
+                    <Field label="Flaw Sensitivity %"><input type="number" min={1} max={100} value={selectedNode.params.sensitivity || 80} onChange={e => updateParam('sensitivity', Number(e.target.value))} style={inputStyle} /></Field>
+                    <Row>
+                        <Field label="Min Flaw Area (px²)"><input type="number" value={selectedNode.params.minArea || 5} onChange={e => updateParam('minArea', Number(e.target.value))} style={inputStyle} /></Field>
+                        <Field label="FFT Filter Size"><input type="number" value={selectedNode.params.filterSize || 15} onChange={e => updateParam('filterSize', Number(e.target.value))} style={inputStyle} /></Field>
+                    </Row>
+                    <Field label="Max Defects Allowed"><input type="number" value={selectedNode.params.maxDefects || 5} onChange={e => updateParam('maxDefects', Number(e.target.value))} style={inputStyle} /></Field>
+                </>)}
+
+                {/* ── BARCODE DPM ENHANCER ─────────────── */}
+                {selectedNode.type === 'dpm_enhancer' && (<>
+                    <Field label="Local Adaptive Radius"><input type="number" min={3} max={99} step={2} value={selectedNode.params.localRadius || 15} onChange={e => updateParam('localRadius', Number(e.target.value))} style={inputStyle} /></Field>
+                    <Row>
+                        <Field label="Morph Close Radius"><input type="number" value={selectedNode.params.morphCloseSize || 3} onChange={e => updateParam('morphCloseSize', Number(e.target.value))} style={inputStyle} /></Field>
+                        <Field label="Contrast Gain multiplier"><input type="number" step="0.1" value={selectedNode.params.contrastGain || 1.5} onChange={e => updateParam('contrastGain', Number(e.target.value))} style={inputStyle} /></Field>
+                    </Row>
+                </>)}
+
+                {/* ── POLAR UNWRAPPER ───────────────────── */}
+                {selectedNode.type === 'polar_unwrap' && (<>
+                    <Row>
+                        <Field label="Center X (px)"><input type="number" value={selectedNode.params.cx || 320} onChange={e => updateParam('cx', Number(e.target.value))} style={inputStyle} /></Field>
+                        <Field label="Center Y (px)"><input type="number" value={selectedNode.params.cy || 240} onChange={e => updateParam('cy', Number(e.target.value))} style={inputStyle} /></Field>
+                    </Row>
+                    <Row>
+                        <Field label="Inner Radius (px)"><input type="number" value={selectedNode.params.innerRadius || 50} onChange={e => updateParam('innerRadius', Number(e.target.value))} style={inputStyle} /></Field>
+                        <Field label="Outer Radius (px)"><input type="number" value={selectedNode.params.outerRadius || 150} onChange={e => updateParam('outerRadius', Number(e.target.value))} style={inputStyle} /></Field>
+                    </Row>
+                    <Field label="Unwrap Direction">
+                        <select value={selectedNode.params.direction || 'Clockwise'} onChange={e => updateParam('direction', e.target.value)} style={selectStyle}>
+                            <option>Clockwise</option>
+                            <option>Counter-Clockwise</option>
+                        </select>
+                    </Field>
+                </>)}
+
+                {/* ── SEARCHMAX COLOR ──────────────────── */}
+                {selectedNode.type === 'searchmax' && (<>
+                    <Field label="Reference Color Template"><input type="text" value={selectedNode.params.template || ''} onChange={e => updateParam('template', e.target.value)} style={inputStyle} placeholder="e.g. Flange_Color_Mask" /></Field>
+                    <Row>
+                        <Field label="Min Accept Score %"><input type="number" value={selectedNode.params.acceptScore || 75} onChange={e => updateParam('acceptScore', Number(e.target.value))} style={inputStyle} /></Field>
+                        <Field label="Max Results"><input type="number" min={1} value={selectedNode.params.maxResults || 1} onChange={e => updateParam('maxResults', Number(e.target.value))} style={inputStyle} /></Field>
+                    </Row>
+                    <Field label="Verify Hue/Color Gradient">
+                        <ToggleSwitch checked={selectedNode.params.matchHue !== false} onChange={v => updateParam('matchHue', v)} />
+                    </Field>
+                </>)}
+
+                {/* ── GOLDEN TEMPLATE COMPARATOR ───────── */}
+                {selectedNode.type === 'golden_template' && (<>
+                    <Field label="Target CAD Alignment Blueprint">
+                        <select value={selectedNode.params.cadFile || 'industrial-flange-rev2.dxf'} onChange={e => updateParam('cadFile', e.target.value)} style={selectStyle}>
+                            <option value="">Select CAD Model...</option>
+                            {drawingsList.map(dwg => (
+                                <option key={dwg.id} value={dwg.fileName}>{dwg.fileName} ({dwg.fileType})</option>
+                            ))}
+                        </select>
+                    </Field>
+                    <Field label="Pixel Deviation Tolerance"><input type="number" step="0.1" value={selectedNode.params.tolerancePixels || 2.0} onChange={e => updateParam('tolerancePixels', Number(e.target.value))} style={inputStyle} /></Field>
+                    <Field label="Reject on Missing Features">
+                        <ToggleSwitch checked={selectedNode.params.rejectOnMissing !== false} onChange={v => updateParam('rejectOnMissing', v)} />
+                    </Field>
+                </>)}
+
+                {/* ── VIDI AI SEGMENTER ────────────────── */}
+                {selectedNode.type === 'vidi_ai' && (<>
+                    <Field label="ViDi Tool Mode">
+                        <select value={selectedNode.params.modelMode || 'Red-Analyze (Anomaly)'} onChange={e => updateParam('modelMode', e.target.value)} style={selectStyle}>
+                            <option>Red-Analyze (Anomaly)</option>
+                            <option>Green-Classify (Class)</option>
+                        </select>
+                    </Field>
+                    <Field label="Min Confidence Score %"><input type="number" value={selectedNode.params.minConfidence || 85} onChange={e => updateParam('minConfidence', Number(e.target.value))} style={inputStyle} /></Field>
+                    <Field label="Deep Learning Model Weights"><input type="text" value={selectedNode.params.modelWeights || 'vidi-flange-anomaly.weights'} onChange={e => updateParam('modelWeights', e.target.value)} style={inputStyle} /></Field>
                 </>)}
             </div>
         </div>

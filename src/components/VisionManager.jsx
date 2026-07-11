@@ -62,9 +62,13 @@ const calculateLevenshteinSimilarity = (s1, s2) => {
     return (maxLength - distance) / maxLength;
 };
 
-const VisionManager = () => {
+const VisionManager = ({ initialTab = 'cameras' }) => {
     // Tab Management: 'cameras' | 'datasets' | 'privacy'
-    const [activeTab, setActiveTab] = useState('cameras');
+    const [activeTab, setActiveTab] = useState(initialTab);
+
+    useEffect(() => {
+        setActiveTab(initialTab);
+    }, [initialTab]);
 
     // Privacy & Security States
     const [privacyMode, setPrivacyMode] = useState(localStorage.getItem('mavi-vision-privacy-access') || 'ASK');
@@ -1002,81 +1006,73 @@ const VisionManager = () => {
         <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc', fontFamily: 'Inter, system-ui, sans-serif' }}>
             {/* Main Header & Tab Navigation */}
             {!editingCameraConfig && (
-                <div style={{ padding: '16px 20px 0 20px', backgroundColor: 'white', borderBottom: '1px solid #e2e8f0' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                        <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 900, color: '#0f172a' }}>Vision</h2>
-                                <span style={{ backgroundColor: '#f1f5f9', color: '#1e293b', padding: '2px 8px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 700 }}>Active</span>
+                activeTab === 'pipeline_builder' ? null : (
+                    <div style={{ padding: '16px 20px 0 20px', backgroundColor: 'white', borderBottom: '1px solid #e2e8f0' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                            <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 900, color: '#0f172a' }}>Vision</h2>
+                                    <span style={{ backgroundColor: '#f1f5f9', color: '#1e293b', padding: '2px 8px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 700 }}>Active</span>
+                                </div>
+                                <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '0.8rem' }}>Configure cameras and manage visual inspection datasets.</p>
                             </div>
-                            <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '0.8rem' }}>Configure cameras and manage visual inspection datasets.</p>
+                        </div>
+
+                        {/* Tab Selector Buttons */}
+                        <div style={{ display: 'flex', gap: '20px' }}>
+                            <button
+                                onClick={() => setActiveTab('cameras')}
+                                style={{
+                                    padding: '10px 4px', border: 'none', borderBottom: activeTab === 'cameras' ? '3px solid #3b82f6' : '3px solid transparent',
+                                    backgroundColor: 'transparent', color: activeTab === 'cameras' ? '#3b82f6' : '#64748b',
+                                    fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.15s'
+                                }}
+                            >
+                                Camera Configurations
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('datasets')}
+                                style={{
+                                    padding: '10px 4px', border: 'none', borderBottom: activeTab === 'datasets' ? '3px solid #3b82f6' : '3px solid transparent',
+                                    backgroundColor: 'transparent', color: activeTab === 'datasets' ? '#3b82f6' : '#64748b',
+                                    fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.15s'
+                                }}
+                            >
+                                Visual Inspection Datasets
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('privacy')}
+                                style={{
+                                    padding: '10px 4px', border: 'none', borderBottom: activeTab === 'privacy' ? '3px solid #3b82f6' : '3px solid transparent',
+                                    backgroundColor: 'transparent', color: activeTab === 'privacy' ? '#3b82f6' : '#64748b',
+                                    fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.15s'
+                                }}
+                            >
+                                Vision & Privacy Settings
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('ai_models')}
+                                style={{
+                                    padding: '10px 4px', border: 'none', borderBottom: activeTab === 'ai_models' ? '3px solid #3b82f6' : '3px solid transparent',
+                                    backgroundColor: 'transparent', color: activeTab === 'ai_models' ? '#3b82f6' : '#64748b',
+                                    fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.15s'
+                                }}
+                            >
+                                AI Models & Inspection
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('ai_guide')}
+                                style={{
+                                    padding: '10px 4px', border: 'none', borderBottom: activeTab === 'ai_guide' ? '3px solid #7c3aed' : '3px solid transparent',
+                                    backgroundColor: 'transparent', color: activeTab === 'ai_guide' ? '#7c3aed' : '#64748b',
+                                    fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.15s'
+                                }}
+                            >
+                                🎓 MAVi AI Guide
+                            </button>
                         </div>
                     </div>
-
-                    {/* Tab Selector Buttons */}
-                    <div style={{ display: 'flex', gap: '20px' }}>
-                        <button
-                            onClick={() => setActiveTab('cameras')}
-                            style={{
-                                padding: '10px 4px', border: 'none', borderBottom: activeTab === 'cameras' ? '3px solid #3b82f6' : '3px solid transparent',
-                                backgroundColor: 'transparent', color: activeTab === 'cameras' ? '#3b82f6' : '#64748b',
-                                fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.15s'
-                            }}
-                        >
-                            Camera Configurations
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('datasets')}
-                            style={{
-                                padding: '10px 4px', border: 'none', borderBottom: activeTab === 'datasets' ? '3px solid #3b82f6' : '3px solid transparent',
-                                backgroundColor: 'transparent', color: activeTab === 'datasets' ? '#3b82f6' : '#64748b',
-                                fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.15s'
-                            }}
-                        >
-                            Visual Inspection Datasets
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('privacy')}
-                            style={{
-                                padding: '10px 4px', border: 'none', borderBottom: activeTab === 'privacy' ? '3px solid #3b82f6' : '3px solid transparent',
-                                backgroundColor: 'transparent', color: activeTab === 'privacy' ? '#3b82f6' : '#64748b',
-                                fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.15s'
-                            }}
-                        >
-                            Vision & Privacy Settings
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('ai_models')}
-                            style={{
-                                padding: '10px 4px', border: 'none', borderBottom: activeTab === 'ai_models' ? '3px solid #3b82f6' : '3px solid transparent',
-                                backgroundColor: 'transparent', color: activeTab === 'ai_models' ? '#3b82f6' : '#64748b',
-                                fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.15s'
-                            }}
-                        >
-                            AI Models & Inspection
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('ai_guide')}
-                            style={{
-                                padding: '10px 4px', border: 'none', borderBottom: activeTab === 'ai_guide' ? '3px solid #7c3aed' : '3px solid transparent',
-                                backgroundColor: 'transparent', color: activeTab === 'ai_guide' ? '#7c3aed' : '#64748b',
-                                fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.15s'
-                            }}
-                        >
-                            🎓 MAVi AI Guide
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('pipeline_builder')}
-                            style={{
-                                padding: '10px 4px', border: 'none', borderBottom: activeTab === 'pipeline_builder' ? '3px solid #f97316' : '3px solid transparent',
-                                backgroundColor: 'transparent', color: activeTab === 'pipeline_builder' ? '#f97316' : '#64748b',
-                                fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.15s'
-                            }}
-                        >
-                            ⚡ QuickBuild Pipeline
-                        </button>
-                    </div>
-                </div>
+                )
             )}
 
             {/* TAB CONTENT: CAMERA CONFIGURATIONS */}
@@ -2738,7 +2734,7 @@ const VisionManager = () => {
             {/* TAB CONTENT: QUICKBUILD PIPELINE BUILDER */}
             {activeTab === 'pipeline_builder' && (
                 <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-                    <QuickBuildPipeline appVariables={appVariables} />
+                    <QuickBuildPipeline appVariables={appVariables} cameraConfigs={cameraConfigs} />
                 </div>
             )}
 

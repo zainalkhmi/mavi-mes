@@ -6,10 +6,24 @@ import {
 import toast from 'react-hot-toast';
 import Webcam from 'react-webcam';
 
+// Custom icons for Cognex advanced ROIs
+const RotatedSquare = ({ size = 12 }) => (
+    <svg viewBox="0 0 24 24" width={size} height={size} stroke="currentColor" strokeWidth="2" fill="none" style={{ transform: 'rotate(20deg)' }}>
+        <rect x="4" y="4" width="16" height="16" rx="2" />
+    </svg>
+);
+
+const AnnulusIcon = ({ size = 12 }) => (
+    <svg viewBox="0 0 24 24" width={size} height={size} stroke="currentColor" strokeWidth="2" fill="none">
+        <circle cx="12" cy="12" r="10" />
+        <circle cx="12" cy="12" r="5" strokeDasharray="3 3" />
+    </svg>
+);
+
 /**
  * QuickBuildMonitor — Live inspection image viewer with interactive ROI overlay editor.
  * 
- * ROI Types: rect, circle, line, annulus
+ * ROI Types: rect, circle, line, annulus, rotated_rect
  */
 export default function QuickBuildMonitor({
     processedImage,
@@ -28,6 +42,16 @@ export default function QuickBuildMonitor({
     setIsContinuous,
     roiRegions,
     setRoiRegions,
+    // Filmstrip Props
+    filmstripFrames = [],
+    activeFilmstripIndex = -1,
+    isFilmstripPlaying = false,
+    onAddFilmstripFrame = () => {},
+    onClearFilmstrip = () => {},
+    onSelectFilmstripFrame = () => {},
+    onPlayPauseFilmstrip = () => {},
+    nodes = [],
+    selectedNodeId = null,
 }) {
     // ROI drawing state
     const [activeRoiTool, setActiveRoiTool] = useState(null); // 'rect' | 'circle' | 'line' | null
@@ -76,15 +100,16 @@ export default function QuickBuildMonitor({
             y: Math.min(roiDraft.startY, roiDraft.endY),
             width: dx,
             height: dy,
-            // For circle: use center + radius
+            // For circle & annulus: use center + radius
             cx: (roiDraft.startX + roiDraft.endX) / 2,
             cy: (roiDraft.startY + roiDraft.endY) / 2,
             radius: Math.sqrt(dx * dx + dy * dy) / 2,
             // For line: use start/end
             x1: roiDraft.startX, y1: roiDraft.startY,
             x2: roiDraft.endX, y2: roiDraft.endY,
+            rotation: roiDraft.type === 'rotated_rect' ? 25 : 0,
             color: ROI_COLORS[roiRegions.length % ROI_COLORS.length],
-            label: `ROI ${roiRegions.length + 1}`,
+            label: `${roiDraft.type === 'annulus' ? 'Annulus' : roiDraft.type === 'rotated_rect' ? 'Rotated' : 'ROI'} ${roiRegions.length + 1}`,
         };
 
         setRoiRegions(prev => [...prev, newRoi]);
@@ -103,7 +128,9 @@ export default function QuickBuildMonitor({
     const roiTools = [
         { id: null, icon: MousePointer, label: 'Select' },
         { id: 'rect', icon: Square, label: 'Rectangle' },
+        { id: 'rotated_rect', icon: RotatedSquare, label: 'Rotated Rect' },
         { id: 'circle', icon: Circle, label: 'Circle' },
+        { id: 'annulus', icon: AnnulusIcon, label: 'Annulus' },
         { id: 'line', icon: Minus, label: 'Line' },
     ];
 
@@ -229,6 +256,16 @@ export default function QuickBuildMonitor({
                                     <text x={`${roi.x + 0.5}%`} y={`${roi.y + roi.height + 3}%`} fill={roi.color} fontSize="10" fontWeight="bold">{roi.label}</text>
                                 </>
                             )}
+                            {roi.type === 'rotated_rect' && (
+                                <>
+                                    <rect x={`${roi.x}%`} y={`${roi.y}%`} width={`${roi.width}%`} height={`${roi.height}%`}
+                                        fill={`${roi.color}15`} stroke={selectedRoiId === roi.id ? '#ffffff' : roi.color}
+                                        strokeWidth={selectedRoiId === roi.id ? 2.5 : 1.5} strokeDasharray={selectedRoiId === roi.id ? '6 3' : 'none'}
+                                        transform={`rotate(${roi.rotation || 25}, ${roi.x + roi.width / 2} ${roi.y + roi.height / 2})`}
+                                    />
+                                    <text x={`${roi.x + 0.5}%`} y={`${roi.y + roi.height + 3}%`} fill={roi.color} fontSize="10" fontWeight="bold" transform={`rotate(${roi.rotation || 25}, ${roi.x + roi.width / 2} ${roi.y + roi.height / 2})`}>{roi.label}</text>
+                                </>
+                            )}
                             {roi.type === 'circle' && (
                                 <>
                                     <ellipse cx={`${roi.cx}%`} cy={`${roi.cy}%`} rx={`${roi.width / 2}%`} ry={`${roi.height / 2}%`}
@@ -236,6 +273,19 @@ export default function QuickBuildMonitor({
                                         strokeWidth={selectedRoiId === roi.id ? 2.5 : 1.5} strokeDasharray={selectedRoiId === roi.id ? '6 3' : 'none'}
                                     />
                                     <text x={`${roi.cx}%`} y={`${roi.cy + roi.height / 2 + 3}%`} fill={roi.color} fontSize="10" fontWeight="bold" textAnchor="middle">{roi.label}</text>
+                                </>
+                            )}
+                            {roi.type === 'annulus' && (
+                                <>
+                                    <circle cx={`${roi.cx}%`} cy={`${roi.cy}%`} r={`${roi.radius}%`}
+                                        fill={`${roi.color}15`} stroke={selectedRoiId === roi.id ? '#ffffff' : roi.color}
+                                        strokeWidth={selectedRoiId === roi.id ? 2.5 : 1.5} strokeDasharray={selectedRoiId === roi.id ? '6 3' : 'none'}
+                                    />
+                                    <circle cx={`${roi.cx}%`} cy={`${roi.cy}%`} r={`${roi.radius * 0.5}%`}
+                                        fill="none" stroke={selectedRoiId === roi.id ? '#ffffff' : roi.color}
+                                        strokeWidth={1} strokeDasharray="3 3"
+                                    />
+                                    <text x={`${roi.cx}%`} y={`${roi.cy + roi.radius + 3}%`} fill={roi.color} fontSize="10" fontWeight="bold" textAnchor="middle">{roi.label}</text>
                                 </>
                             )}
                             {roi.type === 'line' && (
@@ -251,6 +301,118 @@ export default function QuickBuildMonitor({
                         </g>
                     ))}
 
+                    {/* Custom Parity Visualizers for Selected Node / Nodes */}
+                    {nodes?.some(n => n.type === 'grid_calibration' && n.params.showGrid !== false) && (
+                        <g opacity="0.4">
+                            {[10, 20, 30, 40, 50, 60, 70, 80, 90].map(val => (
+                                <React.Fragment key={val}>
+                                    <line x1={`${val}%`} y1="0%" x2={`${val}%`} y2="100%" stroke="#e2e8f0" strokeWidth="0.5" strokeDasharray="2 2" />
+                                    <line x1="0%" y1={`${val}%`} x2="100%" y2={`${val}%`} stroke="#e2e8f0" strokeWidth="0.5" strokeDasharray="2 2" />
+                                    <text x={`${val}%`} y="3.5%" fill="#cbd5e1" fontSize="8" textAnchor="middle">{(val * 0.25).toFixed(1)}mm</text>
+                                    <text x="0.8%" y={`${val}%`} fill="#cbd5e1" fontSize="8" alignmentBaseline="middle">{(val * 0.25).toFixed(1)}mm</text>
+                                </React.Fragment>
+                            ))}
+                        </g>
+                    )}
+
+                    {nodes?.filter(n => n.type === 'geom_construction').map(n => (
+                        <g key={n.id}>
+                            {n.params.geomMode === 'Line-Line Intersection' && (
+                                <g>
+                                    {/* Neon cyan perpotongan silang */}
+                                    <circle cx="55%" cy="45%" r="6" fill="none" stroke="#22d3ee" strokeWidth="2" />
+                                    <line x1="55%" y1="35%" x2="55%" y2="55%" stroke="#22d3ee" strokeWidth="1.5" />
+                                    <line x1="45%" y1="45%" x2="65%" y2="45%" stroke="#22d3ee" strokeWidth="1.5" />
+                                    <line x1="10%" y1="90%" x2="90%" y2="10%" stroke="#22d3ee" strokeWidth="1" strokeDasharray="4 4" opacity="0.45" />
+                                    <line x1="10%" y1="10%" x2="90%" y2="90%" stroke="#22d3ee" strokeWidth="1" strokeDasharray="4 4" opacity="0.45" />
+                                    <text x="57%" y="43%" fill="#22d3ee" fontSize="9" fontWeight="bold">Intersection ({n.name})</text>
+                                </g>
+                            )}
+                            {n.params.geomMode === 'Point-Line Distance' && (
+                                <g>
+                                    <circle cx="35%" cy="30%" r="5" fill="#22d3ee" />
+                                    <line x1="15%" y1="65%" x2="85%" y2="65%" stroke="#94a3b8" strokeWidth="2" />
+                                    <line x1="35%" y1="30%" x2="35%" y2="65%" stroke="#22d3ee" strokeWidth="2" strokeDasharray="4 4" />
+                                    <text x="37%" y="45%" fill="#22d3ee" fontSize="9" fontWeight="bold">Dist Point-Line: 8.75 mm</text>
+                                </g>
+                            )}
+                            {n.params.geomMode === 'Point-Point Distance' && (
+                                <g>
+                                    <circle cx="30%" cy="40%" r="5" fill="#22d3ee" />
+                                    <circle cx="70%" cy="50%" r="5" fill="#22d3ee" />
+                                    <line x1="30%" y1="40%" x2="70%" y2="50%" stroke="#22d3ee" strokeWidth="2" strokeDasharray="5 5" />
+                                    <text x="50%" y="42%" fill="#22d3ee" fontSize="9" fontWeight="bold" textAnchor="middle">Dist P1-P2: 12.40 mm</text>
+                                </g>
+                            )}
+                        </g>
+                    ))}
+
+                    {nodes?.filter(n => n.type === 'spatial_flaw').map(n => (
+                        <g key={n.id}>
+                            <rect x="42%" y="30%" width="20%" height="12%" fill="rgba(239, 68, 68, 0.15)" stroke="#ef4444" strokeWidth="1.5" strokeDasharray="4 2" />
+                            <path d="M 45,35 Q 48,32 52,38 T 60,34" fill="none" stroke="#ef4444" strokeWidth="2.5" />
+                            <text x="42%" y="27%" fill="#ef4444" fontSize="9" fontWeight="bold">NG: Micro-Scratch Defect</text>
+                        </g>
+                    ))}
+
+                    {nodes?.filter(n => n.type === 'dpm_enhancer').map(n => (
+                        <g key={n.id}>
+                            <rect x="25%" y="65%" width="50%" height="25%" fill="rgba(168, 85, 247, 0.1)" stroke="#a855f7" strokeWidth="1.5" strokeDasharray="4 4" />
+                            <text x="25%" y="63%" fill="#a855f7" fontSize="9" fontWeight="bold">DPM Enhancer (Active)</text>
+                        </g>
+                    ))}
+
+                    {nodes?.filter(n => n.type === 'polar_unwrap').map(n => (
+                        <g key={n.id}>
+                            <circle cx="50%" cy="50%" r="30%" fill="none" stroke="#a855f7" strokeWidth="1.5" strokeDasharray="5 5" />
+                            <circle cx="50%" cy="50%" r="10%" fill="none" stroke="#a855f7" strokeWidth="1.5" strokeDasharray="5 5" />
+                            <path d="M 50,15 A 35,35 0 0,1 85,50" fill="none" stroke="#a855f7" strokeWidth="2" strokeDasharray="2 2" />
+                            <text x="50%" y="87%" fill="#a855f7" fontSize="9" fontWeight="bold" textAnchor="middle">Polar Unwrapper Zone ({n.name})</text>
+                        </g>
+                    ))}
+
+                    {nodes?.filter(n => n.type === 'searchmax').map(n => (
+                        <g key={n.id}>
+                            <rect x="48%" y="38%" width="14%" height="14%" fill="rgba(6, 182, 212, 0.15)" stroke="#06b6d4" strokeWidth="2" />
+                            <rect x="49%" y="39%" width="12%" height="12%" fill="none" stroke="#f43f5e" strokeWidth="1" />
+                            <text x="48%" y="35%" fill="#06b6d4" fontSize="9" fontWeight="bold">SearchMax: 95.8% ({n.name})</text>
+                        </g>
+                    ))}
+
+                    {nodes?.filter(n => n.type === 'golden_template').map(n => (
+                        <g key={n.id} opacity="0.8">
+                            <circle cx="50%" cy="50%" r="33%" fill="none" stroke="#10b981" strokeWidth="1" strokeDasharray="2 2" />
+                            <circle cx="50%" cy="50%" r="10%" fill="none" stroke="#10b981" strokeWidth="1" strokeDasharray="2 2" />
+                            {[0, 90, 180, 270].map(deg => {
+                                const rad = (deg * Math.PI) / 180;
+                                const cx = 50 + 22 * Math.cos(rad);
+                                const cy = 50 + 22 * Math.sin(rad);
+                                return <circle key={deg} cx={`${cx}%`} cy={`${cy}%`} r="3%" fill="none" stroke="#10b981" strokeWidth="1" strokeDasharray="2 2" />;
+                            })}
+                            <text x="50%" y="13%" fill="#10b981" fontSize="9" fontWeight="bold" textAnchor="middle">CAD Overlay: OK ({n.params.cadFile})</text>
+                        </g>
+                    ))}
+
+                    {nodes?.filter(n => n.type === 'vidi_ai').map(n => {
+                        const mode = n.params.modelMode || 'Red-Analyze (Anomaly)';
+                        return (
+                            <g key={n.id}>
+                                {mode === 'Green-Classify (Class)' ? (
+                                    <g>
+                                        <rect x="2%" y="12%" width="38%" height="10%" rx="4" fill="rgba(16, 185, 129, 0.85)" />
+                                        <text x="4%" y="18%" fill="white" fontSize="8" fontWeight="800">CLASS: FLANGE_TYPE_A (99.4%)</text>
+                                    </g>
+                                ) : (
+                                    <g>
+                                        <ellipse cx="65%" cy="35%" rx="6%" ry="4%" fill="rgba(239, 68, 68, 0.4)" stroke="#ef4444" strokeWidth="1" />
+                                        <ellipse cx="63%" cy="36%" rx="3%" ry="2%" fill="rgba(245, 158, 11, 0.5)" />
+                                        <text x="73%" y="34%" fill="#ef4444" fontSize="9" fontWeight="bold">ViDi Anomaly: NG</text>
+                                    </g>
+                                )}
+                            </g>
+                        );
+                    })}
+
                     {/* Draft ROI being drawn */}
                     {roiDraft && (
                         <g>
@@ -263,6 +425,16 @@ export default function QuickBuildMonitor({
                                     fill="rgba(59, 130, 246, 0.15)" stroke="#3b82f6" strokeWidth="2" strokeDasharray="6 3"
                                 />
                             )}
+                            {roiDraft.type === 'rotated_rect' && (
+                                <rect
+                                    x={`${Math.min(roiDraft.startX, roiDraft.endX)}%`}
+                                    y={`${Math.min(roiDraft.startY, roiDraft.endY)}%`}
+                                    width={`${Math.abs(roiDraft.endX - roiDraft.startX)}%`}
+                                    height={`${Math.abs(roiDraft.endY - roiDraft.startY)}%`}
+                                    fill="rgba(59, 130, 246, 0.15)" stroke="#3b82f6" strokeWidth="2" strokeDasharray="6 3"
+                                    transform={`rotate(25, ${(roiDraft.startX + roiDraft.endX)/2} ${(roiDraft.startY + roiDraft.endY)/2})`}
+                                />
+                            )}
                             {roiDraft.type === 'circle' && (
                                 <ellipse
                                     cx={`${(roiDraft.startX + roiDraft.endX) / 2}%`}
@@ -271,6 +443,22 @@ export default function QuickBuildMonitor({
                                     ry={`${Math.abs(roiDraft.endY - roiDraft.startY) / 2}%`}
                                     fill="rgba(59, 130, 246, 0.15)" stroke="#3b82f6" strokeWidth="2" strokeDasharray="6 3"
                                 />
+                            )}
+                            {roiDraft.type === 'annulus' && (
+                                <g>
+                                    <circle
+                                        cx={`${(roiDraft.startX + roiDraft.endX) / 2}%`}
+                                        cy={`${(roiDraft.startY + roiDraft.endY) / 2}%`}
+                                        r={`${Math.sqrt(Math.pow(roiDraft.endX - roiDraft.startX, 2) + Math.pow(roiDraft.endY - roiDraft.startY, 2)) / 2}%`}
+                                        fill="rgba(59, 130, 246, 0.15)" stroke="#3b82f6" strokeWidth="2" strokeDasharray="6 3"
+                                    />
+                                    <circle
+                                        cx={`${(roiDraft.startX + roiDraft.endX) / 2}%`}
+                                        cy={`${(roiDraft.startY + roiDraft.endY) / 2}%`}
+                                        r={`${(Math.sqrt(Math.pow(roiDraft.endX - roiDraft.startX, 2) + Math.pow(roiDraft.endY - roiDraft.startY, 2)) / 2) * 0.5}%`}
+                                        fill="none" stroke="#3b82f6" strokeWidth="1" strokeDasharray="3 3"
+                                    />
+                                </g>
                             )}
                             {roiDraft.type === 'line' && (
                                 <line
@@ -282,6 +470,78 @@ export default function QuickBuildMonitor({
                         </g>
                     )}
                 </svg>
+            </div>
+
+            {/* Filmstrip Frame Buffer */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        🎞️ Filmstrip Buffer ({filmstripFrames?.length || 0}/10)
+                    </span>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                        <button 
+                            onClick={onAddFilmstripFrame} 
+                            title="Record Current Frame" 
+                            style={{ padding: '2px 6px', fontSize: '0.55rem', fontWeight: 700, backgroundColor: '#fecaca', color: '#dc2626', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                            🔴 Rec
+                        </button>
+                        <button 
+                            onClick={onClearFilmstrip} 
+                            title="Clear Buffer" 
+                            style={{ padding: '2px 6px', fontSize: '0.55rem', fontWeight: 700, backgroundColor: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                            Clear
+                        </button>
+                    </div>
+                </div>
+                {filmstripFrames && filmstripFrames.length > 0 ? (
+                    <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '4px' }}>
+                        {filmstripFrames.map((frame, idx) => (
+                            <div 
+                                key={idx}
+                                onClick={() => onSelectFilmstripFrame(idx)}
+                                style={{
+                                    position: 'relative', width: '56px', height: '42px',
+                                    borderRadius: '4px', overflow: 'hidden', cursor: 'pointer',
+                                    border: activeFilmstripIndex === idx ? '2px solid #3b82f6' : '1px solid #cbd5e1',
+                                    backgroundColor: '#0f172a', flexShrink: 0,
+                                }}
+                            >
+                                <img src={frame} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt={`Frame ${idx+1}`} />
+                                <span style={{ position: 'absolute', bottom: 1, right: 1, fontSize: '0.45rem', color: 'white', backgroundColor: 'rgba(0,0,0,0.6)', padding: '0.5px 2px', borderRadius: '1.5px' }}>
+                                    #{idx+1}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div style={{ fontSize: '0.58rem', color: '#94a3b8', textAlign: 'center', padding: '4px' }}>
+                        Buffer empty. Run pipeline to capture frame logs.
+                    </div>
+                )}
+                {filmstripFrames && filmstripFrames.length > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', borderTop: '1px solid #f1f5f9', paddingTop: '4px' }}>
+                        <button 
+                            onClick={onPlayPauseFilmstrip} 
+                            style={{ padding: '3px 8px', fontSize: '0.58rem', fontWeight: 700, backgroundColor: isFilmstripPlaying ? '#fef3c7' : '#dbeafe', color: isFilmstripPlaying ? '#d97706' : '#2563eb', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                            {isFilmstripPlaying ? '⏸️ Pause' : '▶️ Play Filmstrip'}
+                        </button>
+                        <button 
+                            onClick={() => onSelectFilmstripFrame((activeFilmstripIndex - 1 + filmstripFrames.length) % filmstripFrames.length)} 
+                            style={{ padding: '3px 6px', fontSize: '0.58rem', backgroundColor: 'transparent', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                            ◀
+                        </button>
+                        <button 
+                            onClick={() => onSelectFilmstripFrame((activeFilmstripIndex + 1) % filmstripFrames.length)} 
+                            style={{ padding: '3px 6px', fontSize: '0.58rem', backgroundColor: 'transparent', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                            ▶
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Camera Mode Switch + Controls */}
