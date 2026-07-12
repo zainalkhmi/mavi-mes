@@ -6149,7 +6149,7 @@ export default function DrawingManager() {
 
                         {/* AutoCAD File tab strip */}
                         <div style={{
-                            display: 'flex',
+                            display: 'none',
                             alignItems: 'center',
                             backgroundColor: '#05070a',
                             borderBottom: '1px solid #1e293b',
@@ -6238,7 +6238,8 @@ export default function DrawingManager() {
                         />
 
                         {/* Horizontal Toolbar Widget Cards */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', padding: '0 4px', marginBottom: '4px', gap: '10px', zIndex: 15, flexShrink: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 0', zIndex: 15, flexShrink: 0, width: '100%' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #cbd5e1', padding: '4px', gap: '4px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
                             {[
                                 { id: 'select', icon: 'MousePointer', label: 'Pilih' },
                                 { id: 'pan', icon: 'Hand', label: 'Pan' },
@@ -6256,7 +6257,7 @@ export default function DrawingManager() {
                                 { id: 'style', icon: 'Palette', label: 'Gaya' },
                                 { id: 'layer', icon: 'Layers', label: 'Layer' },
                             ].map(item => {
-                                if (item.id.startsWith('_sep')) return <div key={item.id} style={{ width: '1px', height: '24px', backgroundColor: '#e2e8f0', margin: '0 4px' }} />;
+                                if (item.id.startsWith('_sep')) return <div key={item.id} style={{ width: '1px', height: '20px', backgroundColor: '#cbd5e1', margin: '0 4px' }} />;
                                 
                                 const iconMap = { MousePointer, Hand, Search, Slash, Square, Type, Ruler, FileText, Settings, Trash2, Palette, Layers };
                                 const IconComp = item.icon !== 'color_swatch' ? iconMap[item.icon] : null;
@@ -6280,20 +6281,31 @@ export default function DrawingManager() {
                                     <div key={item.id} style={{ position: 'relative' }}>
                                         <button title={item.label} onClick={handleClick}
                                             style={{
-                                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                                                padding: '8px 12px', borderRadius: '12px', cursor: 'pointer', outline: 'none',
-                                                minWidth: '72px', height: '64px', gap: '4px', transition: 'all 0.2s',
-                                                border: isDanger ? '1px solid #ef4444' : isActive ? '1px solid #3b82f6' : '1px solid #e2e8f0',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                padding: '8px', borderRadius: '8px', cursor: 'pointer', outline: 'none',
+                                                minWidth: '36px', height: '36px', transition: 'all 0.2s',
+                                                border: isActive ? '1px solid #bfdbfe' : '1px solid transparent',
                                                 color: isDanger ? '#ef4444' : isActive ? '#2563eb' : '#64748b',
-                                                backgroundColor: isDanger ? '#fee2e2' : isActive ? '#eff6ff' : '#ffffff',
-                                                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
-                                            }}>
+                                                backgroundColor: isDanger ? '#fee2e2' : isActive ? '#eff6ff' : 'transparent',
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                if (!isActive && !isDanger) {
+                                                    e.currentTarget.style.backgroundColor = '#f1f5f9';
+                                                    e.currentTarget.style.color = '#334155';
+                                                }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                if (!isActive && !isDanger) {
+                                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                                    e.currentTarget.style.color = '#64748b';
+                                                }
+                                            }}
+                                        >
                                             {item.icon === 'color_swatch' ? (
                                                 <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: cadColor, border: '1px solid #cbd5e1' }} />
                                             ) : (
-                                                <IconComp size={16} style={item.rotate ? { transform: 'rotate(-45deg)' } : undefined} />
+                                                <IconComp size={18} style={item.rotate ? { transform: 'rotate(-45deg)' } : undefined} />
                                             )}
-                                            <span style={{ fontSize: '0.65rem', fontWeight: 800 }}>{item.label}</span>
                                         </button>
                                         
                                         {item.id === 'color' && showColorPopup && (
@@ -6330,6 +6342,7 @@ export default function DrawingManager() {
                                     </div>
                                 );
                             })}
+                            </div>
                         </div>
 
                         {/* AutoCAD Workspace Area (contains Vertical Toolbar + Canvas) */}
