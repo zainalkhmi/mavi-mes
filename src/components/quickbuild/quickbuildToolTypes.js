@@ -196,6 +196,24 @@ export const NODE_TYPES = {
             return `Width: ${meas}px, Gaps: 0 [${pass ? 'PASS' : 'FAIL'}]`;
         },
     },
+    camera_inspect: {
+        color: '#e11d48', icon: '📷', label: 'Camera Inspection', category: 'inspect',
+        desc: 'Runs all configured visual region detectors on selected camera',
+        defaultParams: { camera: 'Default IP Camera', filterRegions: 'All Regions' },
+        inputs: ['image'],
+        outputs: ['results', 'verdict'],
+        simValue: (params) => {
+            const cam = params?.camera || 'Default IP Camera';
+            const filter = params?.filterRegions || 'All Regions';
+            let items = 3;
+            if (filter === 'Only Presence Checks') items = 2;
+            else if (filter === 'Only Measurements') items = 1;
+            else if (filter === 'Only OCR Readers' || filter === 'Only Barcode Readers') items = 1;
+            
+            const passed = Math.random() > 0.15;
+            return `${cam} (${filter}): ${items} ROI [${passed ? 'PASS' : 'FAIL'}]`;
+        },
+    },
 
     // ── Logic ──
     math_formula: {

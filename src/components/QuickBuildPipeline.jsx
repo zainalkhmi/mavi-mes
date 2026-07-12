@@ -86,8 +86,19 @@ export default function QuickBuildPipeline({ appVariables = [], cameraConfigs = 
     const [simStepIndex, setSimStepIndex] = useState(-1);
     const [isRunning, setIsRunning] = useState(false);
     
-    // App Builder style layout states
+    // UI Panels State
     const [activeLeftTab, setActiveLeftTab] = useState('jobs'); // 'jobs' | 'plc_comm'
+    const [industrialCommState, setIndustrialCommState] = useState({
+        protocol: 'Profinet',
+        plcIp: '192.168.1.100',
+        bits: {
+            Trigger: false,
+            Busy: false,
+            Done: false,
+            Pass: false,
+            Fail: false
+        }
+    });
     const [activeCenterTab, setActiveCenterTab] = useState('flowchart'); // 'flowchart' | 'monitor'
     const [layoutMode, setLayoutMode] = useState('split'); // 'split' | 'tabbed'
     const [activeToolbarCategory, setActiveToolbarCategory] = useState('source'); // category ID or null
@@ -159,6 +170,144 @@ export default function QuickBuildPipeline({ appVariables = [], cameraConfigs = 
 
     // ═══ Modal State ═══════════════════════════════════════════
     const [modalConfig, setModalConfig] = useState(null);
+
+    // ═══ Floating Categories Widget ═════════════════════════════
+    const renderCategoriesWidget = () => {
+        return (
+            <div style={{
+                position: 'absolute',
+                top: '52px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 100,
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                backdropFilter: 'blur(8px)',
+                borderRadius: '12px',
+                border: '1px solid #cbd5e1',
+                boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.15)',
+                padding: '4px 8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                userSelect: 'none'
+            }}>
+                {/* Add Job Button */}
+                <div style={{ display: 'flex', alignItems: 'center', borderRight: '1px solid #e2e8f0', paddingRight: '8px', marginRight: '4px' }}>
+                    <button
+                        onClick={() => {
+                            setModalConfig({
+                                type: 'prompt',
+                                title: 'Add New Job',
+                                message: 'Enter a name for the new pipeline job:',
+                                defaultValue: `Job ${workspace.jobs.length + 1}`,
+                                onConfirm: (name) => {
+                                    if (!name?.trim()) return;
+                                    const newJob = createDefaultJob();
+                                    newJob.name = name.trim();
+                                    setWorkspace(prev => ({
+                                        ...prev,
+                                        jobs: [...prev.jobs, newJob]
+                                    }));
+                                    setActiveJobIndex(workspace.jobs.length);
+                                    toast.success(`Job "${name.trim()}" added!`);
+                                }
+                            });
+                        }}
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '42px',
+                            height: '42px',
+                            borderRadius: '8px',
+                            border: '1px dashed #cbd5e1',
+                            backgroundColor: '#f8fafc',
+                            color: '#2563eb',
+                            fontSize: '0.52rem',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            gap: '2px',
+                            transition: 'all 0.15s'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.backgroundColor = '#eff6ff'}
+                        onMouseLeave={e => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                    >
+                        <Plus size={13} />
+                        <span>Add Job</span>
+                    </button>
+                </div>
+
+                {/* Categories */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {CATEGORY_ORDER.map(catId => {
+                        const group = toolGroups[catId];
+                        if (!group?.tools.length) return null;
+                        const isActive = activeToolbarCategory === catId;
+
+                        return (
+                            <div key={catId} style={{ position: 'relative' }}>
+                                <button
+                                    onClick={() => setActiveToolbarCategory(prev => prev === catId ? null : catId)}
+                                    style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '2px',
+                                        width: '46px',
+                                        height: '42px',
+                                        borderRadius: '8px',
+                                        border: isActive ? '1px solid #bfdbfe' : '1px solid transparent',
+                                        backgroundColor: isActive ? '#eff6ff' : 'transparent',
+                                        color: isActive ? '#1d4ed8' : '#64748b',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s',
+                                        outline: 'none'
+                                    }}
+                                    onMouseEnter={e => {
+                                        if (!isActive) {
+                                            e.currentTarget.style.backgroundColor = '#f1f5f9';
+                                            e.currentTarget.style.color = '#334155';
+                                        }
+                                    }}
+                                    onMouseLeave={e => {
+                                        if (!isActive) {
+                                            e.currentTarget.style.backgroundColor = 'transparent';
+                                            e.currentTarget.style.color = '#64748b';
+                                        }
+                                    }}
+                                >
+                                    <span style={{ fontSize: '1rem', lineHeight: 1 }}>{group.icon}</span>
+                                    <span style={{ fontSize: '0.52rem', fontWeight: 700, textAlign: 'center' }}>{group.label}</span>
+                                </button>
+
+                                {/* Dropdown Menu directly under this category button */}
+                                {isActive && (
+                                    <div className="qb-dropdown-menu" style={{ top: 'calc(100% + 4px)', zIndex: 110 }}>
+                                        {group.tools.map(tool => (
+                                            <button
+                                                key={tool.typeId}
+                                                onClick={() => {
+                                                    handleAddNode(tool.typeId);
+                                                    setActiveToolbarCategory(null); // auto close
+                                                }}
+                                                title={tool.desc}
+                                                className="qb-dropdown-item"
+                                            >
+                                                <span style={{ fontSize: '1.1rem' }}>{tool.icon}</span>
+                                                <span>{tool.label}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
 
     // ═══ Webcam devices ════════════════════════════════════════
     useEffect(() => {
@@ -506,104 +655,7 @@ export default function QuickBuildPipeline({ appVariables = [], cameraConfigs = 
                 </div>
             </div>
 
-            {/* ═══ CATEGORIES TOOLBAR (App Builder Icon Grid Style) ═════ */}
-            <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                backgroundColor: 'white',
-                borderRadius: '12px',
-                border: '1px solid #cbd5e1',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
-                overflow: 'visible',
-                flexShrink: 0,
-                position: 'relative',
-                zIndex: 99
-            }}>
-                <div className="qb-category-bar">
-                    <div className="qb-add-job-section">
-                        <button
-                            onClick={() => {
-                                setModalConfig({
-                                    type: 'prompt',
-                                    title: 'Add New Job',
-                                    message: 'Enter a name for the new pipeline job:',
-                                    defaultValue: `Job ${workspace.jobs.length + 1}`,
-                                    onConfirm: (name) => {
-                                        if (!name?.trim()) return;
-                                        const newJob = createDefaultJob();
-                                        newJob.name = name.trim();
-                                        setWorkspace(prev => ({
-                                            ...prev,
-                                            jobs: [...prev.jobs, newJob]
-                                        }));
-                                        setActiveJobIndex(workspace.jobs.length);
-                                        toast.success(`Job "${name.trim()}" added!`);
-                                    }
-                                });
-                            }}
-                            style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                width: '64px',
-                                height: '64px',
-                                borderRadius: '10px',
-                                border: '1px dashed #cbd5e1',
-                                backgroundColor: '#f8fafc',
-                                color: '#2563eb',
-                                fontSize: '0.62rem',
-                                fontWeight: 800,
-                                cursor: 'pointer',
-                                gap: '4px'
-                            }}
-                        >
-                            <Plus size={18} />
-                            <span>Add Job</span>
-                        </button>
-                    </div>
 
-                    <div className="qb-cat-grid">
-                        {CATEGORY_ORDER.map(catId => {
-                            const group = toolGroups[catId];
-                            if (!group?.tools.length) return null;
-                            const isActive = activeToolbarCategory === catId;
-
-                            return (
-                                <div key={catId} className="qb-cat-container">
-                                    <button
-                                        onClick={() => setActiveToolbarCategory(prev => prev === catId ? null : catId)}
-                                        className={`qb-cat-button${isActive ? ' active' : ''}`}
-                                    >
-                                        <span className="qb-cat-icon">{group.icon}</span>
-                                        <span className="qb-cat-label">{group.label}</span>
-                                    </button>
-
-                                    {/* Dropdown Menu directly under this category button */}
-                                    {isActive && (
-                                        <div className="qb-dropdown-menu">
-                                            {group.tools.map(tool => (
-                                                <button
-                                                    key={tool.typeId}
-                                                    onClick={() => {
-                                                        handleAddNode(tool.typeId);
-                                                        setActiveToolbarCategory(null); // auto close
-                                                    }}
-                                                    title={tool.desc}
-                                                    className="qb-dropdown-item"
-                                                >
-                                                    <span style={{ fontSize: '1.1rem' }}>{tool.icon}</span>
-                                                    <span>{tool.label}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            </div>
 
             {/* ═══ MAIN WORKSPACE GRID ══════════════════════════════ */}
             <div className="qb-workspace-grid">
@@ -800,7 +852,7 @@ export default function QuickBuildPipeline({ appVariables = [], cameraConfigs = 
                     /* SPLIT SCREEN LAYOUT (SIDE-BY-SIDE) */
                     <div className="qb-split-center-container">
                         {/* LEFT HALF: Flowchart Canvas */}
-                        <div className="qb-panel-card">
+                        <div className="qb-panel-card" style={{ position: 'relative' }}>
                             <div className="qb-panel-header">
                                 <span className="qb-panel-title">
                                     📊 Flowchart Canvas: <span style={{ fontWeight: 600, color: '#64748b' }}>{activeJob?.name}</span> ({nodes.length} blocks)
@@ -815,10 +867,13 @@ export default function QuickBuildPipeline({ appVariables = [], cameraConfigs = 
                                         color: 'white', fontWeight: 700, fontSize: '0.6rem',
                                         cursor: (isRunning || isSimulating) ? 'default' : 'pointer',
                                     }}
-                                >
+                                  >
                                     <Play size={8} fill="white" /> Run
                                 </button>
                             </div>
+                            
+                            {renderCategoriesWidget()}
+
                             <QuickBuildCanvas
                                 nodes={nodes}
                                 setNodes={setNodes}
@@ -897,7 +952,7 @@ export default function QuickBuildPipeline({ appVariables = [], cameraConfigs = 
                         </div>
 
                         {activeCenterTab === 'flowchart' ? (
-                            <div className="qb-panel-card">
+                            <div className="qb-panel-card" style={{ position: 'relative' }}>
                                 <div className="qb-panel-header">
                                     <span className="qb-panel-title">
                                         📊 Flowchart Canvas: <span style={{ fontWeight: 600, color: '#64748b' }}>{activeJob?.name}</span> ({nodes.length} blocks)
@@ -916,6 +971,9 @@ export default function QuickBuildPipeline({ appVariables = [], cameraConfigs = 
                                         <Play size={10} fill="white" /> Run Pipeline
                                     </button>
                                 </div>
+
+                                {renderCategoriesWidget()}
+
                                 <QuickBuildCanvas
                                     nodes={nodes}
                                     setNodes={setNodes}

@@ -5089,6 +5089,39 @@ export default function DrawingManager() {
         transition: 'background-color 0.2s'
     };
 
+    const getWidgetBtnStyle = (toolName) => {
+        const isActive = cadTool === toolName;
+        let activeBg = 'rgba(37, 99, 235, 0.12)';
+        let activeBorder = '1px solid rgba(37, 99, 235, 0.3)';
+        let activeColor = '#2563eb';
+
+        if (toolName === 'image') {
+            activeBg = 'rgba(5, 150, 105, 0.12)';
+            activeBorder = '1px solid rgba(5, 150, 105, 0.3)';
+            activeColor = '#059669';
+        } else if (toolName === 'erase') {
+            activeBg = 'rgba(220, 38, 38, 0.12)';
+            activeBorder = '1px solid rgba(220, 38, 38, 0.3)';
+            activeColor = '#dc2626';
+        }
+
+        return {
+            background: isActive ? activeBg : 'transparent',
+            border: isActive ? activeBorder : '1px solid transparent',
+            color: isActive ? activeColor : '#94a3b8',
+            padding: '5px',
+            borderRadius: '5px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.15s ease',
+            outline: 'none',
+            width: '26px',
+            height: '26px'
+        };
+    };
+
     // Group dimensions by category for the sidebar list
     const groupedDims = {};
     (selectedDwg?.dimensions || []).forEach(dim => {
@@ -5129,18 +5162,33 @@ export default function DrawingManager() {
             display: 'flex',
             flexDirection: 'column',
             backgroundColor: '#f1f5f9',
-            fontFamily: "'Inter', sans-serif"
+            fontFamily: "'Inter', sans-serif",
+            padding: '16px',
+            gap: '16px'
         }}>
             {/* Header */}
-            <div style={{ padding: '12px 24px', backgroundColor: 'white', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+            <div style={{
+                padding: '12px 20px',
+                background: 'linear-gradient(135deg, #2e1065, #581c87)',
+                color: 'white',
+                borderTopLeftRadius: '16px',
+                borderTopRightRadius: '16px',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexShrink: 0,
+                zIndex: 100
+            }}>
                 <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ background: 'linear-gradient(135deg, #2563eb, #7c3aed)', padding: '7px', borderRadius: '10px', color: 'white', display: 'flex', alignItems: 'center' }}>
-                            <Ruler size={22} />
+                        <div style={{ backgroundColor: 'rgba(255, 255, 255, 0.15)', padding: '6px', borderRadius: '6px', display: 'flex', alignItems: 'center' }}>
+                            <Ruler size={16} color="white" />
                         </div>
-                        <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 900, color: '#0f172a' }}>Inspector Designer</h2>
-                        <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '3px 10px', background: 'linear-gradient(135deg, #eff6ff, #f0f9ff)', color: '#2563eb', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #bfdbfe' }}>
-                            <Zap size={11} /> GD&T Enterprise
+                        <h2 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'white', letterSpacing: '0.5px' }}>Inspector Designer</h2>
+                        <span style={{ fontSize: '0.55rem', fontWeight: 800, backgroundColor: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.4)', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            GD&T Enterprise
                         </span>
                     </div>
                 </div>
@@ -5165,16 +5213,16 @@ export default function DrawingManager() {
                                 }
                             }}
                             style={{
-                                padding: '8px 12px',
-                                borderRadius: '8px',
-                                border: '1px solid #cbd5e1',
-                                backgroundColor: 'white',
-                                fontSize: '0.78rem',
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                border: '1px solid rgba(255, 255, 255, 0.2)',
+                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                fontSize: '0.7rem',
                                 fontWeight: 700,
-                                color: '#1e293b',
+                                color: 'white',
                                 outline: 'none',
                                 cursor: 'pointer',
-                                minWidth: '180px',
+                                minWidth: '150px',
                                 maxWidth: '240px',
                                 textOverflow: 'ellipsis',
                                 overflow: 'hidden',
@@ -5182,10 +5230,10 @@ export default function DrawingManager() {
                             }}
                         >
                             {drawings.length === 0 ? (
-                                <option value="">Tidak Ada Blueprint</option>
+                                <option value="" style={{ color: '#1e1b4b' }}>Tidak Ada Blueprint</option>
                             ) : (
                                 drawings.map(d => (
-                                    <option key={d.id} value={d.id}>{d.name}</option>
+                                    <option key={d.id} value={d.id} style={{ color: '#1e1b4b' }}>{d.name}</option>
                                 ))
                             )}
                         </select>
@@ -5194,26 +5242,26 @@ export default function DrawingManager() {
                     {/* AutoCAD Layer Selector */}
                     {selectedDwg?.layers && selectedDwg.layers.length > 0 && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#64748b' }}>Layer:</span>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>Layer:</span>
                             <select
                                 value={activeLayer}
                                 onChange={(e) => setActiveLayer(e.target.value)}
                                 style={{
-                                    padding: '8px 12px',
-                                    borderRadius: '8px',
-                                    border: '1px solid #cbd5e1',
-                                    backgroundColor: 'white',
-                                    fontSize: '0.78rem',
+                                    padding: '4px 8px',
+                                    borderRadius: '6px',
+                                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                    fontSize: '0.7rem',
                                     fontWeight: 700,
-                                    color: '#0f766e',
+                                    color: 'white',
                                     outline: 'none',
                                     cursor: 'pointer',
                                     minWidth: '120px'
                                 }}
                             >
-                                <option value="All Layers">All Layers (AutoCAD)</option>
+                                <option value="All Layers" style={{ color: '#1e1b4b' }}>All Layers (AutoCAD)</option>
                                 {selectedDwg.layers.map(layer => (
-                                    <option key={layer} value={layer}>{layer}</option>
+                                    <option key={layer} value={layer} style={{ color: '#1e1b4b' }}>{layer}</option>
                                 ))}
                             </select>
                         </div>
@@ -5223,23 +5271,24 @@ export default function DrawingManager() {
                         <button
                             onClick={handleCreateBlankDrawing}
                             style={{
-                                padding: '8px 14px',
-                                borderRadius: '8px',
-                                border: '1px solid #bfdbfe',
-                                backgroundColor: '#eff6ff',
-                                color: '#2563eb',
-                                fontSize: '0.78rem',
-                                fontWeight: 800,
+                                padding: '6px 12px',
+                                borderRadius: '6px',
+                                border: '1px solid rgba(255, 255, 255, 0.15)',
+                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                color: 'white',
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
                                 cursor: 'pointer',
                                 transition: 'all 0.2s',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '4px'
+                                gap: '4px',
+                                outline: 'none'
                             }}
-                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#dbeafe'; e.currentTarget.style.borderColor = '#3b82f6'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#eff6ff'; e.currentTarget.style.borderColor = '#bfdbfe'; }}
+                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; }}
                         >
-                            <Plus size={14} strokeWidth={2.5} /> NEW
+                            <Plus size={12} strokeWidth={2.5} /> NEW
                         </button>
                     </div>
 
@@ -5256,38 +5305,40 @@ export default function DrawingManager() {
                             <button
                                 disabled
                                 style={{
-                                    padding: '8px 14px',
-                                    borderRadius: '8px',
-                                    border: '1px solid #bfdbfe',
-                                    backgroundColor: '#eff6ff',
-                                    color: '#2563eb',
-                                    fontSize: '0.78rem',
+                                    padding: '6px 12px',
+                                    borderRadius: '6px',
+                                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                    color: 'rgba(255, 255, 255, 0.6)',
+                                    fontSize: '0.7rem',
                                     fontWeight: 700,
                                     cursor: 'not-allowed',
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: '6px'
+                                    gap: '6px',
+                                    outline: 'none'
                                 }}
                             >
-                                <span style={{ display: 'inline-block', width: '12px', height: '12px', border: '2px solid #2563eb', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                                <span style={{ display: 'inline-block', width: '12px', height: '12px', border: '2px solid rgba(255,255,255,0.6)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
                                 {parseProgress}%
                             </button>
                         ) : (
                             <button
                                 onClick={() => fileInputRef.current.click()}
                                 style={{
-                                    padding: '8px 14px',
-                                    borderRadius: '8px',
-                                    border: '1px solid #cbd5e1',
-                                    backgroundColor: '#f8fafc',
-                                    color: '#334155',
-                                    fontSize: '0.78rem',
+                                    padding: '6px 12px',
+                                    borderRadius: '6px',
+                                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                    color: 'white',
+                                    fontSize: '0.7rem',
                                     fontWeight: 700,
                                     cursor: 'pointer',
-                                    transition: 'all 0.2s'
+                                    transition: 'all 0.2s',
+                                    outline: 'none'
                                 }}
-                                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; e.currentTarget.style.borderColor = '#94a3b8'; }}
-                                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
+                                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; }}
                             >
                                 Unggah
                             </button>
@@ -5300,33 +5351,22 @@ export default function DrawingManager() {
                         onClick={toggleFullscreen}
                         title={isFullscreen ? 'Keluar Fullscreen (Esc)' : 'Mode Fullscreen'}
                         style={{
-                            padding: '8px',
-                            borderRadius: '8px',
-                            border: '1px solid #cbd5e1',
-                            backgroundColor: isFullscreen ? '#1e40af' : '#f8fafc',
-                            color: isFullscreen ? '#ffffff' : '#334155',
+                            padding: '6px',
+                            borderRadius: '6px',
+                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                            color: 'white',
                             cursor: 'pointer',
                             transition: 'all 0.25s ease',
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'center'
+                            justifyContent: 'center',
+                            outline: 'none'
                         }}
-                        onMouseEnter={(e) => {
-                            if (!isFullscreen) {
-                                e.currentTarget.style.backgroundColor = '#dbeafe';
-                                e.currentTarget.style.borderColor = '#3b82f6';
-                                e.currentTarget.style.color = '#1e40af';
-                            }
-                        }}
-                        onMouseLeave={(e) => {
-                            if (!isFullscreen) {
-                                e.currentTarget.style.backgroundColor = '#f8fafc';
-                                e.currentTarget.style.borderColor = '#cbd5e1';
-                                e.currentTarget.style.color = '#334155';
-                            }
-                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; }}
                     >
-                        {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                        {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                     </button>
 
                     {/* Drawing Management Dropdown Menu */}
@@ -5334,14 +5374,22 @@ export default function DrawingManager() {
                         <button
                             onClick={() => setShowMgmtMenu(!showMgmtMenu)}
                             style={{
-                                display: 'flex', alignItems: 'center', gap: '6px',
-                                border: '1px solid #cbd5e1', backgroundColor: '#f8fafc',
-                                color: '#334155', padding: '8px 14px', borderRadius: '8px',
-                                fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
-                                transition: 'all 0.2s', outline: 'none'
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                border: '1px solid rgba(255, 255, 255, 0.15)',
+                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                color: 'white',
+                                padding: '6px 12px',
+                                borderRadius: '6px',
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                outline: 'none'
                             }}
-                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; e.currentTarget.style.borderColor = '#94a3b8'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
+                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; }}
                         >
                             Manajemen Drawing <ChevronDown size={12} />
                         </button>
@@ -5408,16 +5456,17 @@ export default function DrawingManager() {
             </div>
 
             {/* Main Content */}
-            <div style={{ flex: 1, padding: '0 24px 24px 24px', display: 'flex', flexDirection: 'column', gap: '20px', overflow: 'hidden', height: '100%' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', overflow: 'hidden', minHeight: 0 }}>
 
                 {/* Top Row: BOC Table (Left) + CAD Canvas (Middle) + Sidebar (Right) */}
                 <div style={{
                     display: 'grid',
-                    gridTemplateColumns: `${showBocTable ? '380px' : ''} 1fr ${showQCInspector ? '360px' : ''}`.trim().replace(/\s+/g, ' '),
-                    gap: '20px',
+                    gridTemplateColumns: `${showBocTable ? '380px' : ''} 1fr`.trim().replace(/\s+/g, ' '),
+                    gap: '16px',
                     flex: 1,
                     minHeight: 0,
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    position: 'relative'
                 }}>
 
                     {/* Left Column: Segmented Tab Headers / BOC Table */}
@@ -6178,367 +6227,88 @@ export default function DrawingManager() {
                             style={{ display: 'none' }}
                         />
 
+                        {/* Integrated CAD Toolbar (App Builder Style UI, positioned at the top of the canvas layout) */}
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: '#1e293b',
+                            borderBottom: '1px solid #0f172a',
+                            padding: '6px 12px',
+                            gap: '6px',
+                            zIndex: 15,
+                            userSelect: 'none',
+                            fontFamily: "'Inter', sans-serif",
+                            flexShrink: 0
+                        }}>
+                            {/* DRAW SECTION */}
+                            <button title="Select Tool" onClick={() => setCadTool('select')} style={getWidgetBtnStyle('select')}>
+                                <MousePointer size={13} />
+                            </button>
+                            <button title="Pan View Tool (pan)" onClick={() => setCadTool('pan')} style={getWidgetBtnStyle('pan')}>
+                                <Hand size={13} />
+                            </button>
+                            <button title="Line Tool (line)" onClick={() => setCadTool('line')} style={getWidgetBtnStyle('line')}>
+                                <Slash size={13} style={{ transform: 'rotate(-45deg)' }} />
+                            </button>
+                            <button title="Circle Tool (circle)" onClick={() => setCadTool('circle')} style={getWidgetBtnStyle('circle')}>
+                                <Circle size={13} />
+                            </button>
+                            <button title="Rectangle Tool (rect)" onClick={() => setCadTool('rect')} style={getWidgetBtnStyle('rect')}>
+                                <Square size={13} />
+                            </button>
+                            <button title="Arc Tool (arc)" onClick={() => setArcDrawState('idle') || setArcDraftCoords(null) || setCadTool('arc')} style={getWidgetBtnStyle('arc')}>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M4 20 A 16 16 0 0 1 20 4" /></svg>
+                            </button>
+                            <button title="Polyline Tool (polyline)" onClick={() => setPolylineDraftPoints([]) || setCadTool('polyline')} style={getWidgetBtnStyle('polyline')}>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="4 20 10 8 16 16 20 4" /></svg>
+                            </button>
+                            <button title="Text Tool (text)" onClick={() => setCadTool('text')} style={getWidgetBtnStyle('text')}>
+                                <Type size={13} />
+                            </button>
+                            <button title="Insert Image (image)" onClick={() => { setCadTool('image'); if (imageInsertRef.current) imageInsertRef.current.click(); }} style={getWidgetBtnStyle('image')}>
+                                <ImagePlus size={13} />
+                            </button>
+
+                            <div style={{ width: '1px', height: '16px', backgroundColor: '#475569', margin: '0 4px' }} />
+
+                            {/* MODIFY SECTION */}
+                            <button title="Move Tool (move)" onClick={() => setCadTool('move')} style={getWidgetBtnStyle('move')}>
+                                <Move size={13} />
+                            </button>
+                            <button title="Rotate Tool (rotate)" onClick={() => setCadTool('rotate')} style={getWidgetBtnStyle('rotate')}>
+                                <RotateCw size={13} />
+                            </button>
+                            <button title="Mirror Tool (mirror)" onClick={() => setCadTool('mirror')} style={getWidgetBtnStyle('mirror')}>
+                                <FlipHorizontal size={13} />
+                            </button>
+                            <button title="Trim Tool (trim)" onClick={() => setCadTool('trim')} style={getWidgetBtnStyle('trim')}>
+                                <Scissors size={13} />
+                            </button>
+                            <button title="Erase Tool (erase)" onClick={() => setCadTool('erase')} style={getWidgetBtnStyle('erase')}>
+                                <Eraser size={13} />
+                            </button>
+
+                            <div style={{ width: '1px', height: '16px', backgroundColor: '#475569', margin: '0 4px' }} />
+
+                            {/* ANNOTATE SECTION */}
+                            <button title="Interactive Dimension Tool (dimension)" onClick={() => setDimDrawState('idle') || setDimDraftCoords(null) || setDrawingCategory('dimension') || setCadTool('dimension')} style={getWidgetBtnStyle('dimension')}>
+                                <Ruler size={13} />
+                            </button>
+                            <button title="Scale Calibration Tool (scale)" onClick={() => setScaleDrawState('idle') || setScaleDraftCoords(null) || setCadTool('scale')} style={getWidgetBtnStyle('scale')}>
+                                <Scale size={13} />
+                            </button>
+                        </div>
+
                         {/* AutoCAD Workspace Area (contains Vertical Toolbar + Canvas) */}
                         <div style={{ flex: 1, display: 'flex', flexDirection: 'row', width: '100%', minHeight: 0, overflow: 'hidden' }}>
-
-                            {/* Vertical Draw Toolbar / Palette */}
-                            <div style={{
-                                width: '44px',
-                                backgroundColor: '#090d16',
-                                borderRight: '1px solid #1e293b',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                padding: '10px 0',
-                                gap: '10px',
-                                flexShrink: 0,
-                                overflowY: 'auto',
-                                scrollbarWidth: 'none',
-                                msOverflowStyle: 'none',
-                                userSelect: 'none'
-                            }}>
-                                {/* DRAW SECTION */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', alignItems: 'center' }}>
-                                    <button
-                                        title="Select Tool"
-                                        onClick={() => setCadTool('select')}
-                                        style={{
-                                            background: cadTool === 'select' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                                            border: cadTool === 'select' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
-                                            color: cadTool === 'select' ? '#60a5fa' : '#64748b',
-                                            padding: '7px',
-                                            borderRadius: '6px',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.15s ease'
-                                        }}
-                                        onMouseEnter={e => { if (cadTool !== 'select') e.currentTarget.style.color = '#e2e8f0'; }}
-                                        onMouseLeave={e => { if (cadTool !== 'select') e.currentTarget.style.color = '#64748b'; }}
-                                    >
-                                        <MousePointer size={14} />
-                                    </button>
-                                    <button
-                                        title="Pan View Tool (pan)"
-                                        onClick={() => setCadTool('pan')}
-                                        style={{
-                                            background: cadTool === 'pan' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                                            border: cadTool === 'pan' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
-                                            color: cadTool === 'pan' ? '#60a5fa' : '#64748b',
-                                            padding: '7px',
-                                            borderRadius: '6px',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.15s ease'
-                                        }}
-                                        onMouseEnter={e => { if (cadTool !== 'pan') e.currentTarget.style.color = '#e2e8f0'; }}
-                                        onMouseLeave={e => { if (cadTool !== 'pan') e.currentTarget.style.color = '#64748b'; }}
-                                    >
-                                        <Hand size={14} />
-                                    </button>
-                                    <button
-                                        title="Line Tool (line)"
-                                        onClick={() => setCadTool('line')}
-                                        style={{
-                                            background: cadTool === 'line' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                                            border: cadTool === 'line' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
-                                            color: cadTool === 'line' ? '#60a5fa' : '#64748b',
-                                            padding: '7px',
-                                            borderRadius: '6px',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.15s ease'
-                                        }}
-                                        onMouseEnter={e => { if (cadTool !== 'line') e.currentTarget.style.color = '#e2e8f0'; }}
-                                        onMouseLeave={e => { if (cadTool !== 'line') e.currentTarget.style.color = '#64748b'; }}
-                                    >
-                                        <Slash size={14} style={{ transform: 'rotate(-45deg)' }} />
-                                    </button>
-                                    <button
-                                        title="Circle Tool (circle)"
-                                        onClick={() => setCadTool('circle')}
-                                        style={{
-                                            background: cadTool === 'circle' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                                            border: cadTool === 'circle' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
-                                            color: cadTool === 'circle' ? '#60a5fa' : '#64748b',
-                                            padding: '7px',
-                                            borderRadius: '6px',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.15s ease'
-                                        }}
-                                        onMouseEnter={e => { if (cadTool !== 'circle') e.currentTarget.style.color = '#e2e8f0'; }}
-                                        onMouseLeave={e => { if (cadTool !== 'circle') e.currentTarget.style.color = '#64748b'; }}
-                                    >
-                                        <Circle size={14} />
-                                    </button>
-                                    <button
-                                        title="Rectangle Tool (rect)"
-                                        onClick={() => setCadTool('rect')}
-                                        style={{
-                                            background: cadTool === 'rect' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                                            border: cadTool === 'rect' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
-                                            color: cadTool === 'rect' ? '#60a5fa' : '#64748b',
-                                            padding: '7px',
-                                            borderRadius: '6px',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.15s ease'
-                                        }}
-                                        onMouseEnter={e => { if (cadTool !== 'rect') e.currentTarget.style.color = '#e2e8f0'; }}
-                                        onMouseLeave={e => { if (cadTool !== 'rect') e.currentTarget.style.color = '#64748b'; }}
-                                    >
-                                        <Square size={14} />
-                                    </button>
-                                    <button
-                                        title="Arc Tool (arc)"
-                                        onClick={() => setArcDrawState('idle') || setArcDraftCoords(null) || setCadTool('arc')}
-                                        style={{
-                                            background: cadTool === 'arc' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                                            border: cadTool === 'arc' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
-                                            color: cadTool === 'arc' ? '#60a5fa' : '#64748b',
-                                            padding: '7px',
-                                            borderRadius: '6px',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.15s ease'
-                                        }}
-                                        onMouseEnter={e => { if (cadTool !== 'arc') e.currentTarget.style.color = '#e2e8f0'; }}
-                                        onMouseLeave={e => { if (cadTool !== 'arc') e.currentTarget.style.color = '#64748b'; }}
-                                    >
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M4 20 A 16 16 0 0 1 20 4" /></svg>
-                                    </button>
-                                    <button
-                                        title="Polyline Tool (polyline)"
-                                        onClick={() => setPolylineDraftPoints([]) || setCadTool('polyline')}
-                                        style={{
-                                            background: cadTool === 'polyline' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                                            border: cadTool === 'polyline' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
-                                            color: cadTool === 'polyline' ? '#60a5fa' : '#64748b',
-                                            padding: '7px',
-                                            borderRadius: '6px',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.15s ease'
-                                        }}
-                                        onMouseEnter={e => { if (cadTool !== 'polyline') e.currentTarget.style.color = '#e2e8f0'; }}
-                                        onMouseLeave={e => { if (cadTool !== 'polyline') e.currentTarget.style.color = '#64748b'; }}
-                                    >
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="4 20 10 8 16 16 20 4" /></svg>
-                                    </button>
-                                    <button
-                                        title="Text Tool (text)"
-                                        onClick={() => setCadTool('text')}
-                                        style={{
-                                            background: cadTool === 'text' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                                            border: cadTool === 'text' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
-                                            color: cadTool === 'text' ? '#60a5fa' : '#64748b',
-                                            padding: '7px',
-                                            borderRadius: '6px',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.15s ease'
-                                        }}
-                                        onMouseEnter={e => { if (cadTool !== 'text') e.currentTarget.style.color = '#e2e8f0'; }}
-                                        onMouseLeave={e => { if (cadTool !== 'text') e.currentTarget.style.color = '#64748b'; }}
-                                    >
-                                        <Type size={14} />
-                                    </button>
-                                    <button
-                                        title="Insert Image (image)"
-                                        onClick={() => { setCadTool('image'); if (imageInsertRef.current) imageInsertRef.current.click(); }}
-                                        style={{
-                                            background: cadTool === 'image' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
-                                            border: cadTool === 'image' ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid transparent',
-                                            color: cadTool === 'image' ? '#34d399' : '#64748b',
-                                            padding: '7px',
-                                            borderRadius: '6px',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.15s ease'
-                                        }}
-                                        onMouseEnter={e => { if (cadTool !== 'image') e.currentTarget.style.color = '#e2e8f0'; }}
-                                        onMouseLeave={e => { if (cadTool !== 'image') e.currentTarget.style.color = '#64748b'; }}
-                                    >
-                                        <ImagePlus size={14} />
-                                    </button>
-                                </div>
-
-                                <div style={{ width: '20px', height: '1px', backgroundColor: '#1e293b', margin: '4px 0' }} />
-
-                                {/* MODIFY SECTION */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', alignItems: 'center' }}>
-                                    <button
-                                        title="Move Tool (move)"
-                                        onClick={() => setCadTool('move')}
-                                        style={{
-                                            background: cadTool === 'move' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                                            border: cadTool === 'move' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
-                                            color: cadTool === 'move' ? '#60a5fa' : '#64748b',
-                                            padding: '7px',
-                                            borderRadius: '6px',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.15s ease'
-                                        }}
-                                        onMouseEnter={e => { if (cadTool !== 'move') e.currentTarget.style.color = '#e2e8f0'; }}
-                                        onMouseLeave={e => { if (cadTool !== 'move') e.currentTarget.style.color = '#64748b'; }}
-                                    >
-                                        <Move size={14} />
-                                    </button>
-                                    <button
-                                        title="Rotate Tool (rotate)"
-                                        onClick={() => setCadTool('rotate')}
-                                        style={{
-                                            background: cadTool === 'rotate' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                                            border: cadTool === 'rotate' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
-                                            color: cadTool === 'rotate' ? '#60a5fa' : '#64748b',
-                                            padding: '7px',
-                                            borderRadius: '6px',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.15s ease'
-                                        }}
-                                        onMouseEnter={e => { if (cadTool !== 'rotate') e.currentTarget.style.color = '#e2e8f0'; }}
-                                        onMouseLeave={e => { if (cadTool !== 'rotate') e.currentTarget.style.color = '#64748b'; }}
-                                    >
-                                        <RotateCw size={14} />
-                                    </button>
-                                    <button
-                                        title="Mirror Tool (mirror)"
-                                        onClick={() => setCadTool('mirror')}
-                                        style={{
-                                            background: cadTool === 'mirror' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                                            border: cadTool === 'mirror' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
-                                            color: cadTool === 'mirror' ? '#60a5fa' : '#64748b',
-                                            padding: '7px',
-                                            borderRadius: '6px',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.15s ease'
-                                        }}
-                                        onMouseEnter={e => { if (cadTool !== 'mirror') e.currentTarget.style.color = '#e2e8f0'; }}
-                                        onMouseLeave={e => { if (cadTool !== 'mirror') e.currentTarget.style.color = '#64748b'; }}
-                                    >
-                                        <FlipHorizontal size={14} />
-                                    </button>
-                                    <button
-                                        title="Trim Tool (trim)"
-                                        onClick={() => setCadTool('trim')}
-                                        style={{
-                                            background: cadTool === 'trim' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                                            border: cadTool === 'trim' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
-                                            color: cadTool === 'trim' ? '#60a5fa' : '#64748b',
-                                            padding: '7px',
-                                            borderRadius: '6px',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.15s ease'
-                                        }}
-                                        onMouseEnter={e => { if (cadTool !== 'trim') e.currentTarget.style.color = '#e2e8f0'; }}
-                                        onMouseLeave={e => { if (cadTool !== 'trim') e.currentTarget.style.color = '#64748b'; }}
-                                    >
-                                        <Scissors size={14} />
-                                    </button>
-                                    <button
-                                        title="Erase Tool (erase)"
-                                        onClick={() => setCadTool('erase')}
-                                        style={{
-                                            background: cadTool === 'erase' ? 'rgba(239, 68, 68, 0.15)' : 'transparent',
-                                            border: cadTool === 'erase' ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid transparent',
-                                            color: cadTool === 'erase' ? '#ef4444' : '#64748b',
-                                            padding: '7px',
-                                            borderRadius: '6px',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.15s ease'
-                                        }}
-                                        onMouseEnter={e => { if (cadTool !== 'erase') e.currentTarget.style.color = '#fca5a5'; }}
-                                        onMouseLeave={e => { if (cadTool !== 'erase') e.currentTarget.style.color = '#64748b'; }}
-                                    >
-                                        <Eraser size={14} />
-                                    </button>
-                                </div>
-
-                                <div style={{ width: '20px', height: '1px', backgroundColor: '#1e293b', margin: '4px 0' }} />
-
-                                {/* ANNOTATE SECTION */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', alignItems: 'center' }}>
-                                    <button
-                                        title="Interactive Dimension Tool (dimension)"
-                                        onClick={() => setDimDrawState('idle') || setDimDraftCoords(null) || setDrawingCategory('dimension') || setCadTool('dimension')}
-                                        style={{
-                                            background: cadTool === 'dimension' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                                            border: cadTool === 'dimension' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
-                                            color: cadTool === 'dimension' ? '#60a5fa' : '#64748b',
-                                            padding: '7px',
-                                            borderRadius: '6px',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.15s ease'
-                                        }}
-                                        onMouseEnter={e => { if (cadTool !== 'dimension') e.currentTarget.style.color = '#e2e8f0'; }}
-                                        onMouseLeave={e => { if (cadTool !== 'dimension') e.currentTarget.style.color = '#64748b'; }}
-                                    >
-                                        <Ruler size={14} />
-                                    </button>
-                                    <button
-                                        title="Scale Calibration Tool (scale)"
-                                        onClick={() => setScaleDrawState('idle') || setScaleDraftCoords(null) || setCadTool('scale')}
-                                        style={{
-                                            background: cadTool === 'scale' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                                            border: cadTool === 'scale' ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent',
-                                            color: cadTool === 'scale' ? '#60a5fa' : '#64748b',
-                                            padding: '7px',
-                                            borderRadius: '6px',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.15s ease'
-                                        }}
-                                        onMouseEnter={e => { if (cadTool !== 'scale') e.currentTarget.style.color = '#e2e8f0'; }}
-                                        onMouseLeave={e => { if (cadTool !== 'scale') e.currentTarget.style.color = '#64748b'; }}
-                                    >
-                                        <Scale size={14} />
-                                    </button>
-                                </div>
-                            </div>
 
                             {/* Right Column: Canvas SVG and Status Bar */}
                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0, overflow: 'hidden' }}>
 
                                 {/* Canvas SVG */}
                                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0px', position: 'relative', width: '100%', minHeight: 0 }}>
+                                    
                                     {selectedDwg && ['STL', 'OBJ', 'GLTF', 'GLB'].includes(selectedDwg.fileType) ? (
                                         <CADViewer3DEditor
                                             drawing={selectedDwg}
@@ -8915,17 +8685,22 @@ export default function DrawingManager() {
                     {/* Right Sidebar: QC Inspector (Tabs: Parameter Mapping / QC Simulator) */}
                     {showQCInspector && (
                         <div style={{
+                            position: 'absolute',
+                            top: '12px',
+                            right: '12px',
+                            bottom: '12px',
+                            width: '350px',
                             display: 'flex',
                             flexDirection: 'column',
-                            height: '100%',
-                            minHeight: 0,
-                            backgroundColor: 'white',
-                            borderRadius: '16px',
-                            border: '1px solid #e2e8f0',
-                            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                            backdropFilter: 'blur(8px)',
+                            borderRadius: '12px',
+                            border: '1px solid #cbd5e1',
+                            boxShadow: '0 10px 25px -5px rgba(0,0,0,0.3), 0 8px 10px -6px rgba(0,0,0,0.3)',
                             overflow: 'hidden',
                             fontFamily: "'Inter', sans-serif",
-                            color: '#1e293b'
+                            color: '#1e293b',
+                            zIndex: 20
                         }}>
                             {/* Unified Panel Header */}
                             <div style={{

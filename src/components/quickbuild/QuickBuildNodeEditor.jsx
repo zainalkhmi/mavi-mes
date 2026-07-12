@@ -372,6 +372,26 @@ export default function QuickBuildNodeEditor({
                     <Field label="Max Allowable Gap (px)"><input type="number" value={selectedNode.params.maxGapLength || 5} onChange={e => updateParam('maxGapLength', Number(e.target.value))} style={inputStyle} /></Field>
                 </>)}
 
+                {/* ── CAMERA INSPECTION ────────────────── */}
+                {selectedNode.type === 'camera_inspect' && (<>
+                    <Field label="Camera Source">
+                        <select value={selectedNode.params.camera || ''} onChange={e => updateParam('camera', e.target.value)} style={selectStyle}>
+                            {cameraNames.map(name => (
+                                <option key={name} value={name}>{name}</option>
+                            ))}
+                        </select>
+                    </Field>
+                    <Field label="Filter Regions">
+                        <select value={selectedNode.params.filterRegions || 'All Regions'} onChange={e => updateParam('filterRegions', e.target.value)} style={selectStyle}>
+                            <option value="All Regions">All Regions</option>
+                            <option value="Only Presence Checks">Only Presence Checks</option>
+                            <option value="Only Measurements">Only Measurements</option>
+                            <option value="Only OCR Readers">Only OCR Readers</option>
+                            <option value="Only Barcode Readers">Only Barcode Readers</option>
+                        </select>
+                    </Field>
+                </>)}
+
                 {/* ── MATH/FORMULA ─────────────────────── */}
                 {selectedNode.type === 'math_formula' && (<>
                     <Field label="Formula Expression"><input type="text" value={selectedNode.params.formula || ''} onChange={e => updateParam('formula', e.target.value)} style={inputStyle} placeholder="e.g. A + B, A / B * 100" /></Field>
