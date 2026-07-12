@@ -5468,7 +5468,7 @@ export default function DrawingManager() {
                 {/* Top Row: BOC Table (Left) + CAD Canvas (Middle) + Sidebar (Right) */}
                 <div style={{
                     display: 'grid',
-                    gridTemplateColumns: `${showBocTable ? '380px ' : ''}1fr${showQCInspector ? ' 350px' : ''}`,
+                    gridTemplateColumns: `${showBocTable ? '380px' : ''} 1fr ${showQCInspector ? '350px' : ''}`.trim().replace(/\s+/g, ' '),
                     gap: '16px',
                     flex: 1,
                     minHeight: 0,
