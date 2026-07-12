@@ -5280,9 +5280,9 @@ export default function DrawingManager() {
                             style={{
                                 padding: '6px 12px',
                                 borderRadius: '6px',
-                                border: '1px solid #cbd5e1',
-                                backgroundColor: '#ffffff',
-                                color: '#475569',
+                                border: '1px solid #10b981',
+                                backgroundColor: '#10b981',
+                                color: 'white',
                                 fontSize: '0.7rem',
                                 fontWeight: 700,
                                 cursor: 'pointer',
@@ -5290,10 +5290,11 @@ export default function DrawingManager() {
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '4px',
-                                outline: 'none'
+                                outline: 'none',
+                                boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)'
                             }}
-                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
+                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#059669'; e.currentTarget.style.borderColor = '#059669'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#10b981'; e.currentTarget.style.borderColor = '#10b981'; }}
                         >
                             <Plus size={12} strokeWidth={2.5} /> NEW
                         </button>
@@ -5335,17 +5336,18 @@ export default function DrawingManager() {
                                 style={{
                                     padding: '6px 12px',
                                     borderRadius: '6px',
-                                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                    border: '1px solid #ef4444',
+                                    backgroundColor: '#ef4444',
                                     color: 'white',
                                     fontSize: '0.7rem',
                                     fontWeight: 700,
                                     cursor: 'pointer',
                                     transition: 'all 0.2s',
-                                    outline: 'none'
+                                    outline: 'none',
+                                    boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)'
                                 }}
-                                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
-                                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
+                                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#dc2626'; e.currentTarget.style.borderColor = '#dc2626'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#ef4444'; e.currentTarget.style.borderColor = '#ef4444'; }}
                             >
                                 Unggah
                             </button>
@@ -6292,30 +6294,30 @@ export default function DrawingManager() {
                                             style={{
                                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                 padding: '8px', borderRadius: '8px', cursor: 'pointer', outline: 'none',
-                                                minWidth: '36px', height: '36px', transition: 'all 0.2s',
+                                                minWidth: '40px', height: '40px', transition: 'all 0.2s',
                                                 border: isActive && item.isCategory ? `1px solid ${item.color}80` : isActive ? '1px solid #bfdbfe' : '1px solid transparent',
-                                                color: isDanger ? '#ef4444' : isActive && item.isCategory ? item.color : isActive ? '#2563eb' : '#64748b',
-                                                backgroundColor: isDanger ? '#fee2e2' : isActive && item.isCategory ? `${item.color}15` : isActive ? '#eff6ff' : 'transparent',
+                                                color: isDanger ? '#ef4444' : isActive && item.isCategory ? item.color : isActive ? '#2563eb' : item.isCategory ? item.color : '#64748b',
+                                                backgroundColor: isDanger ? '#fee2e2' : isActive && item.isCategory ? `${item.color}20` : isActive ? '#eff6ff' : item.isCategory ? `${item.color}08` : 'transparent',
                                             }}
                                             onMouseEnter={(e) => {
                                                 if (!isActive && !isDanger) {
-                                                    e.currentTarget.style.backgroundColor = '#f1f5f9';
-                                                    e.currentTarget.style.color = '#334155';
+                                                    e.currentTarget.style.backgroundColor = item.isCategory ? `${item.color}15` : '#f1f5f9';
+                                                    e.currentTarget.style.color = item.isCategory ? item.color : '#334155';
                                                 }
                                             }}
                                             onMouseLeave={(e) => {
                                                 if (!isActive && !isDanger) {
-                                                    e.currentTarget.style.backgroundColor = 'transparent';
-                                                    e.currentTarget.style.color = '#64748b';
+                                                    e.currentTarget.style.backgroundColor = item.isCategory ? `${item.color}08` : 'transparent';
+                                                    e.currentTarget.style.color = item.isCategory ? item.color : '#64748b';
                                                 }
                                             }}
                                         >
                                             {item.icon === 'color_swatch' ? (
-                                                <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: cadColor, border: '1px solid #cbd5e1' }} />
+                                                <div style={{ width: '18px', height: '18px', borderRadius: '50%', backgroundColor: cadColor, border: '1px solid #cbd5e1' }} />
                                             ) : item.emoji ? (
-                                                <span style={{ fontSize: '1.05rem', lineHeight: 1, fontWeight: item.emoji === 'R' || item.emoji === 'Ra' ? '800' : 'normal' }}>{item.emoji}</span>
+                                                <span style={{ fontSize: '1.25rem', lineHeight: 1, fontWeight: item.emoji === 'R' || item.emoji === 'Ra' ? '800' : 'normal' }}>{item.emoji}</span>
                                             ) : (
-                                                <IconComp size={18} style={item.rotate ? { transform: 'rotate(-45deg)' } : undefined} />
+                                                <IconComp size={20} style={item.rotate ? { transform: 'rotate(-45deg)' } : undefined} />
                                             )}
                                         </button>
                                         
