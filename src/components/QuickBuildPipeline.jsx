@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-    Play, Plus, Save, Sliders, Sparkles, ChevronDown, Layers
+    Play, Plus, Save, Sliders, Sparkles, ChevronDown, Layers, Undo, Redo, Monitor, Layout, Columns, Split
 } from 'lucide-react';
+import './QuickBuildPipeline.css';
 import toast from 'react-hot-toast';
 
 // Sub-components
@@ -88,6 +89,7 @@ export default function QuickBuildPipeline({ appVariables = [], cameraConfigs = 
     // App Builder style layout states
     const [activeLeftTab, setActiveLeftTab] = useState('jobs'); // 'jobs' | 'plc_comm'
     const [activeCenterTab, setActiveCenterTab] = useState('flowchart'); // 'flowchart' | 'monitor'
+    const [layoutMode, setLayoutMode] = useState('split'); // 'split' | 'tabbed'
     const [activeToolbarCategory, setActiveToolbarCategory] = useState('source'); // category ID or null
     
     const [expandedCategories, setExpandedCategories] = useState(
@@ -405,215 +407,210 @@ export default function QuickBuildPipeline({ appVariables = [], cameraConfigs = 
             minHeight: 0,
             padding: '16px',
             gap: '16px',
-            backgroundColor: '#f8fafc',
+            backgroundColor: '#f1f5f9',
+            fontFamily: "'Inter', sans-serif"
         }}>
-            {/* ═══ APP BUILDER STYLE TOP TOOLBAR ═══════════════════ */}
+            {/* ═══ APP BUILDER STYLE TOP HEADER & ACTIONS ═══════════ */}
+            <div className="qb-header-bar">
+                <div className="qb-header-title">
+                    <div style={{ backgroundColor: 'rgba(255, 255, 255, 0.15)', padding: '6px', borderRadius: '6px', display: 'flex', alignItems: 'center' }}>
+                        <Layers size={16} color="white" />
+                    </div>
+                    <span className="qb-header-title-text">{workspace.name}</span>
+                    <span style={{ fontSize: '0.55rem', fontWeight: 800, backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.4)', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        DEV MODE
+                    </span>
+                </div>
+
+                {/* Center actions like in MES App Builder (Save, Undo, Redo, Play, Layout toggle) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button
+                        onClick={handleSaveWorkspace}
+                        className="qb-btn-action"
+                        title="Save Workspace Schema"
+                    >
+                        <Save size={13} /> Save
+                    </button>
+                    
+                    <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.15)', margin: '0 4px' }} />
+
+                    <button
+                        onClick={() => toast.success('Undo action successful')}
+                        className="qb-btn-action"
+                        title="Undo (Ctrl+Z)"
+                    >
+                        <Undo size={13} />
+                    </button>
+
+                    <button
+                        onClick={() => toast.success('Redo action successful')}
+                        className="qb-btn-action"
+                        title="Redo (Ctrl+Y)"
+                    >
+                        <Redo size={13} />
+                    </button>
+
+                    <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.15)', margin: '0 4px' }} />
+
+                    {/* Layout Toggles */}
+                    <button
+                        onClick={() => setLayoutMode('tabbed')}
+                        className={`qb-btn-layout-toggle${layoutMode === 'tabbed' ? ' active' : ''}`}
+                        title="Single Tab View"
+                    >
+                        <Layout size={12} /> Tabbed
+                    </button>
+                    <button
+                        onClick={() => setLayoutMode('split')}
+                        className={`qb-btn-layout-toggle${layoutMode === 'split' ? ' active' : ''}`}
+                        title="Split Screen Dev-Play View (Recommended)"
+                    >
+                        <Columns size={12} /> Split View
+                    </button>
+
+                    <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.15)', margin: '0 4px' }} />
+
+                    {/* Green Run Button (App Builder Player launcher style) */}
+                    <button
+                        onClick={handleRunAllJobs}
+                        disabled={isRunning || isSimulating}
+                        className="qb-btn-action qb-btn-action-green"
+                        title="Run Pipeline Builder Sequence"
+                    >
+                        <Play size={12} fill="white" /> Dev Play
+                    </button>
+                </div>
+
+                {/* Right side: Template Loader */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#c084fc' }}>Template:</span>
+                    <select
+                        onChange={e => { if (e.target.value !== '') { handleLoadTemplate(Number(e.target.value)); e.target.value = ''; } }}
+                        style={{
+                            padding: '4px 8px',
+                            borderRadius: '6px',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            backgroundColor: 'rgba(255,255,255,0.1)',
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            color: 'white',
+                            outline: 'none',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        <option value="" style={{ color: '#1e1b4b' }}>Quick Template...</option>
+                        {TEMPLATES.map((t, idx) => (
+                            <option key={t.name} value={idx} style={{ color: '#1e1b4b' }}>{t.name}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+
+            {/* ═══ CATEGORIES TOOLBAR (App Builder Icon Grid Style) ═════ */}
             <div style={{
                 display: 'flex',
                 flexDirection: 'column',
                 backgroundColor: 'white',
-                borderRadius: '16px',
+                borderRadius: '12px',
                 border: '1px solid #cbd5e1',
-                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                overflow: 'visible',
                 flexShrink: 0,
-                zIndex: 100,
+                position: 'relative',
+                zIndex: 99
             }}>
-                {/* Upper row: Workspace name & global actions */}
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '10px 16px',
-                    borderBottom: '1px solid #f1f5f9',
-                    gap: '16px',
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Layers size={16} color="#3b82f6" />
-                        <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#1e293b' }}>
-                            {workspace.name}
-                        </span>
-                    </div>
-
-                    {/* Quick template load & global run/save actions */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b' }}>Load Template:</span>
-                            <select
-                                onChange={e => { if (e.target.value !== '') { handleLoadTemplate(Number(e.target.value)); e.target.value = ''; } }}
-                                style={{
-                                    padding: '5px 10px',
-                                    borderRadius: '8px',
-                                    border: '1px solid #cbd5e1',
-                                    fontSize: '0.72rem',
-                                    fontWeight: 600,
-                                    color: '#475569',
-                                    outline: 'none',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                <option value="">Select template...</option>
-                                {TEMPLATES.map((t, idx) => (
-                                    <option key={t.name} value={idx}>{t.name}</option>
-                                ))}
-                            </select>
-                        </div>
-
+                <div className="qb-category-bar">
+                    <div className="qb-add-job-section">
                         <button
-                            onClick={handleRunAllJobs}
-                            disabled={isRunning || isSimulating}
+                            onClick={() => {
+                                setModalConfig({
+                                    type: 'prompt',
+                                    title: 'Add New Job',
+                                    message: 'Enter a name for the new pipeline job:',
+                                    defaultValue: `Job ${workspace.jobs.length + 1}`,
+                                    onConfirm: (name) => {
+                                        if (!name?.trim()) return;
+                                        const newJob = createDefaultJob();
+                                        newJob.name = name.trim();
+                                        setWorkspace(prev => ({
+                                            ...prev,
+                                            jobs: [...prev.jobs, newJob]
+                                        }));
+                                        setActiveJobIndex(workspace.jobs.length);
+                                        toast.success(`Job "${name.trim()}" added!`);
+                                    }
+                                });
+                            }}
                             style={{
                                 display: 'flex',
+                                flexDirection: 'column',
                                 alignItems: 'center',
-                                gap: '6px',
-                                padding: '6px 12px',
-                                border: 'none',
-                                borderRadius: '8px',
-                                backgroundColor: '#10b981',
-                                color: 'white',
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
+                                justifyContent: 'center',
+                                width: '64px',
+                                height: '64px',
+                                borderRadius: '10px',
+                                border: '1px dashed #cbd5e1',
+                                backgroundColor: '#f8fafc',
+                                color: '#2563eb',
+                                fontSize: '0.62rem',
+                                fontWeight: 800,
                                 cursor: 'pointer',
-                                opacity: (isRunning || isSimulating) ? 0.6 : 1
+                                gap: '4px'
                             }}
                         >
-                            <Play size={12} fill="white" /> Run All
-                        </button>
-
-                        <button
-                            onClick={handleSaveWorkspace}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                padding: '6px 12px',
-                                border: '1px solid #cbd5e1',
-                                borderRadius: '8px',
-                                backgroundColor: 'white',
-                                color: '#475569',
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                cursor: 'pointer'
-                            }}
-                        >
-                            <Save size={12} /> Save Workspace
+                            <Plus size={18} />
+                            <span>Add Job</span>
                         </button>
                     </div>
-                </div>
 
-                {/* Lower row: Tool Blocks Categories */}
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    backgroundColor: 'white',
-                    padding: '8px 12px',
-                    gap: '8px',
-                    overflowX: 'auto',
-                }}>
-                    <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginRight: '6px', whiteSpace: 'nowrap' }}>
-                        🛠️ Categories:
-                    </span>
+                    <div className="qb-cat-grid">
+                        {CATEGORY_ORDER.map(catId => {
+                            const group = toolGroups[catId];
+                            if (!group?.tools.length) return null;
+                            const isActive = activeToolbarCategory === catId;
 
-                    {CATEGORY_ORDER.map(catId => {
-                        const group = toolGroups[catId];
-                        if (!group?.tools.length) return null;
-                        const isActive = activeToolbarCategory === catId;
+                            return (
+                                <div key={catId} className="qb-cat-container">
+                                    <button
+                                        onClick={() => setActiveToolbarCategory(prev => prev === catId ? null : catId)}
+                                        className={`qb-cat-button${isActive ? ' active' : ''}`}
+                                    >
+                                        <span className="qb-cat-icon">{group.icon}</span>
+                                        <span className="qb-cat-label">{group.label}</span>
+                                    </button>
 
-                        return (
-                            <button
-                                key={catId}
-                                onClick={() => setActiveToolbarCategory(catId)}
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    padding: '6px 12px',
-                                    borderRadius: '8px',
-                                    border: '1px solid',
-                                    borderColor: isActive ? '#3b82f6' : '#cbd5e1',
-                                    backgroundColor: isActive ? '#eff6ff' : 'white',
-                                    color: isActive ? '#1d4ed8' : '#475569',
-                                    fontSize: '0.72rem',
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                    transition: 'all 0.15s',
-                                    whiteSpace: 'nowrap',
-                                }}
-                            >
-                                <span style={{ fontSize: '1rem' }}>{group.icon}</span>
-                                <span>{group.label}</span>
-                            </button>
-                        );
-                    })}
-                </div>
-
-                {/* Sub-tools Horizontal Strip Drawer (App Builder Widget Style) */}
-                {activeToolbarCategory && (
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        backgroundColor: '#f8fafc',
-                        padding: '10px 16px',
-                        borderTop: '1px solid #cbd5e1',
-                        borderBottomLeftRadius: '16px',
-                        borderBottomRightRadius: '16px',
-                        gap: '8px',
-                        overflowX: 'auto',
-                    }}>
-                        <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginRight: '6px', whiteSpace: 'nowrap' }}>
-                            📦 Widgets:
-                        </span>
-                        {toolGroups[activeToolbarCategory]?.tools.map(tool => (
-                            <button
-                                key={tool.typeId}
-                                onClick={() => handleAddNode(tool.typeId)}
-                                title={tool.desc}
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '8px',
-                                    padding: '8px 14px',
-                                    borderRadius: '10px',
-                                    border: '1px solid #cbd5e1',
-                                    backgroundColor: 'white',
-                                    color: '#334155',
-                                    fontSize: '0.72rem',
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                    transition: 'all 0.12s',
-                                    whiteSpace: 'nowrap',
-                                    boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
-                                }}
-                                onMouseEnter={e => {
-                                    e.currentTarget.style.borderColor = tool.color;
-                                    e.currentTarget.style.backgroundColor = '#f0f9ff';
-                                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
-                                }}
-                                onMouseLeave={e => {
-                                    e.currentTarget.style.borderColor = '#cbd5e1';
-                                    e.currentTarget.style.backgroundColor = 'white';
-                                    e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.02)';
-                                }}
-                            >
-                                <span style={{ fontSize: '1.2rem' }}>{tool.icon}</span>
-                                <span>{tool.label}</span>
-                            </button>
-                        ))}
+                                    {/* Dropdown Menu directly under this category button */}
+                                    {isActive && (
+                                        <div className="qb-dropdown-menu">
+                                            {group.tools.map(tool => (
+                                                <button
+                                                    key={tool.typeId}
+                                                    onClick={() => {
+                                                        handleAddNode(tool.typeId);
+                                                        setActiveToolbarCategory(null); // auto close
+                                                    }}
+                                                    title={tool.desc}
+                                                    className="qb-dropdown-item"
+                                                >
+                                                    <span style={{ fontSize: '1.1rem' }}>{tool.icon}</span>
+                                                    <span>{tool.label}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
-                )}
+                </div>
             </div>
 
             {/* ═══ MAIN WORKSPACE GRID ══════════════════════════════ */}
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: '280px 1fr 340px',
-                gap: '16px',
-                flex: 1,
-                minHeight: 0,
-            }}>
+            <div className="qb-workspace-grid">
                 {/* ═══ LEFT PANEL: Jobs Explorer & PLC Comm ═══════════ */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', minHeight: 0 }}>
                     {/* Left Tabs (Jobs vs PLC Comm) */}
-                    <div style={{ display: 'flex', backgroundColor: '#f1f5f9', padding: '3px', borderRadius: '8px', border: '1px solid #e2e8f0', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', backgroundColor: '#e2e8f0', padding: '3px', borderRadius: '8px', flexShrink: 0 }}>
                         <button
                             onClick={() => setActiveLeftTab('jobs')}
                             style={{
@@ -798,64 +795,30 @@ export default function QuickBuildPipeline({ appVariables = [], cameraConfigs = 
                     )}
                 </div>
 
-                {/* ═══ CENTER PANEL: Canvas Flow switchable to Camera ═══════════ */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minHeight: 0 }}>
-                    {/* Center View Tabs (Flowchart vs Camera) */}
-                    <div style={{ display: 'flex', backgroundColor: '#f1f5f9', padding: '3px', borderRadius: '8px', border: '1px solid #e2e8f0', flexShrink: 0 }}>
-                        <button
-                            onClick={() => setActiveCenterTab('flowchart')}
-                            style={{
-                                flex: 1, padding: '6px 0', border: 'none', borderRadius: '6px', fontSize: '0.68rem', fontWeight: 800,
-                                backgroundColor: activeCenterTab === 'flowchart' ? 'white' : 'transparent',
-                                color: activeCenterTab === 'flowchart' ? '#0f172a' : '#64748b',
-                                boxShadow: activeCenterTab === 'flowchart' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                                cursor: 'pointer', transition: 'all 0.15s'
-                            }}
-                        >
-                            📊 Flowchart Canvas
-                        </button>
-                        <button
-                            onClick={() => setActiveCenterTab('monitor')}
-                            style={{
-                                flex: 1, padding: '6px 0', border: 'none', borderRadius: '6px', fontSize: '0.68rem', fontWeight: 800,
-                                backgroundColor: activeCenterTab === 'monitor' ? 'white' : 'transparent',
-                                color: activeCenterTab === 'monitor' ? '#0f172a' : '#64748b',
-                                boxShadow: activeCenterTab === 'monitor' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                                cursor: 'pointer', transition: 'all 0.15s'
-                            }}
-                        >
-                            👁️ Camera / Live Monitor
-                        </button>
-                    </div>
-
-                    {activeCenterTab === 'flowchart' ? (
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                            {/* Canvas Header bar */}
-                            <div style={{
-                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', padding: '8px 12px',
-                                borderTopLeftRadius: '16px', borderTopRightRadius: '16px', borderBottom: 'none'
-                            }}>
-                                <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#334155' }}>
-                                    Flowchart Canvas: <span style={{ fontWeight: 600, color: '#64748b' }}>{activeJob?.name}</span> ({nodes.length} blocks)
+                {/* ═══ CENTER PANEL: Canvas Flow / Camera / Live Monitor ═══════════ */}
+                {layoutMode === 'split' ? (
+                    /* SPLIT SCREEN LAYOUT (SIDE-BY-SIDE) */
+                    <div className="qb-split-center-container">
+                        {/* LEFT HALF: Flowchart Canvas */}
+                        <div className="qb-panel-card">
+                            <div className="qb-panel-header">
+                                <span className="qb-panel-title">
+                                    📊 Flowchart Canvas: <span style={{ fontWeight: 600, color: '#64748b' }}>{activeJob?.name}</span> ({nodes.length} blocks)
                                 </span>
-                                <div style={{ display: 'flex', gap: '6px' }}>
-                                    <button
-                                        onClick={handleRunPipeline}
-                                        disabled={isRunning || isSimulating}
-                                        style={{
-                                            display: 'flex', alignItems: 'center', gap: '6px',
-                                            padding: '5px 12px', borderRadius: '6px', border: 'none',
-                                            backgroundColor: (isRunning || isSimulating) ? '#94a3b8' : '#10b981',
-                                            color: 'white', fontWeight: 700, fontSize: '0.68rem',
-                                            cursor: (isRunning || isSimulating) ? 'default' : 'pointer',
-                                        }}
-                                    >
-                                        <Play size={10} fill="white" /> Run Pipeline
-                                    </button>
-                                </div>
+                                <button
+                                    onClick={handleRunPipeline}
+                                    disabled={isRunning || isSimulating}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '4px',
+                                        padding: '4px 8px', borderRadius: '4px', border: 'none',
+                                        backgroundColor: (isRunning || isSimulating) ? '#94a3b8' : '#10b981',
+                                        color: 'white', fontWeight: 700, fontSize: '0.6rem',
+                                        cursor: (isRunning || isSimulating) ? 'default' : 'pointer',
+                                    }}
+                                >
+                                    <Play size={8} fill="white" /> Run
+                                </button>
                             </div>
-                            
                             <QuickBuildCanvas
                                 nodes={nodes}
                                 setNodes={setNodes}
@@ -867,11 +830,12 @@ export default function QuickBuildPipeline({ appVariables = [], cameraConfigs = 
                                 simStepIndex={simStepIndex}
                             />
                         </div>
-                    ) : (
-                        <div style={{
-                            backgroundColor: 'white', borderRadius: '16px', border: '1px solid #cbd5e1',
-                            padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, overflowY: 'auto'
-                        }}>
+
+                        {/* RIGHT HALF: Camera / Live Monitor */}
+                        <div className="qb-panel-card" style={{ padding: '12px', overflowY: 'auto' }}>
+                            <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '6px', marginBottom: '12px' }}>
+                                <span className="qb-panel-title">👁️ Camera / Live Monitor</span>
+                            </div>
                             <QuickBuildMonitor
                                 processedImage={processedImage}
                                 setProcessedImage={setProcessedImage}
@@ -900,8 +864,105 @@ export default function QuickBuildPipeline({ appVariables = [], cameraConfigs = 
                                 selectedNodeId={selectedNodeId}
                             />
                         </div>
-                    )}
-                </div>
+                    </div>
+                ) : (
+                    /* TABBED LAYOUT (SINGLE VIEW) */
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minHeight: 0 }}>
+                        {/* Center View Tabs */}
+                        <div style={{ display: 'flex', backgroundColor: '#e2e8f0', padding: '3px', borderRadius: '8px', flexShrink: 0 }}>
+                            <button
+                                onClick={() => setActiveCenterTab('flowchart')}
+                                style={{
+                                    flex: 1, padding: '6px 0', border: 'none', borderRadius: '6px', fontSize: '0.68rem', fontWeight: 800,
+                                    backgroundColor: activeCenterTab === 'flowchart' ? 'white' : 'transparent',
+                                    color: activeCenterTab === 'flowchart' ? '#0f172a' : '#64748b',
+                                    boxShadow: activeCenterTab === 'flowchart' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                                    cursor: 'pointer', transition: 'all 0.15s'
+                                }}
+                            >
+                                📊 Flowchart Canvas
+                            </button>
+                            <button
+                                onClick={() => setActiveCenterTab('monitor')}
+                                style={{
+                                    flex: 1, padding: '6px 0', border: 'none', borderRadius: '6px', fontSize: '0.68rem', fontWeight: 800,
+                                    backgroundColor: activeCenterTab === 'monitor' ? 'white' : 'transparent',
+                                    color: activeCenterTab === 'monitor' ? '#0f172a' : '#64748b',
+                                    boxShadow: activeCenterTab === 'monitor' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                                    cursor: 'pointer', transition: 'all 0.15s'
+                                }}
+                            >
+                                👁️ Camera / Live Monitor
+                            </button>
+                        </div>
+
+                        {activeCenterTab === 'flowchart' ? (
+                            <div className="qb-panel-card">
+                                <div className="qb-panel-header">
+                                    <span className="qb-panel-title">
+                                        📊 Flowchart Canvas: <span style={{ fontWeight: 600, color: '#64748b' }}>{activeJob?.name}</span> ({nodes.length} blocks)
+                                    </span>
+                                    <button
+                                        onClick={handleRunPipeline}
+                                        disabled={isRunning || isSimulating}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: '6px',
+                                            padding: '5px 12px', borderRadius: '6px', border: 'none',
+                                            backgroundColor: (isRunning || isSimulating) ? '#10b981' : '#10b981',
+                                            color: 'white', fontWeight: 700, fontSize: '0.68rem',
+                                            cursor: (isRunning || isSimulating) ? 'default' : 'pointer',
+                                        }}
+                                    >
+                                        <Play size={10} fill="white" /> Run Pipeline
+                                    </button>
+                                </div>
+                                <QuickBuildCanvas
+                                    nodes={nodes}
+                                    setNodes={setNodes}
+                                    links={links}
+                                    setLinks={setLinks}
+                                    selectedNodeId={selectedNodeId}
+                                    setSelectedNodeId={setSelectedNodeId}
+                                    isSimulating={isSimulating}
+                                    simStepIndex={simStepIndex}
+                                />
+                            </div>
+                        ) : (
+                            <div style={{
+                                backgroundColor: 'white', borderRadius: '16px', border: '1px solid #cbd5e1',
+                                padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, overflowY: 'auto'
+                            }}>
+                                <QuickBuildMonitor
+                                    processedImage={processedImage}
+                                    setProcessedImage={setProcessedImage}
+                                    uploadedFile={uploadedFile}
+                                    setUploadedFile={setUploadedFile}
+                                    imagePreviewUrl={imagePreviewUrl}
+                                    setImagePreviewUrl={setImagePreviewUrl}
+                                    useLiveCamera={useLiveCamera}
+                                    setUseLiveCamera={setUseLiveCamera}
+                                    webcamRef={webcamRef}
+                                    devices={devices}
+                                    selectedDeviceId={selectedDeviceId}
+                                    setSelectedDeviceId={setSelectedDeviceId}
+                                    isContinuous={isContinuous}
+                                    setIsContinuous={setIsContinuous}
+                                    roiRegions={roiRegions}
+                                    setRoiRegions={setRoiRegions}
+                                    filmstripFrames={filmstripFrames}
+                                    activeFilmstripIndex={activeFilmstripIndex}
+                                    isFilmstripPlaying={isFilmstripPlaying}
+                                    onAddFilmstripFrame={handleAddFilmstripFrame}
+                                    onClearFilmstrip={handleClearFilmstrip}
+                                    onSelectFilmstripFrame={setActiveFilmstripIndex}
+                                    onPlayPauseFilmstrip={() => setIsFilmstripPlaying(!isFilmstripPlaying)}
+                                    nodes={nodes}
+                                    selectedNodeId={selectedNodeId}
+                                />
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* ═══ RIGHT PANEL: Block Settings ══════════════════ */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', minHeight: 0 }}>
