@@ -52,7 +52,11 @@ import {
     Scissors,
     RotateCw,
     FlipHorizontal,
-    Minimize2
+    Minimize2,
+    Search,
+    Layers,
+    Palette,
+    Maximize
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getAllDrawings, saveDrawing, deleteDrawing, safeSaveDrawingsToLocalStorage } from '../utils/supabaseUtilityDB';
@@ -333,6 +337,9 @@ export default function DrawingManager() {
     const fullscreenRef = useRef(null);
 
     const [showCqModal, setShowCqModal] = useState(false);
+    const [showColorPopup, setShowColorPopup] = useState(false);
+    const [showStylePopup, setShowStylePopup] = useState(false);
+    const [showLayerPopup, setShowLayerPopup] = useState(false);
     const [cqType, setCqType] = useState('rectangular');
     const [cqWidth, setCqWidth] = useState(120);
     const [cqHeight, setCqHeight] = useState(100);
@@ -5169,11 +5176,11 @@ export default function DrawingManager() {
             {/* Header */}
             <div style={{
                 padding: '12px 20px',
-                background: 'linear-gradient(135deg, #2e1065, #581c87)',
-                color: 'white',
+                background: '#ffffff',
+                color: '#0f172a',
                 borderTopLeftRadius: '16px',
                 borderTopRightRadius: '16px',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                borderBottom: '1px solid #e2e8f0',
                 boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -5183,12 +5190,12 @@ export default function DrawingManager() {
             }}>
                 <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ backgroundColor: 'rgba(255, 255, 255, 0.15)', padding: '6px', borderRadius: '6px', display: 'flex', alignItems: 'center' }}>
-                            <Ruler size={16} color="white" />
+                        <div style={{ backgroundColor: '#eff6ff', padding: '6px', borderRadius: '6px', display: 'flex', alignItems: 'center' }}>
+                            <Ruler size={16} color="#2563eb" />
                         </div>
-                        <h2 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'white', letterSpacing: '0.5px' }}>Inspector Designer</h2>
-                        <span style={{ fontSize: '0.55rem', fontWeight: 800, backgroundColor: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.4)', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                            GD&T Enterprise
+                        <h2 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', letterSpacing: '0.5px' }}>Inspector Designer</h2>
+                        <span style={{ fontSize: '0.55rem', fontWeight: 800, backgroundColor: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            CDAT ENTERPRISE
                         </span>
                     </div>
                 </div>
@@ -5215,11 +5222,11 @@ export default function DrawingManager() {
                             style={{
                                 padding: '4px 8px',
                                 borderRadius: '6px',
-                                border: '1px solid rgba(255, 255, 255, 0.2)',
-                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                border: '1px solid #cbd5e1',
+                                backgroundColor: '#ffffff',
                                 fontSize: '0.7rem',
                                 fontWeight: 700,
-                                color: 'white',
+                                color: '#475569',
                                 outline: 'none',
                                 cursor: 'pointer',
                                 minWidth: '150px',
@@ -5242,18 +5249,18 @@ export default function DrawingManager() {
                     {/* AutoCAD Layer Selector */}
                     {selectedDwg?.layers && selectedDwg.layers.length > 0 && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>Layer:</span>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#64748b' }}>Layer:</span>
                             <select
                                 value={activeLayer}
                                 onChange={(e) => setActiveLayer(e.target.value)}
                                 style={{
                                     padding: '4px 8px',
                                     borderRadius: '6px',
-                                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                    border: '1px solid #cbd5e1',
+                                    backgroundColor: '#ffffff',
                                     fontSize: '0.7rem',
                                     fontWeight: 700,
-                                    color: 'white',
+                                    color: '#475569',
                                     outline: 'none',
                                     cursor: 'pointer',
                                     minWidth: '120px'
@@ -5273,9 +5280,9 @@ export default function DrawingManager() {
                             style={{
                                 padding: '6px 12px',
                                 borderRadius: '6px',
-                                border: '1px solid rgba(255, 255, 255, 0.15)',
-                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                                color: 'white',
+                                border: '1px solid #cbd5e1',
+                                backgroundColor: '#ffffff',
+                                color: '#475569',
                                 fontSize: '0.7rem',
                                 fontWeight: 700,
                                 cursor: 'pointer',
@@ -5285,8 +5292,8 @@ export default function DrawingManager() {
                                 gap: '4px',
                                 outline: 'none'
                             }}
-                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; }}
+                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
                         >
                             <Plus size={12} strokeWidth={2.5} /> NEW
                         </button>
@@ -5337,8 +5344,8 @@ export default function DrawingManager() {
                                     transition: 'all 0.2s',
                                     outline: 'none'
                                 }}
-                                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'; }}
-                                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; }}
+                                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
                             >
                                 Unggah
                             </button>
@@ -5353,9 +5360,9 @@ export default function DrawingManager() {
                         style={{
                             padding: '6px',
                             borderRadius: '6px',
-                            border: '1px solid rgba(255, 255, 255, 0.15)',
-                            backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                            color: 'white',
+                            border: '1px solid #cbd5e1',
+                            backgroundColor: '#ffffff',
+                            color: '#475569',
                             cursor: 'pointer',
                             transition: 'all 0.25s ease',
                             display: 'flex',
@@ -5363,8 +5370,8 @@ export default function DrawingManager() {
                             justifyContent: 'center',
                             outline: 'none'
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
                     >
                         {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                     </button>
@@ -5377,9 +5384,9 @@ export default function DrawingManager() {
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '6px',
-                                border: '1px solid rgba(255, 255, 255, 0.15)',
-                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                                color: 'white',
+                                border: '1px solid #cbd5e1',
+                                backgroundColor: '#ffffff',
+                                color: '#475569',
                                 padding: '6px 12px',
                                 borderRadius: '6px',
                                 fontSize: '0.7rem',
@@ -5388,8 +5395,8 @@ export default function DrawingManager() {
                                 transition: 'all 0.2s',
                                 outline: 'none'
                             }}
-                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; }}
+                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
                         >
                             Manajemen Drawing <ChevronDown size={12} />
                         </button>
@@ -5461,7 +5468,7 @@ export default function DrawingManager() {
                 {/* Top Row: BOC Table (Left) + CAD Canvas (Middle) + Sidebar (Right) */}
                 <div style={{
                     display: 'grid',
-                    gridTemplateColumns: `${showBocTable ? '380px' : ''} 1fr`.trim().replace(/\s+/g, ' '),
+                    gridTemplateColumns: `${showBocTable ? '380px ' : ''}1fr${showQCInspector ? ' 350px' : ''}`,
                     gap: '16px',
                     flex: 1,
                     minHeight: 0,
@@ -5481,8 +5488,8 @@ export default function DrawingManager() {
                                         background: 'none',
                                         fontSize: '0.78rem',
                                         fontWeight: 800,
-                                        color: leftPanelTab === 'qc' ? '#2563eb' : '#64748b',
-                                        borderBottom: leftPanelTab === 'qc' ? '3px solid #2563eb' : '3px solid transparent',
+                                        color: leftPanelTab === 'qc' ? '#10b981' : '#64748b',
+                                        borderBottom: leftPanelTab === 'qc' ? '3px solid #10b981' : '3px solid transparent',
                                         paddingBottom: '4px',
                                         cursor: 'pointer',
                                         transition: 'all 0.2s',
@@ -5501,8 +5508,8 @@ export default function DrawingManager() {
                                         background: 'none',
                                         fontSize: '0.78rem',
                                         fontWeight: 800,
-                                        color: leftPanelTab === 'takeoff' ? '#7c3aed' : '#64748b',
-                                        borderBottom: leftPanelTab === 'takeoff' ? '3px solid #7c3aed' : '3px solid transparent',
+                                        color: leftPanelTab === 'takeoff' ? '#10b981' : '#64748b',
+                                        borderBottom: leftPanelTab === 'takeoff' ? '3px solid #10b981' : '3px solid transparent',
                                         paddingBottom: '4px',
                                         cursor: 'pointer',
                                         transition: 'all 0.2s',
@@ -5566,7 +5573,7 @@ export default function DrawingManager() {
                                                 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
                                             }
                                         `}</style>
-                                        <div style={{ overflow: 'auto', flex: 1, border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#f8fafc', marginTop: '10px' }}>
+                                        <div style={{ overflow: 'auto', flex: 1, border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#ffffff', marginTop: '10px' }}>
                                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem', textAlign: 'left' }}>
                                                 <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f1f5f9', borderBottom: '2px solid #cbd5e1', zIndex: 5, color: '#475569', fontWeight: 'bold' }}>
                                                     <tr>
@@ -5834,7 +5841,7 @@ export default function DrawingManager() {
                                         </button>
                                     </div>
 
-                                    <div style={{ overflow: 'auto', flex: 1, border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#f8fafc' }}>
+                                    <div style={{ overflow: 'auto', flex: 1, border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#ffffff' }}>
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.65rem', textAlign: 'left' }}>
                                             <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f1f5f9', borderBottom: '2px solid #cbd5e1', zIndex: 5, color: '#475569', fontWeight: 'bold' }}>
                                                 <tr>
@@ -5936,12 +5943,12 @@ export default function DrawingManager() {
                         </div>
                     )}
 
-                    {/* CAD Canvas Panel */}
-                    <div style={{ display: 'flex', flexDirection: 'column', backgroundColor: '#0b1d33', borderRadius: '16px', border: '1px solid #1e3a8a', overflow: 'hidden', position: 'relative', height: '100%', minHeight: 0 }}>
+                    {/* CAD Canvas Panel - Transparent Layout Container */}
+                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, height: '100%', minHeight: 0, gap: '10px' }}>
 
                         {/* AutoCAD Window Title Bar */}
                         <div style={{
-                            display: 'flex',
+                            display: 'none',
                             alignItems: 'center',
                             justifyContent: 'space-between',
                             padding: '4px 10px',
@@ -5980,7 +5987,7 @@ export default function DrawingManager() {
 
                         {/* AutoCAD properties & options bar */}
                         <div style={{
-                            display: 'flex',
+                            display: 'none',
                             alignItems: 'center',
                             justifyContent: 'space-between',
                             padding: '6px 12px',
@@ -6137,6 +6144,9 @@ export default function DrawingManager() {
                             </div>
                         </div>
 
+                        {/* AutoCAD Canvas Card Content */}
+                        <div style={{ display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #cbd5e1', overflow: 'hidden', position: 'relative', flex: 1, minHeight: 0 }}>
+
                         {/* AutoCAD File tab strip */}
                         <div style={{
                             display: 'flex',
@@ -6227,77 +6237,99 @@ export default function DrawingManager() {
                             style={{ display: 'none' }}
                         />
 
-                        {/* Integrated CAD Toolbar (App Builder Style UI, positioned at the top of the canvas layout) */}
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundColor: '#1e293b',
-                            borderBottom: '1px solid #0f172a',
-                            padding: '6px 12px',
-                            gap: '6px',
-                            zIndex: 15,
-                            userSelect: 'none',
-                            fontFamily: "'Inter', sans-serif",
-                            flexShrink: 0
-                        }}>
-                            {/* DRAW SECTION */}
-                            <button title="Select Tool" onClick={() => setCadTool('select')} style={getWidgetBtnStyle('select')}>
-                                <MousePointer size={13} />
-                            </button>
-                            <button title="Pan View Tool (pan)" onClick={() => setCadTool('pan')} style={getWidgetBtnStyle('pan')}>
-                                <Hand size={13} />
-                            </button>
-                            <button title="Line Tool (line)" onClick={() => setCadTool('line')} style={getWidgetBtnStyle('line')}>
-                                <Slash size={13} style={{ transform: 'rotate(-45deg)' }} />
-                            </button>
-                            <button title="Circle Tool (circle)" onClick={() => setCadTool('circle')} style={getWidgetBtnStyle('circle')}>
-                                <Circle size={13} />
-                            </button>
-                            <button title="Rectangle Tool (rect)" onClick={() => setCadTool('rect')} style={getWidgetBtnStyle('rect')}>
-                                <Square size={13} />
-                            </button>
-                            <button title="Arc Tool (arc)" onClick={() => setArcDrawState('idle') || setArcDraftCoords(null) || setCadTool('arc')} style={getWidgetBtnStyle('arc')}>
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M4 20 A 16 16 0 0 1 20 4" /></svg>
-                            </button>
-                            <button title="Polyline Tool (polyline)" onClick={() => setPolylineDraftPoints([]) || setCadTool('polyline')} style={getWidgetBtnStyle('polyline')}>
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="4 20 10 8 16 16 20 4" /></svg>
-                            </button>
-                            <button title="Text Tool (text)" onClick={() => setCadTool('text')} style={getWidgetBtnStyle('text')}>
-                                <Type size={13} />
-                            </button>
-                            <button title="Insert Image (image)" onClick={() => { setCadTool('image'); if (imageInsertRef.current) imageInsertRef.current.click(); }} style={getWidgetBtnStyle('image')}>
-                                <ImagePlus size={13} />
-                            </button>
-
-                            <div style={{ width: '1px', height: '16px', backgroundColor: '#475569', margin: '0 4px' }} />
-
-                            {/* MODIFY SECTION */}
-                            <button title="Move Tool (move)" onClick={() => setCadTool('move')} style={getWidgetBtnStyle('move')}>
-                                <Move size={13} />
-                            </button>
-                            <button title="Rotate Tool (rotate)" onClick={() => setCadTool('rotate')} style={getWidgetBtnStyle('rotate')}>
-                                <RotateCw size={13} />
-                            </button>
-                            <button title="Mirror Tool (mirror)" onClick={() => setCadTool('mirror')} style={getWidgetBtnStyle('mirror')}>
-                                <FlipHorizontal size={13} />
-                            </button>
-                            <button title="Trim Tool (trim)" onClick={() => setCadTool('trim')} style={getWidgetBtnStyle('trim')}>
-                                <Scissors size={13} />
-                            </button>
-                            <button title="Erase Tool (erase)" onClick={() => setCadTool('erase')} style={getWidgetBtnStyle('erase')}>
-                                <Eraser size={13} />
-                            </button>
-
-                            <div style={{ width: '1px', height: '16px', backgroundColor: '#475569', margin: '0 4px' }} />
-
-                            {/* ANNOTATE SECTION */}
-                            <button title="Interactive Dimension Tool (dimension)" onClick={() => setDimDrawState('idle') || setDimDraftCoords(null) || setDrawingCategory('dimension') || setCadTool('dimension')} style={getWidgetBtnStyle('dimension')}>
-                                <Ruler size={13} />
-                            </button>
-                            <button title="Scale Calibration Tool (scale)" onClick={() => setScaleDrawState('idle') || setScaleDraftCoords(null) || setCadTool('scale')} style={getWidgetBtnStyle('scale')}>
-                                <Scale size={13} />
-                            </button>
+                        {/* Horizontal Toolbar Widget Cards */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', padding: '0 4px', marginBottom: '4px', gap: '10px', zIndex: 15, flexShrink: 0 }}>
+                            {[
+                                { id: 'select', icon: 'MousePointer', label: 'Pilih' },
+                                { id: 'pan', icon: 'Hand', label: 'Pan' },
+                                { id: 'zoom_reset', icon: 'Search', label: 'Zoom', action: () => { setZoom(1.0); setPanOffset({ x: 0, y: 0 }); } },
+                                { id: '_sep1' },
+                                { id: 'line', icon: 'Slash', label: 'Garis', rotate: true },
+                                { id: 'rect', icon: 'Square', label: 'Bentuk', match: ['rect','circle','arc'] },
+                                { id: 'text', icon: 'Type', label: 'Teks' },
+                                { id: 'dimension', icon: 'Ruler', label: 'Dimensi' },
+                                { id: 'callout', icon: 'FileText', label: 'Catatan' },
+                                { id: 'symbol', icon: 'Settings', label: 'Simbol' },
+                                { id: 'erase', icon: 'Trash2', label: 'Hapus', danger: true },
+                                { id: '_sep2' },
+                                { id: 'color', icon: 'color_swatch', label: 'Warna' },
+                                { id: 'style', icon: 'Palette', label: 'Gaya' },
+                                { id: 'layer', icon: 'Layers', label: 'Layer' },
+                            ].map(item => {
+                                if (item.id.startsWith('_sep')) return <div key={item.id} style={{ width: '1px', height: '24px', backgroundColor: '#e2e8f0', margin: '0 4px' }} />;
+                                
+                                const iconMap = { MousePointer, Hand, Search, Slash, Square, Type, Ruler, FileText, Settings, Trash2, Palette, Layers };
+                                const IconComp = item.icon !== 'color_swatch' ? iconMap[item.icon] : null;
+                                
+                                const isActive = item.id === 'color' ? showColorPopup :
+                                    item.id === 'style' ? showStylePopup :
+                                    item.id === 'layer' ? showLayerPopup :
+                                    item.match ? item.match.includes(cadTool) : cadTool === item.id;
+                                
+                                const isDanger = item.danger && cadTool === item.id;
+                                
+                                const handleClick = () => {
+                                    if (item.action) { item.action(); return; }
+                                    if (item.id === 'color') { setShowColorPopup(!showColorPopup); setShowStylePopup(false); setShowLayerPopup(false); return; }
+                                    if (item.id === 'style') { setShowStylePopup(!showStylePopup); setShowColorPopup(false); setShowLayerPopup(false); return; }
+                                    if (item.id === 'layer') { setShowLayerPopup(!showLayerPopup); setShowColorPopup(false); setShowStylePopup(false); return; }
+                                    setCadTool(item.id);
+                                };
+                                
+                                return (
+                                    <div key={item.id} style={{ position: 'relative' }}>
+                                        <button title={item.label} onClick={handleClick}
+                                            style={{
+                                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                                padding: '8px 12px', borderRadius: '12px', cursor: 'pointer', outline: 'none',
+                                                minWidth: '72px', height: '64px', gap: '4px', transition: 'all 0.2s',
+                                                border: isDanger ? '1px solid #ef4444' : isActive ? '1px solid #3b82f6' : '1px solid #e2e8f0',
+                                                color: isDanger ? '#ef4444' : isActive ? '#2563eb' : '#64748b',
+                                                backgroundColor: isDanger ? '#fee2e2' : isActive ? '#eff6ff' : '#ffffff',
+                                                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
+                                            }}>
+                                            {item.icon === 'color_swatch' ? (
+                                                <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: cadColor, border: '1px solid #cbd5e1' }} />
+                                            ) : (
+                                                <IconComp size={16} style={item.rotate ? { transform: 'rotate(-45deg)' } : undefined} />
+                                            )}
+                                            <span style={{ fontSize: '0.65rem', fontWeight: 800 }}>{item.label}</span>
+                                        </button>
+                                        
+                                        {item.id === 'color' && showColorPopup && (
+                                            <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '8px', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #cbd5e1', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', padding: '8px', display: 'flex', gap: '6px', zIndex: 100, width: '160px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                                                {['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#000000'].map(c => (
+                                                    <button key={c} onClick={() => { setCadColor(c); setShowColorPopup(false); }}
+                                                        style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: c, border: cadColor === c ? '2px solid #2563eb' : '1px solid #cbd5e1', cursor: 'pointer', padding: 0 }} />
+                                                ))}
+                                            </div>
+                                        )}
+                                        
+                                        {item.id === 'style' && showStylePopup && (
+                                            <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '8px', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #cbd5e1', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', padding: '12px', display: 'flex', flexDirection: 'column', zIndex: 100, width: '150px', gap: '6px' }}>
+                                                <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#475569' }}>Tebal Garis: {cadWidth}px</span>
+                                                <input type="range" min="1" max="8" value={cadWidth} onChange={(e) => setCadWidth(parseInt(e.target.value))} style={{ width: '100%', cursor: 'pointer', accentColor: '#2563eb' }} />
+                                            </div>
+                                        )}
+                                        
+                                        {item.id === 'layer' && showLayerPopup && (
+                                            <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #cbd5e1', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', padding: '8px 0', display: 'flex', flexDirection: 'column', zIndex: 100, width: '160px', maxHeight: '200px', overflowY: 'auto' }}>
+                                                <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#475569', padding: '4px 12px', borderBottom: '1px solid #e2e8f0' }}>Pilih Layer</span>
+                                                <button onClick={() => { setActiveLayer('All Layers'); setShowLayerPopup(false); }}
+                                                    style={{ background: 'none', border: 'none', padding: '6px 12px', textAlign: 'left', fontSize: '0.65rem', cursor: 'pointer', outline: 'none', fontWeight: activeLayer === 'All Layers' ? 'bold' : 'normal', color: activeLayer === 'All Layers' ? '#2563eb' : '#334155', backgroundColor: activeLayer === 'All Layers' ? '#f1f5f9' : 'transparent' }}>
+                                                    Semua Layer
+                                                </button>
+                                                {selectedDwg?.layers?.map(layer => (
+                                                    <button key={layer} onClick={() => { setActiveLayer(layer); setShowLayerPopup(false); }}
+                                                        style={{ background: 'none', border: 'none', padding: '6px 12px', textAlign: 'left', fontSize: '0.65rem', cursor: 'pointer', outline: 'none', fontWeight: activeLayer === layer ? 'bold' : 'normal', color: activeLayer === layer ? '#2563eb' : '#334155', backgroundColor: activeLayer === layer ? '#f1f5f9' : 'transparent' }}>
+                                                        {layer}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
 
                         {/* AutoCAD Workspace Area (contains Vertical Toolbar + Canvas) */}
@@ -6308,6 +6340,42 @@ export default function DrawingManager() {
 
                                 {/* Canvas SVG */}
                                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0px', position: 'relative', width: '100%', minHeight: 0 }}>
+                                    
+                                    {/* Floating Zoom Control Pill */}
+                                    <div style={{
+                                        position: 'absolute', bottom: '24px', right: '88px',
+                                        display: 'flex', alignItems: 'center', backgroundColor: '#ffffff',
+                                        borderRadius: '30px', border: '1px solid #cbd5e1',
+                                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+                                        padding: '4px 12px', gap: '10px', zIndex: 20,
+                                        userSelect: 'none', fontFamily: "'Inter', sans-serif"
+                                    }}>
+                                        <button title="Zoom Out" onClick={() => setZoom(prev => Math.max(0.2, prev - 0.1))}
+                                            style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px 4px', outline: 'none', fontWeight: 'bold' }}>-</button>
+                                        <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#334155', minWidth: '38px', textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
+                                        <button title="Zoom In" onClick={() => setZoom(prev => Math.min(4, prev + 0.1))}
+                                            style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px 4px', outline: 'none', fontWeight: 'bold' }}>+</button>
+                                        <div style={{ width: '1px', height: '12px', backgroundColor: '#cbd5e1' }} />
+                                        <button title="Fit to Screen" onClick={() => { setZoom(1.0); setPanOffset({ x: 0, y: 0 }); }}
+                                            style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px', outline: 'none' }}>
+                                            <Maximize size={12} />
+                                        </button>
+                                    </div>
+
+                                    {/* Floating Action Button (FAB) */}
+                                    <button title="Toggle Parameters Panel" onClick={() => setShowQCInspector(prev => !prev)}
+                                        style={{
+                                            position: 'absolute', bottom: '24px', right: '24px', width: '44px', height: '44px',
+                                            borderRadius: '50%', backgroundColor: '#2563eb', color: '#ffffff', border: 'none',
+                                            boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)', display: 'flex', alignItems: 'center',
+                                            justifyContent: 'center', cursor: 'pointer', zIndex: 20,
+                                            transition: 'transform 0.2s, background-color 0.2s', outline: 'none'
+                                        }}
+                                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#1d4ed8'; e.currentTarget.style.transform = 'scale(1.05)'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#2563eb'; e.currentTarget.style.transform = 'scale(1)'; }}
+                                    >
+                                        <Sliders size={20} color="white" />
+                                    </button>
                                     
                                     {selectedDwg && ['STL', 'OBJ', 'GLTF', 'GLB'].includes(selectedDwg.fileType) ? (
                                         <CADViewer3DEditor
@@ -6346,14 +6414,19 @@ export default function DrawingManager() {
                                         >
                                             <defs>
                                                 <pattern id="canvas_grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                                                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1e3a8a" strokeWidth="0.5" strokeOpacity="0.25" />
+                                                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#cbd5e1" strokeWidth="0.5" strokeOpacity="0.15" />
                                                 </pattern>
+                                                <style>{`
+                                                    svg text { fill: #0f172a !important; }
+                                                    svg text.blueprint-bg-text { fill: #94a3b8 !important; }
+                                                `}</style>
                                             </defs>
                                             {activeSpace === 'model' ? (
                                                 <>
+                                                    <rect width="100%" height="100%" fill="#ffffff" />
                                                     <rect width="100%" height="100%" fill="url(#canvas_grid)" />
-                                                    <rect x="5" y="5" width={canvasSize.width - 10} height={canvasSize.height - 10} fill="none" stroke="#1e40af" strokeWidth="1" />
-                                                    <rect x="8" y="8" width={canvasSize.width - 16} height={canvasSize.height - 16} fill="none" stroke="#1e3a8a" strokeWidth="0.5" strokeOpacity="0.5" />
+                                                    <rect x="5" y="5" width={canvasSize.width - 10} height={canvasSize.height - 10} fill="none" stroke="#cbd5e1" strokeWidth="1" />
+                                                    <rect x="8" y="8" width={canvasSize.width - 16} height={canvasSize.height - 16} fill="none" stroke="#cbd5e1" strokeWidth="0.5" strokeOpacity="0.5" />
                                                 </>
                                             ) : (() => {
                                                 const sheetWidth = canvasSize.width * 0.9;
@@ -6368,8 +6441,8 @@ export default function DrawingManager() {
 
                                                 return (
                                                     <>
-                                                        {/* Dark background for layout workspace */}
-                                                        <rect width="100%" height="100%" fill="#1e293b" />
+                                                        {/* Light background for layout workspace */}
+                                                        <rect width="100%" height="100%" fill="#f1f5f9" />
 
                                                         {/* Paper sheet shadow */}
                                                         <rect x={sheetX + 4} y={sheetY + 4} width={sheetWidth} height={sheetHeight} fill="#090d16" opacity="0.4" rx="2" />
@@ -8517,7 +8590,7 @@ export default function DrawingManager() {
 
                                 {/* AutoCAD Status Bar */}
                                 <div style={{
-                                    display: 'flex',
+                                    display: 'none',
                                     alignItems: 'center',
                                     justifyContent: 'space-between',
                                     backgroundColor: '#0f172a',
@@ -8682,25 +8755,23 @@ export default function DrawingManager() {
                         </div>
                     </div>
 
+                        </div> {/* Closes AutoCAD Canvas Card Content wrapper */}
+
                     {/* Right Sidebar: QC Inspector (Tabs: Parameter Mapping / QC Simulator) */}
                     {showQCInspector && (
                         <div style={{
-                            position: 'absolute',
-                            top: '12px',
-                            right: '12px',
-                            bottom: '12px',
                             width: '350px',
                             display: 'flex',
                             flexDirection: 'column',
-                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                            backdropFilter: 'blur(8px)',
-                            borderRadius: '12px',
+                            backgroundColor: '#ffffff',
+                            borderRadius: '16px',
                             border: '1px solid #cbd5e1',
-                            boxShadow: '0 10px 25px -5px rgba(0,0,0,0.3), 0 8px 10px -6px rgba(0,0,0,0.3)',
                             overflow: 'hidden',
                             fontFamily: "'Inter', sans-serif",
                             color: '#1e293b',
-                            zIndex: 20
+                            flexShrink: 0,
+                            height: '100%',
+                            zIndex: 10
                         }}>
                             {/* Unified Panel Header */}
                             <div style={{
