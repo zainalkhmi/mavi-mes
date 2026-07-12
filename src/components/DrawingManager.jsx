@@ -6248,11 +6248,19 @@ export default function DrawingManager() {
                                 { id: 'line', icon: 'Slash', label: 'Garis', rotate: true },
                                 { id: 'rect', icon: 'Square', label: 'Bentuk', match: ['rect','circle','arc'] },
                                 { id: 'text', icon: 'Type', label: 'Teks' },
-                                { id: 'dimension', icon: 'Ruler', label: 'Dimensi' },
-                                { id: 'callout', icon: 'FileText', label: 'Catatan' },
+                                { id: '_sep2' },
+                                ...PARAM_CATEGORIES.map(cat => ({
+                                    id: cat.key,
+                                    isCategory: true,
+                                    label: cat.labelId,
+                                    emoji: cat.icon,
+                                    color: cat.color,
+                                    action: () => handleAddDimension(cat.key)
+                                })),
+                                { id: '_sep3' },
                                 { id: 'symbol', icon: 'Settings', label: 'Simbol' },
                                 { id: 'erase', icon: 'Trash2', label: 'Hapus', danger: true },
-                                { id: '_sep2' },
+                                { id: '_sep4' },
                                 { id: 'color', icon: 'color_swatch', label: 'Warna' },
                                 { id: 'style', icon: 'Palette', label: 'Gaya' },
                                 { id: 'layer', icon: 'Layers', label: 'Layer' },
@@ -6260,9 +6268,10 @@ export default function DrawingManager() {
                                 if (item.id.startsWith('_sep')) return <div key={item.id} style={{ width: '1px', height: '20px', backgroundColor: '#cbd5e1', margin: '0 4px' }} />;
                                 
                                 const iconMap = { MousePointer, Hand, Search, Slash, Square, Type, Ruler, FileText, Settings, Trash2, Palette, Layers };
-                                const IconComp = item.icon !== 'color_swatch' ? iconMap[item.icon] : null;
+                                const IconComp = (item.icon && item.icon !== 'color_swatch') ? iconMap[item.icon] : null;
                                 
-                                const isActive = item.id === 'color' ? showColorPopup :
+                                const isActive = item.isCategory ? (cadTool === 'dimension' && drawingCategory === item.id) :
+                                    item.id === 'color' ? showColorPopup :
                                     item.id === 'style' ? showStylePopup :
                                     item.id === 'layer' ? showLayerPopup :
                                     item.match ? item.match.includes(cadTool) : cadTool === item.id;
@@ -6284,9 +6293,9 @@ export default function DrawingManager() {
                                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                 padding: '8px', borderRadius: '8px', cursor: 'pointer', outline: 'none',
                                                 minWidth: '36px', height: '36px', transition: 'all 0.2s',
-                                                border: isActive ? '1px solid #bfdbfe' : '1px solid transparent',
-                                                color: isDanger ? '#ef4444' : isActive ? '#2563eb' : '#64748b',
-                                                backgroundColor: isDanger ? '#fee2e2' : isActive ? '#eff6ff' : 'transparent',
+                                                border: isActive && item.isCategory ? `1px solid ${item.color}80` : isActive ? '1px solid #bfdbfe' : '1px solid transparent',
+                                                color: isDanger ? '#ef4444' : isActive && item.isCategory ? item.color : isActive ? '#2563eb' : '#64748b',
+                                                backgroundColor: isDanger ? '#fee2e2' : isActive && item.isCategory ? `${item.color}15` : isActive ? '#eff6ff' : 'transparent',
                                             }}
                                             onMouseEnter={(e) => {
                                                 if (!isActive && !isDanger) {
@@ -6303,6 +6312,8 @@ export default function DrawingManager() {
                                         >
                                             {item.icon === 'color_swatch' ? (
                                                 <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: cadColor, border: '1px solid #cbd5e1' }} />
+                                            ) : item.emoji ? (
+                                                <span style={{ fontSize: '1.05rem', lineHeight: 1, fontWeight: item.emoji === 'R' || item.emoji === 'Ra' ? '800' : 'normal' }}>{item.emoji}</span>
                                             ) : (
                                                 <IconComp size={18} style={item.rotate ? { transform: 'rotate(-45deg)' } : undefined} />
                                             )}
