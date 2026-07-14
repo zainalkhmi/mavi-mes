@@ -37,8 +37,8 @@ export default function QuickBuildCanvas({
             const rect = canvasRef.current.getBoundingClientRect();
             let newX = e.clientX - dragOffset.current.x;
             let newY = e.clientY - dragOffset.current.y;
-            newX = Math.max(10, Math.min(rect.width - 200, newX));
-            newY = Math.max(10, Math.min(rect.height - 120, newY));
+            newX = Math.max(10, Math.min(rect.width - 80, newX));
+            newY = Math.max(10, Math.min(rect.height - 100, newY));
             setNodes(prev => prev.map(n => n.id === draggingNodeId ? { ...n, x: newX, y: newY } : n));
         }
     };
@@ -95,8 +95,8 @@ export default function QuickBuildCanvas({
     };
 
     // ── Node Dimensions ────────────────────────────────────────
-    const NODE_W = 180;
-    const NODE_H = 90;
+    const NODE_W = 60;
+    const NODE_H = 60;
 
     return (
         <div
@@ -140,9 +140,9 @@ export default function QuickBuildCanvas({
                     if (!from || !to) return null;
 
                     const x1 = from.x + NODE_W;
-                    const y1 = from.y + 45;
+                    const y1 = from.y + NODE_H / 2;
                     const x2 = to.x;
-                    const y2 = to.y + 45;
+                    const y2 = to.y + NODE_H / 2;
                     const dx = Math.abs(x2 - x1) * 0.5;
                     const pathData = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
 
@@ -191,69 +191,95 @@ export default function QuickBuildCanvas({
                     <div
                         key={node.id}
                         onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
+                        title={`${node.name} (${typeInfo.label})${node.value ? ': ' + node.value : ''}`}
                         style={{
                             position: 'absolute',
                             left: node.x,
                             top: node.y,
                             width: `${NODE_W}px`,
+                            height: `${NODE_H}px`,
                             backgroundColor: 'white',
-                            borderRadius: '12px',
+                            borderRadius: '16px',
                             boxShadow: isNodeSelected
-                                ? '0 10px 25px -5px rgba(0,0,0,0.15)'
-                                : '0 4px 6px -1px rgba(0,0,0,0.05)',
-                            border: nodeBorder,
+                                ? `0 0 0 3px ${typeInfo.color}25, 0 8px 20px -5px ${typeInfo.color}30`
+                                : node.status === 'success'
+                                ? '0 0 12px rgba(16, 185, 129, 0.2), 0 4px 6px -1px rgba(0,0,0,0.05)'
+                                : node.status === 'failed'
+                                ? '0 0 12px rgba(239, 68, 68, 0.2), 0 4px 6px -1px rgba(0,0,0,0.05)'
+                                : '0 4px 8px -1px rgba(0,0,0,0.05)',
+                            border: isNodeSelected
+                                ? `2.5px solid ${typeInfo.color}`
+                                : node.status === 'success'
+                                ? '2.5px solid #10b981'
+                                : node.status === 'failed'
+                                ? '2.5px solid #ef4444'
+                                : `2px solid ${typeInfo.color}40`,
                             cursor: 'grab',
                             zIndex: 10,
-                            transition: 'box-shadow 0.15s',
+                            transition: 'all 0.15s',
                             boxSizing: 'border-box',
                             animation: isNodeSimulating ? 'qb-pulse 1s infinite alternate' : 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
                         }}
                     >
                         <style>{`@keyframes qb-pulse { 0% { box-shadow: 0 0 4px ${typeInfo.color}; } 100% { box-shadow: 0 0 16px ${typeInfo.color}; } }`}</style>
 
-                        {/* Header */}
+                        {/* Large Central Icon */}
                         <div style={{
-                            padding: '7px 10px',
-                            background: `linear-gradient(135deg, ${typeInfo.color}08, ${typeInfo.color}15)`,
-                            borderBottom: '1px solid #e2e8f0',
-                            borderTopLeftRadius: '11px',
-                            borderTopRightRadius: '11px',
+                            fontSize: '1.6rem',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '6px',
+                            justifyContent: 'center',
+                            userSelect: 'none',
                         }}>
-                            <span style={{ fontSize: '0.82rem' }}>{typeInfo.icon}</span>
-                            <span style={{
-                                fontSize: '0.7rem', fontWeight: 800, color: '#1e293b',
-                                flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                            }}>
-                                {node.name}
-                            </span>
-                            {node.status === 'success' && <Check size={12} color="#10b981" style={{ strokeWidth: 3 }} />}
-                            {node.status === 'failed' && <X size={12} color="#ef4444" style={{ strokeWidth: 3 }} />}
+                            {typeInfo.icon}
                         </div>
 
-                        {/* Body */}
-                        <div style={{ padding: '6px 10px', fontSize: '0.65rem', color: '#64748b' }}>
+                        {/* Status Badge (Top-Right) */}
+                        {node.status && node.status !== 'idle' && (
                             <div style={{
-                                fontSize: '0.6rem', color: '#94a3b8', fontWeight: 600,
-                                marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.3px',
+                                position: 'absolute',
+                                top: '-6px',
+                                right: '-6px',
+                                width: '18px',
+                                height: '18px',
+                                borderRadius: '50%',
+                                backgroundColor: node.status === 'success' ? '#10b981' : '#ef4444',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                zIndex: 12,
                             }}>
-                                {typeInfo.label}
+                                {node.status === 'success' ? (
+                                    <Check size={10} color="#ffffff" style={{ strokeWidth: 4 }} />
+                                ) : (
+                                    <X size={10} color="#ffffff" style={{ strokeWidth: 4 }} />
+                                )}
                             </div>
-                            {node.value ? (
-                                <div style={{
-                                    color: node.status === 'failed' ? '#ef4444' : '#0f172a',
-                                    fontWeight: 700,
-                                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                                    backgroundColor: node.status === 'failed' ? '#fef2f2' : '#f1f5f9',
-                                    padding: '3px 6px', borderRadius: '4px',
-                                }}>
-                                    {node.value}
-                                </div>
-                            ) : (
-                                <div style={{ color: '#cbd5e1', fontStyle: 'italic' }}>Ready</div>
-                            )}
+                        )}
+
+                        {/* Label underneath the Node (n8n Style) */}
+                        <div style={{
+                            position: 'absolute',
+                            top: '66px',
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            width: '120px',
+                            textAlign: 'center',
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            color: '#334155',
+                            lineHeight: '1.2',
+                            pointerEvents: 'none',
+                            textShadow: '0px 1px 1px rgba(255,255,255,0.8)',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                        }} title={node.name}>
+                            {node.name}
                         </div>
 
                         {/* Input Pin (Left) */}
@@ -262,7 +288,7 @@ export default function QuickBuildCanvas({
                                 className="pin-connector"
                                 onClick={(e) => handlePinClick(e, node.id, node.inputs[0], 'input')}
                                 style={{
-                                    position: 'absolute', left: '-8px', top: '40px',
+                                    position: 'absolute', left: '-8px', top: 'calc(50% - 7px)',
                                     width: '14px', height: '14px', borderRadius: '50%',
                                     backgroundColor: activeLinkStart?.type === 'output' ? typeInfo.color : '#ffffff',
                                     border: `3px solid ${activeLinkStart?.type === 'output' ? typeInfo.color : '#cbd5e1'}`,
@@ -282,7 +308,7 @@ export default function QuickBuildCanvas({
                                 className="pin-connector"
                                 onClick={(e) => handlePinClick(e, node.id, node.outputs[0], 'output')}
                                 style={{
-                                    position: 'absolute', right: '-8px', top: '40px',
+                                    position: 'absolute', right: '-8px', top: 'calc(50% - 7px)',
                                     width: '14px', height: '14px', borderRadius: '50%',
                                     backgroundColor: activeLinkStart?.type === 'input' ? typeInfo.color : '#ffffff',
                                     border: `3px solid ${typeInfo.color}`,

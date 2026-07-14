@@ -2471,15 +2471,15 @@ export default function DrawingManager() {
                     if (activeTakeoffCategory === 'length_cable') {
                         newPolyline.takeoffType = 'length';
                         newPolyline.takeoffSubtype = 'cable_length';
-                        newPolyline.takeoffName = `Kabel #${takeoffShapesList.filter(s => s.takeoffSubtype === 'cable_length').length + 1}`;
+                        newPolyline.takeoffName = `Pipa #${takeoffShapesList.filter(s => s.takeoffSubtype === 'cable_length').length + 1}`;
                     } else if (activeTakeoffCategory === 'area_paint') {
                         newPolyline.takeoffType = 'area';
                         newPolyline.takeoffSubtype = 'paint_area';
-                        newPolyline.takeoffName = `Luas Cat #${takeoffShapesList.filter(s => s.takeoffSubtype === 'paint_area').length + 1}`;
+                        newPolyline.takeoffName = `Luas Ducting #${takeoffShapesList.filter(s => s.takeoffSubtype === 'paint_area').length + 1}`;
                     } else if (activeTakeoffCategory === 'area_floor') {
                         newPolyline.takeoffType = 'area';
                         newPolyline.takeoffSubtype = 'floor_area';
-                        newPolyline.takeoffName = `Luas Lantai #${takeoffShapesList.filter(s => s.takeoffSubtype === 'floor_area').length + 1}`;
+                        newPolyline.takeoffName = `Luas Isolasi #${takeoffShapesList.filter(s => s.takeoffSubtype === 'floor_area').length + 1}`;
                     }
                 }
 
@@ -2523,10 +2523,10 @@ export default function DrawingManager() {
                 strokeWidth: 2,
                 takeoffType: 'count',
                 takeoffSubtype: 'bolt_count',
-                takeoffName: `Baut #${currentShapes.filter(s => s.takeoffSubtype === 'bolt_count').length + 1}`
+                takeoffName: `Valve #${currentShapes.filter(s => s.takeoffSubtype === 'bolt_count').length + 1}`
             };
             updateShapes([...currentShapes, newShape]);
-            toast.success('Baut dihitung (+1)', { id: 'takeoff-count' });
+            toast.success('Valve dihitung (+1)', { id: 'takeoff-count' });
             return;
         }
 
@@ -3178,22 +3178,22 @@ export default function DrawingManager() {
             if (activeTakeoffCategory === 'length_cable') {
                 newShape.takeoffType = 'length';
                 newShape.takeoffSubtype = 'cable_length';
-                newShape.takeoffName = `Kabel #${takeoffShapesList.filter(s => s.takeoffSubtype === 'cable_length').length + 1}`;
+                newShape.takeoffName = `Pipa #${takeoffShapesList.filter(s => s.takeoffSubtype === 'cable_length').length + 1}`;
                 newShape.color = '#10b981';
             } else if (activeTakeoffCategory === 'area_paint') {
                 newShape.takeoffType = 'area';
                 newShape.takeoffSubtype = 'paint_area';
-                newShape.takeoffName = `Luas Cat #${takeoffShapesList.filter(s => s.takeoffSubtype === 'paint_area').length + 1}`;
+                newShape.takeoffName = `Luas Ducting #${takeoffShapesList.filter(s => s.takeoffSubtype === 'paint_area').length + 1}`;
                 newShape.color = '#3b82f6';
             } else if (activeTakeoffCategory === 'area_floor') {
                 newShape.takeoffType = 'area';
                 newShape.takeoffSubtype = 'floor_area';
-                newShape.takeoffName = `Luas Lantai #${takeoffShapesList.filter(s => s.takeoffSubtype === 'floor_area').length + 1}`;
+                newShape.takeoffName = `Luas Isolasi #${takeoffShapesList.filter(s => s.takeoffSubtype === 'floor_area').length + 1}`;
                 newShape.color = '#f59e0b';
             } else if (activeTakeoffCategory === 'count_bolt') {
                 newShape.takeoffType = 'count';
                 newShape.takeoffSubtype = 'bolt_count';
-                newShape.takeoffName = `Baut #${takeoffShapesList.filter(s => s.takeoffSubtype === 'bolt_count').length + 1}`;
+                newShape.takeoffName = `Valve #${takeoffShapesList.filter(s => s.takeoffSubtype === 'bolt_count').length + 1}`;
                 newShape.color = '#ef4444';
             }
         }
@@ -5152,27 +5152,27 @@ export default function DrawingManager() {
     const takeoffShapes = selectedDwg?.shapes?.filter(s => s.takeoffType) || [];
     const scale = selectedDwg?.scaleFactor || null;
 
-    // Calculate totals
-    let totalCablePx = 0;
-    let totalPaintPx = 0;
-    let totalFloorPx = 0;
-    let totalBoltCount = 0;
+    // Calculate totals for Mechanical Takeoff
+    let totalPipePx = 0;
+    let totalDuctPx = 0;
+    let totalInsulationPx = 0;
+    let totalValveCount = 0;
 
     takeoffShapes.forEach(shape => {
         if (shape.takeoffSubtype === 'cable_length') {
-            totalCablePx += computeShapeLength(shape);
+            totalPipePx += computeShapeLength(shape);
         } else if (shape.takeoffSubtype === 'paint_area') {
-            totalPaintPx += computeShapeArea(shape);
+            totalDuctPx += computeShapeArea(shape);
         } else if (shape.takeoffSubtype === 'floor_area') {
-            totalFloorPx += computeShapeArea(shape);
+            totalInsulationPx += computeShapeArea(shape);
         } else if (shape.takeoffSubtype === 'bolt_count') {
-            totalBoltCount += 1;
+            totalValveCount += 1;
         }
     });
 
-    const totalCableReal = scale ? (totalCablePx * scale) / 1000 : totalCablePx;
-    const totalPaintReal = scale ? (totalPaintPx * (scale ** 2)) / 1000000 : totalPaintPx;
-    const totalFloorReal = scale ? (totalFloorPx * (scale ** 2)) / 1000000 : totalFloorPx;
+    const totalPipeReal = scale ? (totalPipePx * scale) / 1000 : totalPipePx;
+    const totalDuctReal = scale ? (totalDuctPx * (scale ** 2)) / 1000000 : totalDuctPx;
+    const totalInsulationReal = scale ? (totalInsulationPx * (scale ** 2)) / 1000000 : totalInsulationPx;
 
     return (
         <div ref={fullscreenRef} style={{
@@ -5740,20 +5740,20 @@ export default function DrawingManager() {
 
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                                         <div style={{ padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', borderLeft: '4px solid #10b981', display: 'flex', flexDirection: 'column', gap: '2px', backgroundColor: '#f8fafc' }}>
-                                            <span style={{ fontSize: '0.55rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Panjang Kabel</span>
-                                            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>{totalCableReal.toFixed(2)} {scale ? 'm' : 'px'}</span>
+                                            <span style={{ fontSize: '0.55rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Panjang Pipa</span>
+                                            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>{totalPipeReal.toFixed(2)} {scale ? 'm' : 'px'}</span>
                                         </div>
                                         <div style={{ padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', borderLeft: '4px solid #3b82f6', display: 'flex', flexDirection: 'column', gap: '2px', backgroundColor: '#f8fafc' }}>
-                                            <span style={{ fontSize: '0.55rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Luas Cat</span>
-                                            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>{totalPaintReal.toFixed(2)} {scale ? 'm²' : 'px²'}</span>
+                                            <span style={{ fontSize: '0.55rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Luas Ducting</span>
+                                            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>{totalDuctReal.toFixed(2)} {scale ? 'm²' : 'px²'}</span>
                                         </div>
                                         <div style={{ padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', borderLeft: '4px solid #f59e0b', display: 'flex', flexDirection: 'column', gap: '2px', backgroundColor: '#f8fafc' }}>
-                                            <span style={{ fontSize: '0.55rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Luas Lantai</span>
-                                            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>{totalFloorReal.toFixed(2)} {scale ? 'm²' : 'px²'}</span>
+                                            <span style={{ fontSize: '0.55rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Luas Isolasi</span>
+                                            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>{totalInsulationReal.toFixed(2)} {scale ? 'm²' : 'px²'}</span>
                                         </div>
                                         <div style={{ padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', borderLeft: '4px solid #ef4444', display: 'flex', flexDirection: 'column', gap: '2px', backgroundColor: '#f8fafc' }}>
-                                            <span style={{ fontSize: '0.55rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Jumlah Baut</span>
-                                            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>{totalBoltCount} pcs</span>
+                                            <span style={{ fontSize: '0.55rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Jumlah Valve</span>
+                                            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>{totalValveCount} pcs</span>
                                         </div>
                                     </div>
 
@@ -5764,9 +5764,9 @@ export default function DrawingManager() {
                                             <div style={{ display: 'flex', alignItems: 'center', justifyItem: 'center', justifyContent: 'space-between', backgroundColor: '#eff6ff', padding: '6px 8px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
                                                 <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#1d4ed8' }}>
                                                     Mode Aktif: {
-                                                        activeTakeoffCategory === 'length_cable' ? '📏 Kabel' :
-                                                            activeTakeoffCategory === 'area_paint' ? '🎨 Cat Dinding' :
-                                                                activeTakeoffCategory === 'area_floor' ? '🧱 Lantai' : '🔨 Baut'
+                                                        activeTakeoffCategory === 'length_cable' ? '🔧 Pipa' :
+                                                            activeTakeoffCategory === 'area_paint' ? '💨 Luas Ducting' :
+                                                                activeTakeoffCategory === 'area_floor' ? '🧱 Luas Isolasi' : '🚰 Valve'
                                                     }
                                                 </span>
                                                 <button
@@ -5787,42 +5787,42 @@ export default function DrawingManager() {
                                                         setActiveTakeoffCategory('length_cable');
                                                         setCadTool('polyline');
                                                         setPolylineDraftPoints([]);
-                                                        toast.success('Gunakan klik kiri untuk menggambar rute kabel di kanvas, double-klik untuk menutup.');
+                                                        toast.success('Gunakan klik kiri untuk menggambar rute pipa di kanvas, double-klik untuk menutup.');
                                                     }}
                                                     style={{ flex: '1 1 48%', border: 'none', background: '#10b981', color: 'white', fontSize: '0.58rem', fontWeight: 800, padding: '6px 4px', borderRadius: '6px', cursor: 'pointer' }}
                                                 >
-                                                    📏 Kabel (Linear)
+                                                    🔧 Pipa (Linear)
                                                 </button>
                                                 <button
                                                     onClick={() => {
                                                         setActiveTakeoffCategory('area_paint');
                                                         setCadTool('rect');
-                                                        toast.success('Gunakan klik & tarik (drag) di kanvas untuk menggambar kotak area cat.');
+                                                        toast.success('Gunakan klik & tarik (drag) di kanvas untuk menggambar kotak area saluran udara / ducting.');
                                                     }}
                                                     style={{ flex: '1 1 48%', border: 'none', background: '#3b82f6', color: 'white', fontSize: '0.58rem', fontWeight: 800, padding: '6px 4px', borderRadius: '6px', cursor: 'pointer' }}
                                                 >
-                                                    🎨 Luas Cat (Box)
+                                                    💨 Luas Ducting (Box)
                                                 </button>
                                                 <button
                                                     onClick={() => {
                                                         setActiveTakeoffCategory('area_floor');
                                                         setCadTool('polyline');
                                                         setPolylineDraftPoints([]);
-                                                        toast.success('Gunakan klik kiri untuk menggambar rute luas lantai, double-klik untuk menutup.');
+                                                        toast.success('Gunakan klik kiri untuk menggambar rute area isolasi pipa/tangki, double-klik untuk menutup.');
                                                     }}
                                                     style={{ flex: '1 1 48%', border: 'none', background: '#f59e0b', color: 'white', fontSize: '0.58rem', fontWeight: 800, padding: '6px 4px', borderRadius: '6px', cursor: 'pointer' }}
                                                 >
-                                                    🧱 Luas Lantai
+                                                    🧱 Luas Isolasi
                                                 </button>
                                                 <button
                                                     onClick={() => {
                                                         setActiveTakeoffCategory('count_bolt');
                                                         setCadTool('takeoff_count');
-                                                        toast.success('Klik kiri di kanvas untuk menaruh tanda hitung baut (+1).');
+                                                        toast.success('Klik kiri di kanvas untuk menaruh tanda hitung katup / valve (+1).');
                                                     }}
                                                     style={{ flex: '1 1 48%', border: 'none', background: '#ef4444', color: 'white', fontSize: '0.58rem', fontWeight: 800, padding: '6px 4px', borderRadius: '6px', cursor: 'pointer' }}
                                                 >
-                                                    🔨 Hitung Baut
+                                                    🚰 Hitung Valve
                                                 </button>
                                             </div>
                                         )}
