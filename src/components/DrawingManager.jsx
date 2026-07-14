@@ -56,7 +56,9 @@ import {
     Search,
     Layers,
     Palette,
-    Maximize
+    Maximize,
+    Sun,
+    Moon
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getAllDrawings, saveDrawing, deleteDrawing, safeSaveDrawingsToLocalStorage } from '../utils/supabaseUtilityDB';
@@ -730,6 +732,15 @@ export default function DrawingManager() {
     const [crosshairPos, setCrosshairPos] = useState({ x: 0, y: 0 });
     const [showCrosshair, setShowCrosshair] = useState(false);
     const [orthoMode, setOrthoMode] = useState(false);
+    const [canvasTheme, setCanvasTheme] = useState('white'); // 'white' | 'dark' | 'blueprint'
+
+    // Canvas theme color map
+    const themeColors = {
+        white:     { bg: '#ffffff', grid: '#cbd5e1', gridOpacity: 0.15, border: '#cbd5e1', text: '#0f172a', bgText: '#94a3b8', layoutBg: '#f1f5f9', paperBg: '#f8fafc', paperShadow: '#090d16' },
+        dark:      { bg: '#0f172a', grid: '#334155', gridOpacity: 0.35, border: '#334155', text: '#e2e8f0', bgText: '#475569', layoutBg: '#020617', paperBg: '#1e293b', paperShadow: '#000000' },
+        blueprint: { bg: '#1e3a5f', grid: '#2d6da3', gridOpacity: 0.40, border: '#2d6da3', text: '#e0f2fe', bgText: '#5b9bd5', layoutBg: '#0c2744', paperBg: '#1a3555', paperShadow: '#071a30' },
+    };
+    const tc = themeColors[canvasTheme];
 
     // Scale Calibration States
     const [scaleDrawState, setScaleDrawState] = useState('idle'); // idle, drawing
@@ -6241,7 +6252,7 @@ export default function DrawingManager() {
 
                         {/* Horizontal Toolbar Widget Cards */}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 0', zIndex: 15, flexShrink: 0, width: '100%' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #cbd5e1', padding: '4px', gap: '4px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#f5f0ff', borderRadius: '10px', border: '1px solid #e0d4f5', padding: '4px 6px', gap: '4px', boxShadow: '0 1px 4px rgba(113, 75, 103, 0.08)' }}>
                             {[
                                 { id: 'select', icon: 'MousePointer', label: 'Pilih' },
                                 { id: 'pan', icon: 'Hand', label: 'Pan' },
@@ -6260,6 +6271,7 @@ export default function DrawingManager() {
                                     action: () => handleAddDimension(cat.key)
                                 })),
                                 { id: '_sep3' },
+                                { id: 'balloon', icon: 'balloon_icon', label: 'Balloon Mode', isToggle: true, toggleState: isBalloonMode, color: '#ef4444', action: () => setIsBalloonMode(prev => !prev) },
                                 { id: 'symbol', icon: 'Settings', label: 'Simbol' },
                                 { id: 'erase', icon: 'Trash2', label: 'Hapus', danger: true },
                                 { id: '_sep4' },
@@ -6270,9 +6282,10 @@ export default function DrawingManager() {
                                 if (item.id.startsWith('_sep')) return <div key={item.id} style={{ width: '1px', height: '20px', backgroundColor: '#cbd5e1', margin: '0 4px' }} />;
                                 
                                 const iconMap = { MousePointer, Hand, Search, Slash, Square, Type, Ruler, FileText, Settings, Trash2, Palette, Layers };
-                                const IconComp = (item.icon && item.icon !== 'color_swatch') ? iconMap[item.icon] : null;
+                                const IconComp = (item.icon && item.icon !== 'color_swatch' && item.icon !== 'balloon_icon') ? iconMap[item.icon] : null;
                                 
-                                const isActive = item.isCategory ? (cadTool === 'dimension' && drawingCategory === item.id) :
+                                const isActive = item.isToggle ? item.toggleState :
+                                    item.isCategory ? (cadTool === 'dimension' && drawingCategory === item.id) :
                                     item.id === 'color' ? showColorPopup :
                                     item.id === 'style' ? showStylePopup :
                                     item.id === 'layer' ? showLayerPopup :
@@ -6295,9 +6308,9 @@ export default function DrawingManager() {
                                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                 padding: '8px', borderRadius: '8px', cursor: 'pointer', outline: 'none',
                                                 minWidth: '40px', height: '40px', transition: 'all 0.2s',
-                                                border: isActive && item.isCategory ? `1px solid ${item.color}80` : isActive ? '1px solid #bfdbfe' : '1px solid transparent',
-                                                color: isDanger ? '#ef4444' : isActive && item.isCategory ? item.color : isActive ? '#2563eb' : item.isCategory ? item.color : '#64748b',
-                                                backgroundColor: isDanger ? '#fee2e2' : isActive && item.isCategory ? `${item.color}20` : isActive ? '#eff6ff' : item.isCategory ? `${item.color}08` : 'transparent',
+                                                border: isActive && (item.isCategory || item.isToggle) ? `1px solid ${item.color}80` : isActive ? '1px solid #bfdbfe' : '1px solid transparent',
+                                                color: isDanger ? '#ef4444' : isActive && (item.isCategory || item.isToggle) ? item.color : isActive ? '#2563eb' : (item.isCategory || item.isToggle) ? item.color : '#64748b',
+                                                backgroundColor: isDanger ? '#fee2e2' : isActive && (item.isCategory || item.isToggle) ? `${item.color}20` : isActive ? '#eff6ff' : (item.isCategory || item.isToggle) ? `${item.color}08` : 'transparent',
                                             }}
                                             onMouseEnter={(e) => {
                                                 if (!isActive && !isDanger) {
@@ -6314,6 +6327,12 @@ export default function DrawingManager() {
                                         >
                                             {item.icon === 'color_swatch' ? (
                                                 <div style={{ width: '18px', height: '18px', borderRadius: '50%', backgroundColor: cadColor, border: '1px solid #cbd5e1' }} />
+                                            ) : item.icon === 'balloon_icon' ? (
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <circle cx="12" cy="10" r="7" />
+                                                    <text x="12" y="13" textAnchor="middle" fontSize="9" fontWeight="800" fill="currentColor" stroke="none">1</text>
+                                                    <line x1="12" y1="17" x2="12" y2="23" />
+                                                </svg>
                                             ) : item.emoji ? (
                                                 <span style={{ fontSize: '1.25rem', lineHeight: 1, fontWeight: item.emoji === 'R' || item.emoji === 'Ra' ? '800' : 'normal' }}>{item.emoji}</span>
                                             ) : (
@@ -6369,22 +6388,40 @@ export default function DrawingManager() {
                                     
                                     {/* Floating Zoom Control Pill */}
                                     <div style={{
-                                        position: 'absolute', bottom: '24px', right: '88px',
-                                        display: 'flex', alignItems: 'center', backgroundColor: '#ffffff',
-                                        borderRadius: '30px', border: '1px solid #cbd5e1',
-                                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+                                        position: 'absolute', bottom: '12px', right: '88px',
+                                        display: 'flex', alignItems: 'center',
+                                        backgroundColor: canvasTheme === 'dark' ? '#1e293b' : canvasTheme === 'blueprint' ? '#0f2a4a' : '#ffffff',
+                                        borderRadius: '30px',
+                                        border: `1px solid ${canvasTheme === 'dark' ? '#334155' : canvasTheme === 'blueprint' ? '#2d6da3' : '#cbd5e1'}`,
+                                        boxShadow: canvasTheme === 'dark' || canvasTheme === 'blueprint' ? '0 4px 12px rgba(0, 0, 0, 0.3)' : '0 4px 12px rgba(0, 0, 0, 0.08)',
                                         padding: '4px 12px', gap: '10px', zIndex: 20,
                                         userSelect: 'none', fontFamily: "'Inter', sans-serif"
                                     }}>
                                         <button title="Zoom Out" onClick={() => setZoom(prev => Math.max(0.2, prev - 0.1))}
-                                            style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px 4px', outline: 'none', fontWeight: 'bold' }}>-</button>
-                                        <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#334155', minWidth: '38px', textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
+                                            style={{ backgroundColor: 'transparent', border: 'none', color: canvasTheme !== 'white' ? '#94a3b8' : '#64748b', fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px 4px', outline: 'none', fontWeight: 'bold' }}>-</button>
+                                        <span style={{ fontSize: '0.68rem', fontWeight: 800, color: canvasTheme !== 'white' ? '#e2e8f0' : '#334155', minWidth: '38px', textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
                                         <button title="Zoom In" onClick={() => setZoom(prev => Math.min(4, prev + 0.1))}
-                                            style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px 4px', outline: 'none', fontWeight: 'bold' }}>+</button>
-                                        <div style={{ width: '1px', height: '12px', backgroundColor: '#cbd5e1' }} />
+                                            style={{ backgroundColor: 'transparent', border: 'none', color: canvasTheme !== 'white' ? '#94a3b8' : '#64748b', fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px 4px', outline: 'none', fontWeight: 'bold' }}>+</button>
+                                        <div style={{ width: '1px', height: '12px', backgroundColor: canvasTheme !== 'white' ? '#475569' : '#cbd5e1' }} />
                                         <button title="Fit to Screen" onClick={() => { setZoom(1.0); setPanOffset({ x: 0, y: 0 }); }}
-                                            style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px', outline: 'none' }}>
+                                            style={{ backgroundColor: 'transparent', border: 'none', color: canvasTheme !== 'white' ? '#94a3b8' : '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px', outline: 'none' }}>
                                             <Maximize size={12} />
+                                        </button>
+                                        <div style={{ width: '1px', height: '12px', backgroundColor: canvasTheme !== 'white' ? '#475569' : '#cbd5e1' }} />
+                                        <button
+                                            title={`Mode: ${canvasTheme === 'white' ? 'Light' : canvasTheme === 'dark' ? 'Dark' : 'Blueprint'} — Klik untuk ganti`}
+                                            onClick={() => setCanvasTheme(prev => prev === 'white' ? 'dark' : prev === 'dark' ? 'blueprint' : 'white')}
+                                            style={{
+                                                backgroundColor: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 4px', outline: 'none', borderRadius: '4px', transition: 'all 0.15s',
+                                                color: canvasTheme === 'blueprint' ? '#38bdf8' : canvasTheme === 'dark' ? '#facc15' : '#64748b',
+                                            }}
+                                        >
+                                            {canvasTheme === 'white' && <Sun size={13} />}
+                                            {canvasTheme === 'dark' && <Moon size={13} />}
+                                            {canvasTheme === 'blueprint' && <span style={{ fontSize: '0.7rem', fontWeight: 800, lineHeight: 1 }}>BP</span>}
+                                            <span style={{ fontSize: '0.58rem', fontWeight: 700 }}>
+                                                {canvasTheme === 'white' ? 'Light' : canvasTheme === 'dark' ? 'Dark' : 'Blueprint'}
+                                            </span>
                                         </button>
                                     </div>
 
@@ -6440,19 +6477,19 @@ export default function DrawingManager() {
                                         >
                                             <defs>
                                                 <pattern id="canvas_grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                                                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#cbd5e1" strokeWidth="0.5" strokeOpacity="0.15" />
+                                                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke={tc.grid} strokeWidth="0.5" strokeOpacity={tc.gridOpacity} />
                                                 </pattern>
                                                 <style>{`
-                                                    svg text { fill: #0f172a !important; }
-                                                    svg text.blueprint-bg-text { fill: #94a3b8 !important; }
+                                                    svg text { fill: ${tc.text} !important; }
+                                                    svg text.blueprint-bg-text { fill: ${tc.bgText} !important; }
                                                 `}</style>
                                             </defs>
                                             {activeSpace === 'model' ? (
                                                 <>
-                                                    <rect width="100%" height="100%" fill="#ffffff" />
+                                                    <rect width="100%" height="100%" fill={tc.bg} />
                                                     <rect width="100%" height="100%" fill="url(#canvas_grid)" />
-                                                    <rect x="5" y="5" width={canvasSize.width - 10} height={canvasSize.height - 10} fill="none" stroke="#cbd5e1" strokeWidth="1" />
-                                                    <rect x="8" y="8" width={canvasSize.width - 16} height={canvasSize.height - 16} fill="none" stroke="#cbd5e1" strokeWidth="0.5" strokeOpacity="0.5" />
+                                                    <rect x="5" y="5" width={canvasSize.width - 10} height={canvasSize.height - 10} fill="none" stroke={tc.border} strokeWidth="1" />
+                                                    <rect x="8" y="8" width={canvasSize.width - 16} height={canvasSize.height - 16} fill="none" stroke={tc.border} strokeWidth="0.5" strokeOpacity="0.5" />
                                                 </>
                                             ) : (() => {
                                                 const sheetWidth = canvasSize.width * 0.9;
@@ -6468,16 +6505,16 @@ export default function DrawingManager() {
                                                 return (
                                                     <>
                                                         {/* Light background for layout workspace */}
-                                                        <rect width="100%" height="100%" fill="#f1f5f9" />
+                                                        <rect width="100%" height="100%" fill={tc.layoutBg} />
 
                                                         {/* Paper sheet shadow */}
-                                                        <rect x={sheetX + 4} y={sheetY + 4} width={sheetWidth} height={sheetHeight} fill="#090d16" opacity="0.4" rx="2" />
+                                                        <rect x={sheetX + 4} y={sheetY + 4} width={sheetWidth} height={sheetHeight} fill={tc.paperShadow} opacity="0.4" rx="2" />
 
                                                         {/* Paper sheet body */}
-                                                        <rect x={sheetX} y={sheetY} width={sheetWidth} height={sheetHeight} fill="#f8fafc" rx="2" />
+                                                        <rect x={sheetX} y={sheetY} width={sheetWidth} height={sheetHeight} fill={tc.paperBg} rx="2" />
 
                                                         {/* Printable margin dashed border */}
-                                                        <rect x={sheetX + 15} y={sheetY + 15} width={sheetWidth - 30} height={sheetHeight - 30} fill="none" stroke="#cbd5e1" strokeWidth="0.75" strokeDasharray="3,3" />
+                                                        <rect x={sheetX + 15} y={sheetY + 15} width={sheetWidth - 30} height={sheetHeight - 30} fill="none" stroke={tc.border} strokeWidth="0.75" strokeDasharray="3,3" />
 
                                                         {/* AutoCAD Title Block */}
                                                         <g style={{ userSelect: 'none' }}>
