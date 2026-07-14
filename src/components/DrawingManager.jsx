@@ -5174,6 +5174,25 @@ export default function DrawingManager() {
     const totalDuctReal = scale ? (totalDuctPx * (scale ** 2)) / 1000000 : totalDuctPx;
     const totalInsulationReal = scale ? (totalInsulationPx * (scale ** 2)) / 1000000 : totalInsulationPx;
 
+    const getScaleBarData = () => {
+        const factor = scale || 1.0;
+        const isCalibrated = !!scale;
+        const realValOf100Px = (100 / zoom) * factor;
+        const magnitude = Math.pow(10, Math.floor(Math.log10(realValOf100Px))) || 1;
+        const ratio = realValOf100Px / magnitude;
+        let roundVal = magnitude;
+        if (ratio >= 5) {
+            roundVal = magnitude * 5;
+        } else if (ratio >= 2) {
+            roundVal = magnitude * 2;
+        }
+        const pxOnScreen = (roundVal / factor) * zoom;
+        const label = isCalibrated
+            ? (roundVal >= 1000 ? `${(roundVal / 1000).toFixed(1).replace('.0', '')} m` : `${roundVal.toFixed(1).replace('.0', '')} mm`)
+            : `${Math.round(roundVal)} px`;
+        return { pxOnScreen, label };
+    };
+
     return (
         <div ref={fullscreenRef} style={{
             height: '100%',
@@ -7822,6 +7841,32 @@ export default function DrawingManager() {
                                                 <rect x="-3" y="-3" width="6" height="6" fill="none" stroke="#e2e8f0" strokeWidth="1" />
                                                 <circle cx="0" cy="0" r="1" fill="#e2e8f0" />
                                             </g>
+
+                                            {/* Visual Scale Bar / Ruler */}
+                                            {(() => {
+                                                const scaleData = getScaleBarData();
+                                                const barWidth = scaleData.pxOnScreen;
+                                                const barLabel = scaleData.label;
+                                                
+                                                return (
+                                                    <g transform={`translate(15, ${canvasSize.height - 78})`} style={{ pointerEvents: 'none' }}>
+                                                        {/* Semi-transparent dark background for premium visual contrast */}
+                                                        <rect x="-4" y="-12" width={barWidth + 8} height={18} fill="rgba(15, 23, 42, 0.45)" rx="4" />
+                                                        {/* Ruler line */}
+                                                        <line x1="0" y1="0" x2={barWidth} y2="0" stroke="#ffffff" strokeWidth="1.5" />
+                                                        {/* Left tick */}
+                                                        <line x1="0" y1="-3" x2="0" y2="3" stroke="#ffffff" strokeWidth="1.5" />
+                                                        {/* Right tick */}
+                                                        <line x1={barWidth} y1="-3" x2={barWidth} y2="3" stroke="#ffffff" strokeWidth="1.5" />
+                                                        {/* Middle tick */}
+                                                        <line x1={barWidth / 2} y1="-2.2" x2={barWidth / 2} y2="2.2" stroke="#ffffff" strokeWidth="1" />
+                                                        {/* Value text label */}
+                                                        <text x={barWidth / 2} y="-4" fill="#ffffff" fontSize="6.8" fontWeight="bold" fontFamily="monospace" textAnchor="middle">
+                                                            {barLabel}
+                                                        </text>
+                                                    </g>
+                                                );
+                                            })()}
 
 
 
