@@ -2767,6 +2767,15 @@ const LiveTerminal = () => {
   const launchScaleMode = launchParams.get('scaleMode') === 'FIT_WIDTH' ? 'FIT_WIDTH' : 'FIT_SCREEN';
   const [runtimeScaleMode, setRuntimeScaleMode] = useState(launchScaleMode);
 
+  const launchLayoutMode = launchParams.get('layoutMode') || (() => {
+    try {
+      return localStorage.getItem('mavi_runtime_layout_mode') || 'PROPORTIONAL';
+    } catch (e) {
+      return 'PROPORTIONAL';
+    }
+  })();
+  const [layoutMode, setLayoutMode] = useState(launchLayoutMode);
+
   useEffect(() => {
     const isDev = launchParams.get('devMode') === 'true' || launchParams.get('dev') === 'true';
     setDevMode(isDev);
@@ -2775,6 +2784,10 @@ const LiveTerminal = () => {
   useEffect(() => {
     setRuntimeScaleMode(launchScaleMode);
   }, [launchScaleMode]);
+
+  useEffect(() => {
+    setLayoutMode(launchLayoutMode);
+  }, [launchLayoutMode]);
 
   // Dashboard states
   const [searchQuery, setSearchQuery] = useState('');
@@ -3250,7 +3263,7 @@ const LiveTerminal = () => {
   const presetKey = selectedApp?.config?.devicePreset || 'RESPONSIVE';
   const preset = DEVICE_PRESETS[presetKey] || DEVICE_PRESETS.RESPONSIVE;
   const isPreset = presetKey !== 'RESPONSIVE';
-  const isResponsiveMode = presetKey === 'RESPONSIVE';
+  const isResponsiveMode = presetKey === 'RESPONSIVE' && layoutMode === 'RESPONSIVE';
   const isDark = selectedApp?.config?.appThemeMode === 'DARK';
   const scalingMode = selectedApp?.config?.scalingMode || 'FIT_SCREEN';
   const runtimeSelectionActive = Boolean(selectedApp || selectedManual);
@@ -12335,21 +12348,23 @@ const LiveTerminal = () => {
               
               {(selectedApp || selectedManual) && (
                 <>
-                  <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.15)' }} />
-                  <span style={{ fontSize: '0.72rem', color: '#cbd5e1', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
-                    Duration: <strong style={{ color: 'white', fontFamily: 'monospace' }}>{formatTime(timer)}</strong>
+                  <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.1)' }} />
+                  <span style={{ fontSize: '0.72rem', color: '#94a3b8', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }} title="Session Duration">
+                    <Clock size={12} color="#3b82f6" />
+                    <strong style={{ color: 'white', fontFamily: 'monospace' }}>{formatTime(timer)}</strong>
                   </span>
                 </>
               )}
 
               {stepLabel && (
                 <>
-                  <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.15)' }} />
+                  <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.1)' }} />
                   <span style={{
                     fontSize: '0.7rem', fontWeight: 700,
-                    color: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : '#001e3c',
-                    backgroundColor: 'white',
-                    borderRadius: '4px', padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap',
+                    color: selectedApp?.config?.appThemeMode === 'DARK' ? '#93c5fd' : '#001e3c',
+                    backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? 'rgba(59,130,246,0.15)' : 'white',
+                    border: '1px solid rgba(59,130,246,0.2)',
+                    borderRadius: '4px', padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap',
                     overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px'
                   }}>
                     <ChevronRight size={11} /> {stepLabel}
@@ -12357,41 +12372,47 @@ const LiveTerminal = () => {
                 </>
               )}
 
-              <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.15)' }} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', color: '#94a3b8' }}>
-                <User size={11} color="#3b82f6" />
-                <span>USER: <strong style={{ color: 'white' }}>{appContext.user || '-'}</strong></span>
+              <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.1)' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', color: '#94a3b8' }} title="Active Operator">
+                <User size={12} color="#93c5fd" />
+                <span style={{ fontSize: '0.72rem' }}><strong style={{ color: 'white' }}>{appContext.user || '-'}</strong></span>
               </div>
 
-              <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.15)' }} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', color: '#94a3b8', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                <MapPin size={11} color="#10b981" />
-                <span>STATION: <strong style={{ color: 'white' }}>{appContext.station || '-'}</strong></span>
+              <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.1)' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', color: '#94a3b8', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }} title="Work Station">
+                <MapPin size={12} color="#34d399" />
+                <span style={{ fontSize: '0.72rem' }}><strong style={{ color: 'white' }}>{appContext.station || '-'}</strong></span>
               </div>
             </div>
 
             {/* Right side: Status, Language, scale, menu, logout */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
               {/* Network Connectivity Badge */}
               <div style={{
                 display: 'flex', alignItems: 'center', gap: '4px',
                 padding: '3px 8px', borderRadius: '20px',
-                backgroundColor: isOnline ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                backgroundColor: isOnline ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.12)',
                 color: isOnline ? '#4ade80' : '#fca5a5',
                 fontSize: '0.62rem', fontWeight: 800,
-                border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`
-              }}>
+                border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
+              }} title={isOnline ? "Connected to Server" : "Offline Mode"}>
                 <span className={`pulse-dot ${isOnline ? 'pulse-dot-success' : 'pulse-dot-danger'}`} style={{ width: '5px', height: '5px' }} />
                 <span>{isOnline ? 'ONLINE' : 'OFFLINE'}</span>
               </div>
 
               {/* Language Selection */}
               <div
-                style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '4px 8px', borderRadius: '4px' }}
+                style={{ 
+                  display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', 
+                  background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', 
+                  padding: '5px 8px', borderRadius: '6px', transition: 'all 0.2s' 
+                }}
                 onClick={() => setShowOperatorMenu(true)}
                 title="Change Language / Operator Settings"
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}
               >
-                <Globe size={10} color="#cbd5e1" />
+                <Globe size={11} color="#cbd5e1" />
                 <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#cbd5e1' }}>{currentLanguage}</span>
               </div>
 
@@ -12402,20 +12423,50 @@ const LiveTerminal = () => {
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '4px',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    border: '1px solid rgba(255,255,255,0.15)',
-                    backgroundColor: runtimeScaleMode === 'FIT_SCREEN' ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.05)',
-                    color: runtimeScaleMode === 'FIT_SCREEN' ? '#86efac' : 'white',
-                    fontWeight: 700,
-                    fontSize: '0.68rem',
+                    justifyContent: 'center',
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    backgroundColor: runtimeScaleMode === 'FIT_SCREEN' ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.04)',
+                    color: runtimeScaleMode === 'FIT_SCREEN' ? '#4ade80' : '#cbd5e1',
                     cursor: 'pointer',
-                    transition: 'all 0.15s'
+                    transition: 'all 0.2s'
                   }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = runtimeScaleMode === 'FIT_SCREEN' ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}
                 >
-                  <Maximize2 size={10} />
-                  {runtimeScaleMode === 'FIT_SCREEN' ? 'Fit Screen' : 'Fit Width'}
+                  <Maximize2 size={12} />
+                </button>
+              )}
+
+              {(selectedApp || selectedManual) && presetKey === 'RESPONSIVE' && (
+                <button
+                  onClick={() => {
+                    const next = layoutMode === 'PROPORTIONAL' ? 'RESPONSIVE' : 'PROPORTIONAL';
+                    setLayoutMode(next);
+                    try {
+                      localStorage.setItem('mavi_runtime_layout_mode', next);
+                    } catch (e) {}
+                  }}
+                  title={layoutMode === 'PROPORTIONAL' ? 'Switch to Responsive Stack Layout' : 'Switch to Proportional Canvas Layout'}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    backgroundColor: layoutMode === 'PROPORTIONAL' ? 'rgba(59,130,246,0.12)' : 'rgba(255,255,255,0.04)',
+                    color: layoutMode === 'PROPORTIONAL' ? '#60a5fa' : '#cbd5e1',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = layoutMode === 'PROPORTIONAL' ? 'rgba(59,130,246,0.12)' : 'rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}
+                >
+                  <LayoutGrid size={12} />
                 </button>
               )}
 
@@ -12427,46 +12478,45 @@ const LiveTerminal = () => {
                     window.location.reload();
                   }
                 }}
+                title="Logout"
                 style={{
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  width: '28px',
+                  height: '28px',
+                  background: 'rgba(239, 68, 68, 0.08)',
+                  border: '1px solid rgba(239, 68, 68, 0.2)',
                   color: '#fca5a5',
-                  padding: '4px 8px',
-                  borderRadius: '4px',
-                  fontSize: '0.68rem',
-                  fontWeight: 700,
+                  borderRadius: '6px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '4px',
+                  justifyContent: 'center',
                   transition: 'all 0.2s'
                 }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'; e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.35)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)'; e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.2)'; }}
               >
-                <LogOut size={10} />
-                Logout
+                <LogOut size={12} />
               </button>
 
               <div style={{ position: 'relative', flexShrink: 0 }}>
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
+                title="Options Menu"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px',
-                  padding: '4px 8px',
-                  borderRadius: '4px',
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  backgroundColor: menuOpen ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)',
+                  justifyContent: 'center',
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  backgroundColor: menuOpen ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.04)',
                   color: 'white',
-                  fontWeight: 700,
-                  fontSize: '0.68rem',
                   cursor: 'pointer',
                   transition: 'all 0.15s'
                 }}
               >
-                <Menu size={12} />
-                Menu
-                <ChevronDown size={10} style={{ transform: menuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                <Menu size={13} />
               </button>
 
               {menuOpen && (
@@ -12609,7 +12659,7 @@ const LiveTerminal = () => {
       )}
 
       {/* MAIN CONTENT AREA */}
-      <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'auto' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'row', minHeight: 0, overflow: 'hidden' }}>
 
 
 
@@ -12832,6 +12882,151 @@ const LiveTerminal = () => {
           </div>
         </div>
 
+        {/* RIGHT SIDEBAR: Work Sequence Steps — Icon-based Enterprise Design */}
+        {selectedApp?.config?.stepListEnabled !== false && showWorkSequence && (
+          <div style={{
+            width: '62px',
+            minWidth: '62px',
+            backgroundColor: '#0a0f1e',
+            borderLeft: '1px solid rgba(59, 130, 246, 0.15)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            padding: '14px 0',
+            gap: '0px',
+            animation: 'fadeIn 0.2s ease-in-out',
+            flexShrink: 0,
+            zIndex: 10
+          }}>
+            {steps.map((step, idx) => {
+              const summary = selectedApp ? getStepRequiredSummary(step) : { total: 0, done: 0, ok: true };
+              const isLocked = !canNavigateToStep(idx);
+              const isActive = idx === currentStepIndex;
+              const isCompleted = idx < currentStepIndex;
+              const hasProgress = selectedApp && summary.total > 0;
+
+              return (
+                <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                  {/* Connector line above */}
+                  {idx > 0 && (
+                    <div style={{
+                      width: '2px',
+                      height: '10px',
+                      backgroundColor: isCompleted ? '#22c55e' : (isActive ? '#3b82f6' : 'rgba(255,255,255,0.1)'),
+                      transition: 'background-color 0.3s ease',
+                      flexShrink: 0
+                    }} />
+                  )}
+
+                  {/* Step Icon Button */}
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!isLocked) {
+                        setCurrentStepIndex(idx);
+                      } else {
+                        toast.error(`Complete "${steps[currentStepIndex]?.title || 'current step'}" first`, {
+                          icon: '🔒',
+                          style: { borderRadius: '10px', background: '#334155', color: '#fff' }
+                        });
+                      }
+                    }}
+                    title={`${idx + 1}. ${step.title}${hasProgress ? ` (${summary.done}/${summary.total})` : ''}`}
+                    style={{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: isActive ? '12px' : '50%',
+                      backgroundColor: isActive ? '#1e3a5f' : (isCompleted ? 'rgba(34,197,94,0.15)' : (isLocked ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.07)')),
+                      border: isActive ? '2px solid #3b82f6' : (isCompleted ? '2px solid rgba(34,197,94,0.4)' : '1px solid rgba(255,255,255,0.08)'),
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: isLocked ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                      position: 'relative',
+                      opacity: isLocked ? 0.45 : 1,
+                      boxShadow: isActive
+                        ? '0 0 16px rgba(59,130,246,0.4), 0 0 4px rgba(59,130,246,0.2)'
+                        : (isCompleted ? '0 0 8px rgba(34,197,94,0.2)' : 'none'),
+                      flexShrink: 0
+                    }}
+                    onMouseEnter={e => {
+                      if (!isLocked && !isActive) {
+                        e.currentTarget.style.transform = 'scale(1.15)';
+                        e.currentTarget.style.boxShadow = '0 0 12px rgba(59,130,246,0.3)';
+                        e.currentTarget.style.borderColor = 'rgba(59,130,246,0.5)';
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.transform = 'scale(1)';
+                      e.currentTarget.style.boxShadow = isActive
+                        ? '0 0 16px rgba(59,130,246,0.4), 0 0 4px rgba(59,130,246,0.2)'
+                        : (isCompleted ? '0 0 8px rgba(34,197,94,0.2)' : 'none');
+                      e.currentTarget.style.borderColor = isActive ? '#3b82f6' : (isCompleted ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.08)');
+                    }}
+                  >
+                    {/* Inner content: checkmark for completed, lock for locked, number for others */}
+                    {isCompleted ? (
+                      <CheckCircle2 size={16} color="#4ade80" strokeWidth={2.5} />
+                    ) : isLocked ? (
+                      <Lock size={13} color="rgba(255,255,255,0.35)" />
+                    ) : (
+                      <span style={{
+                        fontSize: isActive ? '0.82rem' : '0.72rem',
+                        fontWeight: 900,
+                        color: isActive ? '#93c5fd' : 'rgba(255,255,255,0.7)',
+                        letterSpacing: '-0.02em',
+                        lineHeight: 1
+                      }}>
+                        {idx + 1}
+                      </span>
+                    )}
+
+                    {/* Status dot — top-right corner */}
+                    {hasProgress && (
+                      <div style={{
+                        position: 'absolute',
+                        top: '-2px',
+                        right: '-2px',
+                        width: '10px',
+                        height: '10px',
+                        borderRadius: '50%',
+                        backgroundColor: summary.ok ? '#22c55e' : '#ef4444',
+                        border: '2px solid #0a0f1e',
+                        boxShadow: summary.ok ? '0 0 6px rgba(34,197,94,0.5)' : '0 0 6px rgba(239,68,68,0.5)'
+                      }} />
+                    )}
+
+                    {/* Active pulse ring */}
+                    {isActive && (
+                      <div style={{
+                        position: 'absolute',
+                        inset: '-4px',
+                        borderRadius: '14px',
+                        border: '1px solid rgba(59,130,246,0.2)',
+                        animation: 'maviPulse 2s ease-in-out infinite',
+                        pointerEvents: 'none'
+                      }} />
+                    )}
+                  </div>
+
+                  {/* Connector line below */}
+                  {idx < steps.length - 1 && (
+                    <div style={{
+                      width: '2px',
+                      height: '10px',
+                      backgroundColor: isCompleted ? '#22c55e' : 'rgba(255,255,255,0.1)',
+                      transition: 'background-color 0.3s ease',
+                      flexShrink: 0
+                    }} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
 
       </div>
 
@@ -13175,218 +13370,78 @@ const LiveTerminal = () => {
         </div>
       )}
 
-      {/* FRONTLINE COPILOT TOGGLE */}
-      {(selectedApp || selectedManual) && (selectedApp?.config?.copilotEnabled !== false) && (
-        <>
-          <button
-            onClick={() => setShowCopilot(!showCopilot)}
-            style={{
-              position: 'fixed',
-              bottom: '80px',
-              right: '24px',
-              width: '56px',
-              height: '56px',
-              borderRadius: '50%',
-              backgroundColor: '#0f172a',
-              color: 'white',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-              cursor: 'pointer',
-              border: 'none',
-              zIndex: 999,
-              transition: 'transform 0.2s',
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-          >
-            <Sparkles size={24} />
-            {showCopilot && (
-              <div style={{ position: 'absolute', top: '-10px', right: '-10px', backgroundColor: '#ef4444', width: '20px', height: '20px', borderRadius: '50%', border: '2px solid white' }} />
-            )}
-          </button>
+      {/* FRONTLINE COPILOT TOGGLE — Hidden */}
 
-          <FrontlineCopilot
-            isOpen={showCopilot}
-            onClose={() => setShowCopilot(false)}
-            appContext={{ currentStepIndex }}
-            selectedApp={selectedApp}
-          />
-        </>
-      )}
-
-      {/* Step thumbnails list drawer - overlays or renders right above footer */}
-      {selectedApp?.config?.stepListEnabled !== false && showWorkSequence && (
-        <div style={{
-          padding: '12px 20px',
-          backgroundColor: '#0f172a',
-          borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-          display: 'flex',
-          gap: '10px',
-          overflowX: 'auto',
-          animation: 'fadeIn 0.2s ease-in-out',
-          flexShrink: 0,
-          zIndex: 10
-        }}>
-          {steps.map((step, idx) => (
-            (() => {
-              const summary = selectedApp ? getStepRequiredSummary(step) : { total: 0, done: 0, ok: true };
-              const isLocked = !canNavigateToStep(idx);
-              const isActive = idx === currentStepIndex;
-
-              return (
-                <div
-                  key={idx}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!isLocked) {
-                      setCurrentStepIndex(idx);
-                    } else {
-                      toast.error(`Please complete "${steps[currentStepIndex]?.title || 'current step'}" first`, {
-                        icon: '🔒',
-                        style: { borderRadius: '10px', background: '#334155', color: '#fff' }
-                      });
-                    }
-                  }}
-                  style={{
-                    minWidth: '150px',
-                    height: '80px',
-                    backgroundColor: isActive ? '#1e293b' : (isLocked ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.08)'),
-                    border: isActive ? '2px solid #3b82f6' : '1px solid rgba(255,255,255,0.1)',
-                    borderRadius: '8px',
-                    padding: '8px',
-                    cursor: isLocked ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '6px',
-                    opacity: isLocked ? 0.6 : 1,
-                    transition: 'all 0.2s ease',
-                    position: 'relative'
-                  }}
-                >
-                  <div style={{ fontSize: '0.7rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: '6px', color: isLocked ? 'rgba(255,255,255,0.4)' : 'white' }}>
-                    {selectedApp && summary.total > 0 && (
-                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: summary.ok ? '#22c55e' : '#ef4444', flexShrink: 0 }} />
-                    )}
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{idx + 1}. {step.title}</span>
-                    {isLocked && <div style={{ marginLeft: 'auto' }}><Lock size={10} color="rgba(255,255,255,0.4)" /></div>}
-                  </div>
-                  <div style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                    {step.image ? (
-                      <img src={step.image} alt={step.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      selectedApp && summary.total > 0 ? (
-                        <div style={{ textAlign: 'center' }}>
-                          <div style={{ fontSize: '0.8rem', fontWeight: 900, color: summary.ok ? '#4ade80' : '#f87171' }}>{summary.done}/{summary.total}</div>
-                        </div>
-                      ) : (
-                        <Activity size={16} color={isLocked ? 'rgba(255,255,255,0.2)' : '#3b82f6'} opacity={0.5} />
-                      )
-                    )}
-                  </div>
-                </div>
-              );
-            })()
-          ))}
-        </div>
-      )}
+      {/* Old horizontal Work Sequence strip removed — now rendered as RIGHT SIDEBAR inside MAIN CONTENT AREA */}
 
       {/* MAVI FOOTER BAR - Premium Tactile Navigation */}
       <div style={{
-        height: '60px',
-        background: 'linear-gradient(90deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
+        height: '56px',
+        background: 'linear-gradient(90deg, #0a0f1e 0%, #111827 50%, #0a0f1e 100%)',
         display: 'flex',
-        justifyContent: 'space-between',
+        justifyContent: 'center',
         padding: '0 20px',
         alignItems: 'center',
         color: 'white',
-        borderTop: '1px solid rgba(59, 130, 246, 0.3)',
-        boxShadow: '0 -4px 20px rgba(0,0,0,0.3)',
+        borderTop: '1px solid rgba(59, 130, 246, 0.15)',
+        boxShadow: '0 -4px 20px rgba(0,0,0,0.4)',
         flexShrink: 0,
-        gap: '12px'
+        gap: '16px'
       }}>
-        {/* Toggle Work Sequence Button */}
-        {selectedApp?.config?.stepListEnabled !== false && (
-          <button
-            onClick={() => setShowWorkSequence(!showWorkSequence)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: showWorkSequence ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255, 255, 255, 0.08)',
-              border: showWorkSequence ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid rgba(255, 255, 255, 0.15)',
-              padding: '6px 12px',
-              borderRadius: '6px',
-              color: 'white',
-              cursor: 'pointer',
-              fontSize: '0.72rem',
-              fontWeight: 700,
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-              transition: 'all 0.15s ease'
-            }}
-          >
-            {showWorkSequence ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-            <span>WORK SEQUENCE</span>
-            <span style={{ fontSize: '0.65rem', color: '#cbd5e1', fontWeight: 500 }}>
-              ({steps.length})
-            </span>
-          </button>
-        )}
+        {/* Centered Icon Navigation */}
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
 
-        {/* Step Progress Indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
-          {steps.map((_, idx) => (
-            <div
-              key={idx}
-              style={{
-                flex: 1,
-                height: idx === currentStepIndex ? '6px' : '4px',
-                borderRadius: '3px',
-                backgroundColor: idx < currentStepIndex ? '#22c55e' :
-                  idx === currentStepIndex ? '#3b82f6' : 'rgba(255,255,255,0.15)',
-                transition: 'all 0.3s ease',
-                boxShadow: idx === currentStepIndex ? '0 0 8px rgba(59,130,246,0.6)' : 'none'
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Center: Step Label */}
-        <div style={{ flexShrink: 0, textAlign: 'center', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', fontWeight: 600, minWidth: '100px' }}>
-          STEP <span style={{ color: 'white', fontWeight: 900, fontSize: '0.9rem' }}>{currentStepIndex + 1}</span> / {steps.length}
-        </div>
-
-        {/* Right: Navigation Buttons */}
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexShrink: 0 }}>
-          {/* PREVIOUS STEP */}
+          {/* PREVIOUS STEP — Icon Only */}
           <button
             onClick={handlePrevStep}
             disabled={currentStepIndex === 0}
+            title="Previous Step"
             style={{
-              background: currentStepIndex === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.1)',
-              border: '1px solid rgba(255,255,255,0.15)',
-              color: currentStepIndex === 0 ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.85)',
-              padding: '10px 18px',
-              borderRadius: '10px',
+              width: '42px',
+              height: '42px',
+              borderRadius: '50%',
+              background: currentStepIndex === 0 ? 'rgba(239,68,68,0.15)' : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+              border: currentStepIndex === 0 ? '1px solid rgba(239,68,68,0.15)' : '2px solid rgba(255,255,255,0.15)',
+              color: currentStepIndex === 0 ? 'rgba(255,255,255,0.25)' : 'white',
               display: 'flex',
               alignItems: 'center',
-              gap: '7px',
-              fontSize: '0.85rem',
-              fontWeight: 700,
+              justifyContent: 'center',
               cursor: currentStepIndex === 0 ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s ease',
-              backdropFilter: 'blur(8px)',
-              letterSpacing: '0.02em'
+              transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+              boxShadow: currentStepIndex === 0 ? 'none' : '0 4px 14px rgba(239,68,68,0.4)',
+              padding: 0,
+              flexShrink: 0
             }}
-            onMouseEnter={e => { if (currentStepIndex > 0) { e.currentTarget.style.background = 'rgba(255,255,255,0.18)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}}
-            onMouseLeave={e => { e.currentTarget.style.background = currentStepIndex === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.1)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+            onMouseEnter={e => { if (currentStepIndex > 0) { e.currentTarget.style.transform = 'scale(1.12)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(239,68,68,0.55)'; }}}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = currentStepIndex === 0 ? 'none' : '0 4px 14px rgba(239,68,68,0.4)'; }}
           >
-            <ArrowLeft size={16} /> Prev
+            <ArrowLeft size={20} strokeWidth={2.5} />
           </button>
 
-          {/* NEXT STEP */}
+          {/* Step Counter Badge */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '6px 14px',
+            borderRadius: '20px',
+            backgroundColor: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            minWidth: '70px',
+            justifyContent: 'center'
+          }}>
+            <span style={{ fontSize: '0.95rem', fontWeight: 900, color: '#93c5fd', letterSpacing: '-0.02em' }}>
+              {currentStepIndex + 1}
+            </span>
+            <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.35)', fontWeight: 600 }}>
+              /
+            </span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'rgba(255,255,255,0.5)' }}>
+              {steps.length}
+            </span>
+          </div>
+
+          {/* NEXT STEP — Icon Only */}
           {currentStepIndex < steps.length - 1 && (
             <button
               onClick={() => {
@@ -13400,59 +13455,61 @@ const LiveTerminal = () => {
                   });
                 }
               }}
+              title="Next Step"
               style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '50%',
                 background: canNavigateToStep(currentStepIndex + 1)
                   ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)'
-                  : 'rgba(255,255,255,0.08)',
+                  : 'rgba(255,255,255,0.06)',
                 border: canNavigateToStep(currentStepIndex + 1)
-                  ? '1px solid rgba(59,130,246,0.4)'
-                  : '1px solid rgba(255,255,255,0.1)',
-                color: 'white',
-                padding: '10px 28px',
-                borderRadius: '10px',
+                  ? '2px solid rgba(255,255,255,0.15)'
+                  : '1px solid rgba(255,255,255,0.08)',
+                color: canNavigateToStep(currentStepIndex + 1) ? 'white' : 'rgba(255,255,255,0.3)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '7px',
-                fontSize: '0.9rem',
-                fontWeight: 800,
+                justifyContent: 'center',
                 cursor: canNavigateToStep(currentStepIndex + 1) ? 'pointer' : 'not-allowed',
-                transition: 'all 0.2s ease',
+                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                 boxShadow: canNavigateToStep(currentStepIndex + 1)
-                  ? '0 4px 15px rgba(59,130,246,0.45), inset 0 1px 0 rgba(255,255,255,0.15)'
+                  ? '0 4px 14px rgba(59,130,246,0.45)'
                   : 'none',
-                letterSpacing: '0.02em'
+                padding: 0,
+                flexShrink: 0
               }}
-              onMouseEnter={e => { if (canNavigateToStep(currentStepIndex + 1)) { e.currentTarget.style.background = 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 20px rgba(59,130,246,0.5), inset 0 1px 0 rgba(255,255,255,0.15)'; }}}
-              onMouseLeave={e => { e.currentTarget.style.background = canNavigateToStep(currentStepIndex + 1) ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' : 'rgba(255,255,255,0.08)'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = canNavigateToStep(currentStepIndex + 1) ? '0 4px 15px rgba(59,130,246,0.45), inset 0 1px 0 rgba(255,255,255,0.15)' : 'none'; }}
+              onMouseEnter={e => { if (canNavigateToStep(currentStepIndex + 1)) { e.currentTarget.style.transform = 'scale(1.12)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(59,130,246,0.6)'; }}}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = canNavigateToStep(currentStepIndex + 1) ? '0 4px 14px rgba(59,130,246,0.45)' : 'none'; }}
             >
-              Next Step <ChevronRight size={18} />
+              <ChevronRight size={22} strokeWidth={2.5} />
             </button>
           )}
 
-          {/* COMPLETE ORDER - only on last step */}
+          {/* COMPLETE ORDER — Icon Only, last step */}
           {currentStepIndex === steps.length - 1 && (
             <button
               onClick={() => setShowSignaturePad(true)}
+              title="Complete Order"
               style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '50%',
                 background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                border: '1px solid rgba(16,185,129,0.4)',
+                border: '2px solid rgba(255,255,255,0.15)',
                 color: 'white',
-                padding: '10px 28px',
-                borderRadius: '10px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
-                fontSize: '0.9rem',
-                fontWeight: 800,
+                justifyContent: 'center',
                 cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                boxShadow: '0 4px 15px rgba(16,185,129,0.45), inset 0 1px 0 rgba(255,255,255,0.15)',
-                letterSpacing: '0.02em'
+                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                boxShadow: '0 4px 14px rgba(16,185,129,0.45)',
+                padding: 0,
+                flexShrink: 0
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg, #059669 0%, #047857 100%)'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 20px rgba(16,185,129,0.5), inset 0 1px 0 rgba(255,255,255,0.15)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 15px rgba(16,185,129,0.45), inset 0 1px 0 rgba(255,255,255,0.15)'; }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.12)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(16,185,129,0.6)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(16,185,129,0.45)'; }}
             >
-              <CheckCircle size={18} /> Complete Order
+              <CheckCircle size={20} strokeWidth={2.5} />
             </button>
           )}
         </div>

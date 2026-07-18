@@ -710,6 +710,7 @@ export default function DrawingManager() {
     const [cadTool, setCadTool] = useState('select'); // select, line, circle, rect, text, erase
     const [mirrorMenu, setMirrorMenu] = useState(null); // { shapeId, x, y }
     const [dimContextMenu, setDimContextMenu] = useState(null); // { dimId, x, y }
+    const [canvasContextMenu, setCanvasContextMenu] = useState(null); // { x, y, canvasX, canvasY }
     const [drawingCategory, setDrawingCategory] = useState('dimension'); // dimension, diameter, radius, angle, etc.
     const [dimMoveMode, setDimMoveMode] = useState(null); // null, 'all', 'label'
     const [dragAnchor, setDragAnchor] = useState(null); // { dimId, anchorKey: 'p1' | 'p2' | 'center' | 'label' }
@@ -1413,6 +1414,97 @@ export default function DrawingManager() {
                 y: top
             });
         }
+    };
+
+    const handleCanvasContextMenu = (e) => {
+        if (cadTool !== 'select' || !activeDimId) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (svgRef.current) {
+            const parentRect = svgRef.current.parentElement.getBoundingClientRect();
+            const top = e.clientY - parentRect.top;
+            const left = e.clientX - parentRect.left;
+            const canvasCoords = getCanvasCoords(e);
+            setCanvasContextMenu({
+                x: left,
+                y: top,
+                canvasX: canvasCoords.x,
+                canvasY: canvasCoords.y
+            });
+        }
+    };
+
+    const setStartPointFromCanvasMenu = () => {
+        if (!activeDimId || !selectedDwg || !canvasContextMenu) return;
+        const targetX = Math.round(canvasContextMenu.canvasX);
+        const targetY = Math.round(canvasContextMenu.canvasY);
+        const updatedDwg = {
+            ...selectedDwg,
+            dimensions: selectedDwg.dimensions.map(dim => {
+                if (dim.id === activeDimId) {
+                    const isAngle = dim.category === 'angle';
+                    if (isAngle) {
+                        const cx = dim.cx ?? dim.lx;
+                        const cy = dim.cy ?? dim.ly;
+                        const angleStart = Math.round(Math.atan2(targetY - cy, targetX - cx) * (180 / Math.PI));
+                        return { ...dim, x1: targetX, y1: targetY, angleStart };
+                    }
+                    return { ...dim, x1: targetX, y1: targetY };
+                }
+                return dim;
+            })
+        };
+        setDrawings(prev => prev.map(d => d.id === selectedDwgId ? updatedDwg : d));
+        saveDrawing(updatedDwg).catch(err => console.error('Failed to auto-save start point change:', err));
+        setCanvasContextMenu(null);
+        toast.success('Titik awal parameter berhasil diperbarui.');
+    };
+
+    const setEndPointFromCanvasMenu = () => {
+        if (!activeDimId || !selectedDwg || !canvasContextMenu) return;
+        const targetX = Math.round(canvasContextMenu.canvasX);
+        const targetY = Math.round(canvasContextMenu.canvasY);
+        const updatedDwg = {
+            ...selectedDwg,
+            dimensions: selectedDwg.dimensions.map(dim => {
+                if (dim.id === activeDimId) {
+                    const isAngle = dim.category === 'angle';
+                    if (isAngle) {
+                        const cx = dim.cx ?? dim.lx;
+                        const cy = dim.cy ?? dim.ly;
+                        const angleEnd = Math.round(Math.atan2(targetY - cy, targetX - cx) * (180 / Math.PI));
+                        return { ...dim, x2: targetX, y2: targetY, angleEnd };
+                    }
+                    return { ...dim, x2: targetX, y2: targetY };
+                }
+                return dim;
+            })
+        };
+        setDrawings(prev => prev.map(d => d.id === selectedDwgId ? updatedDwg : d));
+        saveDrawing(updatedDwg).catch(err => console.error('Failed to auto-save end point change:', err));
+        setCanvasContextMenu(null);
+        toast.success('Titik akhir parameter berhasil diperbarui.');
+    };
+
+    const setCenterPointFromCanvasMenu = () => {
+        if (!activeDimId || !selectedDwg || !canvasContextMenu) return;
+        const targetX = Math.round(canvasContextMenu.canvasX);
+        const targetY = Math.round(canvasContextMenu.canvasY);
+        const updatedDwg = {
+            ...selectedDwg,
+            dimensions: selectedDwg.dimensions.map(dim => {
+                if (dim.id === activeDimId) {
+                    const angleStart = Math.round(Math.atan2((dim.y1 ?? 180) - targetY, (dim.x1 ?? 150) - targetX) * (180 / Math.PI));
+                    const angleEnd = Math.round(Math.atan2((dim.y2 ?? 180) - targetY, (dim.x2 ?? 350) - targetX) * (180 / Math.PI));
+                    return { ...dim, cx: targetX, cy: targetY, angleStart, angleEnd };
+                }
+                return dim;
+            })
+        };
+        setDrawings(prev => prev.map(d => d.id === selectedDwgId ? updatedDwg : d));
+        saveDrawing(updatedDwg).catch(err => console.error('Failed to auto-save center point change:', err));
+        setCanvasContextMenu(null);
+        toast.success('Titik pusat (Vertex) parameter berhasil diperbarui.');
     };
 
     // ─── Trigger Management Handlers ───
@@ -2499,6 +2591,7 @@ export default function DrawingManager() {
 
     const handleSvgMouseDown = (e) => {
         setDimContextMenu(null);
+        setCanvasContextMenu(null);
         // Intercept middle click, Spacebar + drag, or Pan tool active
         if (e.button === 1 || (e.button === 0 && spacePressed) || (cadTool === 'pan' && e.button === 0)) {
             setIsPanning(true);
@@ -3270,6 +3363,7 @@ export default function DrawingManager() {
 
     const handleCanvasClick = (e) => {
         setDimContextMenu(null);
+        setCanvasContextMenu(null);
         if (cadTool !== 'select') return;
         
         // Clear active selection on background click
@@ -6639,6 +6733,7 @@ export default function DrawingManager() {
                                             onMouseUp={handleSvgMouseUp}
                                             onDoubleClick={handleSvgDoubleClick}
                                             onClick={handleCanvasClick}
+                                            onContextMenu={handleCanvasContextMenu}
                                             onMouseEnter={() => setShowCrosshair(true)}
                                             onMouseLeave={() => setShowCrosshair(false)}
                                             style={{
@@ -8976,6 +9071,117 @@ export default function DrawingManager() {
                                                     onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
                                                 >
                                                     Tutup Menu
+                                                </button>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {canvasContextMenu && (() => {
+                                        const activeDim = selectedDwg?.dimensions.find(d => d.id === activeDimId);
+                                        if (!activeDim) return null;
+                                        const catColor = activeDim.color || getCategoryColor(activeDim.category || 'dimension');
+                                        const isAngle = activeDim.category === 'angle';
+                                        return (
+                                            <div style={{
+                                                position: 'absolute',
+                                                top: `${canvasContextMenu.y}px`,
+                                                left: `${canvasContextMenu.x}px`,
+                                                transform: 'translate(10px, 10px)',
+                                                backgroundColor: '#0f172af2',
+                                                border: `1px solid ${catColor}`,
+                                                borderRadius: '10px',
+                                                padding: '12px',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: '6px',
+                                                zIndex: 1100,
+                                                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
+                                                fontFamily: "'Inter', sans-serif",
+                                                minWidth: '200px',
+                                                backdropFilter: 'blur(4px)',
+                                                borderLeft: `4px solid ${catColor}`
+                                            }}>
+                                                <div style={{ borderBottom: '1px solid #334155', paddingBottom: '4px', marginBottom: '4px' }}>
+                                                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#f8fafc', display: 'block' }}>Atur Koordinat Canvas</span>
+                                                    <span style={{ fontSize: '0.58rem', color: '#94a3b8' }}>X: {Math.round(canvasContextMenu.canvasX)}, Y: {Math.round(canvasContextMenu.canvasY)}</span>
+                                                </div>
+                                                <button
+                                                    onClick={setStartPointFromCanvasMenu}
+                                                    style={{
+                                                        padding: '6px 8px',
+                                                        backgroundColor: '#1e293b',
+                                                        color: '#f8fafc',
+                                                        border: '1px solid #334155',
+                                                        borderRadius: '6px',
+                                                        fontSize: '0.68rem',
+                                                        fontWeight: 'bold',
+                                                        cursor: 'pointer',
+                                                        textAlign: 'left',
+                                                        transition: 'all 0.2s'
+                                                    }}
+                                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#334155'; }}
+                                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#1e293b'; }}
+                                                >
+                                                    📍 Tentukan Titik Awal (Start Point)
+                                                </button>
+                                                <button
+                                                    onClick={setEndPointFromCanvasMenu}
+                                                    style={{
+                                                        padding: '6px 8px',
+                                                        backgroundColor: '#1e293b',
+                                                        color: '#f8fafc',
+                                                        border: '1px solid #334155',
+                                                        borderRadius: '6px',
+                                                        fontSize: '0.68rem',
+                                                        fontWeight: 'bold',
+                                                        cursor: 'pointer',
+                                                        textAlign: 'left',
+                                                        transition: 'all 0.2s'
+                                                    }}
+                                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#334155'; }}
+                                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#1e293b'; }}
+                                                >
+                                                    🏁 Tentukan Titik Akhir (End Point)
+                                                </button>
+                                                {isAngle && (
+                                                    <button
+                                                        onClick={setCenterPointFromCanvasMenu}
+                                                        style={{
+                                                            padding: '6px 8px',
+                                                            backgroundColor: '#1e293b',
+                                                            color: '#f8fafc',
+                                                            border: '1px solid #334155',
+                                                            borderRadius: '6px',
+                                                            fontSize: '0.68rem',
+                                                            fontWeight: 'bold',
+                                                            cursor: 'pointer',
+                                                            textAlign: 'left',
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#334155'; }}
+                                                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#1e293b'; }}
+                                                    >
+                                                        🎯 Tentukan Titik Pusat (Vertex)
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={() => setCanvasContextMenu(null)}
+                                                    style={{
+                                                        background: 'transparent',
+                                                        border: 'none',
+                                                        color: '#94a3b8',
+                                                        fontSize: '0.62rem',
+                                                        fontWeight: 'bold',
+                                                        cursor: 'pointer',
+                                                        textAlign: 'center',
+                                                        padding: '4px 0 0 0',
+                                                        borderTop: '1px solid #334155',
+                                                        marginTop: '2px'
+                                                    }}
+                                                    onMouseEnter={e => e.currentTarget.style.color = 'white'}
+                                                    onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                                                >
+                                                    Batal
                                                 </button>
                                             </div>
                                         );

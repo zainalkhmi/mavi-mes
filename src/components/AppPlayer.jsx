@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
     Search, Play, Square, RefreshCw, ExternalLink, User, MapPin,
-    Rocket, Clock3, Package, Maximize2, Minimize2, Star,
+    Rocket, Clock3, Package, Maximize2, Minimize2, Star, LayoutGrid,
     AlertTriangle, RotateCcw, X, ChevronRight, Pause, MessageSquare, Info, Code, Play as PlayIcon,
     Wifi, Cpu, HardDrive, CheckCircle2, XCircle, AlertCircle, Signal, Bug,
     Languages, Camera, PenTool, Globe, Plus, FilePlus, Settings2, Sparkles, CheckCircle2 as CheckIcon,
@@ -874,6 +874,13 @@ const AppPlayer = () => {
     const [isPaused, setIsPaused] = useState(false);
     const [devMode, setDevMode] = useState(() => loadLS(LS_DEV_MODE, false));
     const [appScaleMode, setAppScaleMode] = useState(() => loadLS(LS_APP_SCALE_MODE, 'FIT_SCREEN'));
+    const [appLayoutMode, setAppLayoutMode] = useState(() => {
+        try {
+            return localStorage.getItem('mavi_runtime_layout_mode') || 'PROPORTIONAL';
+        } catch (e) {
+            return 'PROPORTIONAL';
+        }
+    });
     const [showComments, setShowComments] = useState(false);
     const [newComment, setNewComment] = useState('');
     const [sessionComments, setSessionComments] = useState([]);
@@ -932,10 +939,11 @@ const AppPlayer = () => {
             station: stationIdFilter || 'Station-01', 
             operator: operator || 'Operator',
             devMode: devMode ? 'true' : 'false',
-            scaleMode: appScaleMode
+            scaleMode: appScaleMode,
+            layoutMode: appLayoutMode
         });
         return `/#/terminal/${activeAppId}?${params.toString()}`;
-    }, [activeAppId, stationIdFilter, operator, devMode, appScaleMode]);
+    }, [activeAppId, stationIdFilter, operator, devMode, appScaleMode, appLayoutMode]);
 
     // ── Load data ────────────────────────────────────────────────────────────
     const loadData = async () => {
@@ -1008,6 +1016,12 @@ const AppPlayer = () => {
     useEffect(() => {
         saveLS(LS_APP_SCALE_MODE, appScaleMode);
     }, [appScaleMode]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('mavi_runtime_layout_mode', appLayoutMode);
+        } catch (e) {}
+    }, [appLayoutMode]);
 
     // ── Timer ────────────────────────────────────────────────────────────────
     useEffect(() => {
@@ -1716,6 +1730,30 @@ const AppPlayer = () => {
                                         <Maximize2 size={10} />
                                         {appScaleMode === 'FIT_SCREEN' ? 'Fit Screen' : 'Fit Width'}
                                     </button>
+
+                                    {activeApp?.config?.devicePreset === 'RESPONSIVE' && (
+                                        <button
+                                            onClick={() => setAppLayoutMode(prev => prev === 'PROPORTIONAL' ? 'RESPONSIVE' : 'PROPORTIONAL')}
+                                            title={appLayoutMode === 'PROPORTIONAL' ? 'Switch to Responsive Stack Layout' : 'Switch to Proportional Canvas Layout'}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                padding: '4px 8px',
+                                                borderRadius: '4px',
+                                                border: '1px solid rgba(255,255,255,0.15)',
+                                                backgroundColor: appLayoutMode === 'PROPORTIONAL' ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.05)',
+                                                color: appLayoutMode === 'PROPORTIONAL' ? '#93c5fd' : 'white',
+                                                fontWeight: 700,
+                                                fontSize: '0.68rem',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.15s'
+                                            }}
+                                        >
+                                            <LayoutGrid size={10} />
+                                            {appLayoutMode === 'PROPORTIONAL' ? 'Proportional UI' : 'Responsive Stack'}
+                                        </button>
+                                    )}
 
                                     <div style={{ position: 'relative', flexShrink: 0 }}>
                                         <button
